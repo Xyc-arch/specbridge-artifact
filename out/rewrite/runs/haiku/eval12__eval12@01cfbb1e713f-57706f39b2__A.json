@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-57706f39b2",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Each media type's byte rate is the mean of its tracks' individual Bytes/Milliseconds ratios.",
+ "a": {
+  "request": "For each media type (`Track.MediaTypeId`), across all tracks, work out the average track `UnitPrice` and the average of each track's `Bytes` divided by its `Milliseconds` (tracks with no size ignored). Take the simple average of that byte rate across the media types, and keep only the media types whose rate is above it. Return one row with: the average of their average unit prices, the average of their byte rates, and the average amount by which their rate exceeds the cross-media-type average (rate minus that average). Don't round anything.",
+  "sql": "WITH price AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId), rate AS (SELECT MediaTypeId, AVG(CAST(Bytes AS REAL) / NULLIF(Milliseconds, 0)) AS byte_rate FROM Track WHERE Bytes IS NOT NULL GROUP BY MediaTypeId), mt AS (SELECT p.MediaTypeId, p.avg_price, r.byte_rate FROM price p JOIN rate r ON r.MediaTypeId = p.MediaTypeId), overall AS (SELECT AVG(byte_rate) AS avg_rate FROM mt), above AS (SELECT mt.avg_price, mt.byte_rate, overall.avg_rate FROM mt CROSS JOIN overall WHERE mt.byte_rate > overall.avg_rate) SELECT AVG(avg_price) AS avg_of_avg_unit_price, AVG(byte_rate) AS avg_byte_rate, AVG(byte_rate - avg_rate) AS avg_rate_excess FROM above;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For each media type, looking at all tracks, work out the average track unit price and its bytes per millisecond. Keep the media types whose bytes per millisecond is above the simple average across media types. Give one row with: the average of their average unit prices, the average of their bytes per millisecond, and on average how far their rate is above that cross-media-type average (rate minus average). No rounding. Each media type's byte rate is the mean of its tracks' individual Bytes/Milliseconds ratios.",
+  "sql": "WITH media_stats AS (SELECT t.MediaTypeId, AVG(t.UnitPrice) AS avg_price, AVG(t.Bytes * 1.0 / t.Milliseconds) AS byte_rate FROM Track t GROUP BY t.MediaTypeId), overall AS (SELECT AVG(byte_rate) AS avg_rate FROM media_stats) SELECT AVG(m.avg_price) AS avg_of_avg_prices, AVG(m.byte_rate) AS avg_byte_rate, AVG(m.byte_rate - o.avg_rate) AS avg_rate_above FROM media_stats m CROSS JOIN overall o WHERE m.byte_rate > o.avg_rate;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each media type, take the mean of its tracks' individual Bytes/Milliseconds ratios as the type's bytes-per-millisecond, and the mean of its tracks' UnitPrice as its average unit price; keep the types whose bytes-per-millisecond exceeds the unweighted mean of those per-type rates, then output one row with the mean of the kept types' average unit prices, the mean of their bytes-per-millisecond, and the mean of (each kept type's rate minus that cross-type mean), unrounded",
+  "sql": "WITH rates AS (SELECT t.MediaTypeId, AVG(CAST(t.Bytes AS REAL) / NULLIF(t.Milliseconds, 0)) AS rate, AVG(t.UnitPrice) AS avg_price FROM Track t GROUP BY t.MediaTypeId), cross_mean AS (SELECT AVG(rate) AS m FROM rates), kept AS (SELECT r.rate, r.avg_price FROM rates r, cross_mean c WHERE r.rate > c.m) SELECT AVG(k.avg_price) AS mean_avg_unit_price, AVG(k.rate) AS mean_bytes_per_ms, AVG(k.rate - c.m) AS mean_rate_deviation FROM kept k, cross_mean c;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each media type, compute the mean of the per-track ratios (Bytes \u00f7 Milliseconds) across its tracks, and also the average track unit price across its tracks. Keep the media types whose mean per-track byte rate is above the simple average of those media-type byte rates. Return one row with: the average of their average unit prices, the average of their mean per-track byte rates, and, on average, how far their byte rate is above the cross-media-type average (rate minus average). Do not round.",
+  "sql": "WITH mt AS (SELECT t.MediaTypeId, AVG(t.Bytes * 1.0 / t.Milliseconds) AS mean_rate, AVG(t.UnitPrice) AS avg_price FROM Track t GROUP BY t.MediaTypeId), stats AS (SELECT AVG(mean_rate) AS overall_avg FROM mt), sel AS (SELECT mt.* FROM mt, stats WHERE mt.mean_rate > stats.overall_avg) SELECT AVG(sel.avg_price) AS avg_of_avg_unit_prices, AVG(sel.mean_rate) AS avg_of_mean_byte_rates, AVG(sel.mean_rate - stats.overall_avg) AS avg_rate_above_cross_media_type_avg FROM sel, stats;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

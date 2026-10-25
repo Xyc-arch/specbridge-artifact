@@ -1,0 +1,52 @@
+{
+ "interpretations": [
+  "Filter on `rebrate` > 0.0005 as a strict numeric comparison. Return SUM(`rebtotal`) and AVG(`feerate` \u2212 `rebrate`) over the matching fee records, in that order, as one row, with NULL for each value if no rows match.",
+  "Same as 1, but the average is computed as AVG(`feerate`) \u2212 AVG(`rebrate`) over the matching rows. That is not the same as the average of the per-row difference when some rows have a NULL `feerate`.",
+  "Same as 1, but the average is taken only over rows where both `feerate` and `rebrate` are non-null. A row with a NULL `feerate` yields a NULL difference and is skipped.",
+  "The sum of `rebtotal` includes every matching row, even those with a NULL `feerate`. The average net rate uses only rows where `feerate` is non-null. This is the same as 1 with the NULL handling spelled out.",
+  "The sum of `rebtotal` is limited to rows where `feerate` is non-null, so both values cover the same row set.",
+  "Treat \"fee records\" as rows of the `fees` table only, with no join to `orders`, `orderexecutions` or `users`.",
+  "Treat \"fee records\" as fees that are linked to existing orders (non-null `orderslink` that matches `orders.recordvault`). Rows with no matching order are excluded.",
+  "Compare `rebrate` to 0.0005 as a decimal value (5 basis points). The same number can be read as 0.0005%, which would mean 0.000005 as a fraction.",
+  "Return the two values unrounded, exactly as the database produces them, with no ROUND or formatting.",
+  "\"Ignoring missing values\" means NULLs are skipped by the aggregates. A NULL `rebtotal` adds nothing to the sum, and a NULL `feerate` or `rebrate` gives a NULL difference that AVG skips.",
+  "\"Ignoring missing values\" also covers empty strings or sentinel values such as 0 or -1 in `rebtotal`, `feerate` or `rebrate`, and those are excluded too.",
+  "\"Each value is empty if there is nothing to aggregate\" means SQL NULL, with no COALESCE to 0.",
+  "The empty case is returned as an empty string or an empty result, not as NULL.",
+  "The empty case means no rows at all are returned, rather than one row of NULLs.",
+  "The total rebate is the sum of `rebtotal` across all matching rows, expressed in mixed currencies, with no conversion by `feecoin`.",
+  "The total rebate is computed per currency (`feecoin`) and then combined. This gives more than one value, which conflicts with \"one row\".",
+  "The average net fee rate is a simple unweighted mean of per-row (`feerate` \u2212 `rebrate`). It is not weighted by order notional, `feetotal` or any other quantity.",
+  "The average net fee rate is weighted by `feetotal` or by order size, with the numerator and denominator taken over the matching rows.",
+  "Column order in the result is total rebate first, then average net fee rate.",
+  "The average net fee rate is computed as a ratio of sums, (SUM(`feerate`) \u2212 SUM(`rebrate`)) / COUNT(*), where COUNT(*) includes NULL rows. Count-based and AVG-based results differ when NULLs are present.",
+  "The average net fee rate could be expressed in percent or basis points instead of as a raw fraction.",
+  "Missing interpretations:",
+  "Compare `rebrate` to 0.0005 as a percentage figure, so that 0.0005 means 0.0005%, or 0.000005 as a fraction.",
+  "The average net fee rate is computed as SUM(`feerate` \u2212 `rebrate`) / COUNT(*) over the matching rows, so that rows with a NULL difference count in the denominator.",
+  "The average net fee rate is computed as SUM(`feerate` \u2212 `rebrate`) / COUNT(`rebtotal`), or is otherwise tied to the rows used for the rebate sum.",
+  "The `rebrate` filter is evaluated after rounding to the column's stored precision (DECIMAL(8,5)), so that float representation of 0.0005 does not affect the strict comparison.",
+  "Rows are de-duplicated by `orderslink`, so that several fee rows for the same order count once.",
+  "Fee records are restricted to a particular `feecoin` or fee tier (`feerange`), or the rows with a NULL `feecoin` are excluded."
+ ],
+ "queries": [
+  "SELECT SUM(rebtotal), AVG(feerate - rebrate) FROM fees WHERE rebrate > 0.0005;\n",
+  "SELECT AVG(feerate) - AVG(rebrate) FROM fees;\n",
+  "SELECT AVG(feerate - rebrate) FROM fees WHERE feerate IS NOT NULL AND rebrate IS NOT NULL",
+  "SELECT SUM(rebtotal) AS total_rebate, AVG(CASE WHEN feerate IS NOT NULL THEN feerate - rebrate END) AS avg_net_rate FROM fees",
+  "SELECT SUM(rebtotal) AS total_rebtotal, AVG(feerate) AS avg_feerate\nFROM fees\nWHERE feerate IS NOT NULL;\n"
+ ],
+ "raw": [
+  "1. Filter on `rebrate` > 0.0005 as a strict numeric comparison. Return SUM(`rebtotal`) and AVG(`feerate` \u2212 `rebrate`) over the matching fee records, in that order, as one row, with NULL for each value if no rows match.\n2. Same as 1, but the average is computed as AVG(`feerate`) \u2212 AVG(`rebrate`) over the matching rows. That is not the same as the average of the per-row difference when some rows have a NULL `feerate`.\n3. Same as 1, but the average is taken only over rows where both `feerate` and `rebrate` are non-null. A row with a NULL `feerate` yields a NULL difference and is skipped.\n4. The sum of `rebtotal` includes every matching row, even those with a NULL `feerate`. The average net rate uses only rows where `feerate` is non-null. This is the same as 1 with the NULL handling spelled out.\n5. The sum of `rebtotal` is limited to rows where `feerate` is non-null, so both values cover the same row set.\n6. Treat \"fee records\" as rows of the `fees` table only, with no join to `orders`, `orderexecutions` or `users`.\n7. Treat \"fee records\" as fees that are linked to existing orders (non-null `orderslink` that matches `orders.recordvault`). Rows with no matching order are excluded.\n8. Compare `rebrate` to 0.0005 as a decimal value (5 basis points). The same number can be read as 0.0005%, which would mean 0.000005 as a fraction.\n9. Return the two values unrounded, exactly as the database produces them, with no ROUND or formatting.\n10. \"Ignoring missing values\" means NULLs are skipped by the aggregates. A NULL `rebtotal` adds nothing to the sum, and a NULL `feerate` or `rebrate` gives a NULL difference that AVG skips.\n11. \"Ignoring missing values\" also covers empty strings or sentinel values such as 0 or -1 in `rebtotal`, `feerate` or `rebrate`, and those are excluded too.\n12. \"Each value is empty if there is nothing to aggregate\" means SQL NULL, with no COALESCE to 0.\n13. The empty case is returned as an empty string or an empty result, not as NULL.\n14. The empty case means no rows at all are returned, rather than one row of NULLs.\n15. The total rebate is the sum of `rebtotal` across all matching rows, expressed in mixed currencies, with no conversion by `feecoin`.\n16. The total rebate is computed per currency (`feecoin`) and then combined. This gives more than one value, which conflicts with \"one row\".\n17. The average net fee rate is a simple unweighted mean of per-row (`feerate` \u2212 `rebrate`). It is not weighted by order notional, `feetotal` or any other quantity.\n18. The average net fee rate is weighted by `feetotal` or by order size, with the numerator and denominator taken over the matching rows.\n19. Column order in the result is total rebate first, then average net fee rate.\n20. The average net fee rate is computed as a ratio of sums, (SUM(`feerate`) \u2212 SUM(`rebrate`)) / COUNT(*), where COUNT(*) includes NULL rows. Count-based and AVG-based results differ when NULLs are present.\n21. The average net fee rate could be expressed in percent or basis points instead of as a raw fraction.",
+  "Missing interpretations:\n\nCompare `rebrate` to 0.0005 as a percentage figure, so that 0.0005 means 0.0005%, or 0.000005 as a fraction.\nThe average net fee rate is computed as SUM(`feerate` \u2212 `rebrate`) / COUNT(*) over the matching rows, so that rows with a NULL difference count in the denominator.\nThe average net fee rate is computed as SUM(`feerate` \u2212 `rebrate`) / COUNT(`rebtotal`), or is otherwise tied to the rows used for the rebate sum.\nThe `rebrate` filter is evaluated after rounding to the column's stored precision (DECIMAL(8,5)), so that float representation of 0.0005 does not affect the strict comparison.\nRows are de-duplicated by `orderslink`, so that several fee rows for the same order count once.\nFee records are restricted to a particular `feecoin` or fee tier (`feerange`), or the rows with a NULL `feecoin` are excluded."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-4f1aa2827f",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 108007,
+  "chars_out": 4489
+ }
+}

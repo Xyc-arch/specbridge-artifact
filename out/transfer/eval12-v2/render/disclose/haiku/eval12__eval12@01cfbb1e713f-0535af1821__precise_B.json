@@ -1,0 +1,28 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0535af1821",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH line_items_with_product AS (\n  SELECT \n    ili.order_item_id,\n    ili.product_quantity,\n    ili.derived_product_cost,\n    ili.derived_total_cost,\n    p.product_color\n  FROM Invoice_Line_Items ili\n  INNER JOIN Order_Items oi ON ili.order_item_id = oi.order_item_id\n  INNER JOIN Products p ON ili.product_id = p.product_id\n),\ngrouped_data AS (\n  SELECT \n    order_item_id,\n    product_color,\n    AVG(CAST(product_quantity AS DECIMAL(19,4))) as avg_quantity,\n    AVG(\n      CASE \n        WHEN derived_total_cost IS NOT NULL AND derived_total_cost != 0\n        THEN (derived_product_cost - derived_total_cost) / derived_total_cost \n      END\n    ) as avg_cost_diff_ratio\n  FROM line_items_with_product\n  GROUP BY order_item_id, product_color\n),\nranked_data AS (\n  SELECT \n    order_item_id,\n    product_color,\n    avg_quantity,\n    avg_cost_diff_ratio,\n    RANK() OVER (\n      PARTITION BY product_color \n      ORDER BY avg_quantity DESC NULLS LAST\n    ) as rank\n  FROM grouped_data\n)\nSELECT \n  order_item_id,\n  product_color,\n  avg_quantity,\n  avg_cost_diff_ratio,\n  rank\nFROM ranked_data\nWHERE rank <= 3\nORDER BY product_color, rank;",
+  "assumptions": [
+   {
+    "assumption": "product_quantity values in Invoice_Line_Items are valid numeric strings castable to DECIMAL(19,4); non-numeric values would cause a query error.",
+    "unresolved": true
+   },
+   {
+    "assumption": "When derived_total_cost is zero or NULL, the ratio (derived_product_cost - derived_total_cost) / derived_total_cost should result in NULL and be excluded from the average, consistent with \"ignoring missing values\". The request does not explicitly specify division-by-zero handling.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [],
+ "seconds": 91.2,
+ "chars_out": 1804
+}

@@ -1,0 +1,33 @@
+{
+ "interpretations": [
+  "For each health and safety status whose mean scan-level `gbsize / spanmin` exceeds the unweighted mean of all status means, return one unrounded row containing the mean qualifying status rate, the mean qualifying status `scancount` value, and the mean difference between each qualifying status rate and the all-status mean.",
+  "Use the same rate calculation and threshold, but interpret \u201caverage count\u201d as the average number of scan records per qualifying status.",
+  "Use the same rate calculation and threshold, but interpret \u201caverage count\u201d as the average sum of `scancount` per qualifying status.",
+  "Use the same rate calculation and threshold, but interpret \u201caverage count\u201d as the average number of scan records with a nonmissing `gbsize / spanmin` rate per qualifying status.",
+  "For each status, calculate its mean scan-level rate; compare it with the mean rate across all matched scans, weighted by the number of scans in each status. Return the mean qualifying status rate, the mean qualifying status `scancount` value, and the mean amount by which qualifying status rates exceed that scan-level mean.",
+  "Use that scan-level threshold, but interpret \u201caverage count\u201d as the average number of scan records per qualifying status.",
+  "Use that scan-level threshold, but interpret \u201caverage count\u201d as the average sum of `scancount` per qualifying status.",
+  "Treat scans with a missing `healtheval` as their own status when calculating status rates and the all-status average.",
+  "Exclude scans with a missing `healtheval` before calculating status rates and the all-status average.",
+  "Interpret \u201caverage count\u201d as the average number of scans with a nonmissing `scancount` per qualifying status.",
+  "Interpret \u201caverage count\u201d as the mean `scancount` among scans with a nonmissing `gbsize / spanmin` rate in each qualifying status.",
+  "Use the scan-level threshold and interpret \u201caverage count\u201d as the average number of scans with a nonmissing `gbsize / spanmin` rate per qualifying status."
+ ],
+ "queries": [
+  "WITH status_means AS (\n  SELECT\n    sites.healtheval,\n    AVG(scans.gbsize / NULLIF(scans.spanmin, 0)) AS mean_rate,\n    AVG(scans.scancount) AS mean_scancount\n  FROM scans\n  JOIN sites ON sites.zoneregistry = scans.zoneref\n  GROUP BY sites.healtheval\n),\noverall AS (\n  SELECT AVG(mean_rate) AS all_status_mean\n  FROM status_means\n)\nSELECT\n  AVG(status_means.mean_rate),\n  AVG(status_means.mean_scancount),\n  AVG(status_means.mean_rate - overall.all_status_mean)\nFROM status_means\nCROSS JOIN overall\nWHERE status_means.mean_rate > overall.all_status_mean",
+  "WITH matched_scans AS (\n    SELECT\n        si.presstat AS status,\n        sc.scancount,\n        1.0 * sc.scancount / sc.spanmin AS scan_rate\n    FROM scans AS sc\n    JOIN sites AS si ON si.zoneregistry = sc.zoneref\n    WHERE si.presstat IS NOT NULL\n      AND sc.scancount IS NOT NULL\n      AND sc.spanmin > 0\n),\nstatus_rates AS (\n    SELECT\n        status,\n        AVG(scan_rate) AS mean_rate,\n        AVG(scancount) AS mean_scancount,\n        COUNT(*) AS scan_count\n    FROM matched_scans\n    GROUP BY status\n),\noverall_rate AS (\n    SELECT SUM(mean_rate * scan_count) / SUM(scan_count) AS mean_rate\n    FROM status_rates\n)\nSELECT\n    AVG(sr.mean_rate) AS mean_qualifying_status_rate,\n    AVG(sr.mean_scancount) AS mean_qualifying_status_scancount,\n    AVG(sr.mean_rate - o.mean_rate) AS mean_excess_rate\nFROM status_rates AS sr\nCROSS JOIN overall_rate AS o\nWHERE sr.mean_rate > o.mean_rate"
+ ],
+ "raw": [
+  "For each health and safety status whose mean scan-level `gbsize / spanmin` exceeds the unweighted mean of all status means, return one unrounded row containing the mean qualifying status rate, the mean qualifying status `scancount` value, and the mean difference between each qualifying status rate and the all-status mean.\n\nUse the same rate calculation and threshold, but interpret \u201caverage count\u201d as the average number of scan records per qualifying status.\n\nUse the same rate calculation and threshold, but interpret \u201caverage count\u201d as the average sum of `scancount` per qualifying status.\n\nUse the same rate calculation and threshold, but interpret \u201caverage count\u201d as the average number of scan records with a nonmissing `gbsize / spanmin` rate per qualifying status.\n\nFor each status, calculate its mean scan-level rate; compare it with the mean rate across all matched scans, weighted by the number of scans in each status. Return the mean qualifying status rate, the mean qualifying status `scancount` value, and the mean amount by which qualifying status rates exceed that scan-level mean.\n\nUse that scan-level threshold, but interpret \u201caverage count\u201d as the average number of scan records per qualifying status.\n\nUse that scan-level threshold, but interpret \u201caverage count\u201d as the average sum of `scancount` per qualifying status.\n\nTreat scans with a missing `healtheval` as their own status when calculating status rates and the all-status average.\n\nExclude scans with a missing `healtheval` before calculating status rates and the all-status average.",
+  "Interpret \u201caverage count\u201d as the average number of scans with a nonmissing `scancount` per qualifying status.\nInterpret \u201caverage count\u201d as the mean `scancount` among scans with a nonmissing `gbsize / spanmin` rate in each qualifying status.\nUse the scan-level threshold and interpret \u201caverage count\u201d as the average number of scans with a nonmissing `gbsize / spanmin` rate per qualifying status."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327038,
+  "chars_out": 3848
+ }
+}

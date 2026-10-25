@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-dabca577ba",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Take the above-average races ranked by how far their entry count exceeds the average, and return every race whose entry count reaches the 10th-highest entry count. All races tied at the cutoff are included.",
+ "b": {
+  "request": "Return every race whose count of constructorResults rows is at least the 10th-highest such count among races with entry count above the average entries per race, and for each give raceId, the circuit's country, SUM of constructorResults.points ignoring NULLs, the entry count, and (entry count \u2212 average), ordered by difference descending",
+  "sql": "WITH cr AS (SELECT raceId, COUNT(*) AS entries, SUM(points) AS total_points FROM constructorResults GROUP BY raceId), avg_e AS (SELECT AVG(entries) AS avg_entries FROM cr), above AS (SELECT cr.entries FROM cr CROSS JOIN avg_e WHERE cr.entries > avg_e.avg_entries), threshold AS (SELECT entries FROM above ORDER BY entries DESC LIMIT 1 OFFSET 9) SELECT cr.raceId, c.country, cr.total_points, cr.entries, cr.entries - avg_e.avg_entries AS diff FROM cr CROSS JOIN avg_e JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId WHERE cr.entries > avg_e.avg_entries AND cr.entries >= (SELECT entries FROM threshold) ORDER BY diff DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Which are the top 10 races by how far their number of constructor result entries exceeds the average number of entries per race? Look only at races above that average. For each one, give the race id, the circuit's country, the total constructor points scored in that race (ignoring missing points), the number of entries, and the difference from the average. List them from the biggest difference down. Take the above-average races ranked by how far their entry count exceeds the average, and return every race whose entry count reaches the 10th-highest entry count. All races tied at the cutoff are included.",
+  "sql": "WITH per_race AS (SELECT raceId, COUNT(*) AS entries, SUM(points) AS total_points FROM constructorResults GROUP BY raceId), avg_entries AS (SELECT AVG(entries) AS avg_entries FROM per_race), above AS (SELECT p.raceId, p.entries, p.total_points, p.entries - a.avg_entries AS diff FROM per_race p CROSS JOIN avg_entries a WHERE p.entries > a.avg_entries), ranked AS (SELECT above.*, RANK() OVER (ORDER BY entries DESC) AS rnk FROM above) SELECT r.raceId, c.country, ranked.total_points, ranked.entries, ranked.diff FROM ranked JOIN races r ON r.raceId = ranked.raceId JOIN circuits c ON c.circuitId = r.circuitId WHERE ranked.rnk <= 10 ORDER BY ranked.diff DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Count each race's constructor result entries (`constructorResults` records, linked to the race and its circuit) and total their points, ignoring missing points. Group by race id and circuit country. Among the races whose entry count is above the average entry count across all races, list every race whose entry count is at least the 10th-highest entry count, so races tied at the cutoff are all included. Show the race id, the circuit `country`, the total points, the entry count, and how far the entry count is above the average (unrounded). Sort from the largest difference to the smallest.",
+  "sql": "WITH rc AS (SELECT cr.raceId, c.country, SUM(cr.points) AS total_points, COUNT(*) AS entry_count FROM constructorResults cr JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY cr.raceId, c.country), avg_cnt AS (SELECT AVG(entry_count) AS avg_entries FROM rc), cutoff AS (SELECT entry_count AS cutoff_cnt FROM rc ORDER BY entry_count DESC LIMIT 1 OFFSET 9) SELECT rc.raceId, rc.country, rc.total_points, rc.entry_count, rc.entry_count - avg_cnt.avg_entries AS diff_above_avg FROM rc, avg_cnt, cutoff WHERE rc.entry_count > avg_cnt.avg_entries AND rc.entry_count >= cutoff.cutoff_cnt ORDER BY diff_above_avg DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the above-average races ranked by how far their entry count exceeds the average, which races have an entry count equal to or greater than the 10th-highest entry count, including all races tied at that cutoff?",
+  "sql": "WITH ec AS (SELECT raceId, COUNT(*) AS entries FROM results GROUP BY raceId), avg_ec AS (SELECT AVG(entries) AS avg_entries FROM ec), above AS (SELECT ec.raceId, ec.entries, ec.entries - avg_ec.avg_entries AS excess FROM ec, avg_ec WHERE ec.entries > avg_ec.avg_entries), cutoff AS (SELECT entries FROM above ORDER BY excess DESC LIMIT 1 OFFSET 9) SELECT raceId, entries, excess FROM above WHERE entries >= (SELECT entries FROM cutoff) ORDER BY excess DESC",
+  "executes": true,
+  "matches": []
+ }
+}

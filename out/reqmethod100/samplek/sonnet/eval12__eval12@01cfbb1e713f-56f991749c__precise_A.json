@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), b AS (SELECT AVG(a) AS base FROM s), q AS (SELECT s.brokrepstat, s.a FROM s CROSS JOIN b WHERE s.a > b.base), m AS (SELECT AVG(a) AS qm FROM q) SELECT q.brokrepstat, q.a AS avg_modelconf, q.a - b.base AS diff_from_baseline, q.a / m.qm AS ratio_to_qualifying_mean FROM q CROSS JOIN b CROSS JOIN m WHERE b.base IS NOT NULL AND m.qm IS NOT NULL AND m.qm <> 0 ORDER BY q.a DESC",
+  "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), b AS (SELECT AVG(a) AS base FROM s), q AS (SELECT s.brokrepstat, s.a, b.base FROM s CROSS JOIN b WHERE s.a > b.base), m AS (SELECT AVG(a) AS qm FROM q) SELECT q.brokrepstat, q.a AS avg_modelconf, q.a - q.base AS diff_from_baseline, q.a / m.qm AS ratio_to_qualifying_mean FROM q CROSS JOIN m WHERE q.base IS NOT NULL AND m.qm IS NOT NULL",
+  "WITH per_status AS (SELECT brokrepstat, AVG(modelconf) AS avg_conf FROM compliancecase GROUP BY brokrepstat), baseline AS (SELECT AVG(avg_conf) AS base FROM per_status), qualifying AS (SELECT p.brokrepstat, p.avg_conf FROM per_status p, baseline b WHERE p.avg_conf > b.base), qmean AS (SELECT AVG(avg_conf) AS qm FROM qualifying) SELECT q.brokrepstat, q.avg_conf AS average_model_confidence, q.avg_conf - b.base AS diff_from_baseline, q.avg_conf / m.qm AS ratio_to_qualifying_mean FROM qualifying q CROSS JOIN baseline b CROSS JOIN qmean m WHERE b.base IS NOT NULL AND m.qm IS NOT NULL"
+ ],
+ "responses": [
+  {
+   "sql": "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), b AS (SELECT AVG(a) AS base FROM s), q AS (SELECT s.brokrepstat, s.a FROM s CROSS JOIN b WHERE s.a > b.base), m AS (SELECT AVG(a) AS qm FROM q) SELECT q.brokrepstat, q.a AS avg_modelconf, q.a - b.base AS diff_from_baseline, q.a / m.qm AS ratio_to_qualifying_mean FROM q CROSS JOIN b CROSS JOIN m WHERE b.base IS NOT NULL AND m.qm IS NOT NULL AND m.qm <> 0 ORDER BY q.a DESC",
+   "assumptions": [
+    {
+     "assumption": "Cases with NULL brokrepstat form one group (GROUP BY keeps NULL as its own group) and count as one status in the baseline.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A status whose modelconf values are all NULL has a NULL average; it is excluded from the baseline mean and cannot qualify.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Returning nothing when a reference value is missing means: no rows if the baseline or the qualifying-statuses mean is NULL (or zero, which would make the ratio undefined).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), b AS (SELECT AVG(a) AS base FROM s), q AS (SELECT s.brokrepstat, s.a, b.base FROM s CROSS JOIN b WHERE s.a > b.base), m AS (SELECT AVG(a) AS qm FROM q) SELECT q.brokrepstat, q.a AS avg_modelconf, q.a - q.base AS diff_from_baseline, q.a / m.qm AS ratio_to_qualifying_mean FROM q CROSS JOIN m WHERE q.base IS NOT NULL AND m.qm IS NOT NULL",
+   "assumptions": [
+    {
+     "assumption": "Cases with NULL brokrepstat form their own group, and that group counts once in the baseline mean of per-status averages and can qualify. A status whose modelconf values are all NULL has a NULL average, so it is skipped in the baseline and cannot qualify.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ratio is a status's average divided by the mean of the qualifying statuses' averages. The result is empty when the baseline or that mean is NULL.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_status AS (SELECT brokrepstat, AVG(modelconf) AS avg_conf FROM compliancecase GROUP BY brokrepstat), baseline AS (SELECT AVG(avg_conf) AS base FROM per_status), qualifying AS (SELECT p.brokrepstat, p.avg_conf FROM per_status p, baseline b WHERE p.avg_conf > b.base), qmean AS (SELECT AVG(avg_conf) AS qm FROM qualifying) SELECT q.brokrepstat, q.avg_conf AS average_model_confidence, q.avg_conf - b.base AS diff_from_baseline, q.avg_conf / m.qm AS ratio_to_qualifying_mean FROM qualifying q CROSS JOIN baseline b CROSS JOIN qmean m WHERE b.base IS NOT NULL AND m.qm IS NOT NULL",
+   "assumptions": [
+    {
+     "assumption": "Cases with NULL brokrepstat form one group (GROUP BY puts NULLs together), shown with a NULL status value.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A status whose cases all have NULL modelconf has a NULL average. It is left out of the baseline mean and cannot qualify.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The query returns no rows when the baseline is NULL or the mean of the qualifying averages is NULL or zero-rowed.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-56f991749c",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 53091,
+  "chars_out": 3128
+ }
+}

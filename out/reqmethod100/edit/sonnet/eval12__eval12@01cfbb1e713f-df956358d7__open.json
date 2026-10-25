@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Define the overall average budget amount as the average over all budget lines' amounts, so events with more lines weigh more.",
+  "Define the overall average budget amount as the average of the per-event averages, so each event counts equally.",
+  "Compute the overall average over all budget lines, treating missing amounts as zero, while per-event averages still ignore them.",
+  "Compute the mean among above-average events as the average amount over all their budget lines, not the mean of their averages."
+ ],
+ "edited": [
+  "Which events have an above-average budget amount? For each event (`budget.link_to_event`), using the average `amount` across its budget lines and ignoring missing amounts, show the event link, its average amount, how much it beats the overall average budget amount, and its average minus the mean among those above-average events. List the top 10 by that last gap, largest first. Define the overall average budget amount as the average over all budget lines' amounts, so events with more lines weigh more.",
+  "Which events have an above-average budget amount? For each event (`budget.link_to_event`), using the average `amount` across its budget lines and ignoring missing amounts, show the event link, its average amount, how much it beats the overall average budget amount, and its average minus the mean among those above-average events. List the top 10 by that last gap, largest first. Define the overall average budget amount as the average of the per-event averages, so each event counts equally.",
+  "Which events have an above-average budget amount? For each event (`budget.link_to_event`), using the average `amount` across its budget lines and ignoring missing amounts, show the event link, its average amount, how much it beats the overall average budget amount, and its average minus the mean among those above-average events. List the top 10 by that last gap, largest first. Compute the overall average over all budget lines, treating missing amounts as zero, while per-event averages still ignore them.",
+  "Which events have an above-average budget amount? For each event (`budget.link_to_event`), using the average `amount` across its budget lines and ignoring missing amounts, show the event link, its average amount, how much it beats the overall average budget amount, and its average minus the mean among those above-average events. List the top 10 by that last gap, largest first. Compute the mean among above-average events as the average amount over all their budget lines, not the mean of their averages."
+ ],
+ "queries": [
+  "WITH event_avg AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_event\n),\noverall AS (\n    SELECT AVG(amount) AS overall_avg\n    FROM budget\n),\nabove AS (\n    SELECT e.link_to_event, e.avg_amount, o.overall_avg\n    FROM event_avg e\n    CROSS JOIN overall o\n    WHERE e.avg_amount > o.overall_avg\n)\nSELECT\n    link_to_event,\n    avg_amount,\n    avg_amount - overall_avg AS diff_from_overall,\n    avg_amount - (SELECT AVG(avg_amount) FROM above) AS diff_from_above_mean\nFROM above\nORDER BY diff_from_above_mean DESC\nLIMIT 10;\n",
+  "WITH ev AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_event\n),\noverall AS (\n    SELECT AVG(avg_amount) AS overall_avg FROM ev\n),\nabove AS (\n    SELECT ev.link_to_event, ev.avg_amount, ev.avg_amount - overall.overall_avg AS beat_overall\n    FROM ev, overall\n    WHERE ev.avg_amount > overall.overall_avg\n)\nSELECT link_to_event,\n       avg_amount,\n       beat_overall,\n       avg_amount - (SELECT AVG(avg_amount) FROM above) AS gap_from_above_mean\nFROM above\nORDER BY gap_from_above_mean DESC\nLIMIT 10;\n",
+  "WITH per_event AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    GROUP BY link_to_event\n),\noverall AS (\n    SELECT AVG(COALESCE(amount, 0)) AS overall_avg\n    FROM budget\n),\nabove AS (\n    SELECT p.link_to_event, p.avg_amount, p.avg_amount - o.overall_avg AS diff_from_overall\n    FROM per_event p, overall o\n    WHERE p.avg_amount > o.overall_avg\n)\nSELECT\n    link_to_event,\n    avg_amount,\n    diff_from_overall,\n    avg_amount - (SELECT AVG(avg_amount) FROM above) AS diff_from_above_mean\nFROM above\nORDER BY diff_from_above_mean DESC\nLIMIT 10;\n",
+  "WITH ev AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    WHERE amount IS NOT NULL AND link_to_event IS NOT NULL\n    GROUP BY link_to_event\n),\noverall AS (\n    SELECT AVG(amount) AS overall_avg FROM budget WHERE amount IS NOT NULL\n),\nabove AS (\n    SELECT ev.link_to_event, ev.avg_amount\n    FROM ev, overall\n    WHERE ev.avg_amount > overall.overall_avg\n),\nabove_mean AS (\n    SELECT AVG(amount) AS mean_above\n    FROM budget\n    WHERE amount IS NOT NULL\n      AND link_to_event IN (SELECT link_to_event FROM above)\n)\nSELECT\n    above.link_to_event,\n    above.avg_amount,\n    above.avg_amount - overall.overall_avg AS diff_from_overall_avg,\n    above.avg_amount - above_mean.mean_above AS diff_from_above_mean\nFROM above, overall, above_mean\nORDER BY diff_from_above_mean DESC\nLIMIT 10;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-df956358d7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 93917,
+  "chars_out": 8187
+ }
+}

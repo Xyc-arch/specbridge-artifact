@@ -1,0 +1,55 @@
+{
+ "queries": [
+  "WITH type_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS trade_count FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind), type_metrics AS (SELECT trade_count, CAST(trade_count AS NUMERIC) / SUM(trade_count) OVER () AS share, AVG(CAST(trade_count AS NUMERIC)) OVER () AS average_trade_count FROM type_counts) SELECT COALESCE(SUM(trade_count), 0) AS combined_trade_count, AVG(share) AS average_share, AVG(trade_count - average_trade_count) AS average_excess_trade_count FROM type_metrics WHERE trade_count > average_trade_count;",
+  "WITH counts AS (SELECT t.tradekind, COUNT(*) AS trade_count FROM advancedbehavior a JOIN transactionrecord tr ON tr.transreg = a.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), distinct_counts AS (SELECT t.tradekind, COUNT(*) AS trade_count FROM transactionrecord tr JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL AND EXISTS (SELECT 1 FROM advancedbehavior a WHERE a.translink = tr.transreg) GROUP BY t.tradekind), stats AS (SELECT SUM(trade_count) AS total_count, AVG(trade_count) AS average_count FROM distinct_counts) SELECT COALESCE(SUM(d.trade_count), 0) AS combined_number, AVG(d.trade_count * 1.0 / s.total_count) AS average_share, AVG(d.trade_count - s.average_count) AS average_above_count FROM distinct_counts d CROSS JOIN stats s WHERE d.trade_count > s.average_count",
+  "WITH counts AS (SELECT t.tradekind, COUNT(tr.transreg) AS trade_count FROM trader t LEFT JOIN transactionrecord tr ON tr.trdref = t.tradereg AND EXISTS (SELECT 1 FROM advancedbehavior a WHERE a.translink = tr.transreg) WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), stats AS (SELECT SUM(trade_count) AS total_count, AVG(trade_count) AS average_count FROM counts) SELECT COALESCE(SUM(c.trade_count), 0) AS combined_number, AVG(c.trade_count * 1.0 / NULLIF(s.total_count, 0)) AS average_share, AVG(c.trade_count - s.average_count) AS average_above_count FROM counts c CROSS JOIN stats s WHERE c.trade_count > s.average_count",
+  "WITH per_type AS (SELECT tr.tradekind, COUNT(DISTINCT tx.transreg) AS trade_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader tr ON tr.tradereg = tx.trdref GROUP BY tr.tradekind), measured AS (SELECT trade_count, trade_count::numeric / SUM(trade_count) OVER () AS share, AVG(trade_count::numeric) OVER () AS average_count FROM per_type) SELECT SUM(trade_count) AS combined_number, AVG(share) AS average_share, AVG(trade_count - average_count) AS average_excess FROM measured WHERE trade_count > average_count;",
+  "WITH analysed AS (SELECT tr.tradekind, COUNT(DISTINCT tx.transreg) AS trade_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader tr ON tr.tradereg = tx.trdref GROUP BY tr.tradekind), per_type AS (SELECT types.tradekind, COALESCE(a.trade_count, 0) AS trade_count FROM (SELECT DISTINCT tradekind FROM trader) types LEFT JOIN analysed a ON types.tradekind IS NOT DISTINCT FROM a.tradekind), measured AS (SELECT trade_count, trade_count::numeric / NULLIF(SUM(trade_count) OVER (), 0) AS share, AVG(trade_count::numeric) OVER () AS average_count FROM per_type) SELECT SUM(trade_count) AS combined_number, AVG(share) AS average_share, AVG(trade_count - average_count) AS average_excess FROM measured WHERE trade_count > average_count;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH type_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS trade_count FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind), type_metrics AS (SELECT trade_count, CAST(trade_count AS NUMERIC) / SUM(trade_count) OVER () AS share, AVG(CAST(trade_count AS NUMERIC)) OVER () AS average_trade_count FROM type_counts) SELECT COALESCE(SUM(trade_count), 0) AS combined_trade_count, AVG(share) AS average_share, AVG(trade_count - average_trade_count) AS average_excess_trade_count FROM type_metrics WHERE trade_count > average_trade_count;",
+   "assumptions": [],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH counts AS (SELECT t.tradekind, COUNT(*) AS trade_count FROM advancedbehavior a JOIN transactionrecord tr ON tr.transreg = a.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), distinct_counts AS (SELECT t.tradekind, COUNT(*) AS trade_count FROM transactionrecord tr JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL AND EXISTS (SELECT 1 FROM advancedbehavior a WHERE a.translink = tr.transreg) GROUP BY t.tradekind), stats AS (SELECT SUM(trade_count) AS total_count, AVG(trade_count) AS average_count FROM distinct_counts) SELECT COALESCE(SUM(d.trade_count), 0) AS combined_number, AVG(d.trade_count * 1.0 / s.total_count) AS average_share, AVG(d.trade_count - s.average_count) AS average_above_count FROM distinct_counts d CROSS JOIN stats s WHERE d.trade_count > s.average_count",
+   "assumptions": [
+    {
+     "assumption": "An analysed trade record is counted once even if it has multiple advanced behaviour records. The average covers non-null trader types with at least one analysed trade.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include trader types present in the trader table even when they have no analysed trades, so their zero counts affect the average.",
+     "sql": "WITH counts AS (SELECT t.tradekind, COUNT(tr.transreg) AS trade_count FROM trader t LEFT JOIN transactionrecord tr ON tr.trdref = t.tradereg AND EXISTS (SELECT 1 FROM advancedbehavior a WHERE a.translink = tr.transreg) WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), stats AS (SELECT SUM(trade_count) AS total_count, AVG(trade_count) AS average_count FROM counts) SELECT COALESCE(SUM(c.trade_count), 0) AS combined_number, AVG(c.trade_count * 1.0 / NULLIF(s.total_count, 0)) AS average_share, AVG(c.trade_count - s.average_count) AS average_above_count FROM counts c CROSS JOIN stats s WHERE c.trade_count > s.average_count"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_type AS (SELECT tr.tradekind, COUNT(DISTINCT tx.transreg) AS trade_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader tr ON tr.tradereg = tx.trdref GROUP BY tr.tradekind), measured AS (SELECT trade_count, trade_count::numeric / SUM(trade_count) OVER () AS share, AVG(trade_count::numeric) OVER () AS average_count FROM per_type) SELECT SUM(trade_count) AS combined_number, AVG(share) AS average_share, AVG(trade_count - average_count) AS average_excess FROM measured WHERE trade_count > average_count;",
+   "assumptions": [
+    {
+     "assumption": "The average is across trader types represented by at least one analysed trade record; each trade record is counted once even if it has multiple advanced behaviour records.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include trader types present in the trader table with zero analysed trade records when calculating the average.",
+     "sql": "WITH analysed AS (SELECT tr.tradekind, COUNT(DISTINCT tx.transreg) AS trade_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader tr ON tr.tradereg = tx.trdref GROUP BY tr.tradekind), per_type AS (SELECT types.tradekind, COALESCE(a.trade_count, 0) AS trade_count FROM (SELECT DISTINCT tradekind FROM trader) types LEFT JOIN analysed a ON types.tradekind IS NOT DISTINCT FROM a.tradekind), measured AS (SELECT trade_count, trade_count::numeric / NULLIF(SUM(trade_count) OVER (), 0) AS share, AVG(trade_count::numeric) OVER () AS average_count FROM per_type) SELECT SUM(trade_count) AS combined_number, AVG(share) AS average_share, AVG(trade_count - average_count) AS average_excess FROM measured WHERE trade_count > average_count;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52479,
+  "chars_out": 4371
+ }
+}

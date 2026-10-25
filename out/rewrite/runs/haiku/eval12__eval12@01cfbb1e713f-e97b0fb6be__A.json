@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-e97b0fb6be",
+ "model": "haiku",
+ "reading": "A",
+ "description": "The per-line difference is product cost minus total cost, keeping its sign.",
+ "c": {
+  "request": "Link each invoice line item to its product (by product id) and to that product's category (by production type code), dropping lines with no match. For each product type description, compute the average `product_quantity` and the average difference between `derived_product_cost` and `derived_total_cost` per line (ignore missing values). Then keep only the categories whose average difference is above the mean of all the category averages. Return one row with three values: the average of those categories' average quantity, the average of their average difference, and the average of how much their average difference exceeds that mean. Don't round anything. The per-line difference is product cost minus total cost, keeping its sign.",
+  "sql": "WITH line_base AS (SELECT pc.product_type_description AS desc_name, CAST(NULLIF(TRIM(ili.product_quantity), '') AS REAL) AS qty, ili.derived_product_cost - ili.derived_total_cost AS diff FROM Invoice_Line_Items ili JOIN Products p ON p.product_id = ili.product_id JOIN Product_Categories pc ON pc.production_type_code = p.production_type_code), cat_avgs AS (SELECT desc_name, AVG(qty) AS avg_qty, AVG(diff) AS avg_diff FROM line_base GROUP BY desc_name), threshold AS (SELECT AVG(avg_diff) AS mean_avg_diff FROM cat_avgs), kept AS (SELECT c.avg_qty, c.avg_diff, c.avg_diff - t.mean_avg_diff AS excess FROM cat_avgs c CROSS JOIN threshold t WHERE c.avg_diff > t.mean_avg_diff) SELECT AVG(avg_qty) AS avg_of_avg_qty, AVG(avg_diff) AS avg_of_avg_diff, AVG(excess) AS avg_excess_over_mean FROM kept;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Compute the per-line difference as derived_product_cost minus derived_total_cost (signed, so negative when total cost exceeds product cost), average it within each product type description, and keep categories whose average signed difference is above the mean of all category averages",
+  "sql": "WITH category_avgs AS (SELECT pc.product_type_description AS product_type_description, AVG(ili.derived_product_cost - ili.derived_total_cost) AS avg_signed_difference FROM Invoice_Line_Items ili JOIN Products p ON ili.product_id = p.product_id JOIN Product_Categories pc ON p.production_type_code = pc.production_type_code GROUP BY pc.product_type_description) SELECT product_type_description, avg_signed_difference FROM category_avgs WHERE avg_signed_difference > (SELECT AVG(avg_signed_difference) FROM category_avgs);",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Link each invoice line item to its product (by product id) and to that product's category (by production type code), dropping lines with no match. For each product type description, compute the average `product_quantity` and the average cost difference, where each line's cost difference is `derived_product_cost` minus `derived_total_cost` (ignore missing values). Then take the mean of those category averages and keep only the categories whose average cost difference is above that mean. Return one row with three values: the average of those categories' average quantity, the average of their average cost difference, and the average of how much their average cost difference exceeds the mean. Don't round anything.",
+  "sql": "WITH joined AS (SELECT pc.product_type_description AS category, CAST(ili.product_quantity AS REAL) AS qty, ili.derived_product_cost - ili.derived_total_cost AS cost_diff FROM Invoice_Line_Items ili JOIN Products p ON ili.product_id = p.product_id JOIN Product_Categories pc ON p.production_type_code = pc.production_type_code), cat_avgs AS (SELECT category, AVG(qty) AS avg_qty, AVG(cost_diff) AS avg_diff FROM joined GROUP BY category), overall AS (SELECT AVG(avg_diff) AS mean_diff FROM cat_avgs), selected AS (SELECT c.avg_qty, c.avg_diff, c.avg_diff - o.mean_diff AS excess FROM cat_avgs c CROSS JOIN overall o WHERE c.avg_diff > o.mean_diff) SELECT AVG(avg_qty) AS avg_of_avg_quantity, AVG(avg_diff) AS avg_of_avg_cost_difference, AVG(excess) AS avg_excess_over_mean FROM selected;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Given the chat history, the standalone question is:\n\nFor each invoice line item linked to its product by product id and to that product's category by production type code (dropping unmatched lines), compute per product type description the average `product_quantity` and the average of `derived_product_cost` minus `derived_total_cost` per line, ignoring missing values, keeping the sign of the difference. Then keep only the categories whose average difference is above the mean of all category averages. Return one row with three unrounded values: the average of those categories' average quantities, the average of their average differences, and the average amount by which their average difference exceeds that overall mean.",
+  "sql": "WITH line_stats AS (SELECT pc.product_type_description AS category, CAST(ili.product_quantity AS REAL) AS qty, ili.derived_product_cost - ili.derived_total_cost AS diff FROM Invoice_Line_Items ili JOIN Products p ON p.product_id = ili.product_id JOIN Product_Categories pc ON pc.production_type_code = p.production_type_code), cat_avgs AS (SELECT category, AVG(qty) AS avg_qty, AVG(diff) AS avg_diff FROM line_stats GROUP BY category), overall AS (SELECT AVG(avg_diff) AS mean_diff FROM cat_avgs), kept AS (SELECT c.avg_qty, c.avg_diff FROM cat_avgs c JOIN overall o ON c.avg_diff > o.mean_diff) SELECT AVG(k.avg_qty) AS avg_of_avg_quantities, AVG(k.avg_diff) AS avg_of_avg_differences, AVG(k.avg_diff - o.mean_diff) AS avg_excess_over_mean FROM kept k CROSS JOIN overall o;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

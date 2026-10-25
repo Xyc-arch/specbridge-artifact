@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-df956358d7",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The overall average budget amount is the average of the per-event average amounts, with each event weighted equally.",
+ "c": {
+  "request": "Which events have an above-average budget amount? For each event (`budget.link_to_event`), using the average `amount` across its budget lines and ignoring missing amounts, show the event link, its average amount, how much it beats the overall average budget amount, and its average minus the mean among those above-average events. List the top 10 by that last gap, largest first. The overall average budget amount is the average of the per-event average amounts, with each event weighted equally.",
+  "sql": "WITH per_event AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    GROUP BY link_to_event\n), overall AS (\n    SELECT AVG(avg_amount) AS overall_avg\n    FROM per_event\n), above_avg AS (\n    SELECT p.link_to_event,\n           p.avg_amount,\n           p.avg_amount - o.overall_avg AS above_overall\n    FROM per_event AS p\n    CROSS JOIN overall AS o\n    WHERE p.avg_amount > o.overall_avg\n), with_gap AS (\n    SELECT link_to_event,\n           avg_amount,\n           above_overall,\n           avg_amount - AVG(avg_amount) OVER () AS gap_from_above_avg_mean\n    FROM above_avg\n)\nSELECT link_to_event,\n       avg_amount,\n       above_overall,\n       gap_from_above_avg_mean\nFROM with_gap\nORDER BY gap_from_above_avg_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each event in the budget table (`budget.link_to_event`), work out the average budgeted `amount` across its budget lines, ignoring missing amounts. Take the overall average as the mean of these per-event averages, with each event counting once, and keep only the events whose average is above it. For each such event, show the event link, its average amount, how far that is above the overall average, and its average minus the mean of the kept events' averages. Sort by this last difference, largest first, and show the top 10.",
+  "sql": "WITH event_averages AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_event\n), overall AS (\n    SELECT AVG(avg_amount) AS overall_avg\n    FROM event_averages\n), kept AS (\n    SELECT ea.link_to_event, ea.avg_amount, o.overall_avg\n    FROM event_averages ea\n    CROSS JOIN overall o\n    WHERE ea.avg_amount > o.overall_avg\n), kept_mean AS (\n    SELECT AVG(avg_amount) AS mean_kept_avg\n    FROM kept\n)\nSELECT k.link_to_event,\n       k.avg_amount,\n       k.avg_amount - k.overall_avg AS above_overall_avg,\n       k.avg_amount - km.mean_kept_avg AS difference_from_kept_mean\nFROM kept k\nCROSS JOIN kept_mean km\nORDER BY difference_from_kept_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each event, calculate the average non-null budget-line amount; select events whose average exceeds the equally weighted mean of those per-event averages; show the event link, its average, its difference from that overall average, and its difference from the mean average among selected events; return the 10 largest selected-event differences from that selected-event mean",
+  "sql": "WITH event_averages AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_event\n), overall_mean AS (\n    SELECT AVG(avg_amount) AS mean_avg\n    FROM event_averages\n), selected_events AS (\n    SELECT ea.link_to_event, ea.avg_amount, ea.avg_amount - om.mean_avg AS diff_from_overall\n    FROM event_averages AS ea\n    CROSS JOIN overall_mean AS om\n    WHERE ea.avg_amount > om.mean_avg\n), selected_mean AS (\n    SELECT AVG(avg_amount) AS mean_avg\n    FROM selected_events\n)\nSELECT se.link_to_event,\n       se.avg_amount,\n       se.diff_from_overall,\n       se.avg_amount - sm.mean_avg AS diff_from_selected_mean\nFROM selected_events AS se\nCROSS JOIN selected_mean AS sm\nORDER BY diff_from_selected_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each event (`budget.link_to_event`), calculate the average `amount` across its budget lines, ignoring missing amounts. Use the mean of those per-event averages, with each event weighted equally, as the overall average. Show events whose average is above that overall average, along with the event link, its average amount, how much it exceeds the overall average, and how much its average exceeds the mean average of all above-average events. List the top 10 by that last gap, largest first.",
+  "sql": "WITH event_averages AS (\n    SELECT link_to_event, AVG(amount) AS average_amount\n    FROM budget\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_event\n), overall_average AS (\n    SELECT AVG(average_amount) AS average_amount\n    FROM event_averages\n), above_average AS (\n    SELECT ea.link_to_event,\n           ea.average_amount,\n           ea.average_amount - oa.average_amount AS excess_overall\n    FROM event_averages ea\n    CROSS JOIN overall_average oa\n    WHERE ea.average_amount > oa.average_amount\n), above_average_mean AS (\n    SELECT AVG(average_amount) AS average_amount\n    FROM above_average\n)\nSELECT aa.link_to_event,\n       aa.average_amount,\n       aa.excess_overall,\n       aa.average_amount - aam.average_amount AS excess_above_average_mean\nFROM above_average aa\nCROSS JOIN above_average_mean aam\nORDER BY excess_above_average_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

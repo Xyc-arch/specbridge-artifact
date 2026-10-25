@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-24a95ac640",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Each account's total is the plain sum of transaction amounts (gross volume). The share is relative to total volume over all accounts.",
+ "a": {
+  "request": "For each account in the transactions (`trans.account_id`), linked through its account record to its district's region (`district.A3`) and dropping transactions with no matching account or district, compute the account's total volume, i.e. the sum of `trans.amount` regardless of `trans.type`, and its number of transactions. List the account id, region, total volume, number of transactions, and its share of the total volume summed over all accounts (volume divided by that total). Sort by that share from highest to lowest and return the top 10 rows. Don't round.",
+  "sql": "WITH account_totals AS (\n    SELECT\n        t.account_id,\n        d.A3 AS region,\n        SUM(t.amount) AS total_volume,\n        COUNT(*) AS number_of_transactions\n    FROM trans AS t\n    JOIN account AS a ON a.account_id = t.account_id\n    JOIN district AS d ON d.district_id = a.district_id\n    GROUP BY t.account_id, d.A3\n)\nSELECT\n    account_id,\n    region,\n    total_volume,\n    number_of_transactions,\n    total_volume * 1.0 / SUM(total_volume) OVER () AS share_of_total_volume\nFROM account_totals\nORDER BY share_of_total_volume DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each account that has transactions, with the region of its branch district, show the total of its transaction amounts, how many transactions it has, and what fraction that total is of the same total across all accounts. Give me the top 10 accounts by that fraction, unrounded. Each account's total is the plain sum of transaction amounts (gross volume). The share is relative to total volume over all accounts.",
+  "sql": "WITH account_totals AS (\n    SELECT\n        t.account_id,\n        SUM(t.amount) AS total_amount,\n        COUNT(*) AS transaction_count\n    FROM trans AS t\n    GROUP BY t.account_id\n),\ntotal_volume AS (\n    SELECT SUM(total_amount) AS amount\n    FROM account_totals\n)\nSELECT\n    at.account_id,\n    d.A3 AS region,\n    at.total_amount,\n    at.transaction_count,\n    1.0 * at.total_amount / tv.amount AS fraction_of_total\nFROM account_totals AS at\nJOIN account AS a ON a.account_id = at.account_id\nJOIN district AS d ON d.district_id = a.district_id\nCROSS JOIN total_volume AS tv\nORDER BY fraction_of_total DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each account with at least one transaction, show its branch district\u2019s region, the sum of its transaction amounts, its transaction count, and its share of the sum of transaction amounts across all accounts; return the 10 accounts with the highest shares, without rounding the shares",
+  "sql": "WITH account_totals AS (\n    SELECT\n        t.account_id,\n        SUM(t.amount) AS total_amount,\n        COUNT(*) AS transaction_count\n    FROM trans AS t\n    GROUP BY t.account_id\n),\nall_accounts_total AS (\n    SELECT SUM(total_amount) AS grand_total\n    FROM account_totals\n)\nSELECT\n    d.A3 AS region,\n    at.total_amount,\n    at.transaction_count,\n    CAST(at.total_amount AS REAL) / all_accounts_total.grand_total AS share\nFROM account_totals AS at\nJOIN account AS a ON a.account_id = at.account_id\nJOIN district AS d ON d.district_id = a.district_id\nCROSS JOIN all_accounts_total\nORDER BY share DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each account with transactions, include its branch district\u2019s region, the plain sum of its transaction amounts (gross volume), its transaction count, and its share of total transaction volume across all accounts. Return the top 10 accounts by share, without rounding.",
+  "sql": "WITH account_totals AS (\n    SELECT\n        t.account_id,\n        SUM(t.amount) AS gross_volume,\n        COUNT(*) AS transaction_count\n    FROM trans AS t\n    GROUP BY t.account_id\n),\naccount_shares AS (\n    SELECT\n        at.account_id,\n        d.A3 AS region,\n        at.gross_volume,\n        at.transaction_count,\n        1.0 * at.gross_volume / SUM(at.gross_volume) OVER () AS share_of_total_volume\n    FROM account_totals AS at\n    JOIN account AS a ON a.account_id = at.account_id\n    JOIN district AS d ON d.district_id = a.district_id\n)\nSELECT account_id, region, gross_volume, transaction_count, share_of_total_volume\nFROM account_shares\nORDER BY share_of_total_volume DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

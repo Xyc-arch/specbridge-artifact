@@ -1,0 +1,59 @@
+{
+ "interpretations": [
+  "Count each account's rows in Financial_Transactions. The average is total transactions divided by the number of accounts that have at least one transaction. The ratio is the account's count divided by that average.",
+  "Count each account's rows in Financial_Transactions. The average is total transactions divided by all accounts in the Accounts table, including those with zero transactions.",
+  "Count each account's rows in Financial_Transactions. The average is the mean of the per-account counts, computed after excluding accounts whose holder is missing or has no town.",
+  "Count each account's rows in Financial_Transactions. The average is taken over all accounts, including those whose holder is missing or has no town, and the filter is applied only to the final output.",
+  "Count transactions by distinct transaction_id rather than by rows, in case transaction_id repeats. The transaction_id column has no primary key declared.",
+  "\"Share of its town's transactions\" is the account's transaction count divided by the total transactions of all accounts held by customers in the same town_city.",
+  "\"Share of its town's transactions\" uses a town total that counts only accounts with a customer and a non-null town_city, which is the same as interpretation 6 because the filter removes the others.",
+  "The town is identified by town_city alone, so towns with the same name in different states or countries are merged.",
+  "The town is identified by the combination of town_city, state_county_province and country, so same-named towns in different regions are kept separate.",
+  "The share is expressed as a fraction between 0 and 1.",
+  "The share is expressed as a percentage between 0 and 100.",
+  "The ratio is count divided by average, shown unrounded. Integer division could truncate it, so the values must be cast to decimals.",
+  "The ratio is not rounded or truncated, and the share is not rounded either.",
+  "Ties at the 10th position are cut arbitrarily to return exactly 10 rows.",
+  "Ties at the 10th position are all included, so more than 10 rows may be returned.",
+  "Ties are broken by account_id ascending.",
+  "\"Accounts whose holder isn't on file\" means accounts whose customer_id has no matching row in Customers.",
+  "\"Has no town\" means town_city is NULL.",
+  "\"Has no town\" means town_city is NULL or an empty string.",
+  "The town's transactions are counted from Financial_Transactions through Accounts to Customers, and include accounts of all customers in that town.",
+  "The town's transactions are counted only over accounts that appear in the top-10 list.",
+  "Accounts with zero transactions are excluded from the ranking, because they can't rank in the top 10 by highest count.",
+  "Output columns are account_id, town_city, transaction count, share of town, and ratio to average, in that order.",
+  "Transactions with a NULL invoice_number are included, since the question says \"financial transaction counts\" without restricting to invoiced ones.",
+  "Only transactions tied to an invoice (invoice_number not null) are counted.",
+  "Missing interpretations:",
+  "The average count per account is computed over accounts that have at least one transaction and an existing customer with a non-null town (a different denominator from the existing ones, which don't both restrict to accounts with a transaction and apply the holder filter).",
+  "The share of the town's transactions is computed relative to the total across all accounts in the town, including accounts with zero transactions (no effect on the sum, but affects the account set).",
+  "The town total counts transactions by distinct customers' accounts, where a customer holding multiple accounts has all of those accounts counted in the town total.",
+  "The average is the average count per customer (grouping accounts by customer) rather than per account.",
+  "The average is the average per town (the average count of accounts within the same town) rather than a global average.",
+  "The ratio to the average is expressed as a percentage (count \u00f7 average \u00d7 100) rather than a plain ratio.",
+  "Ties in the ordering by ratio are broken by something other than account_id (such as town_city or by arbitrary order).",
+  "\"Has no town\" means town_city is NULL, an empty string, or whitespace only."
+ ],
+ "queries": [
+  "SELECT account_id, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM Financial_Transactions) AS ratio\nFROM Financial_Transactions\nGROUP BY account_id",
+  "SELECT a.account_id,\n       COUNT(f.transaction_id) AS transaction_count,\n       (SELECT COUNT(*) FROM Financial_Transactions) * 1.0 / (SELECT COUNT(*) FROM Accounts) AS average_transactions\nFROM Accounts a\nLEFT JOIN Financial_Transactions f ON a.account_id = f.account_id\nGROUP BY a.account_id;\n",
+  "SELECT AVG(cnt) FROM (SELECT COUNT(*) AS cnt FROM Financial_Transactions ft JOIN Accounts a ON ft.account_id = a.account_id JOIN Customers c ON a.customer_id = c.customer_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id)\n",
+  "WITH c AS (\n  SELECT a.account_id, COUNT(f.transaction_id) AS transaction_count\n  FROM Accounts a\n  LEFT JOIN Financial_Transactions f ON f.account_id = a.account_id\n  GROUP BY a.account_id\n)\nSELECT account_id, transaction_count\nFROM c\nWHERE transaction_count > (SELECT AVG(transaction_count) FROM c)",
+  "SELECT COUNT(DISTINCT transaction_id) FROM Financial_Transactions",
+  "SELECT a.account_id,\n       CAST(COUNT(ft.transaction_id) AS REAL) / (\n           SELECT COUNT(*)\n           FROM Financial_Transactions ft2\n           JOIN Accounts a2 ON ft2.account_id = a2.account_id\n           JOIN Customers c2 ON a2.customer_id = c2.customer_id\n           WHERE c2.town_city = c.town_city\n       ) AS share_of_town_transactions\nFROM Accounts a\nJOIN Customers c ON a.customer_id = c.customer_id\nLEFT JOIN Financial_Transactions ft ON ft.account_id = a.account_id\nGROUP BY a.account_id;\n"
+ ],
+ "raw": [
+  "1. Count each account's rows in Financial_Transactions. The average is total transactions divided by the number of accounts that have at least one transaction. The ratio is the account's count divided by that average.\n2. Count each account's rows in Financial_Transactions. The average is total transactions divided by all accounts in the Accounts table, including those with zero transactions.\n3. Count each account's rows in Financial_Transactions. The average is the mean of the per-account counts, computed after excluding accounts whose holder is missing or has no town.\n4. Count each account's rows in Financial_Transactions. The average is taken over all accounts, including those whose holder is missing or has no town, and the filter is applied only to the final output.\n5. Count transactions by distinct transaction_id rather than by rows, in case transaction_id repeats. The transaction_id column has no primary key declared.\n6. \"Share of its town's transactions\" is the account's transaction count divided by the total transactions of all accounts held by customers in the same town_city.\n7. \"Share of its town's transactions\" uses a town total that counts only accounts with a customer and a non-null town_city, which is the same as interpretation 6 because the filter removes the others.\n8. The town is identified by town_city alone, so towns with the same name in different states or countries are merged.\n9. The town is identified by the combination of town_city, state_county_province and country, so same-named towns in different regions are kept separate.\n10. The share is expressed as a fraction between 0 and 1.\n11. The share is expressed as a percentage between 0 and 100.\n12. The ratio is count divided by average, shown unrounded. Integer division could truncate it, so the values must be cast to decimals.\n13. The ratio is not rounded or truncated, and the share is not rounded either.\n14. Ties at the 10th position are cut arbitrarily to return exactly 10 rows.\n15. Ties at the 10th position are all included, so more than 10 rows may be returned.\n16. Ties are broken by account_id ascending.\n17. \"Accounts whose holder isn't on file\" means accounts whose customer_id has no matching row in Customers.\n18. \"Has no town\" means town_city is NULL.\n19. \"Has no town\" means town_city is NULL or an empty string.\n20. The town's transactions are counted from Financial_Transactions through Accounts to Customers, and include accounts of all customers in that town.\n21. The town's transactions are counted only over accounts that appear in the top-10 list.\n22. Accounts with zero transactions are excluded from the ranking, because they can't rank in the top 10 by highest count.\n23. Output columns are account_id, town_city, transaction count, share of town, and ratio to average, in that order.\n24. Transactions with a NULL invoice_number are included, since the question says \"financial transaction counts\" without restricting to invoiced ones.\n25. Only transactions tied to an invoice (invoice_number not null) are counted.",
+  "Missing interpretations:\n\nThe average count per account is computed over accounts that have at least one transaction and an existing customer with a non-null town (a different denominator from the existing ones, which don't both restrict to accounts with a transaction and apply the holder filter).\nThe share of the town's transactions is computed relative to the total across all accounts in the town, including accounts with zero transactions (no effect on the sum, but affects the account set).\nThe town total counts transactions by distinct customers' accounts, where a customer holding multiple accounts has all of those accounts counted in the town total.\nThe average is the average count per customer (grouping accounts by customer) rather than per account.\nThe average is the average per town (the average count of accounts within the same town) rather than a global average.\nThe ratio to the average is expressed as a percentage (count \u00f7 average \u00d7 100) rather than a plain ratio.\nTies in the ordering by ratio are broken by something other than account_id (such as town_city or by arbitrary order).\n\"Has no town\" means town_city is NULL, an empty string, or whitespace only."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31566,
+  "chars_out": 5829
+ }
+}

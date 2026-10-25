@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0f4fb81d6a",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Invoices with no billing state are dropped before grouping.",
+ "c": {
+  "request": "Count invoices by billing state, and work out each billing state's share of the invoices (its count over the sum of all the counts) and the average invoice count per billing state. Keep the billing states with more invoices than that average. Give one row with: the total number of invoices across them, their average share, and on average how many invoices above the average count they are (count minus average). No rounding. Invoices with no billing state are dropped before grouping.",
+  "sql": "WITH state_counts AS (\n    SELECT BillingState, COUNT(*) AS invoice_count\n    FROM Invoice\n    WHERE BillingState IS NOT NULL\n    GROUP BY BillingState\n),\nstate_metrics AS (\n    SELECT invoice_count,\n           invoice_count * 1.0 / SUM(invoice_count) OVER () AS invoice_share,\n           AVG(invoice_count * 1.0) OVER () AS average_count\n    FROM state_counts\n)\nSELECT SUM(invoice_count) AS total_invoices,\n       AVG(invoice_share) AS average_share,\n       AVG(invoice_count - average_count) AS average_invoices_above_average\nFROM state_metrics\nWHERE invoice_count > average_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Group invoices by billing state (`Invoice.BillingState`), leaving out invoices with no billing state entirely, and count the invoices in each group. Work out each group's share of the invoices (its count over the sum of all the groups' counts) and the average count per group. Keep the groups whose count is above that average. Return one row with: the total number of invoices in those groups, the average of their shares, and the average amount by which their count exceeds the average count (count minus average). Don't round.",
+  "sql": "WITH state_counts AS (\n  SELECT BillingState, COUNT(*) AS invoice_count\n  FROM Invoice\n  WHERE BillingState IS NOT NULL\n  GROUP BY BillingState\n), group_stats AS (\n  SELECT invoice_count,\n         invoice_count * 1.0 / SUM(invoice_count) OVER () AS invoice_share,\n         AVG(invoice_count * 1.0) OVER () AS average_count\n  FROM state_counts\n)\nSELECT COALESCE(SUM(invoice_count), 0) AS total_invoices,\n       AVG(invoice_share) AS average_share,\n       AVG(invoice_count - average_count) AS average_excess\nFROM group_stats\nWHERE invoice_count > average_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group invoices by non-NULL billing state; keep states whose invoice count exceeds the average count across those states. Return one row with the sum of their invoice counts, the average of their shares of all invoices in the non-NULL billing-state groups, and the average of their count minus the average count across those groups, without rounding",
+  "sql": "WITH state_counts AS (SELECT BillingState, COUNT(*) AS invoice_count FROM Invoice WHERE BillingState IS NOT NULL GROUP BY BillingState), state_stats AS (SELECT invoice_count, AVG(CAST(invoice_count AS REAL)) OVER () AS avg_count, SUM(invoice_count) OVER () AS total_count FROM state_counts) SELECT SUM(invoice_count), AVG(CAST(invoice_count AS REAL) / total_count), AVG(CAST(invoice_count AS REAL) - avg_count) FROM state_stats WHERE invoice_count > avg_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Count invoices by billing state, excluding invoices with no billing state. Calculate each state\u2019s share of all invoices and the average invoice count per billing state. Keep states with counts above that average, then return one row with the total invoice count across those states, their average share, and their average count above the per-state average. Do not round.",
+  "sql": "WITH state_counts AS (\n  SELECT BillingState, COUNT(*) AS invoice_count\n  FROM Invoice\n  WHERE BillingState IS NOT NULL\n  GROUP BY BillingState\n),\nstate_metrics AS (\n  SELECT BillingState,\n         invoice_count,\n         1.0 * invoice_count / (SELECT COUNT(*) FROM Invoice) AS share,\n         AVG(1.0 * invoice_count) OVER () AS avg_state_count\n  FROM state_counts\n)\nSELECT SUM(invoice_count) AS total_invoice_count,\n       AVG(share) AS average_share,\n       AVG(invoice_count - avg_state_count) AS average_count_above_state_average\nFROM state_metrics\nWHERE invoice_count > avg_state_count;",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "Group Examination records by non-null ID, divide each count by all Examination records, compare shares with the mean share across those IDs, and return the qualifying IDs\u2019 mean count, mean share, and mean share minus that baseline as fractions.",
+  "Use the same groups and baseline, but divide by the total number of Examination records with a non-null ID.",
+  "Treat records with a null ID as one additional group when calculating shares and the mean share; include that group if its share qualifies.",
+  "Include every Patient ID, assigning zero Examination records to patients with none; calculate the mean share across all Patient IDs before selecting those above it.",
+  "Calculate the average share across Examination records, so an ID\u2019s share contributes once for each of its records; return the three means for IDs above that record-weighted baseline.",
+  "For non-null Examination IDs, report the qualifying IDs\u2019 mean share and mean excess as percentages and percentage points, respectively.",
+  "For non-null Examination IDs, measure each qualifying share\u2019s excess relative to the average share, as `(share \u2212 average share) / average share`, and average those relative excesses."
+ ],
+ "queries": [
+  "WITH id_counts AS (\n    SELECT ID, COUNT(*) AS record_count\n    FROM Examination\n    WHERE ID IS NOT NULL\n    GROUP BY ID\n),\nshares AS (\n    SELECT\n        record_count,\n        1.0 * record_count / (SELECT COUNT(*) FROM Examination) AS share\n    FROM id_counts\n),\ncompared AS (\n    SELECT\n        record_count,\n        share,\n        AVG(share) OVER () AS baseline\n    FROM shares\n)\nSELECT\n    AVG(record_count) AS mean_count,\n    AVG(share) AS mean_share,\n    AVG(share) - MAX(baseline) AS share_above_baseline\nFROM compared\nWHERE share > baseline",
+  "WITH exam_counts AS (\n    SELECT p.ID, COUNT(e.ID) AS exam_count\n    FROM Patient AS p\n    LEFT JOIN Examination AS e ON e.ID = p.ID\n    GROUP BY p.ID\n),\nshares AS (\n    SELECT ID, exam_count * 1.0 / NULLIF((SELECT SUM(exam_count) FROM exam_counts), 0) AS share\n    FROM exam_counts\n)\nSELECT ID\nFROM shares\nWHERE share > (SELECT AVG(share) FROM shares)",
+  "WITH id_counts AS (\n    SELECT ID, COUNT(*) AS record_count\n    FROM Examination\n    GROUP BY ID\n),\nshares AS (\n    SELECT ID,\n           record_count,\n           1.0 * record_count / SUM(record_count) OVER () AS share\n    FROM id_counts\n),\nbaseline AS (\n    SELECT SUM(record_count * share) / SUM(record_count) AS average_share\n    FROM shares\n)\nSELECT AVG(e.`aCL IgG`) AS mean_igg,\n       AVG(e.`aCL IgM`) AS mean_igm,\n       AVG(e.`aCL IgA`) AS mean_iga\nFROM Examination AS e\nJOIN shares AS s ON e.ID = s.ID\nCROSS JOIN baseline AS b\nWHERE s.share > b.average_share"
+ ],
+ "raw": [
+  "Group Examination records by non-null ID, divide each count by all Examination records, compare shares with the mean share across those IDs, and return the qualifying IDs\u2019 mean count, mean share, and mean share minus that baseline as fractions.\n\nUse the same groups and baseline, but divide by the total number of Examination records with a non-null ID.\n\nTreat records with a null ID as one additional group when calculating shares and the mean share; include that group if its share qualifies.\n\nInclude every Patient ID, assigning zero Examination records to patients with none; calculate the mean share across all Patient IDs before selecting those above it.\n\nCalculate the average share across Examination records, so an ID\u2019s share contributes once for each of its records; return the three means for IDs above that record-weighted baseline.\n\nFor non-null Examination IDs, report the qualifying IDs\u2019 mean share and mean excess as percentages and percentage points, respectively.\n\nFor non-null Examination IDs, measure each qualifying share\u2019s excess relative to the average share, as `(share \u2212 average share) / average share`, and average those relative excesses.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b3691a7c41",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 66431,
+  "chars_out": 2944
+ }
+}

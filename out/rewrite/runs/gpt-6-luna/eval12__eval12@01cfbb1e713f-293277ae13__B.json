@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-293277ae13",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "For each rating, divide the average rental rate by the average rental duration.",
+ "c": {
+  "request": "For each film rating, look at its average film length (ignoring films with no length) and its rental rate per day of rental. Which ratings have a per-day rate above the simple mean of the ratings' per-day rates, with each rating counting once? For just those ratings, give one row with their average length, their average per-day rate, and the average amount by which they exceed that mean. Don't round anything. For each rating, divide the average rental rate by the average rental duration.",
+  "sql": "WITH rating_rates AS (\n  SELECT\n    rating,\n    AVG(length) AS average_length,\n    AVG(rental_rate) / AVG(rental_duration) AS per_day_rate\n  FROM film\n  GROUP BY rating\n),\nmean_rate AS (\n  SELECT AVG(per_day_rate) AS simple_mean_rate\n  FROM rating_rates\n)\nSELECT\n  rr.rating,\n  rr.average_length,\n  rr.per_day_rate,\n  rr.per_day_rate - mr.simple_mean_rate AS amount_above_mean\nFROM rating_rates AS rr\nCROSS JOIN mean_rate AS mr\nWHERE rr.per_day_rate > mr.simple_mean_rate",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each film rating, find the average film `length` (ignoring films with no length) and the per-day rental price, defined as the rating's average `rental_rate` divided by its average `rental_duration`. Then take the simple mean of those per-day prices across the ratings, with each rating counting once, and keep only the ratings whose per-day price is above that mean. For those ratings, give one row with the average of their average lengths, the average of their per-day prices, and the average amount by which their per-day price exceeds the cross-rating mean. Don't round anything.",
+  "sql": "WITH rating_metrics AS (\n  SELECT\n    rating,\n    AVG(length) AS avg_length,\n    AVG(rental_rate) / AVG(rental_duration) AS per_day_price\n  FROM film\n  GROUP BY rating\n),\nwith_mean AS (\n  SELECT\n    avg_length,\n    per_day_price,\n    AVG(per_day_price) OVER () AS mean_per_day_price\n  FROM rating_metrics\n)\nSELECT\n  AVG(avg_length) AS avg_of_avg_lengths,\n  AVG(per_day_price) AS avg_per_day_price,\n  AVG(per_day_price - mean_per_day_price) AS avg_excess_over_mean\nFROM with_mean\nWHERE per_day_price > mean_per_day_price;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each film rating, calculate average film length from films with a non-null length and calculate the per-day rate as average rental rate divided by average rental duration; select ratings whose per-day rate exceeds the unweighted mean of the per-day rates across ratings, then return each selected rating\u2019s average length, per-day rate, and excess over that mean, without rounding",
+  "sql": "WITH rating_metrics AS (\n  SELECT rating,\n         AVG(length) AS avg_length,\n         AVG(rental_rate) / AVG(rental_duration) AS per_day_rate\n  FROM film\n  GROUP BY rating\n),\nmean_rate AS (\n  SELECT AVG(per_day_rate) AS mean_per_day_rate\n  FROM rating_metrics\n)\nSELECT rm.rating,\n       rm.avg_length,\n       rm.per_day_rate,\n       rm.per_day_rate - mr.mean_per_day_rate AS excess_over_mean\nFROM rating_metrics AS rm\nCROSS JOIN mean_rate AS mr\nWHERE rm.per_day_rate > mr.mean_per_day_rate;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each film rating, divide its average rental rate by its average rental duration. Which ratings have a per-day rate above the simple mean of the ratings\u2019 per-day rates, counting each rating once? For those ratings, give one row with the average film length (ignoring films with no length), the average per-day rate, and the average amount by which each rate exceeds that mean. Don\u2019t round anything.",
+  "sql": "WITH rating_rates AS (\n  SELECT rating,\n         AVG(rental_rate) / AVG(rental_duration) AS per_day_rate\n  FROM film\n  GROUP BY rating\n),\nmean_rate AS (\n  SELECT AVG(per_day_rate) AS mean_per_day_rate\n  FROM rating_rates\n)\nSELECT f.rating,\n       AVG(f.length) AS avg_length,\n       rr.per_day_rate,\n       rr.per_day_rate - mr.mean_per_day_rate AS avg_excess_rate\nFROM film f\nJOIN rating_rates rr ON rr.rating = f.rating\nCROSS JOIN mean_rate mr\nWHERE rr.per_day_rate > mr.mean_per_day_rate\nGROUP BY f.rating, rr.per_day_rate, mr.mean_per_day_rate;",
+  "executes": true,
+  "matches": []
+ }
+}

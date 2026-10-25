@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH r AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location), k AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY CASE WHEN avg_ratio IS NULL THEN 1 ELSE 0 END, avg_ratio DESC) AS rnk FROM r) SELECT event_id, location, avg_ratio, rnk AS rank FROM k WHERE rnk <= 3 ORDER BY location, rnk, event_id;",
+  "SELECT event_id, location, avg_ratio, rnk AS rank FROM (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio, RANK() OVER (PARTITION BY e.location ORDER BY AVG((b.spent - b.amount) * 1.0 / b.amount) DESC) AS rnk FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location) WHERE rnk <= 3 ORDER BY location, rnk, event_id",
+  "WITH ev AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY avg_ratio IS NULL, avg_ratio DESC) AS rnk FROM ev) SELECT event_id, location, avg_ratio, rnk AS rank FROM ranked WHERE rnk <= 3 ORDER BY location, rnk, event_id;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH r AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location), k AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY CASE WHEN avg_ratio IS NULL THEN 1 ELSE 0 END, avg_ratio DESC) AS rnk FROM r) SELECT event_id, location, avg_ratio, rnk AS rank FROM k WHERE rnk <= 3 ORDER BY location, rnk, event_id;",
+   "assumptions": [
+    {
+     "assumption": "All events are included, via LEFT JOIN. Events with no budget lines, or only lines with amount = 0, get a NULL ratio and rank last in their location.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Budget lines with amount = 0 are skipped in the average, because the ratio is undefined for them (NULLIF gives NULL and AVG ignores NULLs).",
+     "unresolved": true
+    },
+    {
+     "assumption": "The top 3 means rank <= 3, so tied events can give more than 3 rows per location. Events in the same location, including NULL locations, are ranked together.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "SELECT event_id, location, avg_ratio, rnk AS rank FROM (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio, RANK() OVER (PARTITION BY e.location ORDER BY AVG((b.spent - b.amount) * 1.0 / b.amount) DESC) AS rnk FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location) WHERE rnk <= 3 ORDER BY location, rnk, event_id",
+   "assumptions": [
+    {
+     "assumption": "Events with no budget lines, or only lines with amount 0 (division yields NULL and is ignored by AVG), are kept with a NULL ratio and rank last within their location.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Top 3 means rank <= 3 using RANK, so ties at the cutoff can return more than 3 events per location. Events with a NULL location form their own group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH ev AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY avg_ratio IS NULL, avg_ratio DESC) AS rnk FROM ev) SELECT event_id, location, avg_ratio, rnk AS rank FROM ranked WHERE rnk <= 3 ORDER BY location, rnk, event_id;",
+   "assumptions": [
+    {
+     "assumption": "All events are kept, including those with no budget lines. Their ratio is NULL and they rank after events that have a ratio.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A budget line with amount = 0 has no defined ratio. NULLIF turns it into NULL, and AVG ignores it. An event whose lines all have zero amount gets a NULL ratio.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Events with a NULL location are grouped together as one location.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Rank uses RANK(), so tied events share a rank and the next rank is skipped. Top 3 means rank <= 3, which can return more than 3 events per location when there are ties.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-be1e5ce229",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23358,
+  "chars_out": 3224
+ }
+}

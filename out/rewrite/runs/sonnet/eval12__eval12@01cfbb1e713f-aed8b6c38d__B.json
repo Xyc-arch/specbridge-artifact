@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-aed8b6c38d",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Blank sex is treated as unknown and its group is not reported.",
+ "a": {
+  "request": "Matching laboratory records to their patient on `ID` (lab records with no matching patient are dropped), compute for each patient (by ID and sex) the average prothrombin time (`PT`) and the average of `IGA` \u2212 `IGM` per record, ignoring missing values. Also compute the mean of that IGA\u2212IGM average across all patients, and divide each patient's IGA\u2212IGM average by this overall mean. Then break the patients down by sex, leaving out patients whose `SEX` is blank (an empty string), since their sex is unknown. For each sex, report the sex, the average of the patients' average PT, the average of their IGA\u2212IGM averages, and the average of their ratios to the overall mean.",
+  "sql": "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.PT) AS avg_pt, AVG(L.IGA - L.IGM) AS avg_diff FROM Laboratory L JOIN Patient P ON P.ID = L.ID GROUP BY P.ID, P.SEX), r AS (SELECT ID, SEX, avg_pt, avg_diff, avg_diff / (AVG(avg_diff) OVER ()) AS ratio FROM p) SELECT SEX, AVG(avg_pt) AS avg_pt, AVG(avg_diff) AS avg_iga_minus_igm, AVG(ratio) AS avg_ratio FROM r WHERE SEX <> '' GROUP BY SEX",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Join Laboratory to Patient on ID (dropping unmatched lab records), compute each patient's (ID, sex) average PT and average IGA\u2212IGM per record ignoring NULLs, divide each patient's average IGA\u2212IGM by the mean of those per-patient averages across all patients to get a ratio, then group by sex and report the average PT, average IGA\u2212IGM, and average ratio per sex, excluding patients whose sex is blank/empty (unknown) so that group is not reported",
+  "sql": "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Laboratory l JOIN Patient p ON l.ID = p.ID GROUP BY p.ID, p.SEX), with_ratio AS (SELECT ID, SEX, avg_pt, avg_diff, avg_diff / (SELECT AVG(avg_diff) FROM per_patient) AS ratio FROM per_patient) SELECT SEX, AVG(avg_pt) AS avg_pt, AVG(avg_diff) AS avg_iga_minus_igm, AVG(ratio) AS avg_ratio FROM with_ratio WHERE SEX IS NOT NULL AND TRIM(SEX) <> '' GROUP BY SEX",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Matching laboratory records to their patient on `ID` (lab records with no matching patient are dropped), work out each patient's (by ID and sex) average prothrombin time (`PT`) and average `IGA` \u2212 `IGM` difference per record, ignoring missing values. Also work out how each patient's IGA\u2212IGM average compares to the mean across all patients, as their average divided by that mean. Then break this down by sex: for each sex, give the average PT, the average IGA\u2212IGM difference, and the average ratio to the overall mean. Blank sex is treated as unknown and its group is not reported.",
+  "sql": "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Laboratory l JOIN Patient p ON p.ID = l.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_diff) AS overall_mean FROM per_patient), ratios AS (SELECT pp.ID, pp.SEX, pp.avg_pt, pp.avg_diff, pp.avg_diff * 1.0 / o.overall_mean AS ratio FROM per_patient pp CROSS JOIN overall o) SELECT SEX, AVG(avg_pt) AS avg_pt, AVG(avg_diff) AS avg_iga_igm_diff, AVG(ratio) AS avg_ratio_to_overall_mean FROM ratios WHERE SEX IS NOT NULL AND TRIM(SEX) <> '' GROUP BY SEX",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Matching laboratory records to their patient on `ID` (lab records with no matching patient are dropped), work out each patient's (by ID and sex) average prothrombin time (`PT`) and average `IGA` \u2212 `IGM` difference per record, ignoring missing values. Also work out how each patient's IGA\u2212IGM average compares to the mean across all patients, as their average divided by that mean. Then break this down by sex: for each sex, give the average PT, the average IGA\u2212IGM difference, and the average ratio to the overall mean. Patients with a blank sex are treated as unknown, so that group should be excluded and not reported.",
+  "sql": "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Laboratory l JOIN Patient p ON p.ID = l.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_diff) AS overall_mean FROM per_patient), ratios AS (SELECT pp.ID, pp.SEX, pp.avg_pt, pp.avg_diff, pp.avg_diff / o.overall_mean AS ratio FROM per_patient pp CROSS JOIN overall o) SELECT SEX, AVG(avg_pt) AS avg_pt, AVG(avg_diff) AS avg_iga_igm_diff, AVG(ratio) AS avg_ratio_to_overall_mean FROM ratios WHERE SEX IS NOT NULL AND TRIM(SEX) <> '' GROUP BY SEX",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

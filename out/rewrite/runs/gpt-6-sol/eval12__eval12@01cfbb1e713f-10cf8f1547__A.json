@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-10cf8f1547",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Each power status's share of all telescopes is written as a fraction from 0 to 1.",
+ "a": {
+  "request": "Count the telescopes for each power supply status (`powerstatus`), counting a missing status as its own group, and work out each status's share of all telescopes as a fraction between 0 and 1. For the statuses whose share is above the average share across statuses, give one row with: the total number of telescopes in those statuses, their average share, and the average amount by which their share is above that average share. Don't round anything.",
+  "sql": "WITH status_counts AS (SELECT powerstatus, COUNT(*) AS telescope_count FROM telescopes GROUP BY powerstatus), status_shares AS (SELECT powerstatus, telescope_count, 1.0 * telescope_count / SUM(telescope_count) OVER () AS share FROM status_counts), average_share AS (SELECT AVG(share) AS share FROM status_shares) SELECT SUM(s.telescope_count) AS total_telescopes, AVG(s.share) AS average_share, AVG(s.share - a.share) AS average_excess_share FROM status_shares AS s CROSS JOIN average_share AS a WHERE s.share > a.share",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Group telescopes by `powerstatus`, treating NULL as a separate status; calculate each group\u2019s count divided by the total telescope count, average those fractional shares equally across statuses, and return one row for statuses above that average containing their combined telescope count, their average fractional share, and their average fractional share minus the average across all statuses, without rounding",
+  "sql": "WITH status_counts AS (SELECT powerstatus, COUNT(*) AS telescope_count FROM telescopes GROUP BY powerstatus), total AS (SELECT COUNT(*) AS telescope_count FROM telescopes), shares AS (SELECT s.powerstatus, s.telescope_count, CAST(s.telescope_count AS REAL) / NULLIF(t.telescope_count, 0) AS fractional_share FROM status_counts s CROSS JOIN total t), overall AS (SELECT AVG(fractional_share) AS average_share FROM shares) SELECT SUM(s.telescope_count) AS combined_telescope_count, AVG(s.fractional_share) AS average_fractional_share, AVG(s.fractional_share) - o.average_share AS difference_from_overall_average FROM shares s CROSS JOIN overall o WHERE s.fractional_share > o.average_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For each power supply status (`powerstatus`) of our telescopes, with a missing status counted as its own group, what share of all telescopes does it account for? For the statuses whose share is above the average share across statuses, give one row with the total number of telescopes in them, their average share, and how far above the average share they are on average. Don't round anything. Each power status's share of all telescopes is written as a fraction from 0 to 1.",
+  "sql": "WITH status_shares AS (SELECT powerstatus, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM telescopes) AS share FROM telescopes GROUP BY powerstatus), average_share AS (SELECT AVG(share) AS share FROM status_shares) SELECT SUM(s.telescope_count) AS total_telescopes, AVG(s.share) AS average_share, AVG(s.share - a.share) AS average_amount_above_average FROM status_shares AS s CROSS JOIN average_share AS a WHERE s.share > a.share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each telescope power supply status (`powerstatus`), counting missing status as its own group, what fraction of all telescopes does it represent, expressed from 0 to 1? For statuses whose fraction exceeds the average fraction across statuses, return one row with their combined telescope count, their average fraction, and their average amount above the overall average fraction. Do not round any values.",
+  "sql": "WITH status_fractions AS (SELECT powerstatus, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM telescopes) AS fraction FROM telescopes GROUP BY powerstatus), overall AS (SELECT AVG(fraction) AS average_fraction FROM status_fractions) SELECT SUM(sf.telescope_count) AS combined_telescope_count, AVG(sf.fraction) AS average_fraction, AVG(sf.fraction - o.average_fraction) AS average_amount_above_overall FROM status_fractions AS sf CROSS JOIN overall AS o WHERE sf.fraction > o.average_fraction;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

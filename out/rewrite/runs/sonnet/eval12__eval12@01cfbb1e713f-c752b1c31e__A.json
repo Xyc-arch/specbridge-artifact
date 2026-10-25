@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c752b1c31e",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "Each phase's count is its number of telescopes, and column 2 sums these counts over the above-average phases.",
+ "b": {
+  "request": "Join each telescope to its observatory on `observstation` (inner join, dropping unmatched telescopes), group by `observatories.lunarstage` (NULL phase as its own group), compute each phase's average `telescopes.bandusagepct` ignoring NULLs and its count of telescopes in that phase, keep phases whose average exceeds the mean of all phase averages, and return one row with the average of those phases' averages, the sum of their telescope counts, and the average of (phase average minus the overall mean of phase averages), unrounded",
+  "sql": "WITH phase AS (SELECT o.lunarstage AS lunarstage, AVG(t.bandusagepct) AS avg_usage, COUNT(*) AS tel_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation GROUP BY o.lunarstage), overall AS (SELECT AVG(avg_usage) AS mean_avg FROM phase) SELECT AVG(p.avg_usage) AS avg_of_phase_averages, SUM(p.tel_count) AS total_telescopes, AVG(p.avg_usage - ov.mean_avg) AS avg_diff_from_overall_mean FROM phase p CROSS JOIN overall ov WHERE p.avg_usage > ov.mean_avg",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Match each telescope to its observatory on `observstation`, and drop unmatched telescopes. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), compute two things: the average bandwidth usage (`telescopes.bandusagepct`) over its telescopes, ignoring missing values, and the number of telescopes. Keep the phases whose average is above the mean of all the phase averages. Return one row with three values: the average of the kept phases' bandwidth averages, the total number of telescopes across the kept phases, and the average amount by which the kept phases exceed that mean. Don't round.",
+  "sql": "WITH g AS (SELECT o.lunarstage AS ls, AVG(t.bandusagepct) AS avg_bw, COUNT(*) AS n FROM telescopes t JOIN observatories o ON o.observstation = t.observstation GROUP BY o.lunarstage), m AS (SELECT AVG(avg_bw) AS mean_avg FROM g), k AS (SELECT g.avg_bw, g.n, m.mean_avg FROM g CROSS JOIN m WHERE g.avg_bw > m.mean_avg) SELECT AVG(avg_bw) AS avg_of_kept_averages, SUM(n) AS total_telescopes, AVG(avg_bw - mean_avg) AS avg_excess FROM k",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Match each telescope to its observatory on `observstation`, and drop unmatched telescopes. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), find the average bandwidth usage (`telescopes.bandusagepct`), ignoring missing values, and how many are in that phase. Keep the phases whose average is above the mean of all the phase averages. Give one row with three values: the average of those phases' bandwidth averages, the total count across them, and the average amount by which they exceed the mean. Don't round. Each phase's count is its number of telescopes, and column 2 sums these counts over the above-average phases.",
+  "sql": "WITH g AS (SELECT o.lunarstage AS ls, AVG(t.bandusagepct) AS avg_bw, COUNT(*) AS cnt FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.lunarstage), m AS (SELECT AVG(avg_bw) AS mean_avg FROM g) SELECT AVG(g.avg_bw) AS avg_of_avgs, SUM(g.cnt) AS total_count, AVG(g.avg_bw - m.mean_avg) AS avg_excess FROM g CROSS JOIN m WHERE g.avg_bw > m.mean_avg",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match each telescope to its observatory on `observstation`, dropping telescopes with no matching observatory. Then group by moon phase (`observatories.lunarstage`), treating a missing phase as its own group. For each phase, compute the average bandwidth usage (`telescopes.bandusagepct`), ignoring missing values, and count the telescopes in that phase. Keep the phases whose average is above the mean of all the phase averages. Return one row with three values:\n\n1. The average of the kept phases' bandwidth averages.\n2. The total count of telescopes across the kept phases. Each phase's count is its number of telescopes, so this sums those counts over the above-average phases.\n3. The average amount by which the kept phases' averages exceed the mean of all phase averages.\n\nDon't round any values.",
+  "sql": "WITH phase AS (SELECT o.lunarstage AS phase, AVG(t.bandusagepct) AS avg_bw, COUNT(*) AS cnt FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.lunarstage), m AS (SELECT AVG(avg_bw) AS mean_avg FROM phase) SELECT AVG(p.avg_bw) AS avg_of_kept_averages, SUM(p.cnt) AS total_telescopes, AVG(p.avg_bw - m.mean_avg) AS avg_excess FROM phase p CROSS JOIN m WHERE p.avg_bw > m.mean_avg",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

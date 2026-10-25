@@ -1,0 +1,56 @@
+{
+ "interpretations": [
+  "Tally = count of manager_award rows (each award row counts, including ties and multiple awards per person), grouped by the player's `throws` (R, L, B, NULL/missing as its own group). Rows without a matching player are dropped. Select hands whose share of the total tally exceeds the average share, then output one row: sum of their tallies, average of their shares, and average of (share \u2212 average share).",
+  "Same as 1, but the tally counts distinct manager award winners (distinct `player_id`) per hand, instead of award rows. The share is each hand's distinct winners divided by the total across hands.",
+  "Same as 1, but the tally counts distinct (player_id, year) winner-seasons, or distinct (player_id, award_id, year) combinations, per hand.",
+  "\"Average share\" is the mean of the per-hand shares (1 divided by the number of hands, e.g. 1/4 with R, L, B and missing). Hands qualify if their share is greater than that mean.",
+  "\"Average share\" is the share the average hand would hold, computed as the average tally per hand divided by the overall total. This is numerically the same as interpretation 4.",
+  "\"Average share\" is a tally-weighted or other mean of shares across the qualifying hands only. The output is then their combined tally, the mean share of the qualifying hands, and the mean excess over the overall average share, taken across the qualifying hands.",
+  "\"How far above the average share they sit on average\" is the mean of (hand share \u2212 overall mean share) across the qualifying hands.",
+  "The same measure expressed as the mean share of the qualifying hands minus the overall mean share. This is the same value as 7.",
+  "The same measure as a relative ratio, i.e. the mean of (share / average share \u2212 1) or the mean of share / average share, rather than a difference in share.",
+  "The same measure as percentage points (share \u00d7 100) rather than a fraction.",
+  "The same measure with the excess taken as an absolute value. Since the qualifying hands are all above average, this gives the same result as 7.",
+  "Share denominator is the total of all matched award rows, with missing-`throws` rows included. A variant excludes the missing group from the denominator while still keeping it as a group.",
+  "Missing `throws` includes both NULL and empty-string values, grouped together as one group.",
+  "Missing `throws` includes only NULL. Empty strings are treated as their own separate group.",
+  "\"Manager award\" means only the `manager_award` table (e.g. the BBWAA and TSN Manager of the Year awards).",
+  "\"Manager award\" also includes `manager_award_vote` candidates or winners. Candidates would count as winners only if `points_won` is positive.",
+  "\"Manager award\" is read as `player_award` rows for players who also appear in `manager`.",
+  "Unrounded means full-precision floats, with no rounding of share, average, or difference.",
+  "Integer-division risk: shares computed as real numbers rather than truncated integer ratios.",
+  "The output is a single row with three columns: combined tally, average share, and average excess over the average share. A variant reads \"their average share\" as the mean of the qualifying hands' shares, and another as the overall average share across all hands.",
+  "Missing interpretations:",
+  "The tally counts distinct (award_id, year) pairs per hand, so a tie or a shared award is counted once per award-year, not once per player.",
+  "The tally counts distinct award_id values per hand.",
+  "Only winners with a non-null `award_id` and `year` are tallied.",
+  "\"Average share\" is the mean of the per-hand shares, but only over hands that actually have at least one award. Hands with zero awards aren't groups, so the denominator is the number of non-empty hands.",
+  "\"Their average share\" means the overall mean share across all hands, not the mean share of the qualifying hands.",
+  "\"How far above the average share they sit on average\" is the mean of the qualifying hands' shares minus the mean share. This is the same as interpretation 7, except the mean is taken as a tally-weighted mean.",
+  "\"Above the average share\" is read as greater than or equal to the average share, so a hand exactly at the average qualifies.",
+  "The `throws` value is normalized, for example by trimming whitespace or ignoring case, before grouping.",
+  "Hands are grouped by the player's `throws` as of their award year, if the data had historical changes. In this schema, `player` has a single value per player.",
+  "The tally is based on the manager's `player_id` from the `manager` table joined to `manager_award`, which drops award rows for people with no manager record.",
+  "The share is computed over all `manager_award` rows before the join to `player`, so unmatched rows stay in the denominator and only the numerator drops them."
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT p.throws AS throws, COUNT(*) AS cnt\n  FROM manager_award ma\n  JOIN player p ON p.player_id = ma.player_id\n  GROUP BY p.throws\n),\ns AS (\n  SELECT throws, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM t) AS share\n  FROM t\n),\na AS (\n  SELECT AVG(share) AS avg_share FROM s\n)\nSELECT SUM(cnt) AS total_tally,\n       AVG(share) AS avg_share,\n       AVG(share - (SELECT avg_share FROM a)) AS avg_diff\nFROM s\nWHERE share > (SELECT avg_share FROM a);\n",
+  "SELECT p.bats,\n       COUNT(DISTINCT ma.player_id) AS winners,\n       CAST(COUNT(DISTINCT ma.player_id) AS REAL) / (SELECT COUNT(DISTINCT ma2.player_id) FROM manager_award ma2 JOIN player p2 ON p2.player_id = ma2.player_id) AS share\nFROM manager_award ma\nJOIN player p ON p.player_id = ma.player_id\nGROUP BY p.bats;\n",
+  "SELECT p.bats, COUNT(DISTINCT pa.player_id || '|' || pa.award_id || '|' || pa.year) AS cnt\nFROM player_award pa\nJOIN player p ON pa.player_id = p.player_id\nGROUP BY p.bats;\n",
+  "SELECT bats\nFROM player\nGROUP BY bats\nHAVING COUNT(*) * 1.0 / (SELECT COUNT(*) FROM player) > 1.0 / (SELECT COUNT(DISTINCT COALESCE(bats, 'missing')) FROM player);\n",
+  "SELECT SUM(ab) AS total_ab,\n       AVG(h * 1.0 / ab) AS mean_share,\n       AVG(h * 1.0 / ab - (SELECT SUM(h) * 1.0 / SUM(ab) FROM batting WHERE ab > 0)) AS mean_excess\nFROM batting\nWHERE ab >= 100;\n"
+ ],
+ "raw": [
+  "1. Tally = count of manager_award rows (each award row counts, including ties and multiple awards per person), grouped by the player's `throws` (R, L, B, NULL/missing as its own group). Rows without a matching player are dropped. Select hands whose share of the total tally exceeds the average share, then output one row: sum of their tallies, average of their shares, and average of (share \u2212 average share).\n2. Same as 1, but the tally counts distinct manager award winners (distinct `player_id`) per hand, instead of award rows. The share is each hand's distinct winners divided by the total across hands.\n3. Same as 1, but the tally counts distinct (player_id, year) winner-seasons, or distinct (player_id, award_id, year) combinations, per hand.\n4. \"Average share\" is the mean of the per-hand shares (1 divided by the number of hands, e.g. 1/4 with R, L, B and missing). Hands qualify if their share is greater than that mean.\n5. \"Average share\" is the share the average hand would hold, computed as the average tally per hand divided by the overall total. This is numerically the same as interpretation 4.\n6. \"Average share\" is a tally-weighted or other mean of shares across the qualifying hands only. The output is then their combined tally, the mean share of the qualifying hands, and the mean excess over the overall average share, taken across the qualifying hands.\n7. \"How far above the average share they sit on average\" is the mean of (hand share \u2212 overall mean share) across the qualifying hands.\n8. The same measure expressed as the mean share of the qualifying hands minus the overall mean share. This is the same value as 7.\n9. The same measure as a relative ratio, i.e. the mean of (share / average share \u2212 1) or the mean of share / average share, rather than a difference in share.\n10. The same measure as percentage points (share \u00d7 100) rather than a fraction.\n11. The same measure with the excess taken as an absolute value. Since the qualifying hands are all above average, this gives the same result as 7.\n12. Share denominator is the total of all matched award rows, with missing-`throws` rows included. A variant excludes the missing group from the denominator while still keeping it as a group.\n13. Missing `throws` includes both NULL and empty-string values, grouped together as one group.\n14. Missing `throws` includes only NULL. Empty strings are treated as their own separate group.\n15. \"Manager award\" means only the `manager_award` table (e.g. the BBWAA and TSN Manager of the Year awards).\n16. \"Manager award\" also includes `manager_award_vote` candidates or winners. Candidates would count as winners only if `points_won` is positive.\n17. \"Manager award\" is read as `player_award` rows for players who also appear in `manager`.\n18. Unrounded means full-precision floats, with no rounding of share, average, or difference.\n19. Integer-division risk: shares computed as real numbers rather than truncated integer ratios.\n20. The output is a single row with three columns: combined tally, average share, and average excess over the average share. A variant reads \"their average share\" as the mean of the qualifying hands' shares, and another as the overall average share across all hands.",
+  "Missing interpretations:\n\nThe tally counts distinct (award_id, year) pairs per hand, so a tie or a shared award is counted once per award-year, not once per player.\nThe tally counts distinct award_id values per hand.\nOnly winners with a non-null `award_id` and `year` are tallied.\n\"Average share\" is the mean of the per-hand shares, but only over hands that actually have at least one award. Hands with zero awards aren't groups, so the denominator is the number of non-empty hands.\n\"Their average share\" means the overall mean share across all hands, not the mean share of the qualifying hands.\n\"How far above the average share they sit on average\" is the mean of the qualifying hands' shares minus the mean share. This is the same as interpretation 7, except the mean is taken as a tally-weighted mean.\n\"Above the average share\" is read as greater than or equal to the average share, so a hand exactly at the average qualifies.\nThe `throws` value is normalized, for example by trimming whitespace or ignoring case, before grouping.\nHands are grouped by the player's `throws` as of their award year, if the data had historical changes. In this schema, `player` has a single value per player.\nThe tally is based on the manager's `player_id` from the `manager` table joined to `manager_award`, which drops award rows for people with no manager record.\nThe share is computed over all `manager_award` rows before the join to `player`, so unmatched rows stay in the denominator and only the numerator drops them."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-2f5c7dea6e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 74045,
+  "chars_out": 7217
+ }
+}

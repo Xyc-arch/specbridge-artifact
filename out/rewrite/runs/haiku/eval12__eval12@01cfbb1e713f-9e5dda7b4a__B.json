@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9e5dda7b4a",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Per account scope, collapse fee records to one net rate per order (averaging within the order), then average across orders and count orders.",
+ "b": {
+  "request": "For each account scope, average the net fee rate (`fees.feerate - fees.rebrate`) per order (grouping fees by `orders.recordvault`, joining `orders.userlink` = `users.userstamp` to `users.acctscope`, dropping unmatched rows), then report the scope, the count of orders, the average of those per-order net rates, and the difference between that scope average and the simple mean of all scope averages, unrounded",
+  "sql": "WITH order_net AS (SELECT o.recordvault, u.acctscope, AVG(f.feerate - f.rebrate) AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY o.recordvault, u.acctscope), scope_avg AS (SELECT acctscope, COUNT(*) AS order_count, AVG(net_rate) AS avg_net_rate FROM order_net GROUP BY acctscope) SELECT acctscope, order_count, avg_net_rate, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_mean_of_scope_avgs FROM scope_avg",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each account scope (`users.acctscope`), taking fee records linked to their order (`fees.orderslink` = `orders.recordvault`) and that order's user (`orders.userlink` = `users.userstamp`), and dropping any without a match, show the scope, the average net fee rate (`feerate` minus `rebrate`) taken over orders, where each order's net rate is its average `feerate` minus its average `rebrate` across its fee records (ignoring orders where it is missing), the number of orders, and how far the scope's average net rate is above or below the plain average of the per-scope averages. No rounding.",
+  "sql": "WITH order_net AS (SELECT u.acctscope AS scope, o.recordvault, AVG(f.feerate) - AVG(f.rebrate) AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope, o.recordvault), scope_avg AS (SELECT scope, AVG(net_rate) AS avg_net_rate, COUNT(*) AS order_count FROM order_net WHERE net_rate IS NOT NULL GROUP BY scope) SELECT scope, avg_net_rate, order_count, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_avg_of_scope_avgs FROM scope_avg;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each account scope, using fees tied to orders (`fees.orderslink` = `orders.recordvault`) and to the users who placed them (`orders.userlink` = `users.userstamp`), with unmatched rows dropped, show the scope, the average net fee rate (fee rate minus maker rebate rate), how many it was averaged over, and how far that average sits from the simple mean of the scope averages. Don't round. Per account scope, collapse fee records to one net rate per order (averaging within the order), then average across orders and count orders.",
+  "sql": "WITH order_net AS (SELECT u.acctscope AS scope, o.recordvault, AVG(f.feerate - f.rebrate) AS order_net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope, o.recordvault), scope_avg AS (SELECT scope, AVG(order_net_rate) AS avg_net_fee_rate, COUNT(order_net_rate) AS order_count FROM order_net GROUP BY scope) SELECT scope, avg_net_fee_rate, order_count, avg_net_fee_rate - AVG(avg_net_fee_rate) OVER () AS diff_from_simple_mean FROM scope_avg;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Per account scope, what is the average net fee rate (fee rate minus maker rebate rate) across orders, where each order's net rate is the average of its fee records' net rates, and how many orders is that average based on?",
+  "sql": "WITH order_net AS (SELECT o.recordvault, u.acctscope, AVG(f.feerate - f.rebrate) AS order_net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY o.recordvault, u.acctscope) SELECT acctscope, AVG(order_net_rate) AS avg_net_fee_rate, COUNT(*) AS order_count FROM order_net GROUP BY acctscope;",
+  "executes": true,
+  "matches": []
+ }
+}

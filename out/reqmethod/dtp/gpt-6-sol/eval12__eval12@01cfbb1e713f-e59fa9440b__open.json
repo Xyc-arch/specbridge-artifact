@@ -1,0 +1,32 @@
+{
+ "interpretations": [
+  "Treat missing announcement timing as its own group. Select timings whose mean institutional ownership exceeds the mean across all nonmissing ownership records; return the mean of the selected timing means and their mean excess over that record-wide mean",
+  "Treat missing announcement timing as its own group. Select timings whose mean institutional ownership exceeds the unweighted mean of all timing-group means; return the mean of the selected timing means and their mean excess over that group-wide mean",
+  "Allow missing timing as a candidate group, but calculate the comparison average from records with a known timing and nonmissing ownership; return the mean of the selected timing means and their mean excess over that comparison average",
+  "Allow missing timing as a candidate group, but calculate the comparison average as the unweighted mean of known-timing group means; return the mean of the selected timing means and their mean excess over that comparison average",
+  "For each timing, compare its mean ownership with the mean ownership of records in every other timing group; return the mean of qualifying timing means and the mean of their respective excesses",
+  "Use the record-wide ownership mean to select timings, then report the selected timing means\u2019 average excess as a percentage of that mean rather than as an ownership percentage-point difference",
+  "For each timing, compare its mean ownership with the unweighted mean of the other timing-group means; return the mean of qualifying timing means and their mean excess",
+  "Use the unweighted mean of all timing-group means as the comparison average, then report the selected timings\u2019 mean excess as a percentage of that average",
+  "Use the record-wide mean for records with a known timing as the comparison average, then report the selected timings\u2019 mean excess as a percentage of that average",
+  "Use the unweighted mean of known-timing group means as the comparison average, then report the selected timings\u2019 mean excess as a percentage of that average",
+  "Compare each timing with the record-wide mean of every other timing group, then report the mean of the qualifying timing means and their mean percentage excess",
+  "Compare each timing with the unweighted mean of the other timing-group means, then report the mean of the qualifying timing means and their mean percentage excess"
+ ],
+ "queries": [
+  "WITH timing_means AS (\n  SELECT eventannotm, AVG(instownpct) AS mean_ownership\n  FROM sentimentandfundamentals\n  GROUP BY eventannotm\n),\noverall_mean AS (\n  SELECT AVG(instownpct) AS mean_ownership\n  FROM sentimentandfundamentals\n)\nSELECT\n  AVG(t.mean_ownership) AS mean_selected_ownership,\n  AVG(t.mean_ownership - o.mean_ownership) AS mean_excess\nFROM timing_means AS t\nCROSS JOIN overall_mean AS o\nWHERE t.mean_ownership > o.mean_ownership",
+  "WITH timing_means AS (\n  SELECT eventannotm, AVG(instownpct) AS mean_ownership\n  FROM sentimentandfundamentals\n  GROUP BY eventannotm\n),\ngroup_mean AS (\n  SELECT AVG(mean_ownership) AS mean_ownership\n  FROM timing_means\n)\nSELECT\n  AVG(t.mean_ownership) AS mean_selected_ownership,\n  AVG(t.mean_ownership - g.mean_ownership) AS mean_excess\nFROM timing_means AS t\nCROSS JOIN group_mean AS g\nWHERE t.mean_ownership > g.mean_ownership",
+  "WITH comparison AS (\n  SELECT AVG(instownpct) AS comparison_average\n  FROM sentimentandfundamentals\n  WHERE eventannotm IS NOT NULL\n    AND instownpct IS NOT NULL\n),\ntiming_means AS (\n  SELECT eventannotm, AVG(instownpct) AS timing_mean\n  FROM sentimentandfundamentals\n  WHERE instownpct IS NOT NULL\n  GROUP BY eventannotm\n)\nSELECT\n  AVG(timing_mean) AS mean_selected_timing_means,\n  AVG(timing_mean - comparison_average) AS mean_excess\nFROM timing_means\nCROSS JOIN comparison\nWHERE timing_mean > comparison_average",
+  "WITH timing_ownership AS (\n    SELECT\n        eventannotm,\n        SUM(instownpct) AS ownership_sum,\n        COUNT(instownpct) AS ownership_count\n    FROM sentimentandfundamentals\n    WHERE eventannotm IS NOT NULL\n      AND instownpct IS NOT NULL\n    GROUP BY eventannotm\n),\ncomparisons AS (\n    SELECT\n        ownership_sum * 1.0 / ownership_count AS timing_mean,\n        (SUM(ownership_sum) OVER () - ownership_sum) * 1.0\n            / NULLIF(SUM(ownership_count) OVER () - ownership_count, 0) AS other_mean\n    FROM timing_ownership\n)\nSELECT\n    AVG(timing_mean),\n    AVG(timing_mean - other_mean)\nFROM comparisons\nWHERE timing_mean > other_mean",
+  "WITH overall AS (\n    SELECT AVG(instownpct) AS mean_ownership\n    FROM sentimentandfundamentals\n),\ntiming_means AS (\n    SELECT eventannotm, AVG(instownpct) AS mean_ownership\n    FROM sentimentandfundamentals\n    WHERE eventannotm IS NOT NULL\n    GROUP BY eventannotm\n)\nSELECT AVG((timing_means.mean_ownership - overall.mean_ownership) * 100.0\n           / NULLIF(overall.mean_ownership, 0)) AS average_excess_pct\nFROM timing_means\nCROSS JOIN overall\nWHERE timing_means.mean_ownership > overall.mean_ownership"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e59fa9440b",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 137920,
+  "chars_out": 4967
+ }
+}

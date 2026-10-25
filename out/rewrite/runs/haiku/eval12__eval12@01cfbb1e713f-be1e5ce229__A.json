@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-be1e5ce229",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Events with a missing location are ranked among themselves as one location group and can appear in the result.",
+ "a": {
+  "request": "For each event that has budget lines (matched by event id), average the ratio (`spent` \u2212 `amount`) / `amount` over its budget lines. Within each event `location`, rank the events by this average from highest to lowest (events with no average last). Tied events share a rank and the next rank is skipped. Show the event id, location, average ratio and rank for events ranked 3 or better. Events with no recorded location are grouped together as one location and ranked among themselves.",
+  "sql": "WITH event_ratio AS (SELECT b.link_to_event AS event_id, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM budget b GROUP BY b.link_to_event), ranked AS (SELECT e.event_id, e.location, r.avg_ratio, RANK() OVER (PARTITION BY COALESCE(NULLIF(TRIM(e.location), ''), '') ORDER BY (r.avg_ratio IS NULL), r.avg_ratio DESC) AS rnk FROM event e JOIN event_ratio r ON r.event_id = e.event_id) SELECT event_id, location, avg_ratio, rnk AS rank FROM ranked WHERE rnk <= 3 ORDER BY location, rnk, event_id;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For each location, what are the top 3 events by average budget overspend ratio, (`spent` \u2212 `amount`) / `amount` averaged over each event's budget lines? Rank events within each location from highest to lowest ratio, with events lacking a ratio last. Tied events share a rank and the next rank is skipped. Show the event id, location, average ratio and rank. Events with a missing location are ranked among themselves as one location group and can appear in the result.",
+  "sql": "WITH event_ratio AS (\n  SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio\n  FROM event e\n  LEFT JOIN budget b\n    ON b.link_to_event = e.event_id\n   AND b.amount IS NOT NULL AND b.amount <> 0 AND b.spent IS NOT NULL\n  GROUP BY e.event_id, e.location\n),\nranked AS (\n  SELECT event_id, location, avg_ratio,\n         RANK() OVER (PARTITION BY location ORDER BY (avg_ratio IS NULL), avg_ratio DESC) AS rnk\n  FROM event_ratio\n)\nSELECT event_id, location, avg_ratio, rnk AS rank\nFROM ranked\nWHERE rnk <= 3\nORDER BY location, rnk;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each location (including events with a NULL location as their own group), rank events by their average budget overspend ratio, where each event's ratio is the mean over its budget lines of (spent \u2212 amount) / amount, with events lacking a ratio ranked last, ties sharing a rank with the next rank skipped, and returning the top 3 events per location with event_id, location, average ratio, and rank",
+  "sql": "WITH event_ratio AS (SELECT b.link_to_event AS event_id, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM budget b GROUP BY b.link_to_event), ranked AS (SELECT e.event_id, e.location, r.avg_ratio, RANK() OVER (PARTITION BY e.location ORDER BY CASE WHEN r.avg_ratio IS NULL THEN 1 ELSE 0 END, r.avg_ratio DESC) AS rank FROM event e LEFT JOIN event_ratio r ON r.event_id = e.event_id) SELECT event_id, location, avg_ratio, rank FROM ranked WHERE rank <= 3 ORDER BY location, rank, event_id;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each location, including events whose location is missing (grouped together as one location group), what are the top 3 events by average budget overspend ratio, where each budget line's ratio is (`spent` \u2212 `amount`) / `amount` and an event's average is taken over its budget lines? Rank events within each location from highest to lowest ratio, with events lacking a ratio ranked last, tied events sharing a rank with the next rank skipped, and show the event id, location, average ratio, and rank.",
+  "sql": "WITH line_ratio AS (SELECT b.link_to_event AS event_id, CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END AS ratio FROM budget b), event_avg AS (SELECT e.event_id, e.location, AVG(lr.ratio) AS avg_ratio FROM event e LEFT JOIN line_ratio lr ON lr.event_id = e.event_id GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY (avg_ratio IS NULL), avg_ratio DESC) AS rank FROM event_avg) SELECT event_id, location, avg_ratio AS average_ratio, rank FROM ranked WHERE rank <= 3 ORDER BY location, rank;",
+  "executes": true,
+  "matches": []
+ }
+}

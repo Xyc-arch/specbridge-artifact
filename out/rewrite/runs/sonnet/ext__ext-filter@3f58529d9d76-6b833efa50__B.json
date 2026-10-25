@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-6b833efa50",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Only scans timestamped strictly inside the window are included; scans exactly at either endpoint are excluded.",
+ "c": {
+  "request": "Looking at scans taken between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' (comparing `chronotag` as text) that link to a site via `zoneref`, break them down by the site's health and safety status (`healtheval`). For each status, give the status, the total `scancount`, and the average GB per scan minute (`gbsize` \u00f7 `spanmin`), skipping missing values. Also give each status's gap from the mean of those status-level averages (its average minus the mean), and return nothing if that mean can't be computed. No rounding. Only scans timestamped strictly inside the window are included; scans exactly at either endpoint are excluded.",
+  "sql": "WITH s AS (SELECT si.healtheval AS status, sc.scancount AS scancount, sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0) AS ratio FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry WHERE CAST(sc.chronotag AS TEXT) > '2024-06-06 11:53:59.684274' AND CAST(sc.chronotag AS TEXT) < '2024-11-03 19:51:13.516797'), g AS (SELECT status, SUM(scancount) AS total_scancount, AVG(ratio) AS avg_gb_per_scan_minute FROM s GROUP BY status), m AS (SELECT AVG(avg_gb_per_scan_minute) AS mean_avg FROM g) SELECT g.status, g.total_scancount, g.avg_gb_per_scan_minute, g.avg_gb_per_scan_minute - m.mean_avg AS gap_from_mean FROM g CROSS JOIN m WHERE m.mean_avg IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "d": {
+  "request": "For scans whose `chronotag` (compared as text) is strictly after '2024-06-06 11:53:59.684274' and strictly before '2024-11-03 19:51:13.516797' (endpoints excluded) and that join to a site via `zoneref`, group by the site's `healtheval` and return each status, the sum of `scancount`, and the average of `gbsize`/`spanmin` per scan (skipping rows with missing `gbsize` or `spanmin`), plus each status's average minus the mean of the status-level averages, returning no rows if that mean cannot be computed, with no rounding.",
+  "sql": "WITH g AS (SELECT s.healtheval AS healtheval, SUM(sc.scancount) AS total_scancount, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS avg_gb_per_min FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE CAST(sc.chronotag AS TEXT) > '2024-06-06 11:53:59.684274' AND CAST(sc.chronotag AS TEXT) < '2024-11-03 19:51:13.516797' GROUP BY s.healtheval), m AS (SELECT g.*, AVG(avg_gb_per_min) OVER () AS mean_of_avgs FROM g) SELECT healtheval, total_scancount, avg_gb_per_min, avg_gb_per_min - mean_of_avgs AS diff_from_mean FROM m WHERE mean_of_avgs IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Scans whose `chronotag` text is strictly greater than '2024-06-06 11:53:59.684274' and strictly less than '2024-11-03 19:51:13.516797' (both endpoints excluded) and that join to a site via `zoneref` are grouped by the site's `healtheval`. For each status, the output is the status, the sum of `scancount`, and the average of `gbsize`/`spanmin` per scan (rows with missing values skipped). It also gives each status's average minus the mean of those status-level averages, unrounded, and returns no rows if that mean can't be computed.",
+  "sql": "WITH g AS (SELECT s.healtheval AS status, SUM(sc.scancount) AS total_scancount, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avg_ratio FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE sc.chronotag > '2024-06-06 11:53:59.684274' AND sc.chronotag < '2024-11-03 19:51:13.516797' GROUP BY s.healtheval), m AS (SELECT status, total_scancount, avg_ratio, AVG(avg_ratio) OVER () AS mean_avg FROM g) SELECT status, total_scancount, avg_ratio, avg_ratio - mean_avg AS diff_from_mean FROM m WHERE mean_avg IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "Scans whose `chronotag` text is strictly greater than '2024-06-06 11:53:59.684274' and strictly less than '2024-11-03 19:51:13.516797' (both endpoints excluded) and that join to a site via `zoneref` are grouped by the site's `healtheval`. For each status, the output is the status, the sum of `scancount`, and the average of `gbsize`/`spanmin` per scan (rows with missing values skipped). It also gives each status's average minus the mean of those status-level averages, unrounded, and returns no rows if that mean can't be computed."
+ },
+ "a": {
+  "request": "For scans linked to a site (scan `zoneref` = site code) with a timestamp (`chronotag`, compared as text) strictly after '2024-06-06 11:53:59.684274' and strictly before '2024-11-03 19:51:13.516797', excluding both endpoints, group by the site's health and safety status (`healtheval`). For each status, show the status, the total number of scans (sum of `scancount`) and the average file size per scan minute (`gbsize` \u00f7 `spanmin`), ignoring missing values. Also show how far each status's average ratio is from the mean of all the status-level average ratios (status average minus that mean), and return nothing if that mean can't be computed. Don't round.",
+  "sql": "WITH base AS (SELECT s.healtheval AS healtheval, SUM(c.scancount) AS total_scans, AVG(c.gbsize / NULLIF(c.spanmin, 0)) AS avg_ratio FROM scans c JOIN sites s ON c.zoneref = s.zoneregistry WHERE c.chronotag > '2024-06-06 11:53:59.684274' AND c.chronotag < '2024-11-03 19:51:13.516797' GROUP BY s.healtheval), m AS (SELECT AVG(avg_ratio) AS mean_ratio FROM base) SELECT b.healtheval, b.total_scans, b.avg_ratio, b.avg_ratio - m.mean_ratio AS diff_from_mean FROM base b CROSS JOIN m WHERE m.mean_ratio IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

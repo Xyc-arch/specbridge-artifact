@@ -1,0 +1,40 @@
+{
+ "interpretations": [
+  "Group telescopes by `observstation`, compute AVG(`bandusagepct`) ignoring NULLs, COUNT(*) of telescopes, and the ratio of that count to the average telescope count per station, where the average is computed over stations that have at least one telescope (the `telescopes` table only). Sort by ratio descending and take the top 10.",
+  "Same as 1, but the average telescope count per station is computed over all stations in `observatories`, including those with zero telescopes (total telescopes divided by total observatories). The output only lists stations that have telescopes.",
+  "Same as 1, but the output starts from `observatories` with a LEFT JOIN, so stations with zero telescopes appear with a count of 0, a NULL average bandwidth, and a ratio of 0. These can fall in the top 10 only if there are fewer than 10 other stations.",
+  "Same as 1, but the telescope count is COUNT(`bandusagepct`), meaning only telescopes with non-missing bandwidth usage, instead of all telescopes. The average count per station uses the same definition.",
+  "Same as 1, but the ratio's denominator is the average telescope count per station computed as total telescopes divided by the number of distinct stations in `telescopes`, which gives the same number as 1 but is computed as a ratio of totals rather than an average of per-station counts.",
+  "Telescope count is the number of distinct `telescregistry` values per station, which differs from COUNT(*) only if duplicate registry entries exist.",
+  "Telescopes are counted via the `signals` table, meaning only telescopes that have detected at least one signal (a join through `telescref`), so stations with telescopes that never detected signals are excluded or undercounted.",
+  "The average bandwidth usage is a station-level average of per-telescope values, as in 1, versus a signal-weighted average if the join to `signals` duplicates telescope rows once per signal.",
+  "Ties in the ratio are broken arbitrarily versus by a secondary key such as `observstation` name or average bandwidth usage, and the top 10 may include ties at the cutoff, which could be cut off or all included.",
+  "The ratio is shown as a raw decimal versus rounded to a fixed number of places, and the average bandwidth usage is shown unrounded versus rounded.",
+  "Integer-division interpretation: the count is divided by the average using integer arithmetic, so the ratio is truncated.",
+  "Stations with telescopes but all `bandusagepct` values NULL appear with a NULL average, versus being excluded from the output.",
+  "The ratio is computed against the average telescope count per station taken over only the stations that have non-null `bandusagepct`.",
+  "The bandwidth average is weighted by telescope but computed across all telescopes at the station, versus an average of per-telescope values after de-duplicating by `telescregistry`.",
+  "Ratio ties or NULL ratios are ordered with NULLs first or last, depending on the database's default sort order."
+ ],
+ "queries": [
+  "SELECT observstation,\n       AVG(bandusagepct) AS avg_bandusagepct,\n       COUNT(*) AS telescope_count,\n       COUNT(*) * 1.0 / (SELECT AVG(cnt) FROM (SELECT COUNT(*) AS cnt FROM telescopes GROUP BY observstation)) AS ratio\nFROM telescopes\nGROUP BY observstation\nORDER BY ratio DESC\nLIMIT 10;\n",
+  "SELECT observstation\nFROM telescopes\nGROUP BY observstation\nHAVING COUNT(*) > (SELECT COUNT(*) * 1.0 FROM telescopes) / (SELECT COUNT(*) FROM observatories);\n",
+  "SELECT o.observstation,\n       COUNT(t.telescregistry) AS telescope_count,\n       AVG(t.bandusagepct) AS avg_bandwidth_usage,\n       COALESCE(COUNT(t.telescregistry) * 1.0 / NULLIF(AVG(t.bandusagepct), 0), 0) AS ratio\nFROM observatories o\nLEFT JOIN telescopes t ON t.observstation = o.observstation\nGROUP BY o.observstation\nORDER BY telescope_count DESC, o.observstation\nLIMIT 10",
+  "SELECT observstation,\n       COUNT(bandusagepct) AS telescope_count,\n       (SELECT AVG(c) FROM (SELECT COUNT(bandusagepct) AS c FROM telescopes GROUP BY observstation)) AS avg_count_per_station\nFROM telescopes\nGROUP BY observstation;\n",
+  "SELECT CAST((SELECT COUNT(*) FROM signals) AS REAL) / ((SELECT COUNT(*) FROM telescopes) * 1.0 / (SELECT COUNT(DISTINCT observstation) FROM telescopes)) AS ratio;\n",
+  "SELECT observstation, COUNT(DISTINCT telescregistry) AS telescope_count FROM telescopes GROUP BY observstation"
+ ],
+ "raw": [
+  "1. Group telescopes by `observstation`, compute AVG(`bandusagepct`) ignoring NULLs, COUNT(*) of telescopes, and the ratio of that count to the average telescope count per station, where the average is computed over stations that have at least one telescope (the `telescopes` table only). Sort by ratio descending and take the top 10.\n2. Same as 1, but the average telescope count per station is computed over all stations in `observatories`, including those with zero telescopes (total telescopes divided by total observatories). The output only lists stations that have telescopes.\n3. Same as 1, but the output starts from `observatories` with a LEFT JOIN, so stations with zero telescopes appear with a count of 0, a NULL average bandwidth, and a ratio of 0. These can fall in the top 10 only if there are fewer than 10 other stations.\n4. Same as 1, but the telescope count is COUNT(`bandusagepct`), meaning only telescopes with non-missing bandwidth usage, instead of all telescopes. The average count per station uses the same definition.\n5. Same as 1, but the ratio's denominator is the average telescope count per station computed as total telescopes divided by the number of distinct stations in `telescopes`, which gives the same number as 1 but is computed as a ratio of totals rather than an average of per-station counts.\n6. Telescope count is the number of distinct `telescregistry` values per station, which differs from COUNT(*) only if duplicate registry entries exist.\n7. Telescopes are counted via the `signals` table, meaning only telescopes that have detected at least one signal (a join through `telescref`), so stations with telescopes that never detected signals are excluded or undercounted.\n8. The average bandwidth usage is a station-level average of per-telescope values, as in 1, versus a signal-weighted average if the join to `signals` duplicates telescope rows once per signal.\n9. Ties in the ratio are broken arbitrarily versus by a secondary key such as `observstation` name or average bandwidth usage, and the top 10 may include ties at the cutoff, which could be cut off or all included.\n10. The ratio is shown as a raw decimal versus rounded to a fixed number of places, and the average bandwidth usage is shown unrounded versus rounded.",
+  "Integer-division interpretation: the count is divided by the average using integer arithmetic, so the ratio is truncated.\n\nStations with telescopes but all `bandusagepct` values NULL appear with a NULL average, versus being excluded from the output.\n\nThe ratio is computed against the average telescope count per station taken over only the stations that have non-null `bandusagepct`.\n\nThe bandwidth average is weighted by telescope but computed across all telescopes at the station, versus an average of per-telescope values after de-duplicating by `telescregistry`.\n\nRatio ties or NULL ratios are ordered with NULLs first or last, depending on the database's default sort order."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-938a0f3041",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 323601,
+  "chars_out": 4862
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "The baseline is the average modulation index over all linked signals, with every signal counting equally.",
+ "b": {
+  "request": "Compute the average modulation index across all signals that successfully link to a telescope and observatory, weighting each linked signal equally. For each telescope and weather profile, compute the average modulation index and phase shift, retaining only groups whose average modulation index exceeds that overall baseline. Then, for each weather profile, report the average modulation index and phase shift across the retained groups and the average difference between their group modulation indices and the overall baseline, without rounding",
+  "sql": "WITH linked_signals AS (\n  SELECT s.modindex, s.phaseshiftdeg, t.telescregistry, o.weathprofile\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n), baseline AS (\n  SELECT AVG(modindex) AS overall_avg_modindex\n  FROM linked_signals\n), telescope_weather_groups AS (\n  SELECT telescregistry, weathprofile,\n         AVG(modindex) AS avg_modindex,\n         AVG(phaseshiftdeg) AS avg_phaseshiftdeg\n  FROM linked_signals\n  GROUP BY telescregistry, weathprofile\n), retained_groups AS (\n  SELECT g.*, b.overall_avg_modindex\n  FROM telescope_weather_groups AS g\n  CROSS JOIN baseline AS b\n  WHERE g.avg_modindex > b.overall_avg_modindex\n)\nSELECT weathprofile,\n       AVG(avg_modindex) AS avg_modindex,\n       AVG(avg_phaseshiftdeg) AS avg_phaseshiftdeg,\n       AVG(avg_modindex - overall_avg_modindex) AS avg_modindex_difference_from_baseline\nFROM retained_groups\nGROUP BY weathprofile;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Linking signals to their telescopes and observatories (signals that don't match are dropped), find the average modulation index and average phase shift for each telescope and weather profile (`weathprofile`). Keep the telescope/weather groups whose modulation index is above the overall average modulation index. Then, per weather profile, show the average modulation index and average phase shift of those groups, and how far above the overall average they are on average. Don't round anything. The baseline is the average modulation index over all linked signals, with every signal counting equally.",
+  "sql": "WITH linked_signals AS (\n  SELECT s.modindex, s.phaseshiftdeg, t.telescregistry, o.weathprofile\n  FROM signals AS s\n  JOIN telescopes AS t ON s.telescref = t.telescregistry\n  JOIN observatories AS o ON t.observstation = o.observstation\n), baseline AS (\n  SELECT AVG(modindex) AS overall_avg_modindex\n  FROM linked_signals\n), qualifying_groups AS (\n  SELECT ls.telescregistry, ls.weathprofile,\n         AVG(ls.modindex) AS avg_modindex,\n         AVG(ls.phaseshiftdeg) AS avg_phaseshift\n  FROM linked_signals AS ls\n  GROUP BY ls.telescregistry, ls.weathprofile\n  HAVING AVG(ls.modindex) > (SELECT overall_avg_modindex FROM baseline)\n)\nSELECT qg.weathprofile,\n       AVG(qg.avg_modindex) AS avg_modindex,\n       AVG(qg.avg_phaseshift) AS avg_phaseshift,\n       AVG(qg.avg_modindex - b.overall_avg_modindex) AS avg_above_overall_modindex\nFROM qualifying_groups AS qg\nCROSS JOIN baseline AS b\nGROUP BY qg.weathprofile;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Link each signal to its telescope and that telescope's observatory, dropping signals that don't match. For each telescope and weather profile (`weathprofile`), work out the average modulation index and the average phase shift. Keep the telescope/weather groups whose average modulation index is above the average modulation index across all linked signals, with each signal counting equally. Then for each weather profile, return the weather profile, the average of the kept groups' average modulation index, the average of their average phase shift, and the average amount by which their modulation index is above that baseline. Don't round anything.",
+  "sql": "WITH linked_signals AS (\n  SELECT s.modindex, s.phaseshiftdeg, o.weathprofile, s.telescref\n  FROM signals AS s\n  INNER JOIN telescopes AS t ON t.telescregistry = s.telescref\n  INNER JOIN observatories AS o ON o.observstation = t.observstation\n), baseline AS (\n  SELECT AVG(modindex) AS avg_modindex\n  FROM linked_signals\n), telescope_weather AS (\n  SELECT telescref, weathprofile,\n         AVG(modindex) AS avg_modindex,\n         AVG(phaseshiftdeg) AS avg_phaseshift\n  FROM linked_signals\n  GROUP BY telescref, weathprofile\n), kept_groups AS (\n  SELECT tw.*,\n         tw.avg_modindex - b.avg_modindex AS above_baseline\n  FROM telescope_weather AS tw\n  CROSS JOIN baseline AS b\n  WHERE tw.avg_modindex > b.avg_modindex\n)\nSELECT weathprofile,\n       AVG(avg_modindex) AS avg_modulation_index,\n       AVG(avg_phaseshift) AS avg_phase_shift,\n       AVG(above_baseline) AS avg_modulation_index_above_baseline\nFROM kept_groups\nGROUP BY weathprofile;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the average modulation index across all linked signals, with each signal weighted equally, as the baseline, show for each weather profile the average modulation index and average phase shift of telescope/weather groups whose modulation index exceeds that baseline, plus the average amount by which those groups exceed it. Do not round any values.",
+  "sql": "WITH group_averages AS (\n  SELECT\n    o.weathprofile,\n    s.telescref,\n    AVG(s.modindex) AS avg_modulation_index,\n    AVG(s.phaseshiftdeg) AS avg_phase_shift\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n  GROUP BY o.weathprofile, s.telescref\n),\nbaseline AS (\n  SELECT AVG(modindex) AS avg_modulation_index\n  FROM signals\n)\nSELECT\n  g.weathprofile,\n  g.telescref,\n  g.avg_modulation_index,\n  g.avg_phase_shift,\n  g.avg_modulation_index - b.avg_modulation_index AS amount_above_baseline\nFROM group_averages AS g\nCROSS JOIN baseline AS b\nWHERE g.avg_modulation_index > b.avg_modulation_index;",
+  "executes": true,
+  "matches": []
+ }
+}

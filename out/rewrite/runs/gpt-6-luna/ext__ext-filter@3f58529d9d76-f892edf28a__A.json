@@ -1,0 +1,32 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-f892edf28a",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Peer correlation values equal to 0.149 pass the filter (at least 0.149).",
+ "d": {
+  "request": "Select advancedbehavior records with peercorr >= 0.149, inner join them to transactionrecord on advancedbehavior.translink = transactionrecord.transreg, and exclude rows with missing ordertypedist. Group by translink and ordertypedist; for each group, return translink, ordertypedist, the matched-row count, and that count divided by the total matched-row count for the same ordertypedist, without rounding. Sort by this fraction descending and return the top 10 groups.",
+  "sql": "WITH grouped AS (\n  SELECT\n    ab.translink,\n    tr.ordertypedist,\n    COUNT(*) AS matched_row_count\n  FROM advancedbehavior AS ab\n  INNER JOIN transactionrecord AS tr\n    ON ab.translink = tr.transreg\n  WHERE ab.peercorr >= 0.149\n    AND tr.ordertypedist IS NOT NULL\n  GROUP BY ab.translink, tr.ordertypedist\n)\nSELECT\n  translink,\n  ordertypedist,\n  matched_row_count,\n  matched_row_count::numeric / SUM(matched_row_count) OVER (PARTITION BY ordertypedist) AS fraction\nFROM grouped\nORDER BY fraction DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Filter advancedbehavior records where peercorr is at least 0.149, inner join them to transactionrecord on advancedbehavior.translink = transactionrecord.transreg, and exclude rows with missing ordertypedist. Group by translink and ordertypedist; report each translink, ordertypedist, the matched-record count, and that count divided by the total matched-record count for the same ordertypedist, without rounding. Sort by this fraction descending and return the top 10 combinations.",
+  "sql": "WITH matched AS (\n  SELECT ab.translink, tr.ordertypedist\n  FROM advancedbehavior AS ab\n  INNER JOIN transactionrecord AS tr\n    ON ab.translink = tr.transreg\n  WHERE ab.peercorr >= 0.149\n    AND tr.ordertypedist IS NOT NULL\n), grouped AS (\n  SELECT translink, ordertypedist, COUNT(*) AS matched_record_count\n  FROM matched\n  GROUP BY translink, ordertypedist\n)\nSELECT\n  translink,\n  ordertypedist,\n  matched_record_count,\n  matched_record_count::numeric / SUM(matched_record_count) OVER (PARTITION BY ordertypedist) AS fraction\nFROM grouped\nORDER BY fraction DESC\nLIMIT 10",
+  "executes": false,
+  "matches": [],
+  "raw": "Filter advancedbehavior records where peercorr is at least 0.149, inner join them to transactionrecord on advancedbehavior.translink = transactionrecord.transreg, and exclude rows with missing ordertypedist. Group by translink and ordertypedist; report each translink, ordertypedist, the matched-record count, and that count divided by the total matched-record count for the same ordertypedist, without rounding. Sort by this fraction descending and return the top 10 combinations."
+ },
+ "c": {
+  "request": "Using 0.149 as the peer correlation (`peercorr`) cutoff, take the advanced behaviour records with high peer correlation and match each one to its transaction record(s), where `transactionrecord.transreg` equals `advancedbehavior.translink`; drop records with no match. For each combination of `translink` and order type mix (`ordertypedist`), count the matched records. For each combination, show the `translink`, the order type mix, the count, and the count as an unrounded fraction of the total count across all combinations with that same order type mix. Leave out combinations where the order type mix is missing. Sort by that fraction from highest to lowest and return the top 10. Peer correlation values equal to 0.149 pass the filter (at least 0.149).",
+  "sql": "WITH combination_counts AS (\n  SELECT\n    ab.translink,\n    tr.ordertypedist,\n    COUNT(*) AS matched_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tr\n    ON tr.transreg = ab.translink\n  WHERE ab.peercorr >= 0.149\n    AND tr.ordertypedist IS NOT NULL\n  GROUP BY ab.translink, tr.ordertypedist\n),\ncounts_with_fractions AS (\n  SELECT\n    translink,\n    ordertypedist,\n    matched_count,\n    matched_count::numeric / SUM(matched_count) OVER (PARTITION BY ordertypedist) AS fraction\n  FROM combination_counts\n)\nSELECT translink, ordertypedist, matched_count, fraction\nFROM counts_with_fractions\nORDER BY fraction DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Take the advanced behaviour records with a peer correlation (`peercorr`) of at least 0.149 and match each one to its transaction record(s), where `transactionrecord.transreg` equals `advancedbehavior.translink`; drop records with no match. For each combination of `translink` and order type mix (`ordertypedist`), count the matched records. For each combination, show the `translink`, the order type mix, the count, and the count as an unrounded fraction of the total count across all combinations with that same order type mix. Leave out combinations where the order type mix is missing. Sort by that fraction from highest to lowest and return the top 10.",
+  "sql": "WITH combination_counts AS (\n  SELECT\n    ab.translink,\n    tr.ordertypedist,\n    COUNT(*) AS matched_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tr\n    ON tr.transreg = ab.translink\n  WHERE ab.peercorr >= 0.149\n    AND tr.ordertypedist IS NOT NULL\n  GROUP BY ab.translink, tr.ordertypedist\n),\nscored AS (\n  SELECT\n    translink,\n    ordertypedist,\n    matched_count,\n    matched_count::numeric / SUM(matched_count) OVER (PARTITION BY ordertypedist) AS fraction_of_order_type_total\n  FROM combination_counts\n)\nSELECT\n  translink,\n  ordertypedist,\n  matched_count,\n  fraction_of_order_type_total\nFROM scored\nORDER BY fraction_of_order_type_total DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6
+}

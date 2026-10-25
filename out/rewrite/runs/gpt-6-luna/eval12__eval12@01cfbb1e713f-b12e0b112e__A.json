@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b12e0b112e",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Each transaction's value is signed by its direction: credits ('PRIJEM') are positive and withdrawals ('VYDAJ') are negative. Transactions of any other type are excluded from the average.",
+ "b": {
+  "request": "For each account, average the signed transaction amounts, assigning positive values to `PRIJEM` and negative values to `VYDAJ`, and exclude transactions of other types; compare each account\u2019s average with the overall average across all included transactions, then return the top 10 accounts by the amount their average exceeds the overall average, in descending order, with account ID, average, and excess, unrounded",
+  "sql": "WITH account_averages AS (\n    SELECT account_id,\n           AVG(CASE WHEN type = 'PRIJEM' THEN amount\n                    WHEN type = 'VYDAJ' THEN -amount END) AS average_amount\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ')\n    GROUP BY account_id\n), overall_average AS (\n    SELECT AVG(CASE WHEN type = 'PRIJEM' THEN amount\n                    WHEN type = 'VYDAJ' THEN -amount END) AS average_amount\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ')\n)\nSELECT aa.account_id,\n       aa.average_amount,\n       aa.average_amount - oa.average_amount AS excess\nFROM account_averages AS aa\nCROSS JOIN overall_average AS oa\nORDER BY excess DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each account (`trans.account_id`), compute the average transaction amount, treating credits ('PRIJEM') as positive and withdrawals ('VYDAJ') as negative and ignoring transactions of any other or missing type. Then take the mean of these per-account averages. List the accounts whose average is strictly above that mean, showing the account id, its average, and how far above the mean it is. Show the top 10 by that difference, largest first, unrounded.",
+  "sql": "WITH account_averages AS (\n    SELECT\n        account_id,\n        AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_amount\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ')\n    GROUP BY account_id\n),\nmean_average AS (\n    SELECT AVG(avg_amount) AS mean_avg\n    FROM account_averages\n)\nSELECT\n    aa.account_id,\n    aa.avg_amount,\n    aa.avg_amount - ma.mean_avg AS above_mean\nFROM account_averages AS aa\nCROSS JOIN mean_average AS ma\nWHERE aa.avg_amount > ma.mean_avg\nORDER BY above_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Which accounts have an average transaction amount above the average across all accounts? Give the account id, its average, and how much it exceeds the overall average. Show the top 10 by that excess, biggest first, unrounded. Each transaction's value is signed by its direction: credits ('PRIJEM') are positive and withdrawals ('VYDAJ') are negative. Transactions of any other type are excluded from the average.",
+  "sql": "WITH account_averages AS (\n    SELECT account_id,\n           AVG(CASE type\n                   WHEN 'PRIJEM' THEN amount\n                   WHEN 'VYDAJ' THEN -amount\n               END) AS average_transaction_amount\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ')\n    GROUP BY account_id\n), overall_average AS (\n    SELECT AVG(CASE type\n                   WHEN 'PRIJEM' THEN amount\n                   WHEN 'VYDAJ' THEN -amount\n               END) AS average_transaction_amount\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ')\n)\nSELECT aa.account_id,\n       aa.average_transaction_amount,\n       aa.average_transaction_amount - oa.average_transaction_amount AS excess\nFROM account_averages AS aa\nCROSS JOIN overall_average AS oa\nWHERE aa.average_transaction_amount > oa.average_transaction_amount\nORDER BY excess DESC\nLIMIT 10",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each account, calculate the average signed transaction amount, treating credits (`PRIJEM`) as positive and withdrawals (`VYDAJ`) as negative, and excluding all other transaction types. Compare each account\u2019s average with the overall average across all accounts. Show the top 10 accounts whose average is above the overall average, ordered by the amount it exceeds the overall average, largest first. Include each account ID, its average, and the excess; leave values unrounded.",
+  "sql": "WITH account_averages AS (\n    SELECT\n        account_id,\n        AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS average_signed_amount\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ')\n    GROUP BY account_id\n), overall_average AS (\n    SELECT AVG(average_signed_amount) AS average_signed_amount\n    FROM account_averages\n)\nSELECT\n    aa.account_id,\n    aa.average_signed_amount,\n    aa.average_signed_amount - oa.average_signed_amount AS excess\nFROM account_averages AS aa\nCROSS JOIN overall_average AS oa\nWHERE aa.average_signed_amount > oa.average_signed_amount\nORDER BY excess DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

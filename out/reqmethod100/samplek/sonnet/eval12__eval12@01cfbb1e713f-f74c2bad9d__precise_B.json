@@ -1,0 +1,84 @@
+{
+ "queries": [
+  "WITH g AS (SELECT p.death_country, AVG(v.points_won) AS avg_points FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - (SELECT AVG(avg_points) FROM g) AS diff_from_avg_of_group_avgs FROM g;",
+  "WITH v AS (SELECT player_id, points_won FROM player_award_vote UNION ALL SELECT player_id, points_won FROM manager_award_vote), g AS (SELECT p.death_country, AVG(v.points_won) AS avg_points FROM v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - (SELECT AVG(avg_points) FROM g) AS diff_from_avg_of_group_avgs FROM g;",
+  "WITH g AS (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points_won FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points_won, avg_points_won - AVG(avg_points_won) OVER () AS diff_from_avg_of_group_avgs FROM g",
+  "SELECT death_country, avg_points_won, avg_points_won - AVG(avg_points_won) OVER () AS diff_from_avg_of_group_avgs FROM (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points_won FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) g",
+  "SELECT death_country, avg_points_won, avg_points_won - AVG(avg_points_won) OVER () AS diff_from_avg_of_group_avgs FROM (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points_won FROM manager_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) g"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT p.death_country, AVG(v.points_won) AS avg_points FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - (SELECT AVG(avg_points) FROM g) AS diff_from_avg_of_group_avgs FROM g;",
+   "assumptions": [
+    {
+     "assumption": "'Award vote records' means the player_award_vote table, which has a foreign key to player. manager_award_vote also has player_id but no foreign key and is a separate kind of award.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A blank death country means NULL, an empty string, or whitespace only. All of these are excluded before grouping.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'simple average of the group averages' is the unweighted mean of the per-country averages over all remaining countries, including the current one. The difference is the group average minus that mean. Countries whose average is NULL are kept in the output with a NULL difference and are ignored in the mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Treat both player_award_vote and manager_award_vote as the award vote records, combined before matching to players.",
+     "sql": "WITH v AS (SELECT player_id, points_won FROM player_award_vote UNION ALL SELECT player_id, points_won FROM manager_award_vote), g AS (SELECT p.death_country, AVG(v.points_won) AS avg_points FROM v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - (SELECT AVG(avg_points) FROM g) AS diff_from_avg_of_group_avgs FROM g;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH g AS (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points_won FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points_won, avg_points_won - AVG(avg_points_won) OVER () AS diff_from_avg_of_group_avgs FROM g",
+   "assumptions": [
+    {
+     "assumption": "'Award vote records' means player_award_vote, which has a foreign key to player. manager_award_vote is not used.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A blank death country means NULL, an empty string, or whitespace only. All of these are excluded before the average of group averages is taken.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'simple average of the group averages' is an unweighted mean of the per-country averages across the remaining countries. It is not weighted by vote count. Countries whose points_won are all NULL have a NULL average and are left out of that mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "SELECT death_country, avg_points_won, avg_points_won - AVG(avg_points_won) OVER () AS diff_from_avg_of_group_avgs FROM (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points_won FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) g",
+   "assumptions": [
+    {
+     "assumption": "'Award vote records' means player_award_vote, the only vote table with a foreign key to player. manager_award_vote has a player_id column but no declared link to player.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A blank death country means NULL or an empty or whitespace-only string. These players are excluded before the groups are formed, so they do not enter the average of group averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'simple average of the group averages' is the unweighted mean of the per-country averages. A country whose points_won are all NULL has a NULL average and is skipped in that mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Use manager_award_vote as the award vote records, matched to player by player_id.",
+     "sql": "SELECT death_country, avg_points_won, avg_points_won - AVG(avg_points_won) OVER () AS diff_from_avg_of_group_avgs FROM (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points_won FROM manager_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) g"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-f74c2bad9d",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 27810,
+  "chars_out": 4235
+ }
+}

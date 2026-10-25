@@ -1,0 +1,82 @@
+{
+ "queries": [
+  "SELECT observstation, AVG(bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT observstation) FROM telescopes) AS ratio_to_avg_count FROM telescopes GROUP BY observstation ORDER BY ratio_to_avg_count DESC LIMIT 10",
+  "SELECT t.observstation, AVG(t.bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM telescopes) * 1.0 / (SELECT COUNT(*) FROM observatories)) AS ratio_to_avg_count FROM telescopes t GROUP BY t.observstation ORDER BY ratio_to_avg_count DESC LIMIT 10",
+  "WITH per AS (SELECT observstation, AVG(bandusagepct) AS avg_bandwidth_usage_pct, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation) SELECT observstation, avg_bandwidth_usage_pct, telescope_count, telescope_count * 1.0 / (SELECT AVG(telescope_count * 1.0) FROM per) AS ratio_to_avg_count FROM per ORDER BY ratio_to_avg_count DESC LIMIT 10;",
+  "WITH per AS (SELECT o.observstation, AVG(t.bandusagepct) AS avg_bandwidth_usage_pct, COUNT(t.telescregistry) AS telescope_count FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation) SELECT observstation, avg_bandwidth_usage_pct, telescope_count, telescope_count * 1.0 / (SELECT AVG(telescope_count * 1.0) FROM per) AS ratio_to_avg_count FROM per ORDER BY ratio_to_avg_count DESC LIMIT 10;",
+  "SELECT observstation, AVG(bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT observstation) FROM telescopes) AS ratio_to_avg_count FROM telescopes GROUP BY observstation ORDER BY ratio_to_avg_count DESC LIMIT 10",
+  "SELECT t.observstation, AVG(t.bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT (SELECT COUNT(*) FROM telescopes) * 1.0 / (SELECT COUNT(*) FROM observatories)) AS ratio_to_avg_count FROM telescopes t GROUP BY t.observstation ORDER BY ratio_to_avg_count DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT observstation, AVG(bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT observstation) FROM telescopes) AS ratio_to_avg_count FROM telescopes GROUP BY observstation ORDER BY ratio_to_avg_count DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average telescope count per station is computed over stations that have at least one telescope (total telescopes / distinct stations in telescopes), so observatories with no telescopes are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the ratio are broken arbitrarily because the request specifies no tie-break.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average telescope count per station is taken over all rows in observatories, including stations with no telescopes. The query also lists only stations that have telescopes.",
+     "sql": "SELECT t.observstation, AVG(t.bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM telescopes) * 1.0 / (SELECT COUNT(*) FROM observatories)) AS ratio_to_avg_count FROM telescopes t GROUP BY t.observstation ORDER BY ratio_to_avg_count DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per AS (SELECT observstation, AVG(bandusagepct) AS avg_bandwidth_usage_pct, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation) SELECT observstation, avg_bandwidth_usage_pct, telescope_count, telescope_count * 1.0 / (SELECT AVG(telescope_count * 1.0) FROM per) AS ratio_to_avg_count FROM per ORDER BY ratio_to_avg_count DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The average telescope count per station is taken over stations that have at least one telescope (stations appearing in telescopes), not over all rows in observatories.",
+     "unresolved": true
+    },
+    {
+     "assumption": "COUNT(*) counts every telescope row for a station, including those with NULL bandusagepct; AVG ignores NULLs, as requested.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average telescope count per station is computed over all observatories, including stations with zero telescopes (these stations appear with a count of 0 and NULL average usage).",
+     "sql": "WITH per AS (SELECT o.observstation, AVG(t.bandusagepct) AS avg_bandwidth_usage_pct, COUNT(t.telescregistry) AS telescope_count FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation) SELECT observstation, avg_bandwidth_usage_pct, telescope_count, telescope_count * 1.0 / (SELECT AVG(telescope_count * 1.0) FROM per) AS ratio_to_avg_count FROM per ORDER BY ratio_to_avg_count DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT observstation, AVG(bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT observstation) FROM telescopes) AS ratio_to_avg_count FROM telescopes GROUP BY observstation ORDER BY ratio_to_avg_count DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average telescope count per station is computed over stations that appear in telescopes (total telescopes / distinct stations in telescopes), so observatories with no telescopes are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The telescope count counts all telescope rows per station, including those with NULL bandusagepct; only the average ignores NULLs.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the ratio are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average telescope count per station is taken over all stations in the observatories table, including those with zero telescopes.",
+     "sql": "SELECT t.observstation, AVG(t.bandusagepct) AS avg_bandusagepct, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT (SELECT COUNT(*) FROM telescopes) * 1.0 / (SELECT COUNT(*) FROM observatories)) AS ratio_to_avg_count FROM telescopes t GROUP BY t.observstation ORDER BY ratio_to_avg_count DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-938a0f3041",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 121380,
+  "chars_out": 3886
+ }
+}

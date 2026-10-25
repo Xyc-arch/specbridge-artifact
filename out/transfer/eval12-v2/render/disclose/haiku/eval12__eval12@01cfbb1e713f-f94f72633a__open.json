@@ -1,0 +1,36 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f94f72633a",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH pair_averages AS (\n  SELECT \n    sf.transref,\n    t.tradekind,\n    AVG(sf.anlycount) as avg_analyst_count\n  FROM sentimentandfundamentals sf\n  JOIN transactionrecord tr ON sf.transref = tr.transreg\n  JOIN trader t ON tr.trdref = t.tradereg\n  WHERE sf.anlycount IS NOT NULL\n  GROUP BY sf.transref, t.tradekind\n),\noverall_mean AS (\n  SELECT AVG(avg_analyst_count) as overall_avg\n  FROM pair_averages\n),\nfiltered_pairs AS (\n  SELECT \n    pa.tradekind,\n    pa.avg_analyst_count,\n    pa.avg_analyst_count - om.overall_avg as margin\n  FROM pair_averages pa\n  CROSS JOIN overall_mean om\n  WHERE pa.avg_analyst_count > om.overall_avg\n),\ntrader_type_stats AS (\n  SELECT \n    fp.tradekind,\n    AVG(fp.avg_analyst_count) as avg_analyst_count_per_type,\n    AVG(fp.margin) as avg_margin_per_type\n  FROM filtered_pairs fp\n  GROUP BY fp.tradekind\n),\ntrader_type_mean AS (\n  SELECT AVG(avg_analyst_count_per_type) as mean_across_types\n  FROM trader_type_stats\n)\nSELECT \n  ts.tradekind,\n  ts.avg_analyst_count_per_type,\n  ts.avg_margin_per_type,\n  ts.avg_analyst_count_per_type / tm.mean_across_types as relative_to_mean\nFROM trader_type_stats ts\nCROSS JOIN trader_type_mean tm\nORDER BY ts.tradekind;",
+  "assumptions": [
+   {
+    "assumption": "The sentiment snapshot's trader type derives from the transaction's trader (transref \u2192 transactionrecord.trdref \u2192 trader.tradekind), not from the optional trdref2 field.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If 'above the overall mean' should include pairs equal to the mean (\u2265 instead of >), adjust the WHERE clause in filtered_pairs.",
+    "sql": "... WHERE pa.avg_analyst_count >= om.overall_avg ..."
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "If 'above the overall mean' should include pairs equal to the mean (\u2265 instead of >), adjust the WHERE clause in filtered_pairs.",
+   "sql": "... WHERE pa.avg_analyst_count >= om.overall_avg ...",
+   "executes": false,
+   "matches": []
+  }
+ ],
+ "seconds": 94.6,
+ "chars_out": 1772
+}

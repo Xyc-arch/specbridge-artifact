@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b6c13c0329",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "For each sex, count the distinct patients who have at least one examination.",
+ "c": {
+  "request": "Looking at the examination data by patient sex (blank and missing sexes as their own groups), how many were examined in each sex, and what share of the overall total is that? For the sexes above the per-sex average, give one row with their combined total, their average share, and on average how far above the per-sex average they are. For each sex, count the distinct patients who have at least one examination.",
+  "sql": "WITH grouped AS (SELECT CASE WHEN p.SEX IS NULL THEN 'Missing' WHEN TRIM(p.SEX) = '' THEN 'Blank' ELSE TRIM(p.SEX) END AS sex, CASE WHEN p.SEX IS NULL THEN 0 WHEN TRIM(p.SEX) = '' THEN 1 ELSE 2 END AS sex_type, e.ID AS patient_id FROM Examination AS e LEFT JOIN Patient AS p ON p.ID = e.ID), counts AS (SELECT sex, sex_type, COUNT(*) AS examination_count, COUNT(DISTINCT patient_id) AS distinct_patient_count FROM grouped GROUP BY sex_type, sex), stats AS (SELECT SUM(examination_count) AS total_examinations, AVG(1.0 * examination_count) AS average_per_sex FROM counts), results AS (SELECT 'sex' AS row_type, c.sex, c.examination_count, 1.0 * c.examination_count / s.total_examinations AS share_of_total, c.distinct_patient_count, NULL AS average_share, NULL AS average_above_per_sex_average FROM counts AS c CROSS JOIN stats AS s UNION ALL SELECT 'above_average_total', NULL, SUM(c.examination_count), 1.0 * SUM(c.examination_count) / MAX(s.total_examinations), SUM(c.distinct_patient_count), AVG(1.0 * c.examination_count / s.total_examinations), AVG(c.examination_count - s.average_per_sex) FROM counts AS c CROSS JOIN stats AS s WHERE c.examination_count > s.average_per_sex HAVING COUNT(*) > 0) SELECT * FROM results ORDER BY CASE row_type WHEN 'sex' THEN 0 ELSE 1 END, sex;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Group patients by sex, treating blank and NULL sexes as separate groups; for each group, count distinct patients with at least one examination and calculate its share of all such patients. For groups whose counts exceed the average count per sex group, return one summary row with their combined count, average share, and average amount by which their counts exceed that per-group average",
+  "sql": "WITH sex_counts AS (SELECT p.SEX, COUNT(*) AS patient_count FROM Patient AS p WHERE EXISTS (SELECT 1 FROM Examination AS e WHERE e.ID = p.ID) GROUP BY p.SEX), overall AS (SELECT SUM(patient_count) AS total_patients, AVG(patient_count) AS average_count FROM sex_counts) SELECT SUM(s.patient_count) AS combined_count, AVG(1.0 * s.patient_count / o.total_patients) AS average_share, AVG(s.patient_count - o.average_count) AS average_excess FROM sex_counts AS s CROSS JOIN overall AS o WHERE s.patient_count > o.average_count",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Matching examinations to their patients, count the distinct examined patients (`Examination.ID`) for each `SEX` value (blank and missing sexes are their own groups) and work out each sex's share of the combined count. Among the sexes whose count is above the average count per sex, give one row with the total of their counts, the average of their shares, and the average amount by which their counts exceed that per-sex average.",
+  "sql": "WITH sex_counts AS (SELECT p.SEX, COUNT(DISTINCT e.ID) AS patient_count FROM Examination AS e JOIN Patient AS p ON p.ID = e.ID GROUP BY p.SEX), overall AS (SELECT SUM(patient_count) AS total_count, AVG(patient_count) AS average_count FROM sex_counts) SELECT SUM(s.patient_count) AS total_counts, AVG(1.0 * s.patient_count / o.total_count) AS average_share, AVG(s.patient_count - o.average_count) AS average_excess FROM sex_counts AS s CROSS JOIN overall AS o WHERE s.patient_count > o.average_count",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each patient sex, treating blank and missing sex values as separate groups, how many distinct patients had at least one examination?",
+  "sql": "SELECT p.SEX, COUNT(DISTINCT p.ID) AS patient_count FROM Patient AS p JOIN Examination AS e ON e.ID = p.ID GROUP BY p.SEX",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "readings": [
+  "Join telescopes to observatories on observstation, using an inner join so telescopes without a matching observatory are dropped. Group the joined result by observatories.lunarstage, with NULL as its own group. The second column is the average of telescopes.bandusagepct. Compute it per observatory station first (ignoring NULL values), then average those station averages within the phase. The third column is the number of distinct observatory stations in that phase that have at least one matched telescope. The fourth column is that count divided by the total number of distinct matched observatory stations across all phases, i.e. stations with at least one telescope. No rounding.",
+  "Join telescopes to observatories on observstation, using an inner join so telescopes without a matching observatory are dropped. Group by observatories.lunarstage, with NULL as its own group. The second column is the average of telescopes.bandusagepct. Compute it per observatory station first (ignoring NULL values) from the matched telescopes, then average those station averages within the phase. The third column is the number of observatory stations in the observatories table with that phase, including stations that have no telescopes. The fourth column is that count divided by the total number of rows in the observatories table across all phases. No rounding.",
+  "Join telescopes to observatories on observstation, using an inner join so telescopes without a matching observatory are dropped. Group by observatories.lunarstage, with NULL as its own group. The second column is the average of telescopes.bandusagepct. Compute it per observatory station first (ignoring NULL values), then average those station averages within the phase. The third column is the number of distinct observatory stations in that phase that have at least one matched telescope. The fourth column is that count divided by the total number of observatory stations in the whole observatories table, including stations with no telescopes. No rounding."
+ ],
+ "queries": [
+  "WITH station AS (\n  SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_usage\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n  GROUP BY o.observstation, o.lunarstage\n)\nSELECT lunarstage,\n       AVG(avg_usage) AS avg_band_usage,\n       COUNT(*) AS station_count,\n       CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM station) AS station_fraction\nFROM station\nGROUP BY lunarstage;\n",
+  "SELECT o.lunarstage,\n       AVG(s.station_avg) AS avg_bandusage,\n       (SELECT COUNT(*) FROM observatories o2 WHERE o2.lunarstage IS o.lunarstage) AS station_count,\n       CAST((SELECT COUNT(*) FROM observatories o2 WHERE o2.lunarstage IS o.lunarstage) AS REAL) / (SELECT COUNT(*) FROM observatories) AS station_fraction\nFROM observatories o\nJOIN (\n  SELECT observstation, AVG(bandusagepct) AS station_avg\n  FROM telescopes\n  GROUP BY observstation\n) s ON s.observstation = o.observstation\nGROUP BY o.lunarstage;\n",
+  "SELECT lunarstage,\n       AVG(station_avg) AS avg_band_usage,\n       COUNT(*) AS station_count,\n       CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM observatories) AS station_ratio\nFROM (\n  SELECT o.observstation,\n         o.lunarstage,\n         AVG(t.bandusagepct) AS station_avg\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n  GROUP BY o.observstation, o.lunarstage\n) s\nGROUP BY lunarstage;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 4,
+  "chars_in": 162211,
+  "chars_out": 3441
+ }
+}

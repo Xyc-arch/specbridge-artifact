@@ -1,0 +1,22 @@
+{
+ "readings": [
+  "For each invoice in Invoice_Line_Items, compute the invoice's ratio as SUM(derived_product_cost) divided by SUM(derived_total_cost), using only lines where both values are non-null (and skipping invoices whose total-cost sum is zero or missing). Show the invoice number, this ratio, the count of line-item rows for that invoice, and the ratio divided by the average of these per-invoice ratios across all invoices (each invoice weighted equally). Return rows only if that overall average exists. Sort by the relative figure descending with NULLs last, return the top 10, and do not round anything.",
+  "For each invoice in Invoice_Line_Items, compute the invoice's ratio as the average of the line-level ratios derived_product_cost / derived_total_cost, using only lines where both values are non-null and the total cost is non-zero. Show the invoice number, this ratio, the count of line-item rows for that invoice, and the ratio divided by the average of these per-invoice ratios across all invoices (each invoice weighted equally). Return rows only if that overall average exists. Sort by the relative figure descending with NULLs last, return the top 10, and do not round anything."
+ ],
+ "queries": [
+  "WITH inv AS (\n  SELECT invoice_number,\n         SUM(derived_product_cost) * 1.0 / SUM(derived_total_cost) AS ratio,\n         COUNT(*) AS line_count\n  FROM Invoice_Line_Items\n  WHERE derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL\n  GROUP BY invoice_number\n  HAVING SUM(derived_total_cost) IS NOT NULL AND SUM(derived_total_cost) <> 0\n),\navg_r AS (\n  SELECT AVG(ratio) AS avg_ratio FROM inv\n)\nSELECT inv.invoice_number,\n       inv.ratio,\n       inv.line_count,\n       inv.ratio / avg_r.avg_ratio AS relative_ratio\nFROM inv, avg_r\nWHERE avg_r.avg_ratio IS NOT NULL\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;\n",
+  "WITH inv AS (\n  SELECT\n    invoice_number,\n    AVG(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL AND derived_total_cost <> 0\n             THEN derived_product_cost * 1.0 / derived_total_cost END) AS ratio,\n    COUNT(*) AS line_count\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n),\noverall AS (\n  SELECT AVG(ratio) AS avg_ratio FROM inv\n)\nSELECT\n  inv.invoice_number,\n  inv.ratio,\n  inv.line_count,\n  inv.ratio / overall.avg_ratio AS relative_ratio\nFROM inv\nCROSS JOIN overall\nWHERE overall.avg_ratio IS NOT NULL\nORDER BY relative_ratio IS NULL, relative_ratio DESC\nLIMIT 10;\n"
+ ],
+ "raw": [
+  "```json\n{\"readings\": [\"For each invoice in Invoice_Line_Items, compute the invoice's ratio as SUM(derived_product_cost) divided by SUM(derived_total_cost), using only lines where both values are non-null (and skipping invoices whose total-cost sum is zero or missing). Show the invoice number, this ratio, the count of line-item rows for that invoice, and the ratio divided by the average of these per-invoice ratios across all invoices (each invoice weighted equally). Return rows only if that overall average exists. Sort by the relative figure descending with NULLs last, return the top 10, and do not round anything.\", \"For each invoice in Invoice_Line_Items, compute the invoice's ratio as the average of the line-level ratios derived_product_cost / derived_total_cost, using only lines where both values are non-null and the total cost is non-zero. Show the invoice number, this ratio, the count of line-item rows for that invoice, and the ratio divided by the average of these per-invoice ratios across all invoices (each invoice weighted equally). Return rows only if that overall average exists. Sort by the relative figure descending with NULLs last, return the top 10, and do not round anything.\"]}\n```"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd51f2bd3c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11673,
+  "chars_out": 2480
+ }
+}

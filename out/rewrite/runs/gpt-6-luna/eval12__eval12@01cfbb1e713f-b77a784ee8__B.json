@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b77a784ee8",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "List the top films by share of inventory copies, keeping every film whose copy count reaches the 10th-highest count, so ties at the cut are all included.",
+ "a": {
+  "request": "For each film in the inventory, show its `film_id`, its number of copies (inventory records), and its share of all inventory copies (its copy count divided by the total number of copies across all films, unrounded). Sort from highest share to lowest and return the top 10 films, plus every other film whose copy count equals that of the 10th film, so no film tied at the cutoff is left out.",
+  "sql": "WITH film_copy_counts AS (\n  SELECT film_id, COUNT(*) AS copy_count\n  FROM inventory\n  GROUP BY film_id\n), ranked AS (\n  SELECT film_id, copy_count,\n         ROW_NUMBER() OVER (ORDER BY copy_count DESC, film_id) AS row_num,\n         NTH_VALUE(copy_count, 10) OVER (\n           ORDER BY copy_count DESC, film_id\n           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING\n         ) AS tenth_copy_count\n  FROM film_copy_counts\n), total AS (\n  SELECT COUNT(*) AS total_copies\n  FROM inventory\n)\nSELECT r.film_id,\n       r.copy_count,\n       r.copy_count / t.total_copies AS copy_share\nFROM ranked r\nCROSS JOIN total t\nWHERE r.row_num <= 10 OR r.copy_count = r.tenth_copy_count\nORDER BY r.copy_count DESC, r.film_id;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "List each film\u2019s ID, inventory copy count, and unrounded share of all inventory copies, ordered by share descending; include every film tied at the 10th-highest copy count",
+  "sql": "WITH film_copies AS (\n  SELECT f.film_id, COUNT(i.inventory_id) AS copy_count\n  FROM film f\n  LEFT JOIN inventory i ON i.film_id = f.film_id\n  GROUP BY f.film_id\n), ranked AS (\n  SELECT film_id, copy_count,\n         copy_count / SUM(copy_count) OVER () AS share_of_inventory,\n         RANK() OVER (ORDER BY copy_count DESC) AS copy_rank\n  FROM film_copies\n)\nSELECT film_id, copy_count, share_of_inventory\nFROM ranked\nWHERE copy_rank <= 10\nORDER BY share_of_inventory DESC;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "What are the top 10 films by number of copies in our inventory? For each, show the `film_id`, how many copies we have, and what share of all inventory copies that is (copies divided by the total number of copies, unrounded), with the highest share first. List the top films by share of inventory copies, keeping every film whose copy count reaches the 10th-highest count, so ties at the cut are all included.",
+  "sql": "SELECT film_id, COUNT(*) AS copy_count, COUNT(*) / (SELECT COUNT(*) FROM inventory) AS share_of_inventory FROM inventory GROUP BY film_id HAVING COUNT(*) >= (SELECT copy_count FROM (SELECT COUNT(*) AS copy_count FROM inventory GROUP BY film_id ORDER BY copy_count DESC LIMIT 1 OFFSET 9) AS tenth) ORDER BY share_of_inventory DESC",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Which films have the highest share of inventory copies, including every film tied at the 10th-highest copy count? Show each film\u2019s `film_id`, copy count, and share of all inventory copies (copy count divided by the total, unrounded), with the highest share first.",
+  "sql": "WITH film_copy_counts AS (\n  SELECT f.film_id, COUNT(i.inventory_id) AS copy_count\n  FROM film AS f\n  JOIN inventory AS i ON i.film_id = f.film_id\n  GROUP BY f.film_id\n), ranked AS (\n  SELECT film_id, copy_count,\n         RANK() OVER (ORDER BY copy_count DESC) AS copy_rank\n  FROM film_copy_counts\n)\nSELECT film_id,\n       copy_count,\n       copy_count / (SELECT COUNT(*) FROM inventory) AS inventory_share\nFROM ranked\nWHERE copy_rank <= 10\nORDER BY inventory_share DESC;",
+  "executes": true,
+  "matches": []
+ }
+}

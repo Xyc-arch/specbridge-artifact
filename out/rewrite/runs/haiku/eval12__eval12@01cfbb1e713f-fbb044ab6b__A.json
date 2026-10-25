@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fbb044ab6b",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Each invoice's ratio is the mean of its line-level total-cost \u00f7 unit-price ratios.",
+ "c": {
+  "request": "For each invoice, look at its average line product cost (`derived_product_cost`) and its ratio of total cost (`derived_total_cost`) to unit price (`product_price`), ignoring missing values. Take the invoices whose ratio is above the average ratio across all invoices. In a single row, what are their average product cost, their average ratio, and on average how far their ratio sits above that overall average? No rounding. Each invoice's ratio is the mean of its line-level total-cost \u00f7 unit-price ratios.",
+  "sql": "WITH invoice_stats AS (SELECT invoice_number, AVG(derived_product_cost) AS avg_product_cost, AVG(CASE WHEN product_price IS NOT NULL AND product_price <> 0 THEN derived_total_cost * 1.0 / product_price END) AS avg_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_ratio) AS overall_ratio FROM invoice_stats), selected AS (SELECT s.* FROM invoice_stats s CROSS JOIN overall o WHERE s.avg_ratio > o.overall_ratio) SELECT AVG(s.avg_product_cost) AS avg_product_cost, AVG(s.avg_ratio) AS avg_ratio, AVG(s.avg_ratio - o.overall_ratio) AS avg_ratio_above_overall FROM selected s CROSS JOIN overall o;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each invoice, average `derived_product_cost` across its lines and average the per-line `derived_total_cost / product_price` ratios (skipping NULLs) to get the invoice ratio. Keep invoices whose ratio exceeds the mean of all invoice ratios, then return in one row, unrounded: the mean of their average product costs, the mean of their ratios, and the mean of (their ratio minus the overall mean ratio)",
+  "sql": "WITH inv AS (SELECT invoice_number, AVG(derived_product_cost) AS avg_cost, AVG(derived_total_cost * 1.0 / product_price) AS ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(ratio) AS mean_ratio FROM inv), kept AS (SELECT inv.* FROM inv, overall WHERE inv.ratio > overall.mean_ratio) SELECT AVG(kept.avg_cost) AS mean_avg_product_cost, AVG(kept.ratio) AS mean_ratio, AVG(kept.ratio - overall.mean_ratio) AS mean_ratio_minus_overall FROM kept, overall;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each invoice (`Invoice_Line_Items.invoice_number`), take the average line product cost (`derived_product_cost`). Also take its total-cost-to-price ratio, found by dividing each line's `derived_total_cost` by its `product_price` and averaging those line ratios. Missing values are ignored. Average the invoice ratios across all invoices, and keep only the invoices whose ratio is above that average. As a single row, report the average over the kept invoices of (1) their average line product cost, (2) their ratio, and (3) how far their ratio exceeds the overall average ratio. Don't round.",
+  "sql": "WITH inv AS (SELECT invoice_number, AVG(derived_product_cost) AS avg_cost, AVG(derived_total_cost * 1.0 / NULLIF(product_price, 0)) AS ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(ratio) AS avg_ratio FROM inv), kept AS (SELECT i.* FROM inv i, overall o WHERE i.ratio > o.avg_ratio) SELECT AVG(k.avg_cost) AS avg_of_avg_cost, AVG(k.ratio) AS avg_ratio, AVG(k.ratio - o.avg_ratio) AS avg_ratio_excess FROM kept k, overall o;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Each invoice's ratio is the mean of its line-level ratios of total cost (`derived_total_cost`) to unit price (`product_price`), with missing values ignored. For each invoice, what is the average line product cost (`derived_product_cost`), ignoring missing values? Then take the invoices whose ratio is above the average ratio across all invoices. In a single row, what are their average product cost, their average ratio, and on average how far their ratio sits above that overall average? No rounding.",
+  "sql": "WITH inv AS (SELECT invoice_number, AVG(derived_total_cost * 1.0 / NULLIF(product_price, 0)) AS ratio, AVG(derived_product_cost) AS avg_cost FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(ratio) AS avg_ratio FROM inv), sel AS (SELECT i.invoice_number, i.ratio, i.avg_cost FROM inv i, overall o WHERE i.ratio > o.avg_ratio) SELECT AVG(s.avg_cost) AS avg_product_cost, AVG(s.ratio) AS avg_ratio, AVG(s.ratio - o.avg_ratio) AS avg_ratio_above_overall FROM sel s, overall o;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

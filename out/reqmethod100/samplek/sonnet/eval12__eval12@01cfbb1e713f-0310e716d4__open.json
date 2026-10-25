@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH rt AS (SELECT r.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id GROUP BY r.rental_id, i.store_id), a AS (SELECT AVG(total) AS avg_total FROM rt) SELECT rt.store_id, SUM(rt.total) AS combined_payment_total, AVG(rt.total - a.avg_total) AS avg_excess_over_average FROM rt CROSS JOIN a WHERE rt.total > a.avg_total GROUP BY rt.store_id",
+  "WITH rt AS (SELECT r.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id GROUP BY r.rental_id, i.store_id), s AS (SELECT rt.*, AVG(total) OVER (PARTITION BY store_id) AS avg_total FROM rt) SELECT store_id, SUM(total) AS combined_payment_total, AVG(total - avg_total) AS avg_excess_over_average FROM s WHERE total > avg_total GROUP BY store_id",
+  "WITH rt AS (SELECT i.store_id, r.rental_id, SUM(p.amount) AS rental_total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY i.store_id, r.rental_id), av AS (SELECT AVG(rental_total) AS avg_total FROM rt) SELECT rt.store_id, SUM(rt.rental_total) AS combined_payment_total, AVG(rt.rental_total - av.avg_total) AS avg_excess_over_average FROM rt CROSS JOIN av WHERE rt.rental_total > av.avg_total GROUP BY rt.store_id",
+  "WITH rt AS (SELECT i.store_id, r.rental_id, SUM(p.amount) AS rental_total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY i.store_id, r.rental_id), x AS (SELECT store_id, rental_total, AVG(rental_total) OVER (PARTITION BY store_id) AS store_avg FROM rt) SELECT store_id, SUM(rental_total) AS combined_payment_total, AVG(rental_total - store_avg) AS avg_excess_over_average FROM x WHERE rental_total > store_avg GROUP BY store_id",
+  "WITH rt AS (SELECT p.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY p.rental_id, i.store_id), av AS (SELECT AVG(total) AS avg_total FROM rt) SELECT rt.store_id, SUM(rt.total) AS combined_payment_total, AVG(rt.total - av.avg_total) AS avg_excess_over_average FROM rt CROSS JOIN av WHERE rt.total > av.avg_total GROUP BY rt.store_id",
+  "WITH rt AS (SELECT p.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY p.rental_id, i.store_id), s AS (SELECT store_id, total, AVG(total) OVER (PARTITION BY store_id) AS store_avg FROM rt) SELECT store_id, SUM(total) AS combined_payment_total, AVG(total - store_avg) AS avg_excess_over_average FROM s WHERE total > store_avg GROUP BY store_id"
+ ],
+ "responses": [
+  {
+   "sql": "WITH rt AS (SELECT r.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id GROUP BY r.rental_id, i.store_id), a AS (SELECT AVG(total) AS avg_total FROM rt) SELECT rt.store_id, SUM(rt.total) AS combined_payment_total, AVG(rt.total - a.avg_total) AS avg_excess_over_average FROM rt CROSS JOIN a WHERE rt.total > a.avg_total GROUP BY rt.store_id",
+   "assumptions": [
+    {
+     "assumption": "A rental's payment total is the sum of all its payment amounts. Payments with a NULL rental_id are excluded. The store comes from inventory.store_id of the rented copy.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'The average rental payment total' is one overall average across all rentals in every store, not a separate average per store. Each store's qualifying rentals are compared with that single figure.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Output is one row per store. It holds the sum of the qualifying rentals' totals and the mean of (rental total minus the average) over those rentals. No rounding is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is computed within each store (average rental payment total of that store's rentals), and each rental is compared with its own store's average.",
+     "sql": "WITH rt AS (SELECT r.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id GROUP BY r.rental_id, i.store_id), s AS (SELECT rt.*, AVG(total) OVER (PARTITION BY store_id) AS avg_total FROM rt) SELECT store_id, SUM(total) AS combined_payment_total, AVG(total - avg_total) AS avg_excess_over_average FROM s WHERE total > avg_total GROUP BY store_id"
+    }
+   ]
+  },
+  {
+   "sql": "WITH rt AS (SELECT i.store_id, r.rental_id, SUM(p.amount) AS rental_total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY i.store_id, r.rental_id), av AS (SELECT AVG(rental_total) AS avg_total FROM rt) SELECT rt.store_id, SUM(rt.rental_total) AS combined_payment_total, AVG(rt.rental_total - av.avg_total) AS avg_excess_over_average FROM rt CROSS JOIN av WHERE rt.rental_total > av.avg_total GROUP BY rt.store_id",
+   "assumptions": [
+    {
+     "assumption": "A rental's payment total is the sum of all its payment amounts. The store comes from the rented inventory copy (inventory.store_id).",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average rental payment total is one overall average across all rentals with payments, not one per store. Rentals above it are then grouped by store.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The 'how much on average they beat the average by' column is the mean of (rental total minus the average) over each store's above-average rentals.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is computed within each store, and each rental is compared with its own store's average rental payment total.",
+     "sql": "WITH rt AS (SELECT i.store_id, r.rental_id, SUM(p.amount) AS rental_total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY i.store_id, r.rental_id), x AS (SELECT store_id, rental_total, AVG(rental_total) OVER (PARTITION BY store_id) AS store_avg FROM rt) SELECT store_id, SUM(rental_total) AS combined_payment_total, AVG(rental_total - store_avg) AS avg_excess_over_average FROM x WHERE rental_total > store_avg GROUP BY store_id"
+    }
+   ]
+  },
+  {
+   "sql": "WITH rt AS (SELECT p.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY p.rental_id, i.store_id), av AS (SELECT AVG(total) AS avg_total FROM rt) SELECT rt.store_id, SUM(rt.total) AS combined_payment_total, AVG(rt.total - av.avg_total) AS avg_excess_over_average FROM rt CROSS JOIN av WHERE rt.total > av.avg_total GROUP BY rt.store_id",
+   "assumptions": [
+    {
+     "assumption": "A rental's payment total is the sum of all its payment amounts. The store is the inventory copy's store_id, reached through rental.inventory_id.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'The average rental payment total' is one overall average across all rentals that have payments, from both stores. Each store's rentals are compared with that single figure.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Only rentals with at least one payment are included. Rentals with no payment are not counted as zero-total rentals.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Each rental is compared with the average rental payment total of its own store, not the overall average.",
+     "sql": "WITH rt AS (SELECT p.rental_id, i.store_id, SUM(p.amount) AS total FROM payment p JOIN rental r ON r.rental_id = p.rental_id JOIN inventory i ON i.inventory_id = r.inventory_id WHERE p.rental_id IS NOT NULL GROUP BY p.rental_id, i.store_id), s AS (SELECT store_id, total, AVG(total) OVER (PARTITION BY store_id) AS store_avg FROM rt) SELECT store_id, SUM(total) AS combined_payment_total, AVG(total - store_avg) AS avg_excess_over_average FROM s WHERE total > store_avg GROUP BY store_id"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0310e716d4",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42570,
+  "chars_out": 5227
+ }
+}

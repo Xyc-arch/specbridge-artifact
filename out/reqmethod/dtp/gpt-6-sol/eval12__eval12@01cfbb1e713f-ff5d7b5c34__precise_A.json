@@ -1,0 +1,17 @@
+{
+ "interpretations": [
+  "Join fees to matching orders and users, group by `fees.orderslink` and `users.acctscope`, and average non-null `feerate` values for each pair. Compute the global mean of those pair averages, keep pairs strictly above it, calculate each excess, and use `RANK()` within each account scope in descending excess order. Return pairs with rank \u2264 3, with the requested values unrounded"
+ ],
+ "queries": [
+  "WITH pair_averages AS (\n    SELECT\n        f.orderslink,\n        u.acctscope,\n        AVG(f.feerate) AS avg_feerate\n    FROM fees AS f\n    JOIN orders AS o ON o.recordvault = f.orderslink\n    JOIN users AS u ON u.userstamp = o.userlink\n    WHERE f.feerate IS NOT NULL\n    GROUP BY f.orderslink, u.acctscope\n),\nglobal_mean AS (\n    SELECT AVG(avg_feerate) AS mean_feerate\n    FROM pair_averages\n),\nranked AS (\n    SELECT\n        p.orderslink,\n        p.acctscope,\n        p.avg_feerate,\n        p.avg_feerate - g.mean_feerate AS excess,\n        RANK() OVER (\n            PARTITION BY p.acctscope\n            ORDER BY p.avg_feerate - g.mean_feerate DESC\n        ) AS rank\n    FROM pair_averages AS p\n    CROSS JOIN global_mean AS g\n    WHERE p.avg_feerate > g.mean_feerate\n)\nSELECT orderslink, acctscope, avg_feerate, excess, rank\nFROM ranked\nWHERE rank <= 3"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 3,
+  "chars_in": 41315,
+  "chars_out": 1277
+ }
+}

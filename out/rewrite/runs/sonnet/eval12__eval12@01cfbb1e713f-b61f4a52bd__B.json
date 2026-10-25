@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b61f4a52bd",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Zero-quantity executions are not fills and are left out of each order's average fill quantity.",
+ "a": {
+  "request": "For each order referenced in `orderexecutions.ordersmark` (executions with no order reference form one group of their own), take the average filled quantity (`fillcount`) across its executions. Treat zero-quantity executions as no fill at all and ignore them along with missing quantities. Find the average of these per-order averages and keep the orders above it, noting how far above it each one is (first excess). Among those kept orders, take the mean of their per-order averages as a second benchmark. Keep only the orders above it and note how far above it each one is (second excess). Return one summary row with three values: the average per-order fill quantity of the final orders, their average first excess, and their average second excess. Don't round anything.",
+  "sql": "WITH per AS (SELECT ordersmark, AVG(fillcount) AS a FROM orderexecutions WHERE fillcount IS NOT NULL AND fillcount <> 0 GROUP BY ordersmark), b1 AS (SELECT AVG(a) AS m FROM per), k1 AS (SELECT per.ordersmark, per.a, per.a - b1.m AS e1 FROM per CROSS JOIN b1 WHERE per.a > b1.m), b2 AS (SELECT AVG(a) AS m2 FROM k1) SELECT AVG(k1.a) AS avg_fill_quantity, AVG(k1.e1) AS avg_first_excess, AVG(k1.a - b2.m2) AS avg_second_excess FROM k1 CROSS JOIN b2 WHERE k1.a > b2.m2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each distinct `orderexecutions.ordersmark` (with NULL references grouped as one group), compute the average `fillcount` over only executions where `fillcount` > 0 (excluding zero-quantity executions); keep orders whose average exceeds the overall average of these per-order averages, recording the difference; then among those, keep orders whose average also exceeds the average of that kept group's per-order averages, recording that difference; and return one unrounded row with the average per-order fill size of the final orders, their average margin over the first benchmark, and their average margin over the second",
+  "sql": "WITH per_order AS (SELECT ordersmark, AVG(fillcount) AS avg_fill FROM orderexecutions WHERE fillcount > 0 GROUP BY ordersmark), b1 AS (SELECT AVG(avg_fill) AS bench1 FROM per_order), kept1 AS (SELECT p.ordersmark, p.avg_fill, p.avg_fill - b1.bench1 AS margin1 FROM per_order p CROSS JOIN b1 WHERE p.avg_fill > b1.bench1), b2 AS (SELECT AVG(avg_fill) AS bench2 FROM kept1), kept2 AS (SELECT k.ordersmark, k.avg_fill, k.margin1, k.avg_fill - b2.bench2 AS margin2 FROM kept1 k CROSS JOIN b2 WHERE k.avg_fill > b2.bench2) SELECT AVG(avg_fill) AS avg_fill_size, AVG(margin1) AS avg_margin_over_first_benchmark, AVG(margin2) AS avg_margin_over_second_benchmark FROM kept2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each order in `orderexecutions.ordersmark` (executions with no order reference grouped together), what's the average size (`fillcount`) of the fills it got? Keep the orders whose average beats the average across all orders, and note by how much. Then, among those, keep the ones that also beat that group's own average, and note that margin too. Give me one summary row with three values: the average per-order fill size of the final orders, their average margin over the first benchmark, and their average margin over the second. Leave everything unrounded. Zero-quantity executions are not fills and are left out of each order's average fill quantity.",
+  "sql": "WITH per_order AS (SELECT ordersmark, AVG(fillcount) AS avg_fill FROM orderexecutions WHERE fillcount IS NOT NULL AND fillcount <> 0 GROUP BY ordersmark), b1 AS (SELECT AVG(avg_fill) AS bench1 FROM per_order), first_keep AS (SELECT p.ordersmark, p.avg_fill, p.avg_fill - b1.bench1 AS margin1 FROM per_order p CROSS JOIN b1 WHERE p.avg_fill > b1.bench1), b2 AS (SELECT AVG(avg_fill) AS bench2 FROM first_keep), final AS (SELECT f.avg_fill, f.margin1, f.avg_fill - b2.bench2 AS margin2 FROM first_keep f CROSS JOIN b2 WHERE f.avg_fill > b2.bench2) SELECT AVG(avg_fill) AS avg_fill_size, AVG(margin1) AS avg_margin_over_benchmark1, AVG(margin2) AS avg_margin_over_benchmark2 FROM final",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each order in `orderexecutions.ordersmark` (executions with no order reference grouped together), what's the average size (`fillcount`) of the fills it got, excluding zero-quantity executions since they are not fills? Keep the orders whose average beats the average across all orders, and note by how much. Then, among those, keep the ones that also beat that group's own average, and note that margin too. Give me one summary row with three values: the average per-order fill size of the final orders, their average margin over the first benchmark, and their average margin over the second. Leave everything unrounded.",
+  "sql": "WITH per_order AS (SELECT ordersmark, AVG(fillcount) AS avg_fill FROM orderexecutions WHERE fillcount <> 0 GROUP BY ordersmark), b1 AS (SELECT AVG(avg_fill) AS bench1 FROM per_order), s1 AS (SELECT p.ordersmark, p.avg_fill, p.avg_fill - b1.bench1 AS margin1 FROM per_order p CROSS JOIN b1 WHERE p.avg_fill > b1.bench1), b2 AS (SELECT AVG(avg_fill) AS bench2 FROM s1), s2 AS (SELECT s1.ordersmark, s1.avg_fill, s1.margin1, s1.avg_fill - b2.bench2 AS margin2 FROM s1 CROSS JOIN b2 WHERE s1.avg_fill > b2.bench2) SELECT AVG(avg_fill) AS avg_fill_size, AVG(margin1) AS avg_margin_over_overall, AVG(margin2) AS avg_margin_over_group FROM s2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

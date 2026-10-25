@@ -1,0 +1,74 @@
+{
+ "queries": [
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT COUNT(*) AS total FROM races), s AS (SELECT c.circuitId, c.race_count, 1.0 * c.race_count / t.total AS share FROM c CROSS JOIN t) SELECT circuitId, race_count, share, share - (SELECT AVG(share) FROM s) AS margin_above_avg FROM s WHERE share > (SELECT AVG(share) FROM s) ORDER BY margin_above_avg DESC LIMIT 10",
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT CAST(SUM(race_count) AS REAL) AS total, COUNT(*) AS n FROM c) SELECT c.circuitId, c.race_count, c.race_count / t.total AS share, c.race_count / t.total - 1.0 / t.n AS margin_above_avg_share FROM c, t WHERE c.race_count / t.total > 1.0 / t.n ORDER BY margin_above_avg_share DESC, c.circuitId LIMIT 10",
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT COUNT(*) AS total_races, COUNT(DISTINCT circuitId) AS n_circuits FROM races) SELECT c.circuitId, c.race_count, CAST(c.race_count AS REAL) / t.total_races AS share, CAST(c.race_count AS REAL) / t.total_races - 1.0 / t.n_circuits AS share_above_avg FROM c CROSS JOIN t ORDER BY share_above_avg DESC LIMIT 10;",
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT COUNT(*) AS total_races FROM races), n AS (SELECT COUNT(*) AS n_circuits FROM circuits) SELECT c.circuitId, c.race_count, CAST(c.race_count AS REAL) / t.total_races AS share, CAST(c.race_count AS REAL) / t.total_races - 1.0 / n.n_circuits AS share_above_avg FROM c CROSS JOIN t CROSS JOIN n ORDER BY share_above_avg DESC LIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT COUNT(*) AS total FROM races), s AS (SELECT c.circuitId, c.race_count, 1.0 * c.race_count / t.total AS share FROM c CROSS JOIN t) SELECT circuitId, race_count, share, share - (SELECT AVG(share) FROM s) AS margin_above_avg FROM s WHERE share > (SELECT AVG(share) FROM s) ORDER BY margin_above_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average circuit's share is the mean of per-circuit shares across circuits that have at least one race, which equals 1/number of circuits. Circuits with no races are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Every row in races counts as one race, with no filtering by year.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How far above' is the absolute difference in share (share minus average share), not a ratio.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT CAST(SUM(race_count) AS REAL) AS total, COUNT(*) AS n FROM c) SELECT c.circuitId, c.race_count, c.race_count / t.total AS share, c.race_count / t.total - 1.0 / t.n AS margin_above_avg_share FROM c, t WHERE c.race_count / t.total > 1.0 / t.n ORDER BY margin_above_avg_share DESC, c.circuitId LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average circuit's share is 1 / (number of distinct circuits that have hosted at least one race), i.e. the mean of the shares across circuits in races. Circuits with no races are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Every row in races counts as one race, including any non-championship races that the table contains.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The margin is expressed in share units (share minus average share), not as a ratio.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT COUNT(*) AS total_races, COUNT(DISTINCT circuitId) AS n_circuits FROM races) SELECT c.circuitId, c.race_count, CAST(c.race_count AS REAL) / t.total_races AS share, CAST(c.race_count AS REAL) / t.total_races - 1.0 / t.n_circuits AS share_above_avg FROM c CROSS JOIN t ORDER BY share_above_avg DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "Circuits are those appearing in races (circuits with zero races are excluded), so the average circuit share is 1 / number of distinct circuits in races, i.e. the mean of the shares.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Margin is share minus average share (a difference in share, not a ratio); ties are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Average share computed over all circuits in the circuits table, including those that never hosted a race (average = 1 / count of circuits rows).",
+     "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), t AS (SELECT COUNT(*) AS total_races FROM races), n AS (SELECT COUNT(*) AS n_circuits FROM circuits) SELECT c.circuitId, c.race_count, CAST(c.race_count AS REAL) / t.total_races AS share, CAST(c.race_count AS REAL) / t.total_races - 1.0 / n.n_circuits AS share_above_avg FROM c CROSS JOIN t CROSS JOIN n ORDER BY share_above_avg DESC LIMIT 10;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-841fa977bf",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 37680,
+  "chars_out": 3242
+ }
+}

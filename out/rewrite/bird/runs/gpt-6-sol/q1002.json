@@ -1,0 +1,32 @@
+{
+ "id": "q1002",
+ "db": "formula_1",
+ "path": "dev_unzipped/dev_20240627/dev_databases/formula_1/formula_1.sqlite",
+ "question": "As of the present, what is the full name of the youngest racer? Indicate her nationality and the name of the race to which he/she first joined.",
+ "evidence": "full name refers to forename+surname; Youngest racer = MAX(dob)",
+ "rule": "ties",
+ "clarification": "If several rows tie at the cut-off, return all of them.",
+ "gold": "SELECT c0, c1, c2, c3 FROM (SELECT T1.forename AS c0, T1.surname AS c1, T1.nationality AS c2, T3.name AS c3, RANK() OVER (ORDER BY JULIANDAY(T1.dob) DESC) AS __r FROM drivers AS T1 INNER JOIN driverStandings AS T2 ON T1.driverId = T2.driverId INNER JOIN races AS T3 ON T2.raceId = T3.raceId) AS __t WHERE __r <= 1",
+ "gold0": "SELECT T1.forename, T1.surname, T1.nationality, T3.name FROM drivers AS T1 INNER JOIN driverStandings AS T2 on T1.driverId = T2.driverId INNER JOIN races AS T3 on T2.raceId = T3.raceId ORDER BY JULIANDAY(T1.dob) DESC LIMIT 1",
+ "b": {
+  "request": "For every driver with the latest date of birth, return their forename and surname, nationality, and the name of their earliest race recorded in results; include all drivers tied for youngest and all races tied for that driver\u2019s earliest date",
+  "sql": "WITH youngest AS (SELECT driverId, forename, surname, nationality FROM drivers WHERE dob = (SELECT MAX(dob) FROM drivers)), earliest AS (SELECT res.driverId, MIN(r.date) AS first_date FROM results AS res JOIN races AS r ON r.raceId = res.raceId GROUP BY res.driverId) SELECT DISTINCT y.forename, y.surname, y.nationality, r.name AS earliest_race FROM youngest AS y LEFT JOIN earliest AS e ON e.driverId = y.driverId LEFT JOIN results AS res ON res.driverId = y.driverId LEFT JOIN races AS r ON r.raceId = res.raceId AND r.date = e.first_date WHERE e.driverId IS NULL OR r.raceId IS NOT NULL",
+  "runs": true,
+  "right": false,
+  "unclarified": true
+ },
+ "d": {
+  "request": "As of the present, what are the full names (forename and surname) and nationalities of the youngest racers, and which race did each first join? Return all racers who share the latest date of birth.",
+  "sql": "WITH youngest AS (SELECT d.driverId, d.forename, d.surname, d.nationality FROM drivers d WHERE d.dob <= date('now') AND EXISTS (SELECT 1 FROM results res WHERE res.driverId = d.driverId) AND d.dob = (SELECT MAX(d2.dob) FROM drivers d2 WHERE d2.dob <= date('now') AND EXISTS (SELECT 1 FROM results res2 WHERE res2.driverId = d2.driverId))), first_races AS (SELECT res.driverId, r.name AS race_name, r.year, ROW_NUMBER() OVER (PARTITION BY res.driverId ORDER BY r.date, r.round, r.raceId) AS rn FROM results res JOIN races r ON r.raceId = res.raceId JOIN youngest y ON y.driverId = res.driverId) SELECT y.forename, y.surname, y.nationality, f.race_name, f.year FROM youngest y JOIN first_races f ON f.driverId = y.driverId AND f.rn = 1 ORDER BY y.surname, y.forename",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "c": {
+  "request": "As of the present, what is the full name of the youngest racer? Indicate her nationality and the name of the race to which he/she first joined.\nEvidence: full name refers to forename+surname; Youngest racer = MAX(dob)\nIf several rows tie at the cut-off, return all of them.",
+  "sql": "WITH youngest AS (SELECT driverId, forename, surname, nationality FROM drivers WHERE dob = (SELECT MAX(dob) FROM drivers)), first_races AS (SELECT res.driverId, r.name AS race_name, ROW_NUMBER() OVER (PARTITION BY res.driverId ORDER BY r.date, r.round, r.raceId) AS rn FROM results AS res JOIN races AS r ON r.raceId = res.raceId) SELECT y.forename || ' ' || y.surname AS full_name, y.nationality, f.race_name FROM youngest AS y JOIN first_races AS f ON f.driverId = y.driverId AND f.rn = 1;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ }
+}

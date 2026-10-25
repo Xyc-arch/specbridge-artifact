@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Every order in Orders counts, including orders with 0 invoices. The share is the order's invoice count divided by the total rows in Invoices. The average share is taken over all orders. The output is the sum of invoice counts for the above-average orders, the mean share of those orders, and the mean of (share \u2212 overall average share) for those orders.",
+  "Only orders that have at least one invoice count. The share is the order's count divided by the total invoices. The average share is taken over those orders only. The output is the same three values.",
+  "Every order in Orders counts, including those with 0 invoices. The share is the order's count divided by the sum of per-order counts. The average share is taken over all orders. The output is the same three values.",
+  "\"Their total number of invoices\" is the sum of invoice counts across the above-average orders.",
+  "\"Their total number of invoices\" is the number of above-average orders, not the sum of their invoices.",
+  "\"Their total number of invoices\" is the total number of invoices in the whole database, not only for the above-average orders.",
+  "\"Their average share\" is the mean of the above-average orders' shares.",
+  "\"Their average share\" is the overall average share across all orders (the threshold value), repeated in the output.",
+  "\"The average amount by which their share exceeds the average share\" is the mean of (order share \u2212 average share) over the above-average orders.",
+  "The same amount is computed as (mean share of the above-average orders) \u2212 (overall average share). This gives the same number as interpretation 9.",
+  "Shares are fractions between 0 and 1.",
+  "Shares are percentages (multiplied by 100).",
+  "\"Strictly above\" means share > average share, so orders equal to the average are excluded.",
+  "The result has one row with three columns: total invoices, average share, and average excess.",
+  "The output reports the total invoices of the above-average orders, plus the average share and average excess calculated across all orders instead of only the above-average ones.",
+  "Some interpretations are missing:",
+  "The average share is a weighted average (total invoices of the above-average orders divided by the total invoices), not a simple mean of their shares.",
+  "The average amount by which the share exceeds the average share is the sum of the excesses divided by the number of all orders, not just the above-average ones.",
+  "Invoices are counted per order through Invoice_Line_Items (distinct invoice numbers) instead of from the Invoices table.",
+  "The average share is the mean over only the orders that have invoices, but the share's denominator is the total number of rows in Invoices, counting invoices that have no matching order."
+ ],
+ "queries": [
+  "WITH oc AS (\n  SELECT o.order_id, COUNT(i.invoice_number) AS cnt\n  FROM Orders o\n  LEFT JOIN Invoices i ON i.order_id = o.order_id\n  GROUP BY o.order_id\n),\ns AS (\n  SELECT order_id, cnt, CAST(cnt AS REAL) / (SELECT COUNT(*) FROM Invoices) AS share\n  FROM oc\n),\na AS (\n  SELECT AVG(share) AS avg_share FROM s\n)\nSELECT SUM(cnt) AS total_invoice_count,\n       AVG(share) AS mean_share,\n       AVG(share - (SELECT avg_share FROM a)) AS mean_diff\nFROM s\nWHERE share > (SELECT avg_share FROM a);\n",
+  "SELECT order_id,\n       CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM Invoices) AS share,\n       AVG(CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM Invoices)) OVER () AS average_share\nFROM Invoices\nGROUP BY order_id;\n",
+  "WITH c AS (\n  SELECT o.order_id, COUNT(i.invoice_number) AS cnt\n  FROM Orders o\n  LEFT JOIN Invoices i ON i.order_id = o.order_id\n  GROUP BY o.order_id\n),\ns AS (\n  SELECT cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share\n  FROM c\n)\nSELECT MIN(share), MAX(share), AVG(share)\nFROM s;\n",
+  "SELECT SUM(cnt) AS total_invoices\nFROM (\n  SELECT order_id, COUNT(*) AS cnt\n  FROM Invoices\n  GROUP BY order_id\n) t\nWHERE cnt > (\n  SELECT AVG(c)\n  FROM (\n    SELECT COUNT(*) AS c\n    FROM Invoices\n    GROUP BY order_id\n  )\n);\n",
+  "SELECT customer_id, COUNT(*) AS total_invoices\nFROM Orders\nGROUP BY customer_id\nHAVING COUNT(*) > (SELECT AVG(c) FROM (SELECT COUNT(*) AS c FROM Orders GROUP BY customer_id));\n",
+  "SELECT order_id, (SELECT COUNT(*) FROM Invoices) AS total_invoices\nFROM Order_Items\nGROUP BY order_id\nHAVING COUNT(*) > (SELECT AVG(c) FROM (SELECT COUNT(*) AS c FROM Order_Items GROUP BY order_id));\n"
+ ],
+ "raw": [
+  "1. Every order in Orders counts, including orders with 0 invoices. The share is the order's invoice count divided by the total rows in Invoices. The average share is taken over all orders. The output is the sum of invoice counts for the above-average orders, the mean share of those orders, and the mean of (share \u2212 overall average share) for those orders.\n2. Only orders that have at least one invoice count. The share is the order's count divided by the total invoices. The average share is taken over those orders only. The output is the same three values.\n3. Every order in Orders counts, including those with 0 invoices. The share is the order's count divided by the sum of per-order counts. The average share is taken over all orders. The output is the same three values.\n4. \"Their total number of invoices\" is the sum of invoice counts across the above-average orders.\n5. \"Their total number of invoices\" is the number of above-average orders, not the sum of their invoices.\n6. \"Their total number of invoices\" is the total number of invoices in the whole database, not only for the above-average orders.\n7. \"Their average share\" is the mean of the above-average orders' shares.\n8. \"Their average share\" is the overall average share across all orders (the threshold value), repeated in the output.\n9. \"The average amount by which their share exceeds the average share\" is the mean of (order share \u2212 average share) over the above-average orders.\n10. The same amount is computed as (mean share of the above-average orders) \u2212 (overall average share). This gives the same number as interpretation 9.\n11. Shares are fractions between 0 and 1.\n12. Shares are percentages (multiplied by 100).\n13. \"Strictly above\" means share > average share, so orders equal to the average are excluded.\n14. The result has one row with three columns: total invoices, average share, and average excess.\n15. The output reports the total invoices of the above-average orders, plus the average share and average excess calculated across all orders instead of only the above-average ones.",
+  "Some interpretations are missing:\n\nThe average share is a weighted average (total invoices of the above-average orders divided by the total invoices), not a simple mean of their shares.\nThe average amount by which the share exceeds the average share is the sum of the excesses divided by the number of all orders, not just the above-average ones.\nInvoices are counted per order through Invoice_Line_Items (distinct invoice numbers) instead of from the Invoices table.\nThe average share is the mean over only the orders that have invoices, but the share's denominator is the total number of rows in Invoices, counting invoices that have no matching order."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69c4bd1cc2",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30417,
+  "chars_out": 5249
+ }
+}

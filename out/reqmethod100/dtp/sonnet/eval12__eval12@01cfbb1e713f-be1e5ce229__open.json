@@ -1,0 +1,61 @@
+{
+ "interpretations": [
+  "\"Average ratio\" is the mean over an event's budget lines of (spent \u2212 amount)/amount, computed per budget line first. Lines with amount = 0 give a null ratio.",
+  "\"Average ratio\" is the aggregate ratio: (sum of spent \u2212 sum of amount) / sum of amount for the event, not the mean of per-line ratios.",
+  "Budget lines with amount = 0 or null are excluded from the average. An event whose lines are all excluded has no ratio.",
+  "Budget lines with amount = 0 are treated as ratio 0, or as infinite overspend if spent > 0.",
+  "Events with no budget lines at all are included and listed last with a null ratio.",
+  "Events with no budget lines are excluded, and only events with at least one budget line appear.",
+  "\"Events lacking a ratio\" means events whose ratio is null because all their lines have amount = 0 or null. They are placed last within their location.",
+  "Rank uses RANK() semantics: ties share a rank and the next rank is skipped (1, 1, 3). Events with a null ratio share the last rank among themselves.",
+  "Events with a null ratio are ranked after all others but may fall outside the top 3, so they appear only if fewer than 3 events have a ratio.",
+  "Events with a null ratio are shown with a null rank rather than a numeric rank.",
+  "Top 3 means rank \u2264 3 after RANK() tie handling, so more than 3 events can appear if they tie.",
+  "Top 3 means exactly 3 rows per location, cutting ties arbitrarily.",
+  "\"Overspend\" is the signed ratio, so negative values (underspend) are included. Events with no overspend still rank by the signed value.",
+  "\"Overspend\" is only positive overspend, so negative ratios are floored at 0, or events with no overspend are excluded.",
+  "Events with a null or empty location are grouped together as one location group.",
+  "Events with a null location are excluded.",
+  "Different spellings or cases of the same location are treated as separate locations, or they are normalized into one.",
+  "Ratio uses the budget table's `spent` and `amount` columns, as stated.",
+  "Ratio uses `remaining` instead of `spent`, so overspend = \u2212remaining/amount.",
+  "Ratio uses actual expense costs summed per budget line in place of `spent`.",
+  "Ratio is computed across all budget lines regardless of event_status.",
+  "Ratio is limited to budget lines of closed events, or excludes planning events.",
+  "The average ratio is shown as a raw decimal, as a percentage, or rounded to some number of decimals.",
+  "Output columns are event id, location, average ratio and rank, in that order.",
+  "Output is ordered by location, then by rank. Alternatively it is ordered by rank only, or by ratio descending overall.",
+  "\"Location\" means event.location. Alternatively it means the member's hometown (zip_code city or state) of the members attending or incurring expenses.",
+  "Missing interpretations:",
+  "Events with multiple budget lines where some have null `spent` (null spent gives a null per-line ratio, which is skipped by AVG, versus being treated as 0 spent).",
+  "Events whose budget lines have a null `amount` give a null ratio, versus being treated as 0.",
+  "Ratio is computed with integer division because `amount` is INTEGER, truncating the result. The alternative is a real-number division using `spent` REAL.",
+  "Events with a null ratio are ordered last, but the order among them is unspecified, versus tie-broken by event_id.",
+  "Ties in ratio among non-null events are broken by event_id (or another column) for ordering, though the rank itself is shared.",
+  "Rank is computed over all events in the location, including those with null ratios, versus ranking only events with ratios and appending the null-ratio ones afterwards.",
+  "Floating-point near-ties (rounded ratio vs. raw value) determine whether events share a rank.",
+  "Events with a null location are grouped separately from empty-string locations.",
+  "Budget lines for the same event with different `event_status` values are all included, with the event's own `event.status` possibly differing from the budget's `event_status`. The filter on closed/open/planning could use either column.",
+  "The average is weighted by amount rather than being an unweighted mean of per-line ratios (this is distinct from the aggregate sum ratio only when lines with null values are dropped)."
+ ],
+ "queries": [
+  "SELECT link_to_event, AVG((spent - amount) / CAST(amount AS REAL)) AS average_ratio\nFROM budget\nGROUP BY link_to_event;\n",
+  "SELECT e.event_name, (SUM(b.spent) - SUM(b.amount)) * 1.0 / SUM(b.amount) AS average_ratio\nFROM event e\nJOIN budget b ON b.link_to_event = e.event_id\nGROUP BY e.event_id, e.event_name;\n",
+  "SELECT link_to_event, AVG(spent * 1.0 / amount) AS avg_ratio\nFROM budget\nWHERE amount IS NOT NULL AND amount <> 0\nGROUP BY link_to_event",
+  "SELECT e.event_name, SUM(b.spent) * 1.0 / SUM(b.amount) AS ratio\nFROM event e\nLEFT JOIN budget b ON b.link_to_event = e.event_id\nGROUP BY e.event_id, e.event_name\nORDER BY (ratio IS NULL), ratio;\n",
+  "SELECT DISTINCT e.event_id, e.event_name FROM event e INNER JOIN budget b ON e.event_id = b.link_to_event;\n"
+ ],
+ "raw": [
+  "1. \"Average ratio\" is the mean over an event's budget lines of (spent \u2212 amount)/amount, computed per budget line first. Lines with amount = 0 give a null ratio.\n2. \"Average ratio\" is the aggregate ratio: (sum of spent \u2212 sum of amount) / sum of amount for the event, not the mean of per-line ratios.\n3. Budget lines with amount = 0 or null are excluded from the average. An event whose lines are all excluded has no ratio.\n4. Budget lines with amount = 0 are treated as ratio 0, or as infinite overspend if spent > 0.\n5. Events with no budget lines at all are included and listed last with a null ratio.\n6. Events with no budget lines are excluded, and only events with at least one budget line appear.\n7. \"Events lacking a ratio\" means events whose ratio is null because all their lines have amount = 0 or null. They are placed last within their location.\n8. Rank uses RANK() semantics: ties share a rank and the next rank is skipped (1, 1, 3). Events with a null ratio share the last rank among themselves.\n9. Events with a null ratio are ranked after all others but may fall outside the top 3, so they appear only if fewer than 3 events have a ratio.\n10. Events with a null ratio are shown with a null rank rather than a numeric rank.\n11. Top 3 means rank \u2264 3 after RANK() tie handling, so more than 3 events can appear if they tie.\n12. Top 3 means exactly 3 rows per location, cutting ties arbitrarily.\n13. \"Overspend\" is the signed ratio, so negative values (underspend) are included. Events with no overspend still rank by the signed value.\n14. \"Overspend\" is only positive overspend, so negative ratios are floored at 0, or events with no overspend are excluded.\n15. Events with a null or empty location are grouped together as one location group.\n16. Events with a null location are excluded.\n17. Different spellings or cases of the same location are treated as separate locations, or they are normalized into one.\n18. Ratio uses the budget table's `spent` and `amount` columns, as stated.\n19. Ratio uses `remaining` instead of `spent`, so overspend = \u2212remaining/amount.\n20. Ratio uses actual expense costs summed per budget line in place of `spent`.\n21. Ratio is computed across all budget lines regardless of event_status.\n22. Ratio is limited to budget lines of closed events, or excludes planning events.\n23. The average ratio is shown as a raw decimal, as a percentage, or rounded to some number of decimals.\n24. Output columns are event id, location, average ratio and rank, in that order.\n25. Output is ordered by location, then by rank. Alternatively it is ordered by rank only, or by ratio descending overall.\n26. \"Location\" means event.location. Alternatively it means the member's hometown (zip_code city or state) of the members attending or incurring expenses.",
+  "Missing interpretations:\n\nEvents with multiple budget lines where some have null `spent` (null spent gives a null per-line ratio, which is skipped by AVG, versus being treated as 0 spent).\nEvents whose budget lines have a null `amount` give a null ratio, versus being treated as 0.\nRatio is computed with integer division because `amount` is INTEGER, truncating the result. The alternative is a real-number division using `spent` REAL.\nEvents with a null ratio are ordered last, but the order among them is unspecified, versus tie-broken by event_id.\nTies in ratio among non-null events are broken by event_id (or another column) for ordering, though the rank itself is shared.\nRank is computed over all events in the location, including those with null ratios, versus ranking only events with ratios and appending the null-ratio ones afterwards.\nFloating-point near-ties (rounded ratio vs. raw value) determine whether events share a rank.\nEvents with a null location are grouped separately from empty-string locations.\nBudget lines for the same event with different `event_status` values are all included, with the event's own `event.status` possibly differing from the budget's `event_status`. The filter on closed/open/planning could use either column.\nThe average is weighted by amount rather than being an unweighted mean of per-line ratios (this is distinct from the aggregate sum ratio only when lines with null values are dropped)."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-be1e5ce229",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 61438,
+  "chars_out": 5643
+ }
+}

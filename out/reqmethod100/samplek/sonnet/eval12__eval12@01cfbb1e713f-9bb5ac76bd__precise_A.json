@@ -1,0 +1,64 @@
+{
+ "queries": [
+  "WITH grp AS (SELECT t.telescregistry AS telescope, o.weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY t.telescregistry, o.weathprofile), base AS (SELECT AVG(avg_mod) AS baseline FROM grp), kept AS (SELECT g.*, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT weathprofile, AVG(avg_mod) AS avg_modindex, AVG(avg_phase) AS avg_phaseshift, AVG(avg_mod - baseline) AS avg_excess_over_baseline FROM kept GROUP BY weathprofile",
+  "WITH g AS (SELECT s.telescref, o.weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY s.telescref, o.weathprofile), b AS (SELECT AVG(avg_mod) AS baseline FROM g), k AS (SELECT g.*, b.baseline FROM g CROSS JOIN b WHERE g.avg_mod > b.baseline) SELECT weathprofile, AVG(avg_mod) AS avg_modindex, AVG(avg_phase) AS avg_phaseshift, AVG(avg_mod - baseline) AS avg_excess_over_baseline FROM k GROUP BY weathprofile",
+  "WITH g AS (SELECT s.telescref, o.weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY s.telescref, o.weathprofile), b AS (SELECT AVG(avg_mod) AS baseline FROM g) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - b.baseline) AS avg_excess_modindex FROM g CROSS JOIN b WHERE g.avg_mod > b.baseline GROUP BY g.weathprofile"
+ ],
+ "responses": [
+  {
+   "sql": "WITH grp AS (SELECT t.telescregistry AS telescope, o.weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY t.telescregistry, o.weathprofile), base AS (SELECT AVG(avg_mod) AS baseline FROM grp), kept AS (SELECT g.*, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT weathprofile, AVG(avg_mod) AS avg_modindex, AVG(avg_phase) AS avg_phaseshift, AVG(avg_mod - baseline) AS avg_excess_over_baseline FROM kept GROUP BY weathprofile",
+   "assumptions": [
+    {
+     "assumption": "Inner joins signals->telescopes->observatories drop unmatched signals; groups are (telescope, weathprofile) with weathprofile taken from the telescope's observatory.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is a single global mean of all group average modulation indexes (each group weighted equally), and the excess is each kept group's average modulation index minus that baseline.",
+     "unresolved": false
+    },
+    {
+     "assumption": "NULL modindex/phaseshift values are ignored by AVG; groups with NULL average modulation index are neither in the baseline nor kept.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT s.telescref, o.weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY s.telescref, o.weathprofile), b AS (SELECT AVG(avg_mod) AS baseline FROM g), k AS (SELECT g.*, b.baseline FROM g CROSS JOIN b WHERE g.avg_mod > b.baseline) SELECT weathprofile, AVG(avg_mod) AS avg_modindex, AVG(avg_phase) AS avg_phaseshift, AVG(avg_mod - baseline) AS avg_excess_over_baseline FROM k GROUP BY weathprofile",
+   "assumptions": [
+    {
+     "assumption": "Inner joins signals->telescopes->observatories drop unmatched signals. Groups are (telescref, weathprofile). The baseline is the unweighted mean of all group average modulation indexes, computed before filtering. Groups with a NULL average modulation index are excluded from the baseline and can't pass the filter. The 'amount above baseline' is the group average modulation index minus that global baseline.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT s.telescref, o.weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY s.telescref, o.weathprofile), b AS (SELECT AVG(avg_mod) AS baseline FROM g) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - b.baseline) AS avg_excess_modindex FROM g CROSS JOIN b WHERE g.avg_mod > b.baseline GROUP BY g.weathprofile",
+   "assumptions": [
+    {
+     "assumption": "Inner joins signals->telescopes->observatories drop unmatched signals. Groups are (telescope, weathprofile), and a group's averages ignore NULL values.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the unweighted mean of all group average modulation indexes, computed across every group before filtering and across all weather profiles. The 'amount above baseline' is each kept group's avg modulation index minus that global baseline.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Groups with a NULL average modulation index are excluded from the baseline and from the kept groups.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 122409,
+  "chars_out": 3569
+ }
+}

@@ -1,0 +1,52 @@
+{
+ "interpretations": [
+  "Group by Track.AlbumId, with NULL AlbumId tracks forming one group. Per-album rate = AVG(Bytes/Milliseconds) over tracks. Difference = album rate minus the average of the album rates (an unweighted mean across all groups, including the NULL group). Show AlbumId, AVG(UnitPrice), rate, difference. Order by difference descending, limit 10.",
+  "Same as 1, but the \"average rate across all albums\" excludes the NULL-album group (only real albums). The NULL group is still listed.",
+  "Same as 1, but the NULL-album group is excluded entirely from the output and the overall average.",
+  "Same as 1, but the \"average rate across all albums\" is the track-level average of Bytes/Milliseconds over all tracks (not an average of album averages).",
+  "Same as 1, but the overall average is the total Bytes divided by total Milliseconds across all tracks (a pooled ratio).",
+  "Same as 1, but the overall average is computed over albums in the Album table, including albums with no tracks (these contribute no rate and are ignored as missing).",
+  "Same as 1, but \"how far above\" means a signed difference (album rate \u2212 average), with albums below average shown as negative. These would only appear if fewer than 10 albums are above.",
+  "Same as 1, but \"how far above\" means the absolute value of the difference. This ranks albums by the largest deviation in either direction.",
+  "Same as 1, but \"how far above\" is a ratio or percentage of the average rate, not a subtraction.",
+  "Rate computed as SUM(Bytes)/SUM(Milliseconds) per album, rather than the average of per-track ratios. The overall average is the average of these album rates.",
+  "Integer division in Bytes/Milliseconds is used, so per-track rates are truncated. The \"don't round\" instruction is interpreted as not casting to float.",
+  "Bytes/Milliseconds is computed as a real (floating-point) value, with no truncation or rounding. This reflects the \"don't round\" instruction.",
+  "Tracks with NULL Bytes are excluded from the album's average rate, but their UnitPrice is still included in the average price.",
+  "Tracks with NULL Bytes are excluded from both the average rate and the average price.",
+  "Ties at the 10th position are broken arbitrarily (a plain LIMIT 10).",
+  "Ties at the 10th position are all included, so more than 10 rows may appear.",
+  "The output includes the album Title (or the artist) in addition to the album id.",
+  "The output shows only the album id, average price, rate, and difference, with no album title.",
+  "The average price is the average of Track.UnitPrice per track. It is not weighted by InvoiceLine quantity or sales.",
+  "The average price is based on prices actually sold (InvoiceLine.UnitPrice), not Track.UnitPrice.",
+  "Missing interpretations:",
+  "Tracks with NULL Milliseconds or NULL Bytes are excluded from the per-track rate, and Milliseconds = 0 is treated as missing, so no division-by-zero error occurs.",
+  "Albums whose rate is entirely NULL (every track has NULL Bytes) are excluded from the output and from the overall average, but their average price is still computed.",
+  "The overall average rate is computed only over albums that have a non-NULL rate, and the NULL-album group is included. Groups with a NULL rate still appear but have a NULL difference, which sorts last.",
+  "\"Above the average\" is limited to albums with a positive difference, so albums at or below the average are filtered out.",
+  "The 10 albums are ranked by the difference only, and the output has no tie-breaking by AlbumId.",
+  "The \"average rate across all albums\" is a window-function average over the grouped result, computed before LIMIT.",
+  "The difference is the album rate minus the average price, as a literal reading of a mismatched comparison.",
+  "The average price is AVG(Track.UnitPrice) taken over all tracks in the group, including tracks that were never sold, with no join to InvoiceLine."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT AlbumId, AVG(UnitPrice) AS avg_price, AVG(CAST(Bytes AS REAL)/Milliseconds) AS rate\n  FROM Track\n  GROUP BY AlbumId\n)\nSELECT AlbumId, avg_price AS \"AVG(UnitPrice)\", rate, rate - (SELECT AVG(rate) FROM g) AS difference\nFROM g\nORDER BY difference DESC\nLIMIT 10;\n",
+  "SELECT AlbumId,\n       AVG(UnitPrice) AS avg_rate,\n       (SELECT AVG(a.r) FROM (SELECT AVG(UnitPrice) AS r FROM Track WHERE AlbumId IS NOT NULL GROUP BY AlbumId) a) AS overall_avg_rate\nFROM Track\nGROUP BY AlbumId;\n",
+  "SELECT AlbumId, AVG(Milliseconds) FROM Track WHERE AlbumId IS NOT NULL GROUP BY AlbumId;\n",
+  "SELECT a.Title\nFROM Album a\nJOIN Track t ON t.AlbumId = a.AlbumId\nGROUP BY a.AlbumId, a.Title\nHAVING AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) > (SELECT AVG(CAST(Bytes AS REAL) / Milliseconds) FROM Track);\n"
+ ],
+ "raw": [
+  "1. Group by Track.AlbumId, with NULL AlbumId tracks forming one group. Per-album rate = AVG(Bytes/Milliseconds) over tracks. Difference = album rate minus the average of the album rates (an unweighted mean across all groups, including the NULL group). Show AlbumId, AVG(UnitPrice), rate, difference. Order by difference descending, limit 10.\n2. Same as 1, but the \"average rate across all albums\" excludes the NULL-album group (only real albums). The NULL group is still listed.\n3. Same as 1, but the NULL-album group is excluded entirely from the output and the overall average.\n4. Same as 1, but the \"average rate across all albums\" is the track-level average of Bytes/Milliseconds over all tracks (not an average of album averages).\n5. Same as 1, but the overall average is the total Bytes divided by total Milliseconds across all tracks (a pooled ratio).\n6. Same as 1, but the overall average is computed over albums in the Album table, including albums with no tracks (these contribute no rate and are ignored as missing).\n7. Same as 1, but \"how far above\" means a signed difference (album rate \u2212 average), with albums below average shown as negative. These would only appear if fewer than 10 albums are above.\n8. Same as 1, but \"how far above\" means the absolute value of the difference. This ranks albums by the largest deviation in either direction.\n9. Same as 1, but \"how far above\" is a ratio or percentage of the average rate, not a subtraction.\n10. Rate computed as SUM(Bytes)/SUM(Milliseconds) per album, rather than the average of per-track ratios. The overall average is the average of these album rates.\n11. Integer division in Bytes/Milliseconds is used, so per-track rates are truncated. The \"don't round\" instruction is interpreted as not casting to float.\n12. Bytes/Milliseconds is computed as a real (floating-point) value, with no truncation or rounding. This reflects the \"don't round\" instruction.\n13. Tracks with NULL Bytes are excluded from the album's average rate, but their UnitPrice is still included in the average price.\n14. Tracks with NULL Bytes are excluded from both the average rate and the average price.\n15. Ties at the 10th position are broken arbitrarily (a plain LIMIT 10).\n16. Ties at the 10th position are all included, so more than 10 rows may appear.\n17. The output includes the album Title (or the artist) in addition to the album id.\n18. The output shows only the album id, average price, rate, and difference, with no album title.\n19. The average price is the average of Track.UnitPrice per track. It is not weighted by InvoiceLine quantity or sales.\n20. The average price is based on prices actually sold (InvoiceLine.UnitPrice), not Track.UnitPrice.",
+  "Missing interpretations:\n\nTracks with NULL Milliseconds or NULL Bytes are excluded from the per-track rate, and Milliseconds = 0 is treated as missing, so no division-by-zero error occurs.\nAlbums whose rate is entirely NULL (every track has NULL Bytes) are excluded from the output and from the overall average, but their average price is still computed.\nThe overall average rate is computed only over albums that have a non-NULL rate, and the NULL-album group is included. Groups with a NULL rate still appear but have a NULL difference, which sorts last.\n\"Above the average\" is limited to albums with a positive difference, so albums at or below the average are filtered out.\nThe 10 albums are ranked by the difference only, and the output has no tie-breaking by AlbumId.\nThe \"average rate across all albums\" is a window-function average over the grouped result, computed before LIMIT.\nThe difference is the album rate minus the average price, as a literal reading of a mismatched comparison.\nThe average price is AVG(Track.UnitPrice) taken over all tracks in the group, including tracks that were never sold, with no join to InvoiceLine."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fc09eb5c8c",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 43318,
+  "chars_out": 5978
+ }
+}

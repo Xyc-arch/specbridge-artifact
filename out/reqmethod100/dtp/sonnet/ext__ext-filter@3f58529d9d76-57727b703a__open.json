@@ -1,0 +1,51 @@
+{
+ "interpretations": [
+  "Memory-heavy means `memusagegb` strictly greater than 60.8, and the final averages are an unweighted average of the per-group (site code, access status) averages.",
+  "Memory-heavy means `memusagegb` greater than or equal to 60.8, with the same unweighted average of per-group averages.",
+  "Memory-heavy means strictly greater than 60.8, and the final averages are weighted by run count, which means averaging over all qualifying runs per access status.",
+  "Group by site code and access status, then average over the sites within each access status. This is the same as interpretation 1, but one group per site code, because each site code has exactly one access status.",
+  "The GPU/CPU ratio is calculated per run (`procgpu` \u00f7 `proccpu`) and then averaged per group.",
+  "The GPU/CPU ratio is calculated as the ratio of the group's average GPU to its average CPU (average of `procgpu` \u00f7 average of `proccpu`), not as the average of per-run ratios.",
+  "Runs with missing `procgpu` or `proccpu` are excluded from the ratio but still count toward the RAM average.",
+  "Runs with missing `procgpu` or `proccpu` are excluded entirely from both averages.",
+  "Runs with `proccpu` equal to 0 are excluded or produce a null ratio to avoid division by zero, and are ignored in the averages.",
+  "Integer division is applied to `procgpu` \u00f7 `proccpu`, which truncates the ratios, instead of a decimal ratio.",
+  "Only runs whose `zoneref` matches a site are counted (inner join to `sites`), and runs with no matching site are dropped.",
+  "Access statuses with no qualifying runs are omitted (inner join).",
+  "Access statuses with no qualifying runs are shown with null averages (left join from `sites`).",
+  "Runs with a null `entrystat` are grouped as their own null access status.",
+  "Runs with a null `entrystat` are excluded.",
+  "Output has one row per access status with three columns: status, average of the per-site RAM averages, and average of the per-site ratios.",
+  "Results are unrounded, with full precision.",
+  "The `entrystat` values are compared as stored (case and whitespace sensitive), so variants such as \"Open\" and \"open\" are separate statuses.",
+  "The `entrystat` values are normalized for case and whitespace before grouping, so variants are merged.",
+  "The RAM cutoff is applied to each run's `memusagegb` (a run-level filter before aggregation).",
+  "The RAM cutoff is applied to the per-site average RAM (a group-level filter after aggregation).",
+  "Interpretations that are missing:",
+  "Groups (site code, access status) whose ratio is null (every run in the group has a missing `procgpu` or `proccpu`) are dropped from the final ratio average but still count in the final RAM average.",
+  "Groups whose ratio is null are dropped from both final averages.",
+  "The group-level filter on per-site average RAM uses greater than or equal to 60.8 instead of strictly greater.",
+  "The final ratio is the ratio of the two final averages (average per-site GPU \u00f7 average per-site CPU), not the average of the per-site ratios."
+ ],
+ "queries": [
+  "SELECT AVG(avg_mem) FROM (SELECT AVG(p.memusagegb) AS avg_mem FROM scanprocessing p JOIN sites s ON p.zoneref = s.zoneregistry WHERE p.memusagegb > 60.8 GROUP BY s.zoneregistry, s.entrystat)",
+  "SELECT AVG(avg_mem) FROM (SELECT flowsoft, AVG(memusagegb) AS avg_mem FROM scanprocessing WHERE memusagegb >= 60.8 GROUP BY flowsoft);\n",
+  "SELECT s.entrystat, AVG(p.flowhrs) AS avg_flowhrs\nFROM scanprocessing p\nJOIN sites s ON p.zoneref = s.zoneregistry\nWHERE p.memusagegb > 60.8\nGROUP BY s.entrystat;\n",
+  "SELECT entrystat, AVG(scan_cnt) AS avg_scans_per_site\nFROM (\n  SELECT s.zoneregistry, s.entrystat, COUNT(sc.questregistry) AS scan_cnt\n  FROM sites s\n  LEFT JOIN scans sc ON sc.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.entrystat\n)\nGROUP BY entrystat;\n",
+  "SELECT flowsoft, AVG(CAST(procgpu AS REAL) / proccpu) AS avg_gpu_cpu_ratio\nFROM scanprocessing\nWHERE proccpu IS NOT NULL AND proccpu <> 0 AND procgpu IS NOT NULL\nGROUP BY flowsoft;\n",
+  "SELECT flowsoft, AVG(procgpu) * 1.0 / AVG(proccpu) AS gpu_cpu_ratio\nFROM scanprocessing\nGROUP BY flowsoft;\n"
+ ],
+ "raw": [
+  "1. Memory-heavy means `memusagegb` strictly greater than 60.8, and the final averages are an unweighted average of the per-group (site code, access status) averages.\n2. Memory-heavy means `memusagegb` greater than or equal to 60.8, with the same unweighted average of per-group averages.\n3. Memory-heavy means strictly greater than 60.8, and the final averages are weighted by run count, which means averaging over all qualifying runs per access status.\n4. Group by site code and access status, then average over the sites within each access status. This is the same as interpretation 1, but one group per site code, because each site code has exactly one access status.\n5. The GPU/CPU ratio is calculated per run (`procgpu` \u00f7 `proccpu`) and then averaged per group.\n6. The GPU/CPU ratio is calculated as the ratio of the group's average GPU to its average CPU (average of `procgpu` \u00f7 average of `proccpu`), not as the average of per-run ratios.\n7. Runs with missing `procgpu` or `proccpu` are excluded from the ratio but still count toward the RAM average.\n8. Runs with missing `procgpu` or `proccpu` are excluded entirely from both averages.\n9. Runs with `proccpu` equal to 0 are excluded or produce a null ratio to avoid division by zero, and are ignored in the averages.\n10. Integer division is applied to `procgpu` \u00f7 `proccpu`, which truncates the ratios, instead of a decimal ratio.\n11. Only runs whose `zoneref` matches a site are counted (inner join to `sites`), and runs with no matching site are dropped.\n12. Access statuses with no qualifying runs are omitted (inner join).\n13. Access statuses with no qualifying runs are shown with null averages (left join from `sites`).\n14. Runs with a null `entrystat` are grouped as their own null access status.\n15. Runs with a null `entrystat` are excluded.\n16. Output has one row per access status with three columns: status, average of the per-site RAM averages, and average of the per-site ratios.\n17. Results are unrounded, with full precision.\n18. The `entrystat` values are compared as stored (case and whitespace sensitive), so variants such as \"Open\" and \"open\" are separate statuses.\n19. The `entrystat` values are normalized for case and whitespace before grouping, so variants are merged.\n20. The RAM cutoff is applied to each run's `memusagegb` (a run-level filter before aggregation).\n21. The RAM cutoff is applied to the per-site average RAM (a group-level filter after aggregation).",
+  "Interpretations that are missing:\n\nGroups (site code, access status) whose ratio is null (every run in the group has a missing `procgpu` or `proccpu`) are dropped from the final ratio average but still count in the final RAM average.\nGroups whose ratio is null are dropped from both final averages.\nThe group-level filter on per-site average RAM uses greater than or equal to 60.8 instead of strictly greater.\nThe final ratio is the ratio of the two final averages (average per-site GPU \u00f7 average per-site CPU), not the average of the per-site ratios."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-57727b703a",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327550,
+  "chars_out": 5081
+ }
+}

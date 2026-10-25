@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "\"High-rebate\" means `rebrate` strictly greater than 0.0005 (`rebrate > 0.0005`). Total rebate is SUM(`rebtotal`) over those records, and average net fee rate is AVG(`feerate` \u2212 `rebrate`) over those records.",
+  "\"High-rebate\" means `rebrate` greater than or equal to 0.0005 (`rebrate >= 0.0005`). The aggregates are the same as in interpretation 1.",
+  "The average net fee rate is computed as AVG(`feerate`) \u2212 AVG(`rebrate`) over the high-rebate records, rather than the average of the per-row differences. These differ when NULLs are present in only one of the two columns.",
+  "The average net fee rate is computed only over rows where both `feerate` and `rebrate` are non-null. The total rebate sums `rebtotal` over all high-rebate rows with non-null `rebtotal`, so the two aggregates may cover different row sets.",
+  "The average net fee rate and the total rebate are both computed over the same row set. That set is high-rebate rows where `feerate`, `rebrate`, and `rebtotal` are all non-null.",
+  "The cutoff of 0.0005 is read as a literal value on the stored `rebrate` scale, which is a decimal fraction such as 0.00015. It is not read as a percentage, so 0.0005 is not converted to 0.05%, which would be 0.0005 in percent units or 0.000005 as a fraction.",
+  "The question asks for one row with two columns: total rebate first, then average net fee rate, as SUM(`rebtotal`) and AVG(`feerate` \u2212 `rebrate`). If no rows qualify, both values are NULL.",
+  "The aggregation covers all fee records with no further grouping. It is not split by `feecoin`, `feerange` or order, and the result is a single row.",
+  "The aggregation is restricted to fee records linked to an existing order through `orderslink`, so fees with a null or orphaned `orderslink` are excluded.",
+  "The aggregation uses the `fees` table alone, with no join to `orders`, `users` or other tables.",
+  "Duplicate fee records for the same order are all included, so each record counts once in the sum and the average.",
+  "The average net fee rate is taken as the average of the per-record difference, expressed as a rate. It is not converted to a percentage or to a fee amount.",
+  "The values are returned unrounded, as raw SUM and AVG results with no rounding or formatting.",
+  "Average net fee rate is a weighted average (for example, weighted by `feetotal`), not a simple per-row average.",
+  "Average net fee rate is SUM(`feerate` \u2212 `rebrate`) divided by the count of all high-rebate rows, including rows where `feerate` is null.",
+  "The cutoff comparison is applied to `rebrate` after rounding to the stored 5-decimal precision, which could change which rows qualify at the 0.0005 boundary.",
+  "Rows with a null `rebrate` are treated as 0 and not as missing, and so are never high-rebate. They are excluded either way. A null `feerate` is treated as 0 in the net rate instead of being skipped."
+ ],
+ "queries": [
+  "SELECT SUM(rebtotal) AS total_rebate, AVG(feerate - rebrate) AS avg_net_fee_rate FROM fees WHERE rebrate > 0.0005",
+  "SELECT COUNT(*) AS num_fees, SUM(feetotal) AS total_fees, SUM(rebtotal) AS total_rebates, AVG(rebrate) AS avg_rebate_rate\nFROM fees\nWHERE rebrate >= 0.0005;\n",
+  "SELECT AVG(feerate) - AVG(rebrate) AS avg_net_fee_rate\nFROM fees\nWHERE rebrate > (SELECT AVG(rebrate) FROM fees);\n",
+  "SELECT\n  AVG(CASE WHEN feerate IS NOT NULL AND rebrate IS NOT NULL THEN feerate - rebrate END) AS avg_net_fee_rate,\n  SUM(rebtotal) AS total_rebate\nFROM fees\nWHERE rebrate > 0.0001;\n",
+  "SELECT AVG(feerate - rebrate) AS avg_net_fee_rate, SUM(rebtotal) AS total_rebate\nFROM fees\nWHERE feerate IS NOT NULL AND rebrate IS NOT NULL AND rebtotal IS NOT NULL AND rebrate > 0.0001;\n",
+  "SELECT * FROM fees WHERE rebrate > 0.0005;\n"
+ ],
+ "raw": [
+  "1. \"High-rebate\" means `rebrate` strictly greater than 0.0005 (`rebrate > 0.0005`). Total rebate is SUM(`rebtotal`) over those records, and average net fee rate is AVG(`feerate` \u2212 `rebrate`) over those records.\n2. \"High-rebate\" means `rebrate` greater than or equal to 0.0005 (`rebrate >= 0.0005`). The aggregates are the same as in interpretation 1.\n3. The average net fee rate is computed as AVG(`feerate`) \u2212 AVG(`rebrate`) over the high-rebate records, rather than the average of the per-row differences. These differ when NULLs are present in only one of the two columns.\n4. The average net fee rate is computed only over rows where both `feerate` and `rebrate` are non-null. The total rebate sums `rebtotal` over all high-rebate rows with non-null `rebtotal`, so the two aggregates may cover different row sets.\n5. The average net fee rate and the total rebate are both computed over the same row set. That set is high-rebate rows where `feerate`, `rebrate`, and `rebtotal` are all non-null.\n6. The cutoff of 0.0005 is read as a literal value on the stored `rebrate` scale, which is a decimal fraction such as 0.00015. It is not read as a percentage, so 0.0005 is not converted to 0.05%, which would be 0.0005 in percent units or 0.000005 as a fraction.\n7. The question asks for one row with two columns: total rebate first, then average net fee rate, as SUM(`rebtotal`) and AVG(`feerate` \u2212 `rebrate`). If no rows qualify, both values are NULL.\n8. The aggregation covers all fee records with no further grouping. It is not split by `feecoin`, `feerange` or order, and the result is a single row.\n9. The aggregation is restricted to fee records linked to an existing order through `orderslink`, so fees with a null or orphaned `orderslink` are excluded.\n10. The aggregation uses the `fees` table alone, with no join to `orders`, `users` or other tables.\n11. Duplicate fee records for the same order are all included, so each record counts once in the sum and the average.\n12. The average net fee rate is taken as the average of the per-record difference, expressed as a rate. It is not converted to a percentage or to a fee amount.\n13. The values are returned unrounded, as raw SUM and AVG results with no rounding or formatting.",
+  "Average net fee rate is a weighted average (for example, weighted by `feetotal`), not a simple per-row average.\nAverage net fee rate is SUM(`feerate` \u2212 `rebrate`) divided by the count of all high-rebate rows, including rows where `feerate` is null.\nThe cutoff comparison is applied to `rebrate` after rounding to the stored 5-decimal precision, which could change which rows qualify at the 0.0005 boundary.\nRows with a null `rebrate` are treated as 0 and not as missing, and so are never high-rebate. They are excluded either way. A null `feerate` is treated as 0 in the net rate instead of being skipped."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-4f1aa2827f",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107482,
+  "chars_out": 4439
+ }
+}

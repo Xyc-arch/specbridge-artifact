@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH t AS (SELECT archstat, COUNT(DISTINCT arcref) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;",
+  "WITH t AS (SELECT archstat, COUNT(*) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;",
+  "WITH t AS (SELECT archstat, COUNT(DISTINCT arcref) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;",
+  "WITH t AS (SELECT archstat, COUNT(*) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;",
+  "WITH t AS (SELECT archstat, COUNT(DISTINCT arcref) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, CAST(tally AS REAL) / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share",
+  "WITH t AS (SELECT archstat, COUNT(*) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, CAST(tally AS REAL) / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share"
+ ],
+ "responses": [
+  {
+   "sql": "WITH t AS (SELECT archstat, COUNT(DISTINCT arcref) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;",
+   "assumptions": [
+    {
+     "assumption": "A project's tally under a status is the number of distinct projects (arcref) with at least one QC record in that status. A project with QC records in several statuses is counted in each of them, so the tallies can sum to more than the number of projects.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A missing status means a NULL archstat, and NULL forms its own group. Empty strings are not treated as missing.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average share is the mean of the per-status shares, which equals 1 divided by the number of status groups, including the NULL group. The excess is share minus that average, with no rounding.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The tally is the number of QC records per status, not distinct projects.",
+     "sql": "WITH t AS (SELECT archstat, COUNT(*) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH t AS (SELECT archstat, COUNT(DISTINCT arcref) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;",
+   "assumptions": [
+    {
+     "assumption": "Tallying projects means counting distinct projects (arcref) per archival status. A project with QC rows under several statuses is counted once in each, and the share denominator is the sum of these per-status tallies.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A NULL archstat is its own group (GROUP BY keeps NULLs together), and it is included when computing the average share.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average share is the unweighted mean of the per-status shares. 'How far above' is the plain difference share minus average share, unrounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Tally is the number of QC records per status (each scanqc row counts as one), rather than distinct projects.",
+     "sql": "WITH t AS (SELECT archstat, COUNT(*) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, tally * 1.0 / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH t AS (SELECT archstat, COUNT(DISTINCT arcref) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, CAST(tally AS REAL) / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "'Tally the projects' means the count of distinct projects (arcref) per archstat. A project with QC rows in several statuses is counted once in each of those statuses.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL archstat forms its own group. The average share is the unweighted mean of the per-status shares, which includes the NULL group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The share denominator is the sum of the per-status tallies, as the request says. It is not the overall count of distinct projects.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Tally means the number of QC records (rows) per archival status, not distinct projects.",
+     "sql": "WITH t AS (SELECT archstat, COUNT(*) AS tally FROM scanqc GROUP BY archstat), s AS (SELECT archstat, tally, CAST(tally AS REAL) / SUM(tally) OVER () AS share FROM t), a AS (SELECT archstat, tally, share, AVG(share) OVER () AS avg_share FROM s) SELECT archstat, tally, share, share - avg_share AS share_above_average FROM a WHERE share > avg_share"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4cabfc6bd3",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123225,
+  "chars_out": 4527
+ }
+}

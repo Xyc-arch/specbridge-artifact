@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Use observed non-null time-in-force values; report share minus their unweighted average share.",
+  "Use observed non-null time-in-force values; report absolute difference from their unweighted average share.",
+  "Include all four defined values, including zero-count values; report share minus their average share.",
+  "Include all four defined values, including zero-count values; report absolute difference from their average share."
+ ],
+ "edited": [
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Use observed non-null time-in-force values; report share minus their unweighted average share.",
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Use observed non-null time-in-force values; report absolute difference from their unweighted average share.",
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Include all four defined values, including zero-count values; report share minus their average share.",
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Include all four defined values, including zero-count values; report absolute difference from their average share."
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count\n  FROM riskandmargin AS r\n  JOIN orders AS o ON r.ordervault = o.recordvault\n  WHERE o.timespan IS NOT NULL\n  GROUP BY o.timespan\n),\nshares AS (\n  SELECT\n    time_in_force,\n    risk_margin_count,\n    risk_margin_count * 1.0 / SUM(risk_margin_count) OVER () AS share\n  FROM counts\n)\nSELECT\n  time_in_force,\n  risk_margin_count,\n  share,\n  share - AVG(share) OVER () AS share_minus_average\nFROM shares",
+  "WITH counts AS (\n  SELECT o.timespan, COUNT(*) AS risk_margin_count\n  FROM riskandmargin AS r\n  JOIN orders AS o ON r.ordervault = o.recordvault\n  WHERE o.timespan IS NOT NULL\n  GROUP BY o.timespan\n),\nshares AS (\n  SELECT\n    timespan,\n    risk_margin_count,\n    1.0 * risk_margin_count / SUM(risk_margin_count) OVER () AS share\n  FROM counts\n)\nSELECT\n  timespan,\n  risk_margin_count,\n  share,\n  ABS(share - AVG(share) OVER ()) AS difference_from_average_share\nFROM shares",
+  "WITH time_in_force(timespan) AS (\n  VALUES ('IOC'), ('GTC'), ('GTD'), ('FOK')\n),\ncounts AS (\n  SELECT t.timespan,\n         COUNT(r.riskandmarginpivot) AS risk_margin_count\n  FROM time_in_force AS t\n  LEFT JOIN orders AS o ON o.timespan = t.timespan\n  LEFT JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n  GROUP BY t.timespan\n),\nshares AS (\n  SELECT timespan,\n         risk_margin_count,\n         CAST(risk_margin_count AS REAL)\n           / NULLIF(SUM(risk_margin_count) OVER (), 0) AS share\n  FROM counts\n)\nSELECT timespan,\n       risk_margin_count,\n       share,\n       share - AVG(share) OVER () AS share_minus_average\nFROM shares",
+  "WITH time_in_force(timespan) AS (\n    VALUES ('IOC'), ('GTC'), ('GTD'), ('FOK')\n),\ncounts AS (\n    SELECT t.timespan, COUNT(r.riskandmarginpivot) AS risk_margin_count\n    FROM time_in_force AS t\n    LEFT JOIN orders AS o ON o.timespan = t.timespan\n    LEFT JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n    GROUP BY t.timespan\n),\nshares AS (\n    SELECT timespan,\n           risk_margin_count,\n           risk_margin_count * 1.0\n               / NULLIF(SUM(risk_margin_count) OVER (), 0) AS share\n    FROM counts\n)\nSELECT timespan,\n       risk_margin_count,\n       share,\n       ABS(share - AVG(share) OVER ()) AS difference_from_average_share\nFROM shares"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 162072,
+  "chars_out": 7924
+ }
+}

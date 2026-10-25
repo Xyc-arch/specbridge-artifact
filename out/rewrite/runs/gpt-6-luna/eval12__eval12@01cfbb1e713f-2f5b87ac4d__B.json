@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-2f5b87ac4d",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "A client belongs to the branch district of each account they own: join `disp` (OWNER) to `account` and use `account.district_id`, counting the client once per owned account.",
+ "c": {
+  "request": "Placing clients in districts by the location of their branch, and counting only districts that have clients: for each region, what is the average number of clients per district, and what is the average share of all clients that a district holds (as a fraction)? Don't round. A client belongs to the branch district of each account they own: join `disp` (OWNER) to `account` and use `account.district_id`, counting the client once per owned account.",
+  "sql": "WITH client_district AS (\n    SELECT DISTINCT d.client_id, a.district_id\n    FROM disp AS d\n    JOIN account AS a ON a.account_id = d.account_id\n    WHERE d.type = 'OWNER'\n),\ndistrict_counts AS (\n    SELECT cd.district_id, COUNT(DISTINCT cd.client_id) AS client_count\n    FROM client_district AS cd\n    GROUP BY cd.district_id\n)\nSELECT\n    di.A3 AS region,\n    AVG(dc.client_count) AS average_clients_per_district,\n    AVG(1.0 * dc.client_count / SUM(dc.client_count) OVER ()) AS average_share_of_all_clients\nFROM district_counts AS dc\nJOIN district AS di ON di.district_id = dc.district_id\nGROUP BY di.A3;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "For each region (`district`.`A3`): place every client in the branch district (`account`.`district_id`) of each account they own (disposition `type` = 'OWNER'), counting a client once per owned account, and count clients per district, considering only districts with at least one client. Give the region, the average of those per-district client counts over the region's districts, and the average over the region's districts of each district's share of clients (its count divided by the total of the counts over all districts, as a fraction); no rounding.",
+  "sql": "WITH district_client_counts AS (\n    SELECT\n        d.district_id,\n        d.A3 AS region,\n        COUNT(*) AS client_count\n    FROM disp AS dp\n    JOIN account AS a ON a.account_id = dp.account_id\n    JOIN district AS d ON d.district_id = a.district_id\n    WHERE dp.type = 'OWNER'\n    GROUP BY d.district_id, d.A3\n)\nSELECT\n    region,\n    AVG(client_count) AS average_clients_per_district,\n    AVG(1.0 * client_count / SUM(client_count) OVER (PARTITION BY region)) AS average_district_share\nFROM district_client_counts\nGROUP BY region;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "For each region, among districts with at least one client assigned through an OWNER disposition to an account in that district, what are the average number of clients per district and the average fraction of all clients that each district holds, counting a client once per owned account, without rounding?",
+  "sql": "WITH district_client_counts AS (\n    SELECT\n        d.district_id,\n        d.A3 AS region,\n        COUNT(DISTINCT disp.client_id) AS client_count\n    FROM district AS d\n    JOIN account AS a\n        ON a.district_id = d.district_id\n    JOIN disp\n        ON disp.account_id = a.account_id\n       AND disp.type = 'OWNER'\n    GROUP BY d.district_id, d.A3\n)\nSELECT\n    region,\n    AVG(client_count) AS average_clients_per_district,\n    AVG(1.0 * client_count / SUM(client_count) OVER (PARTITION BY region)) AS average_fraction_of_region_clients\nFROM district_client_counts\nGROUP BY region;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each region, based on the districts of the branches where clients hold accounts, what is the average number of clients per district and the average fraction of all clients held by a district? Count each client once per owned account, include only districts with clients, and do not round.",
+  "sql": "WITH district_client_counts AS (\n    SELECT\n        d.A3 AS region,\n        a.district_id,\n        COUNT(DISTINCT c.client_id) AS client_count\n    FROM disp AS dp\n    JOIN client AS c ON c.client_id = dp.client_id\n    JOIN account AS a ON a.account_id = dp.account_id\n    JOIN district AS d ON d.district_id = a.district_id\n    WHERE dp.type = 'OWNER'\n    GROUP BY d.A3, a.district_id\n)\nSELECT\n    region,\n    AVG(client_count) AS average_clients_per_district,\n    AVG(1.0 * client_count / SUM(client_count) OVER (PARTITION BY region)) AS average_fraction_of_regional_clients\nFROM district_client_counts\nGROUP BY region;",
+  "executes": false,
+  "matches": []
+ }
+}

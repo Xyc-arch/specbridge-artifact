@@ -1,0 +1,43 @@
+{
+ "interpretations": [
+  "Count per gender is the number of invoices, with every invoice counted once, by joining Invoices to Orders to Customers (inner joins). The share is count divided by the total across the genders. The average is the mean of the shares across the genders present (which equals 1 divided by the number of genders). Return genders with share strictly greater than this average, showing gender, count, share, and share minus average.",
+  "Same as 1, but genders with a NULL value form their own group (a NULL gender group is counted as a gender in the total and in the average).",
+  "Same as 1, but customers with a NULL gender are excluded, so the total and the number of genders for the average use only non-NULL genders.",
+  "Same as 1, but the average share is computed only over genders that have at least one invoice. Genders with no invoices do not appear, because only genders with invoices exist after the inner joins.",
+  "Same as 1, but the average share is computed over all distinct genders in the Customers table, including genders with zero invoices (counted as 0 and share 0), with the output limited to genders above that average.",
+  "Same as 1, but the comparison is greater than or equal to the average rather than strictly greater.",
+  "Same as 1, but the count is the number of distinct invoice numbers per gender. This gives the same result as 1, since invoice_number is a primary key.",
+  "Same as 1, but the share is expressed as a percentage (multiplied by 100) rather than a fraction.",
+  "Same as 1, but integer division could truncate the share. The share is intended as a decimal fraction, with no rounding.",
+  "Same as 1, but the \"share minus the average share\" column is a difference of share and average, with the average computed as a window average over the shares. It is the same value as in 1.",
+  "Same as 1, but the gender values are treated case-insensitively or trimmed (for example, 'F' and 'f' are merged into one group).",
+  "Same as 1, but the link from an invoice to its order's customer goes through Financial_Transactions and Accounts (invoice to transaction to account to customer) rather than through Orders. This is a less likely reading.",
+  "Same as 1, but the count is based on rows after joining to Invoice_Line_Items or Order_Items, so an invoice with several line items is counted several times. This contradicts \"counting every invoice even when an order has several,\" so it is a less likely reading.",
+  "Same as 1, but \"counting every invoice even when an order has several\" means that an order with several invoices has each of those invoices counted, with no deduplication by order. This is the same as 1.",
+  "Same as 1, but \"counting every invoice even when an order has several\" is read as one count per order (distinct orders per gender). This contradicts the wording, so it is a less likely reading.",
+  "Missing interpretations:",
+  "Same as 1, but the count includes invoices whose order has no matching customer, and these form a NULL gender group (outer joins) rather than being dropped. This contradicts the instruction to drop them, so it is a less likely reading.",
+  "Same as 1, but the average share is the share-weighted mean, meaning the total of the counts divided by the total of the counts, rather than the plain mean across genders.",
+  "Same as 1, but empty-string or blank gender values are treated as missing and excluded from the genders."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT c.gender AS gender, COUNT(*) AS cnt\n  FROM Invoices i\n  JOIN Orders o ON i.order_id = o.order_id\n  JOIN Customers c ON o.customer_id = c.customer_id\n  GROUP BY c.gender\n),\ns AS (\n  SELECT gender, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM g) AS share\n  FROM g\n),\na AS (\n  SELECT AVG(share) AS avg_share FROM s\n)\nSELECT s.gender, s.cnt AS count, s.share, s.share - a.avg_share AS share_minus_average\nFROM s, a\nWHERE s.share > a.avg_share;\n",
+  "SELECT SUM(cnt) AS total_customers, AVG(cnt) AS avg_customers_per_gender\nFROM (SELECT COUNT(*) AS cnt FROM Customers GROUP BY gender);\n",
+  "SELECT COUNT(*) * 1.0 / COUNT(DISTINCT gender) FROM Customers WHERE gender IS NOT NULL;\n",
+  "SELECT AVG(share) FROM (SELECT c.gender, COUNT(i.invoice_number) * 1.0 / (SELECT COUNT(*) FROM Invoices i2 JOIN Orders o2 ON i2.order_id = o2.order_id JOIN Customers c2 ON o2.customer_id = c2.customer_id) AS share FROM Customers c JOIN Orders o ON c.customer_id = o.customer_id JOIN Invoices i ON o.order_id = i.order_id GROUP BY c.gender)",
+  "WITH g AS (\n  SELECT c.gender, COUNT(i.invoice_number) AS cnt\n  FROM Customers c\n  LEFT JOIN Orders o ON o.customer_id = c.customer_id\n  LEFT JOIN Invoices i ON i.order_id = o.order_id\n  GROUP BY c.gender\n),\ns AS (\n  SELECT gender, cnt * 1.0 / (SELECT SUM(cnt) FROM g) AS share\n  FROM g\n)\nSELECT gender\nFROM s\nWHERE share > (SELECT AVG(share) FROM s);\n"
+ ],
+ "raw": [
+  "1. Count per gender is the number of invoices, with every invoice counted once, by joining Invoices to Orders to Customers (inner joins). The share is count divided by the total across the genders. The average is the mean of the shares across the genders present (which equals 1 divided by the number of genders). Return genders with share strictly greater than this average, showing gender, count, share, and share minus average.\n\n2. Same as 1, but genders with a NULL value form their own group (a NULL gender group is counted as a gender in the total and in the average).\n\n3. Same as 1, but customers with a NULL gender are excluded, so the total and the number of genders for the average use only non-NULL genders.\n\n4. Same as 1, but the average share is computed only over genders that have at least one invoice. Genders with no invoices do not appear, because only genders with invoices exist after the inner joins.\n\n5. Same as 1, but the average share is computed over all distinct genders in the Customers table, including genders with zero invoices (counted as 0 and share 0), with the output limited to genders above that average.\n\n6. Same as 1, but the comparison is greater than or equal to the average rather than strictly greater.\n\n7. Same as 1, but the count is the number of distinct invoice numbers per gender. This gives the same result as 1, since invoice_number is a primary key.\n\n8. Same as 1, but the share is expressed as a percentage (multiplied by 100) rather than a fraction.\n\n9. Same as 1, but integer division could truncate the share. The share is intended as a decimal fraction, with no rounding.\n\n10. Same as 1, but the \"share minus the average share\" column is a difference of share and average, with the average computed as a window average over the shares. It is the same value as in 1.\n\n11. Same as 1, but the gender values are treated case-insensitively or trimmed (for example, 'F' and 'f' are merged into one group).\n\n12. Same as 1, but the link from an invoice to its order's customer goes through Financial_Transactions and Accounts (invoice to transaction to account to customer) rather than through Orders. This is a less likely reading.\n\n13. Same as 1, but the count is based on rows after joining to Invoice_Line_Items or Order_Items, so an invoice with several line items is counted several times. This contradicts \"counting every invoice even when an order has several,\" so it is a less likely reading.\n\n14. Same as 1, but \"counting every invoice even when an order has several\" means that an order with several invoices has each of those invoices counted, with no deduplication by order. This is the same as 1.\n\n15. Same as 1, but \"counting every invoice even when an order has several\" is read as one count per order (distinct orders per gender). This contradicts the wording, so it is a less likely reading.",
+  "Missing interpretations:\n\nSame as 1, but the count includes invoices whose order has no matching customer, and these form a NULL gender group (outer joins) rather than being dropped. This contradicts the instruction to drop them, so it is a less likely reading.\n\nSame as 1, but the average share is the share-weighted mean, meaning the total of the counts divided by the total of the counts, rather than the plain mean across genders.\n\nSame as 1, but empty-string or blank gender values are treated as missing and excluded from the genders."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-10d659166c",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31764,
+  "chars_out": 5664
+ }
+}

@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "For each `order_id` in `Order_Items`, average its non-NULL `product_quantity` values and subtract the average of all non-NULL item quantities across `Order_Items`; return results only when that overall average exists.",
+  "For each `order_id` in `Order_Items`, average its non-NULL `product_quantity` values and subtract the average of the per-order averages; give each order equal weight in the overall average.",
+  "For each `order_id` in `Order_Items`, treat NULL and blank `product_quantity` values as missing, average the remaining numeric quantities, and compare that average with the average across all remaining items.",
+  "For each `order_id` in `Order_Items`, treat NULL, blank, and nonnumeric `product_quantity` values as missing, average the valid numeric quantities, and compare that average with the average of valid quantities across all orders.",
+  "In each interpretation, show the order id, its average, and the difference; sort differences descending with missing differences last, and return at most 10 rows."
+ ],
+ "queries": [
+  "WITH overall AS (\n  SELECT AVG(product_quantity) AS avg_quantity\n  FROM Order_Items\n)\nSELECT oi.order_id,\n       AVG(oi.product_quantity) - overall.avg_quantity AS average_difference\nFROM Order_Items AS oi\nCROSS JOIN overall\nWHERE overall.avg_quantity IS NOT NULL\nGROUP BY oi.order_id",
+  "WITH per_order AS (\n  SELECT order_id, AVG(product_quantity) AS avg_quantity\n  FROM Order_Items\n  GROUP BY order_id\n)\nSELECT order_id,\n       avg_quantity - (SELECT AVG(avg_quantity) FROM per_order) AS difference\nFROM per_order",
+  "WITH quantities AS (\n  SELECT\n    order_id,\n    CAST(NULLIF(TRIM(product_quantity), '') AS REAL) AS quantity\n  FROM Order_Items\n)\nSELECT\n  order_id,\n  AVG(quantity) AS order_average_quantity,\n  (SELECT AVG(quantity) FROM quantities) AS overall_average_quantity\nFROM quantities\nGROUP BY order_id",
+  "WITH quantities AS (\n    SELECT\n        order_id,\n        CASE\n            WHEN json_valid(TRIM(product_quantity))\n             AND json_type(TRIM(product_quantity)) IN ('integer', 'real')\n            THEN CAST(product_quantity AS REAL)\n        END AS quantity\n    FROM Order_Items\n)\nSELECT\n    order_id,\n    AVG(quantity) AS order_average_quantity,\n    (SELECT AVG(quantity) FROM quantities) AS overall_average_quantity\nFROM quantities\nGROUP BY order_id;\n",
+  "WITH order_averages AS (\n  SELECT o.order_id, AVG(p.unit_price) AS average\n  FROM Orders AS o\n  LEFT JOIN Order_Items AS oi ON oi.order_id = o.order_id\n  LEFT JOIN Products AS p ON p.product_id = oi.product_id\n  GROUP BY o.order_id\n)\nSELECT order_id,\n       average,\n       average - (SELECT AVG(unit_price) FROM Products) AS difference\nFROM order_averages\nORDER BY difference IS NULL, difference DESC\nLIMIT 10;\n"
+ ],
+ "raw": [
+  "For each `order_id` in `Order_Items`, average its non-NULL `product_quantity` values and subtract the average of all non-NULL item quantities across `Order_Items`; return results only when that overall average exists.\n\nFor each `order_id` in `Order_Items`, average its non-NULL `product_quantity` values and subtract the average of the per-order averages; give each order equal weight in the overall average.\n\nFor each `order_id` in `Order_Items`, treat NULL and blank `product_quantity` values as missing, average the remaining numeric quantities, and compare that average with the average across all remaining items.\n\nFor each `order_id` in `Order_Items`, treat NULL, blank, and nonnumeric `product_quantity` values as missing, average the valid numeric quantities, and compare that average with the average of valid quantities across all orders.\n\nIn each interpretation, show the order id, its average, and the difference; sort differences descending with missing differences last, and return at most 10 rows.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c1b7822e6",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 7,
+  "chars_in": 26206,
+  "chars_out": 3207
+ }
+}

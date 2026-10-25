@@ -1,0 +1,38 @@
+{
+ "interpretations": [
+  "Group by `eventannotm` with NULL as its own group. Compute each group's average `instownpct` (NULLs ignored). Baseline = unweighted mean of group averages. Select groups with average strictly above the baseline. Return one row: the mean of those groups' averages and the mean of (group average \u2212 baseline)",
+  "Same as 1, but the baseline is computed over only the non-NULL timing groups (Pre-market, Intraday, Post-market). The NULL group is still compared against it and can be included in the result",
+  "Same as 1, but the NULL-timing group is excluded entirely: it is not a group, not in the baseline, and not in the result",
+  "Same as 1, but the baseline is the average of `instownpct` over all snapshots (each snapshot counts equally). Groups are compared to that overall mean",
+  "Same as 1, but a group whose average `instownpct` is NULL (every value missing) is kept as a group. It counts in the baseline denominator as zero, or is dropped from the baseline",
+  "Same as 1, but groups whose average `instownpct` is NULL are excluded from the baseline and from the comparison",
+  "Same as 1, but \"missing timing\" also covers empty-string or placeholder values in `eventannotm`, which are merged into the NULL group",
+  "Same as 1, but the output has two columns: the mean of the above-baseline group averages, and the mean excess over the baseline. Each is shown as a separate unrounded value",
+  "Same as 1, but the output is a single value: the mean excess alone. This is the same as the mean of the above-baseline averages minus the baseline",
+  "Same as 1, but if no group is strictly above the baseline (for example, all groups are equal), return one row with NULLs. In the other reading, return zero rows",
+  "Same as 1, but \"mean of their averages\" is weighted by each group's snapshot count rather than counting each group equally",
+  "Same as 1, but the average is taken over distinct `instownpct` values within each group, not over all snapshots",
+  "Same as 1, but snapshots are joined to `transactionrecord` or `trader` first. Only snapshots with a valid linked transaction are counted, and the grouping is unchanged",
+  "Missing interpretations:",
+  "Same as 1, but the baseline is the median of the group averages instead of the mean, and groups are compared to that median",
+  "Same as 1, but \"missing timing\" is treated as its own group only when NULL, while empty strings are kept as a separate distinct group (not merged with NULL)",
+  "Same as 1, but the mean excess is computed as a percentage or ratio relative to the baseline (average of (group average \u2212 baseline) / baseline) rather than as an absolute difference",
+  "Same as 1, but groups are compared to the baseline with \"at or above\" (\u2265) rather than strictly above"
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT eventannotm, AVG(instownpct) AS a\n  FROM sentimentandfundamentals\n  GROUP BY eventannotm\n),\nb AS (\n  SELECT AVG(a) AS base FROM g\n)\nSELECT AVG(g.a) AS mean_avg, AVG(g.a - b.base) AS mean_diff\nFROM g, b\nWHERE g.a > b.base;\n",
+  "SELECT eventannotm,\n       AVG(infoleaksc) AS avg_infoleaksc,\n       AVG(infoleaksc) - (SELECT AVG(infoleaksc) FROM sentimentandfundamentals WHERE eventannotm IS NOT NULL) AS diff_from_baseline\nFROM sentimentandfundamentals\nGROUP BY eventannotm;\n",
+  "SELECT eventannotm,\n       AVG(infoleaksc) AS avg_infoleaksc,\n       AVG(infoleaksc) - (SELECT AVG(infoleaksc) FROM sentimentandfundamentals WHERE eventannotm IS NOT NULL) AS diff_from_baseline\nFROM sentimentandfundamentals\nWHERE eventannotm IS NOT NULL\nGROUP BY eventannotm;\n",
+  "SELECT corpeventprx, AVG(instownpct) - (SELECT AVG(instownpct) FROM sentimentandfundamentals) AS diff_from_overall_mean\nFROM sentimentandfundamentals\nGROUP BY corpeventprx;\n",
+  "SELECT corpeventprx\nFROM sentimentandfundamentals\nGROUP BY corpeventprx\nHAVING AVG(instownpct) IS NOT NULL\n   AND AVG(instownpct) > (\n     SELECT AVG(g)\n     FROM (\n       SELECT AVG(instownpct) AS g\n       FROM sentimentandfundamentals\n       GROUP BY corpeventprx\n     )\n     WHERE g IS NOT NULL\n   );\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e59fa9440b",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 138716,
+  "chars_out": 5539
+ }
+}

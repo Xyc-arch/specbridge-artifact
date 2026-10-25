@@ -1,0 +1,42 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fbb044ab6b",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH line_items_with_ratios AS (\n  SELECT\n    invoice_number,\n    derived_product_cost,\n    CASE\n      WHEN product_price IS NOT NULL AND product_price != 0\n      THEN derived_total_cost / product_price\n      ELSE NULL\n    END AS ratio\n  FROM Invoice_Line_Items\n  WHERE derived_product_cost IS NOT NULL\n    AND derived_total_cost IS NOT NULL\n    AND product_price IS NOT NULL\n),\ninvoice_metrics AS (\n  SELECT\n    invoice_number,\n    AVG(derived_product_cost) AS avg_product_cost,\n    AVG(ratio) AS invoice_ratio\n  FROM line_items_with_ratios\n  WHERE ratio IS NOT NULL\n  GROUP BY invoice_number\n),\noverall_stats AS (\n  SELECT AVG(invoice_ratio) AS overall_ratio FROM invoice_metrics\n),\nabove_average_invoices AS (\n  SELECT\n    im.avg_product_cost,\n    im.invoice_ratio\n  FROM invoice_metrics im\n  CROSS JOIN overall_stats os\n  WHERE im.invoice_ratio > os.overall_ratio\n)\nSELECT\n  AVG(avg_product_cost) AS average_product_cost,\n  AVG(invoice_ratio) AS average_ratio,\n  AVG(invoice_ratio) - (SELECT overall_ratio FROM overall_stats) AS average_distance_above\nFROM above_average_invoices",
+  "assumptions": [
+   {
+    "assumption": "Invoice ratio is calculated as the average of per-line-item ratios (AVG(derived_total_cost / product_price)), rather than the ratio of sums (SUM(derived_total_cost) / SUM(product_price)).",
+    "unresolved": true
+   },
+   {
+    "assumption": "Line items with product_price = 0 are treated as having an undefined ratio and excluded from the invoice's average ratio calculation.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Invoice ratio is the ratio of aggregate totals across all line items: SUM(derived_total_cost) / SUM(product_price).",
+    "sql": "WITH line_items_clean AS (\n  SELECT\n    invoice_number,\n    derived_product_cost,\n    derived_total_cost,\n    product_price\n  FROM Invoice_Line_Items\n  WHERE derived_product_cost IS NOT NULL\n    AND derived_total_cost IS NOT NULL\n    AND product_price IS NOT NULL\n    AND product_price != 0\n),\ninvoice_metrics AS (\n  SELECT\n    invoice_number,\n    AVG(derived_product_cost) AS avg_product_cost,\n    SUM(derived_total_cost) / SUM(product_price) AS invoice_ratio\n  FROM line_items_clean\n  GROUP BY invoice_number\n),\noverall_stats AS (\n  SELECT AVG(invoice_ratio) AS overall_ratio FROM invoice_metrics\n),\nabove_average_invoices AS (\n  SELECT\n    im.avg_product_cost,\n    im.invoice_ratio\n  FROM invoice_metrics im\n  CROSS JOIN overall_stats os\n  WHERE im.invoice_ratio > os.overall_ratio\n)\nSELECT\n  AVG(avg_product_cost) AS average_product_cost,\n  AVG(invoice_ratio) AS average_ratio,\n  AVG(invoice_ratio) - (SELECT overall_ratio FROM overall_stats) AS average_distance_above\nFROM above_average_invoices"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "Invoice ratio is the ratio of aggregate totals across all line items: SUM(derived_total_cost) / SUM(product_price).",
+   "sql": "WITH line_items_clean AS (\n  SELECT\n    invoice_number,\n    derived_product_cost,\n    derived_total_cost,\n    product_price\n  FROM Invoice_Line_Items\n  WHERE derived_product_cost IS NOT NULL\n    AND derived_total_cost IS NOT NULL\n    AND product_price IS NOT NULL\n    AND product_price != 0\n),\ninvoice_metrics AS (\n  SELECT\n    invoice_number,\n    AVG(derived_product_cost) AS avg_product_cost,\n    SUM(derived_total_cost) / SUM(product_price) AS invoice_ratio\n  FROM line_items_clean\n  GROUP BY invoice_number\n),\noverall_stats AS (\n  SELECT AVG(invoice_ratio) AS overall_ratio FROM invoice_metrics\n),\nabove_average_invoices AS (\n  SELECT\n    im.avg_product_cost,\n    im.invoice_ratio\n  FROM invoice_metrics im\n  CROSS JOIN overall_stats os\n  WHERE im.invoice_ratio > os.overall_ratio\n)\nSELECT\n  AVG(avg_product_cost) AS average_product_cost,\n  AVG(invoice_ratio) AS average_ratio,\n  AVG(invoice_ratio) - (SELECT overall_ratio FROM overall_stats) AS average_distance_above\nFROM above_average_invoices",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 113.9,
+ "chars_out": 2847
+}

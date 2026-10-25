@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), baseline AS (SELECT AVG(total_points) AS avg_total FROM name_totals), above_average AS (SELECT nt.name, nt.total_points, b.avg_total FROM name_totals AS nt CROSS JOIN baseline AS b WHERE nt.total_points > b.avg_total) SELECT (SELECT SUM(total_points) FROM above_average) AS combined_total_points, (SELECT AVG(CAST(res.laps AS REAL)) FROM races AS r JOIN results AS res ON res.raceId = r.raceId JOIN above_average AS a ON a.name = r.name) AS average_laps_completed, (SELECT AVG(total_points - avg_total) FROM above_average) AS average_excess_points",
+  "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points, AVG(CAST(res.laps AS REAL)) AS average_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), baseline AS (SELECT AVG(total_points) AS avg_total FROM name_totals) SELECT SUM(nt.total_points) AS combined_total_points, AVG(nt.average_laps) AS average_laps_completed, AVG(nt.total_points - b.avg_total) AS average_excess_points FROM name_totals AS nt CROSS JOIN baseline AS b WHERE nt.total_points > b.avg_total",
+  "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points, SUM(CAST(res.laps AS REAL)) AS total_laps, COUNT(res.laps) AS lap_count, AVG(CAST(res.laps AS REAL)) AS avg_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), overall AS (SELECT AVG(total_points) AS avg_total FROM name_totals), above_average AS (SELECT n.* FROM name_totals AS n CROSS JOIN overall AS o WHERE n.total_points > o.avg_total) SELECT SUM(a.total_points) AS combined_total_points, SUM(a.total_laps) / SUM(a.lap_count) AS average_laps_completed, AVG(a.total_points - o.avg_total) AS average_excess_points FROM above_average AS a CROSS JOIN overall AS o;",
+  "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points, AVG(CAST(res.laps AS REAL)) AS avg_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), overall AS (SELECT AVG(total_points) AS avg_total FROM name_totals) SELECT SUM(n.total_points) AS combined_total_points, AVG(n.avg_laps) AS average_laps_completed, AVG(n.total_points - o.avg_total) AS average_excess_points FROM name_totals AS n CROSS JOIN overall AS o WHERE n.total_points > o.avg_total;",
+  "WITH by_name AS (SELECT r.name, SUM(COALESCE(res.points, 0)) AS total_points, SUM(CAST(res.laps AS REAL)) AS total_laps, COUNT(res.laps) AS lap_count FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), benchmark AS (SELECT AVG(total_points) AS average_total FROM by_name) SELECT SUM(b.total_points) AS combined_total_points, SUM(b.total_laps) / NULLIF(SUM(b.lap_count), 0) AS average_laps_completed, AVG(b.total_points - m.average_total) AS average_excess FROM by_name AS b CROSS JOIN benchmark AS m WHERE b.total_points > m.average_total",
+  "WITH by_name AS (SELECT r.name, SUM(COALESCE(res.points, 0)) AS total_points, AVG(CAST(res.laps AS REAL)) AS average_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), benchmark AS (SELECT AVG(total_points) AS average_total FROM by_name) SELECT SUM(b.total_points) AS combined_total_points, AVG(b.average_laps) AS average_laps_completed, AVG(b.total_points - m.average_total) AS average_excess FROM by_name AS b CROSS JOIN benchmark AS m WHERE b.total_points > m.average_total"
+ ],
+ "responses": [
+  {
+   "sql": "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), baseline AS (SELECT AVG(total_points) AS avg_total FROM name_totals), above_average AS (SELECT nt.name, nt.total_points, b.avg_total FROM name_totals AS nt CROSS JOIN baseline AS b WHERE nt.total_points > b.avg_total) SELECT (SELECT SUM(total_points) FROM above_average) AS combined_total_points, (SELECT AVG(CAST(res.laps AS REAL)) FROM races AS r JOIN results AS res ON res.raceId = r.raceId JOIN above_average AS a ON a.name = r.name) AS average_laps_completed, (SELECT AVG(total_points - avg_total) FROM above_average) AS average_excess_points",
+   "assumptions": [
+    {
+     "assumption": "Average laps completed is calculated across all driver results for the qualifying race names.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Give each qualifying race name equal weight when averaging laps, regardless of how many driver results it has.",
+     "sql": "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points, AVG(CAST(res.laps AS REAL)) AS average_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), baseline AS (SELECT AVG(total_points) AS avg_total FROM name_totals) SELECT SUM(nt.total_points) AS combined_total_points, AVG(nt.average_laps) AS average_laps_completed, AVG(nt.total_points - b.avg_total) AS average_excess_points FROM name_totals AS nt CROSS JOIN baseline AS b WHERE nt.total_points > b.avg_total"
+    }
+   ]
+  },
+  {
+   "sql": "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points, SUM(CAST(res.laps AS REAL)) AS total_laps, COUNT(res.laps) AS lap_count, AVG(CAST(res.laps AS REAL)) AS avg_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), overall AS (SELECT AVG(total_points) AS avg_total FROM name_totals), above_average AS (SELECT n.* FROM name_totals AS n CROSS JOIN overall AS o WHERE n.total_points > o.avg_total) SELECT SUM(a.total_points) AS combined_total_points, SUM(a.total_laps) / SUM(a.lap_count) AS average_laps_completed, AVG(a.total_points - o.avg_total) AS average_excess_points FROM above_average AS a CROSS JOIN overall AS o;",
+   "assumptions": [
+    {
+     "assumption": "Average laps completed is calculated across all result rows for the qualifying race names; non-NULL laps values are numeric text.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Give each qualifying race name equal weight when averaging laps, regardless of how many result rows it has.",
+     "sql": "WITH name_totals AS (SELECT r.name, SUM(res.points) AS total_points, AVG(CAST(res.laps AS REAL)) AS avg_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), overall AS (SELECT AVG(total_points) AS avg_total FROM name_totals) SELECT SUM(n.total_points) AS combined_total_points, AVG(n.avg_laps) AS average_laps_completed, AVG(n.total_points - o.avg_total) AS average_excess_points FROM name_totals AS n CROSS JOIN overall AS o WHERE n.total_points > o.avg_total;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH by_name AS (SELECT r.name, SUM(COALESCE(res.points, 0)) AS total_points, SUM(CAST(res.laps AS REAL)) AS total_laps, COUNT(res.laps) AS lap_count FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), benchmark AS (SELECT AVG(total_points) AS average_total FROM by_name) SELECT SUM(b.total_points) AS combined_total_points, SUM(b.total_laps) / NULLIF(SUM(b.lap_count), 0) AS average_laps_completed, AVG(b.total_points - m.average_total) AS average_excess FROM by_name AS b CROSS JOIN benchmark AS m WHERE b.total_points > m.average_total",
+   "assumptions": [
+    {
+     "assumption": "Average laps completed gives each driver result equal weight. The request does not specify whether each race name should instead have equal weight.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Give each qualifying race name equal weight when averaging laps completed.",
+     "sql": "WITH by_name AS (SELECT r.name, SUM(COALESCE(res.points, 0)) AS total_points, AVG(CAST(res.laps AS REAL)) AS average_laps FROM races AS r JOIN results AS res ON res.raceId = r.raceId GROUP BY r.name), benchmark AS (SELECT AVG(total_points) AS average_total FROM by_name) SELECT SUM(b.total_points) AS combined_total_points, AVG(b.average_laps) AS average_laps_completed, AVG(b.total_points - m.average_total) AS average_excess FROM by_name AS b CROSS JOIN benchmark AS m WHERE b.total_points > m.average_total"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 37803,
+  "chars_out": 4563
+ }
+}

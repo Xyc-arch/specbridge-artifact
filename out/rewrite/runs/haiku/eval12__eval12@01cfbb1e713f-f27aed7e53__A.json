@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f27aed7e53",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Per race name, count every driver standings record. Compare those counts with their average across names and summarise the names that are above average.",
+ "c": {
+  "request": "Using driver standings linked to their races by race id (leaving out standings with no matching race), for each race name (`races.name`) get the average season-to-date championship points (`driverStandings.points`, ignoring missing values) and how big its standings field is. Then focus on the race names whose field size is strictly above the average field size across all race names. In one row, give the average of their average points, their average field size, and how far above the overall average their field size is on average. No rounding. Per race name, count every driver standings record. Compare those counts with their average across names and summarise the names that are above average.",
+  "sql": "WITH per_name AS (SELECT r.name AS race_name, AVG(ds.points) AS avg_points, COUNT(*) AS field_size FROM driverStandings ds JOIN races r ON ds.raceId = r.raceId GROUP BY r.name), overall AS (SELECT AVG(field_size) AS avg_field FROM per_name), above AS (SELECT p.* FROM per_name p CROSS JOIN overall o WHERE p.field_size > o.avg_field) SELECT AVG(a.avg_points) AS avg_of_avg_points, AVG(a.field_size) AS avg_field_size, AVG(a.field_size - o.avg_field) AS avg_field_size_above_overall FROM above a CROSS JOIN overall o;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each race name (`races.name`), count the driver standings records joined to races by `raceId` (dropping unmatched standings), take the average of those counts across all race names, and return in one row the average count of the names whose count is strictly above that average, plus how far above it they sit on average, unrounded",
+  "sql": "WITH name_counts AS (SELECT r.name AS name, COUNT(*) AS cnt FROM driverStandings ds JOIN races r ON r.raceId = ds.raceId GROUP BY r.name), avg_cnt AS (SELECT AVG(cnt) AS avg_c FROM name_counts) SELECT AVG(nc.cnt) AS avg_count_above, AVG(nc.cnt - a.avg_c) AS avg_excess_above FROM name_counts nc CROSS JOIN avg_cnt a WHERE nc.cnt > a.avg_c;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Linking driver standings to races by race id (and dropping standings with no matching race), work out for each race name (`races.name`) the average season-to-date championship points (`driverStandings.points`, ignoring missing values) and the number of driver standings records under that name. Take the average of that count across all race names, and keep only the race names whose count is strictly above it. Return a single row with three values: the average of those race names' average points, the average of their counts, and the average amount by which their count exceeds the overall average count. Don't round anything.",
+  "sql": "WITH joined AS (SELECT r.name AS race_name, ds.points AS points FROM driverStandings ds JOIN races r ON ds.raceId = r.raceId), per_name AS (SELECT race_name, AVG(points) AS avg_points, COUNT(*) AS cnt FROM joined GROUP BY race_name), overall AS (SELECT AVG(cnt) AS avg_cnt FROM per_name), filtered AS (SELECT p.avg_points, p.cnt FROM per_name p, overall o WHERE p.cnt > o.avg_cnt) SELECT AVG(avg_points) AS avg_of_avg_points, AVG(cnt) AS avg_of_counts, AVG(cnt - (SELECT avg_cnt FROM overall)) AS avg_excess_count FROM filtered;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Across all race names, for each race name, count every driver standings record (from driver standings linked to races by race id, leaving out standings with no matching race) and compare those counts with their average across names, then summarise the race names whose count is above that average.",
+  "sql": "WITH counts AS (\n  SELECT r.name AS raceName, COUNT(ds.driverStandingsId) AS cnt\n  FROM driverStandings ds\n  JOIN races r ON ds.raceId = r.raceId\n  GROUP BY r.name\n),\navg_count AS (\n  SELECT AVG(cnt) AS avg_cnt FROM counts\n)\nSELECT c.raceName, c.cnt, a.avg_cnt\nFROM counts c, avg_count a\nWHERE c.cnt > a.avg_cnt\nORDER BY c.cnt DESC;",
+  "executes": true,
+  "matches": []
+ }
+}

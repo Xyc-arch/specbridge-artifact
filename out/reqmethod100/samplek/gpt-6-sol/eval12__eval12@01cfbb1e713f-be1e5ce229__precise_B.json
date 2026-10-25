@@ -1,0 +1,62 @@
+{
+ "queries": [
+  "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY CASE WHEN average_ratio IS NULL THEN 1 ELSE 0 END, average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;",
+  "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE NULLIF(TRIM(e.location), '') IS NOT NULL GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY (average_ratio IS NULL), average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;",
+  "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY (average_ratio IS NULL), average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;",
+  "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL AND TRIM(e.location) <> '' GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY (average_ratio IS NULL), average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY CASE WHEN average_ratio IS NULL THEN 1 ELSE 0 END, average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;",
+   "assumptions": [
+    {
+     "assumption": "A zero budget amount makes the ratio undefined; AVG excludes that line. An event whose lines have no defined ratios has a NULL average and ranks last.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A location is unrecorded when event.location is NULL.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE NULLIF(TRIM(e.location), '') IS NOT NULL GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY (average_ratio IS NULL), average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;",
+   "assumptions": [
+    {
+     "assumption": "A NULL, empty, or whitespace-only location is unrecorded.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Budget lines with a zero or NULL amount have an undefined ratio and are ignored by AVG; events with no defined ratios retain a NULL average.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "An empty location is a recorded location; only NULL means unrecorded.",
+     "sql": "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY (average_ratio IS NULL), average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH event_averages AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS average_ratio FROM event AS e JOIN budget AS b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL AND TRIM(e.location) <> '' GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, average_ratio, RANK() OVER (PARTITION BY location ORDER BY (average_ratio IS NULL), average_ratio DESC) AS event_rank FROM event_averages) SELECT event_id, location, average_ratio, event_rank FROM ranked WHERE event_rank <= 3;",
+   "assumptions": [
+    {
+     "assumption": "A budget line with a zero or missing amount has an undefined ratio, so AVG excludes it. An event whose lines all have undefined ratios has no average and ranks last.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-be1e5ce229",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23577,
+  "chars_out": 3102
+ }
+}

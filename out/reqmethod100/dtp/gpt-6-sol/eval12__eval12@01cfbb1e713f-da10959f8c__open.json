@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "For each `observstation` appearing in `telescopes`, count its telescopes, divide by the total telescope count, and subtract the average share across those observatories. Return the 10 largest signed differences.",
+  "For each `observstation` appearing in `telescopes`, calculate the same count and share, but subtract the average share across all rows in `observatories`, including stations with no telescopes. Return the 10 largest signed differences.",
+  "For each `observstation` appearing in `telescopes`, calculate its count and share, then report the magnitude of its difference from the average share and whether it is above or below average. Return the 10 largest magnitudes.",
+  "Include every row in `observatories`, assigning a telescope count and share of zero to stations with no telescopes; subtract the average share across all observatories and return the 10 largest signed differences.",
+  "For stations appearing in `telescopes`, show the signed difference from the average share but rank the top 10 by the absolute size of that difference."
+ ],
+ "queries": [
+  "WITH station_counts AS (\n  SELECT observstation, COUNT(*) AS telescope_count\n  FROM telescopes\n  GROUP BY observstation\n)\nSELECT\n  observstation,\n  telescope_count * 1.0 / SUM(telescope_count) OVER ()\n    - 1.0 / COUNT(*) OVER () AS signed_difference\nFROM station_counts\nORDER BY signed_difference DESC\nLIMIT 10",
+  "WITH station_counts AS (\n  SELECT observstation, COUNT(*) AS telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\ntotals AS (\n  SELECT\n    (SELECT COUNT(*) FROM telescopes) AS total_telescopes,\n    (SELECT COUNT(*) FROM observatories) AS total_observatories\n)\nSELECT\n  sc.observstation,\n  sc.telescope_count,\n  1.0 * sc.telescope_count / t.total_telescopes AS share,\n  1.0 * sc.telescope_count / t.total_telescopes\n    - 1.0 / t.total_observatories AS signed_difference\nFROM station_counts AS sc\nCROSS JOIN totals AS t\nORDER BY signed_difference DESC\nLIMIT 10",
+  "WITH station_counts AS (\n    SELECT observstation, COUNT(*) AS telescope_count\n    FROM telescopes\n    GROUP BY observstation\n),\nstation_shares AS (\n    SELECT\n        observstation,\n        telescope_count,\n        1.0 * telescope_count / SUM(telescope_count) OVER () AS share\n    FROM station_counts\n),\ncompared AS (\n    SELECT\n        observstation,\n        telescope_count,\n        share,\n        AVG(share) OVER () AS average_share\n    FROM station_shares\n)\nSELECT\n    observstation,\n    telescope_count,\n    share,\n    ABS(share - average_share) AS difference_magnitude,\n    CASE\n        WHEN share > average_share THEN 'Above'\n        WHEN share < average_share THEN 'Below'\n        ELSE 'Equal'\n    END AS average_position\nFROM compared\nORDER BY difference_magnitude DESC\nLIMIT 10",
+  "WITH station_counts AS (\n    SELECT o.observstation, COUNT(t.telescregistry) AS telescope_count\n    FROM observatories AS o\n    LEFT JOIN telescopes AS t\n        ON t.observstation = o.observstation\n    GROUP BY o.observstation\n),\nstation_shares AS (\n    SELECT\n        observstation,\n        telescope_count,\n        COALESCE(\n            1.0 * telescope_count / NULLIF(SUM(telescope_count) OVER (), 0),\n            0\n        ) AS telescope_share\n    FROM station_counts\n)\nSELECT\n    observstation,\n    telescope_count,\n    telescope_share,\n    telescope_share - AVG(telescope_share) OVER () AS signed_difference\nFROM station_shares\nORDER BY signed_difference DESC\nLIMIT 10;\n",
+  "WITH station_counts AS (\n  SELECT observstation, COUNT(*) AS telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\nstation_shares AS (\n  SELECT\n    observstation,\n    1.0 * telescope_count / SUM(telescope_count) OVER () AS share\n  FROM station_counts\n)\nSELECT\n  observstation,\n  share - AVG(share) OVER () AS difference_from_average_share\nFROM station_shares\nORDER BY ABS(difference_from_average_share) DESC\nLIMIT 10"
+ ],
+ "raw": [
+  "For each `observstation` appearing in `telescopes`, count its telescopes, divide by the total telescope count, and subtract the average share across those observatories. Return the 10 largest signed differences.\n\nFor each `observstation` appearing in `telescopes`, calculate the same count and share, but subtract the average share across all rows in `observatories`, including stations with no telescopes. Return the 10 largest signed differences.\n\nFor each `observstation` appearing in `telescopes`, calculate its count and share, then report the magnitude of its difference from the average share and whether it is above or below average. Return the 10 largest magnitudes.",
+  "Include every row in `observatories`, assigning a telescope count and share of zero to stations with no telescopes; subtract the average share across all observatories and return the 10 largest signed differences.\n\nFor stations appearing in `telescopes`, show the signed difference from the average share but rank the top 10 by the absolute size of that difference."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-da10959f8c",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 7,
+  "chars_in": 282008,
+  "chars_out": 3821
+ }
+}

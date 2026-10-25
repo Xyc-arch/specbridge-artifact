@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "WITH ev AS (\n  SELECT e.event_id, e.status,\n         AVG(b.remaining) AS avg_remaining,\n         AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_overspend\n  FROM budget b\n  JOIN event e ON e.event_id = b.link_to_event\n  GROUP BY e.event_id, e.status\n),\nst AS (\n  SELECT status,\n         AVG(avg_remaining) AS avg_remaining,\n         AVG(avg_overspend) AS avg_overspend_rate\n  FROM ev\n  GROUP BY status\n)\nSELECT status,\n       avg_remaining,\n       avg_overspend_rate,\n       avg_remaining * 1.0 / (SELECT AVG(avg_remaining) FROM ev) AS ratio_to_overall_avg_remaining\nFROM st;",
+  "WITH ev AS (\n  SELECT e.event_id, e.status,\n         AVG(b.remaining) AS avg_remaining,\n         AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_overspend\n  FROM budget b\n  JOIN event e ON e.event_id = b.link_to_event\n  GROUP BY e.event_id, e.status\n),\nst AS (\n  SELECT status,\n         AVG(avg_remaining) AS avg_remaining,\n         AVG(avg_overspend) AS avg_overspend_rate\n  FROM ev\n  GROUP BY status\n)\nSELECT status,\n       avg_remaining,\n       avg_overspend_rate,\n       avg_remaining * 1.0 / (SELECT AVG(b.remaining) FROM budget b JOIN event e ON e.event_id = b.link_to_event) AS ratio_to_overall_avg_remaining\nFROM st;",
+  "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(avg_rem) FROM ev) AS ratio_to_overall_avg_remaining FROM st",
+  "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(b.remaining) FROM budget b JOIN event e ON b.link_to_event = e.event_id) AS ratio_to_overall_avg_remaining FROM st",
+  "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(avg_rem) FROM ev) AS ratio_to_overall_avg_remaining FROM st",
+  "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(b.remaining) FROM budget b JOIN event e ON b.link_to_event = e.event_id) AS ratio_to_overall_avg_remaining FROM st"
+ ],
+ "responses": [
+  {
+   "sql": "WITH ev AS (\n  SELECT e.event_id, e.status,\n         AVG(b.remaining) AS avg_remaining,\n         AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_overspend\n  FROM budget b\n  JOIN event e ON e.event_id = b.link_to_event\n  GROUP BY e.event_id, e.status\n),\nst AS (\n  SELECT status,\n         AVG(avg_remaining) AS avg_remaining,\n         AVG(avg_overspend) AS avg_overspend_rate\n  FROM ev\n  GROUP BY status\n)\nSELECT status,\n       avg_remaining,\n       avg_overspend_rate,\n       avg_remaining * 1.0 / (SELECT AVG(avg_remaining) FROM ev) AS ratio_to_overall_avg_remaining\nFROM st;",
+   "assumptions": [
+    {
+     "assumption": "The overall average remaining is the average of event-level average remaining values across all events (consistent with the two-stage, event-level averaging), not the average over all budget lines.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Budget lines with amount = 0 give a NULL overspend rate (division by zero yields NULL in SQLite) and are ignored in that average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall average remaining is computed across all matched budget lines rather than across events.",
+     "sql": "WITH ev AS (\n  SELECT e.event_id, e.status,\n         AVG(b.remaining) AS avg_remaining,\n         AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_overspend\n  FROM budget b\n  JOIN event e ON e.event_id = b.link_to_event\n  GROUP BY e.event_id, e.status\n),\nst AS (\n  SELECT status,\n         AVG(avg_remaining) AS avg_remaining,\n         AVG(avg_overspend) AS avg_overspend_rate\n  FROM ev\n  GROUP BY status\n)\nSELECT status,\n       avg_remaining,\n       avg_overspend_rate,\n       avg_remaining * 1.0 / (SELECT AVG(b.remaining) FROM budget b JOIN event e ON e.event_id = b.link_to_event) AS ratio_to_overall_avg_remaining\nFROM st;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(avg_rem) FROM ev) AS ratio_to_overall_avg_remaining FROM st",
+   "assumptions": [
+    {
+     "assumption": "The overall average remaining is the average of the event-level average remaining values across all matched events (each event weighted equally), consistent with the status-level averaging.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Budget lines with amount = 0 give an undefined overspend rate and are treated as missing (ignored) in that average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events are grouped by their event.status (not budget.event_status).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall average remaining is computed over all matched budget lines (each line weighted equally) rather than over event-level averages.",
+     "sql": "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(b.remaining) FROM budget b JOIN event e ON b.link_to_event = e.event_id) AS ratio_to_overall_avg_remaining FROM st"
+    }
+   ]
+  },
+  {
+   "sql": "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(avg_rem) FROM ev) AS ratio_to_overall_avg_remaining FROM st",
+   "assumptions": [
+    {
+     "assumption": "The overall average remaining is the average of event-level average remaining across all matched events (same level as the status averages), not the average over all budget lines.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Budget lines with amount = 0 give an undefined overspend rate and are treated as missing (NULL) rather than causing an error.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Status is taken from the event table (event.status), not budget.event_status.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Overall average remaining is computed over all matched budget lines (line-level), rather than over event-level averages.",
+     "sql": "WITH ev AS (SELECT e.event_id, e.status, AVG(b.remaining) AS avg_rem, AVG(CASE WHEN b.amount <> 0 THEN (b.spent - b.amount) * 1.0 / b.amount END) AS avg_over FROM budget b JOIN event e ON b.link_to_event = e.event_id GROUP BY e.event_id, e.status), st AS (SELECT status, AVG(avg_rem) AS avg_remaining, AVG(avg_over) AS avg_overspend_rate FROM ev GROUP BY status) SELECT status, avg_remaining, avg_overspend_rate, avg_remaining / (SELECT AVG(b.remaining) FROM budget b JOIN event e ON b.link_to_event = e.event_id) AS ratio_to_overall_avg_remaining FROM st"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-37095ad966",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23784,
+  "chars_out": 5318
+ }
+}

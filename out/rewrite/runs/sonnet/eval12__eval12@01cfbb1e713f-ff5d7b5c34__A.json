@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "Within each account scope, tied pairs share a rank and the next rank skips. All pairs ranked 3 or better are returned, including every tied pair.",
+ "b": {
+  "request": "Join fees to orders on orderslink = recordvault and to users on userlink = userstamp (dropping unmatched fees), average feerate (ignoring nulls) per (orderslink, acctscope) pair, keep pairs whose average is strictly above the mean of all pair averages, compute excess as average minus that mean, then within each acctscope rank pairs by excess descending using RANK (ties share a rank and the next rank is skipped), and return all pairs with rank \u2264 3 including every tied pair, showing orderslink, acctscope, average fee rate, excess, and rank unrounded",
+  "sql": "WITH pair_avg AS (SELECT f.orderslink AS orderslink, u.acctscope AS acctscope, AVG(f.feerate) AS avg_feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY f.orderslink, u.acctscope), overall AS (SELECT AVG(avg_feerate) AS mean_avg FROM pair_avg), filtered AS (SELECT p.orderslink, p.acctscope, p.avg_feerate, p.avg_feerate - o.mean_avg AS excess FROM pair_avg p CROSS JOIN overall o WHERE p.avg_feerate > o.mean_avg), ranked AS (SELECT orderslink, acctscope, avg_feerate, excess, RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) AS rnk FROM filtered) SELECT orderslink, acctscope, avg_feerate, excess, rnk FROM ranked WHERE rnk <= 3 ORDER BY acctscope, rnk, orderslink",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Using fees joined to their orders (`fees.orderslink` = `orders.recordvault`) and those orders' users (`orders.userlink` = `users.userstamp`), drop any fee without a match. Compute the average fee rate (`feerate`, ignoring missing values) for each pair of orderslink and account scope (`users.acctscope`). Keep only the pairs whose average is strictly above the mean of all the pair averages, and compute each kept pair's excess over that mean. Within each account scope, rank the pairs by excess from largest to smallest. Tied pairs share a rank and the next rank skips ahead. Return every pair ranked 3 or better, showing orderslink, account scope, average fee rate, excess and rank, all unrounded.",
+  "sql": "WITH pair_avg AS (SELECT f.orderslink AS orderslink, u.acctscope AS acctscope, AVG(f.feerate) AS avg_feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY f.orderslink, u.acctscope), overall AS (SELECT AVG(avg_feerate) AS mean_avg FROM pair_avg WHERE avg_feerate IS NOT NULL), kept AS (SELECT p.orderslink, p.acctscope, p.avg_feerate, p.avg_feerate - o.mean_avg AS excess FROM pair_avg p CROSS JOIN overall o WHERE p.avg_feerate > o.mean_avg), ranked AS (SELECT orderslink, acctscope, avg_feerate, excess, RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) AS rnk FROM kept) SELECT orderslink, acctscope, avg_feerate, excess, rnk FROM ranked WHERE rnk <= 3 ORDER BY acctscope, rnk, orderslink",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Using fees joined to their orders (`fees.orderslink` = `orders.recordvault`) and those orders' users (`orders.userlink` = `users.userstamp`), drop any fee without a match. Compute the average fee rate (`feerate`, ignoring missing values) for each pair of orderslink and account scope (`users.acctscope`). Keep only the pairs whose average is strictly above the mean of all the pair averages, and work out how far each one exceeds that mean. Within each account scope, rank the pairs by that excess from largest to smallest and give me the top 3 pairs in each scope. Show orderslink, account scope, average fee rate, excess, and the pair's rank within its scope, all unrounded. Within each account scope, tied pairs share a rank and the next rank skips. All pairs ranked 3 or better are returned, including every tied pair.",
+  "sql": "WITH pair_avg AS (SELECT f.orderslink AS orderslink, u.acctscope AS acctscope, AVG(f.feerate) AS avg_feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY f.orderslink, u.acctscope), overall AS (SELECT AVG(avg_feerate) AS mean_avg FROM pair_avg WHERE avg_feerate IS NOT NULL), excess AS (SELECT p.orderslink, p.acctscope, p.avg_feerate, p.avg_feerate - o.mean_avg AS excess FROM pair_avg p CROSS JOIN overall o WHERE p.avg_feerate > o.mean_avg), ranked AS (SELECT orderslink, acctscope, avg_feerate, excess, RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) AS rnk FROM excess) SELECT orderslink, acctscope, avg_feerate, excess, rnk FROM ranked WHERE rnk <= 3 ORDER BY acctscope, rnk, orderslink",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using fees joined to their orders (`fees.orderslink` = `orders.recordvault`) and those orders' users (`orders.userlink` = `users.userstamp`), drop any fee without a match. Compute the average fee rate (`feerate`, ignoring missing values) for each pair of orderslink and account scope (`users.acctscope`). Keep only the pairs whose average is strictly above the mean of all the pair averages, and work out how far each one exceeds that mean. Within each account scope, rank the pairs by that excess from largest to smallest, where tied pairs share a rank and the next rank skips (standard competition ranking), and return all pairs ranked 3 or better in each scope, including every tied pair. Show orderslink, account scope, average fee rate, excess, and the pair's rank within its scope, all unrounded.",
+  "sql": "WITH pair_avg AS (SELECT f.orderslink AS orderslink, u.acctscope AS acctscope, AVG(f.feerate) AS avg_feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY f.orderslink, u.acctscope), overall AS (SELECT AVG(avg_feerate) AS mean_avg FROM pair_avg WHERE avg_feerate IS NOT NULL), above AS (SELECT p.orderslink, p.acctscope, p.avg_feerate, p.avg_feerate - o.mean_avg AS excess FROM pair_avg p CROSS JOIN overall o WHERE p.avg_feerate > o.mean_avg), ranked AS (SELECT orderslink, acctscope, avg_feerate, excess, RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) AS rnk FROM above) SELECT orderslink, acctscope, avg_feerate, excess, rnk FROM ranked WHERE rnk <= 3 ORDER BY acctscope, rnk, orderslink",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

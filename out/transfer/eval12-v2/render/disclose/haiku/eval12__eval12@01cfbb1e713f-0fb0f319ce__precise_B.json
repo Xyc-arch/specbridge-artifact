@@ -1,0 +1,28 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0fb0f319ce",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH invoice_data AS (\n  SELECT \n    i.InvoiceId,\n    c.Country,\n    AVG(il.UnitPrice) as invoice_avg_price\n  FROM Invoice i\n  JOIN Customer c ON i.CustomerId = c.CustomerId\n  JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId\n  GROUP BY i.InvoiceId, c.Country\n),\noverall_stats AS (\n  SELECT \n    AVG(invoice_avg_price) as overall_avg_price\n  FROM invoice_data\n),\ninvoice_deviations AS (\n  SELECT \n    id.InvoiceId,\n    id.Country,\n    id.invoice_avg_price,\n    id.invoice_avg_price - os.overall_avg_price as deviation\n  FROM invoice_data id\n  CROSS JOIN overall_stats os\n),\ncountry_avg_deviations AS (\n  SELECT \n    Country,\n    AVG(deviation) as country_avg_deviation\n  FROM invoice_deviations\n  GROUP BY Country\n),\nfinal_result AS (\n  SELECT \n    id.InvoiceId,\n    id.Country,\n    id.invoice_avg_price,\n    id.deviation,\n    id.deviation - cad.country_avg_deviation as final_value\n  FROM invoice_deviations id\n  LEFT JOIN country_avg_deviations cad ON (id.Country = cad.Country) OR (id.Country IS NULL AND cad.Country IS NULL)\n),\nranked AS (\n  SELECT \n    InvoiceId,\n    Country,\n    invoice_avg_price,\n    deviation,\n    final_value,\n    ROW_NUMBER() OVER (ORDER BY final_value DESC NULLS LAST) as row_num\n  FROM final_result\n)\nSELECT \n  InvoiceId,\n  Country,\n  invoice_avg_price,\n  deviation,\n  final_value\nFROM ranked\nWHERE row_num <= 10 \n   OR final_value = (SELECT final_value FROM ranked WHERE row_num = 10)\nORDER BY final_value DESC NULLS LAST;",
+  "assumptions": [
+   {
+    "assumption": "Every invoice has at least one invoice line; invoices with no lines are excluded.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The database supports window functions (ROW_NUMBER() OVER) and NULLS LAST in ORDER BY.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [],
+ "seconds": 105.3,
+ "chars_out": 1877
+}

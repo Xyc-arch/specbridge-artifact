@@ -1,0 +1,50 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-878035e03f",
+ "wording": "open",
+ "model": "sonnet",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH per_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio\n  FROM fees\n  WHERE rebrate > 0.0005\n  GROUP BY orderslink\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS mean_ratio FROM per_order\n)\nSELECT p.orderslink,\n       p.avg_rebtotal,\n       p.avg_ratio,\n       CASE WHEN o.mean_ratio IS NOT NULL THEN p.avg_ratio / o.mean_ratio END AS relative_ratio\nFROM per_order p\nCROSS JOIN overall o\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "'Clear the threshold' means strictly greater than 0.0005 (rebrate > 0.0005).",
+    "unresolved": true
+   },
+   {
+    "assumption": "A feerate of 0 yields a NULL ratio (via NULLIF) instead of a division error, and NULL ratios are ignored by AVG.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The overall mean is taken across all orders (groups) with a non-null per-order average ratio, and a zero mean would give a division error is not guarded beyond NULL check.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Fee rows with NULL orderslink form their own group and are included.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Threshold is inclusive (rebrate >= 0.0005).",
+    "sql": "WITH per_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio\n  FROM fees\n  WHERE rebrate >= 0.0005\n  GROUP BY orderslink\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS mean_ratio FROM per_order\n)\nSELECT p.orderslink,\n       p.avg_rebtotal,\n       p.avg_ratio,\n       CASE WHEN o.mean_ratio IS NOT NULL THEN p.avg_ratio / o.mean_ratio END AS relative_ratio\nFROM per_order p\nCROSS JOIN overall o\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "Threshold is inclusive (rebrate >= 0.0005).",
+   "sql": "WITH per_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio\n  FROM fees\n  WHERE rebrate >= 0.0005\n  GROUP BY orderslink\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS mean_ratio FROM per_order\n)\nSELECT p.orderslink,\n       p.avg_rebtotal,\n       p.avg_ratio,\n       CASE WHEN o.mean_ratio IS NOT NULL THEN p.avg_ratio / o.mean_ratio END AS relative_ratio\nFROM per_order p\nCROSS JOIN overall o\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 9.7,
+ "chars_out": 1756
+}

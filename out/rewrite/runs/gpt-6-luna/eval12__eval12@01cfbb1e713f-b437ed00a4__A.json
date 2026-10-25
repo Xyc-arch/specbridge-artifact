@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b437ed00a4",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Per department, count the income records belonging to its members, then compute shares, the average share, and summarise the departments whose share is above average.",
+ "a": {
+  "request": "Take the income records whose `link_to_member` matches a member and whose member's `link_to_major` matches a major (drop the rest). For each department (`major.department`), count the income records themselves \u2014 every income record counts once, so a member with three income records adds 3. Each department's share is its count divided by the sum of all departments' counts; then take the plain average of these shares across departments. Keep only departments whose share is strictly greater than that average, and return one row with: (1) the sum of their counts, (2) the average of their shares, and (3) the average of (share minus average share). Do not round.",
+  "sql": "WITH department_counts AS (\n    SELECT m.department, COUNT(*) AS income_count\n    FROM income AS i\n    JOIN member AS mb ON mb.member_id = i.link_to_member\n    JOIN major AS m ON m.major_id = mb.link_to_major\n    GROUP BY m.department\n), department_shares AS (\n    SELECT department, income_count,\n           CAST(income_count AS REAL) / SUM(income_count) OVER () AS share\n    FROM department_counts\n), above_average AS (\n    SELECT income_count, share,\n           AVG(share) OVER () AS average_share\n    FROM department_shares\n)\nSELECT SUM(income_count), AVG(share), AVG(share - average_share)\nFROM above_average\nWHERE share > average_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Using income records matched to members and their majors, find the count of member incomes for each department (`major.department`), and each department's share of the total of those counts. For the departments whose share is strictly above the average share across departments, give one row with: their combined count, their average share, and the average amount by which their share is above the average share. No rounding. Per department, count the income records belonging to its members, then compute shares, the average share, and summarise the departments whose share is above average.",
+  "sql": "WITH department_counts AS (\n    SELECT m.department, COUNT(i.income_id) AS income_count\n    FROM income AS i\n    JOIN member AS mem ON mem.member_id = i.link_to_member\n    JOIN major AS m ON m.major_id = mem.link_to_major\n    GROUP BY m.department\n), department_shares AS (\n    SELECT department, income_count,\n           CAST(income_count AS REAL) / SUM(income_count) OVER () AS share\n    FROM department_counts\n), share_stats AS (\n    SELECT AVG(share) AS average_share\n    FROM department_shares\n)\nSELECT SUM(ds.income_count) AS combined_count,\n       ss.average_share,\n       AVG(ds.share - ss.average_share) AS average_amount_above_average_share\nFROM department_shares AS ds\nCROSS JOIN share_stats AS ss\nWHERE ds.share > ss.average_share;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each department, count income records linked to members whose major belongs to that department, and calculate each department\u2019s share of the total income-record count. Among departments whose share is strictly greater than the average share across departments, return one row containing their combined income-record count, their average share, and their average excess over the average share, with no rounding",
+  "sql": "WITH department_counts AS (\n    SELECT\n        m.department,\n        COUNT(i.income_id) AS income_count\n    FROM major AS m\n    LEFT JOIN member AS mb ON mb.link_to_major = m.major_id\n    LEFT JOIN income AS i ON i.link_to_member = mb.member_id\n    GROUP BY m.department\n), department_shares AS (\n    SELECT\n        department,\n        income_count,\n        1.0 * income_count / NULLIF(SUM(income_count) OVER (), 0) AS share\n    FROM department_counts\n), average_share AS (\n    SELECT AVG(share) AS avg_share\n    FROM department_shares\n)\nSELECT\n    SUM(ds.income_count) AS combined_income_record_count,\n    AVG(ds.share) AS average_share,\n    AVG(ds.share - a.avg_share) AS average_excess_over_average_share\nFROM department_shares AS ds\nCROSS JOIN average_share AS a\nWHERE ds.share > a.avg_share",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using income records matched to members and their majors, count the income records for each department (`major.department`) and calculate each department\u2019s share of the total count. For departments whose share is strictly above the average share across departments, return one row with their combined count, their average share, and the average amount by which their share exceeds the average. Do not round.",
+  "sql": "WITH department_counts AS (\n    SELECT m.department, COUNT(*) AS income_count\n    FROM income i\n    JOIN member mb ON i.link_to_member = mb.member_id\n    JOIN major m ON mb.link_to_major = m.major_id\n    GROUP BY m.department\n), department_shares AS (\n    SELECT department, income_count,\n           1.0 * income_count / SUM(income_count) OVER () AS share\n    FROM department_counts\n), above_average AS (\n    SELECT income_count, share,\n           AVG(share) OVER () AS average_share\n    FROM department_shares\n)\nSELECT SUM(income_count) AS combined_count,\n       AVG(average_share) AS average_share,\n       AVG(share - average_share) AS average_excess_share\nFROM above_average\nWHERE share > average_share;",
+  "executes": true,
+  "matches": []
+ }
+}

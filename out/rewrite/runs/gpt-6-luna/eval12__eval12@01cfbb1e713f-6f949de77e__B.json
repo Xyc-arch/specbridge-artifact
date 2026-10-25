@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6f949de77e",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Per media type, rate = its total Bytes / its total Milliseconds; among media types above the unweighted mean rate, report the average rate, average track count, and average excess.",
+ "b": {
+  "request": "For each media type represented by at least one track, calculate its rate as total track bytes divided by total track milliseconds; select media types whose rates exceed the unweighted mean of these per-type rates, then return in one unrounded row the unweighted average of their rates, their track counts, and their rate differences from that overall mean",
+  "sql": "WITH media_type_rates AS (\n  SELECT\n    t.MediaTypeId,\n    COUNT(*) AS track_count,\n    SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate\n  FROM Track AS t\n  WHERE t.Bytes IS NOT NULL\n  GROUP BY t.MediaTypeId\n),\nabove_mean AS (\n  SELECT m.*\n  FROM media_type_rates AS m\n  WHERE m.rate > (SELECT AVG(rate) FROM media_type_rates)\n),\noverall AS (\n  SELECT AVG(rate) AS average_rate\n  FROM above_mean\n)\nSELECT\n  a.MediaTypeId,\n  a.rate,\n  a.track_count,\n  o.average_rate,\n  a.rate - o.average_rate AS rate_difference\nFROM above_mean AS a\nCROSS JOIN overall AS o;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each media type (grouped by name, using only tracks linked to a media type), compute its byte rate as the media type's total `Bytes` divided by its total `Milliseconds`, and count its tracks. Take the simple average of these rates across all media types, and keep only the media types whose rate is above it. Across those media types, return one row giving the average of their rates, the average of their track counts, and the average amount by which their rate exceeds the overall average, without rounding.",
+  "sql": "WITH media_type_stats AS (\n  SELECT mt.Name,\n         SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS byte_rate,\n         COUNT(*) AS track_count\n  FROM MediaType AS mt\n  JOIN Track AS t ON t.MediaTypeId = mt.MediaTypeId\n  GROUP BY mt.Name\n),\naverage_rate AS (\n  SELECT AVG(byte_rate) AS rate\n  FROM media_type_stats\n)\nSELECT AVG(mts.byte_rate) AS average_rate,\n       AVG(mts.track_count) AS average_track_count,\n       AVG(mts.byte_rate - ar.rate) AS average_excess_rate\nFROM media_type_stats AS mts\nCROSS JOIN average_rate AS ar\nWHERE mts.byte_rate > ar.rate;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Consider only the media types (by name, counting only tracks that have a media type) whose bytes-per-millisecond rate is above the simple average of that rate across all media types. In one unrounded row, what are their average rate, their average number of tracks, and their average margin above that overall average? Per media type, rate = its total Bytes / its total Milliseconds; among media types above the unweighted mean rate, report the average rate, average track count, and average excess.",
+  "sql": "WITH media_type_rates AS (\n  SELECT\n    mt.Name,\n    SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate,\n    COUNT(*) AS track_count\n  FROM MediaType AS mt\n  JOIN Track AS t ON t.MediaTypeId = mt.MediaTypeId\n  WHERE t.Bytes IS NOT NULL\n  GROUP BY mt.MediaTypeId, mt.Name\n), overall AS (\n  SELECT AVG(rate) AS average_rate\n  FROM media_type_rates\n)\nSELECT\n  AVG(mtr.rate) AS average_rate,\n  AVG(mtr.track_count * 1.0) AS average_track_count,\n  AVG(mtr.rate - overall.average_rate) AS average_margin_above_overall\nFROM media_type_rates AS mtr\nCROSS JOIN overall\nWHERE mtr.rate > overall.average_rate;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each media type that has at least one track, calculate its rate as total bytes divided by total milliseconds. Among media types whose rates are above the unweighted average rate across all such media types, report in one unrounded row the average rate, average number of tracks, and average excess above the overall average rate.",
+  "sql": "WITH media_type_rates AS (\n  SELECT\n    mt.MediaTypeId,\n    SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate,\n    COUNT(*) AS track_count\n  FROM MediaType mt\n  JOIN Track t ON t.MediaTypeId = mt.MediaTypeId\n  GROUP BY mt.MediaTypeId\n), overall AS (\n  SELECT AVG(rate) AS average_rate\n  FROM media_type_rates\n)\nSELECT\n  AVG(mtr.rate) AS average_rate,\n  AVG(mtr.track_count) AS average_number_of_tracks,\n  AVG(mtr.rate - o.average_rate) AS average_excess_rate\nFROM media_type_rates mtr\nCROSS JOIN overall o\nWHERE mtr.rate > o.average_rate;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

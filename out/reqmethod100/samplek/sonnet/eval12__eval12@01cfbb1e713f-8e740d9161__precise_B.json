@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH g AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g) SELECT AVG(g.cnt * 1.0) AS avg_invoiced_orders_above_avg, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_overall_avg FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt",
+  "WITH g AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), avg_all AS (SELECT AVG(cnt * 1.0) AS a FROM g) SELECT AVG(g.cnt * 1.0) AS avg_invoiced_orders, AVG(g.cnt - avg_all.a) AS avg_excess_over_overall_avg FROM g CROSS JOIN avg_all WHERE g.cnt > avg_all.a",
+  "WITH per_gender AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM per_gender) SELECT AVG(p.cnt * 1.0) AS avg_invoiced_orders_above_avg, AVG(p.cnt - ov.avg_cnt) AS avg_excess_over_overall_avg FROM per_gender p CROSS JOIN overall ov WHERE p.cnt > ov.avg_cnt"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g) SELECT AVG(g.cnt * 1.0) AS avg_invoiced_orders_above_avg, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_overall_avg FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "A NULL gender forms its own group (GROUP BY keeps NULLs together); empty-string genders, if any, remain a separate group from NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only orders with at least one invoice are counted (inner join from Invoices), and each order is counted once per gender via COUNT(DISTINCT order_id).",
+     "unresolved": false
+    },
+    {
+     "assumption": "If no gender is above the average (e.g., all counts equal or only one group), the query returns one row with NULL averages.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), avg_all AS (SELECT AVG(cnt * 1.0) AS a FROM g) SELECT AVG(g.cnt * 1.0) AS avg_invoiced_orders, AVG(g.cnt - avg_all.a) AS avg_excess_over_overall_avg FROM g CROSS JOIN avg_all WHERE g.cnt > avg_all.a",
+   "assumptions": [
+    {
+     "assumption": "Only orders with at least one invoice are counted (inner join from Invoices), and a NULL gender forms its own group via GROUP BY. Empty-string gender is treated as a distinct value from NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If no gender is above the average (e.g., all counts equal), the query returns one row with NULL values.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_gender AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM per_gender) SELECT AVG(p.cnt * 1.0) AS avg_invoiced_orders_above_avg, AVG(p.cnt - ov.avg_cnt) AS avg_excess_over_overall_avg FROM per_gender p CROSS JOIN overall ov WHERE p.cnt > ov.avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "A NULL gender forms its own group (GROUP BY keeps NULLs together). Empty-string genders are kept as a separate group from NULL, as stored.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the plain unweighted average of per-gender counts, including the missing-gender group, over genders that have at least one invoiced order.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If no gender exceeds the average (e.g. all counts equal), the query returns one row with NULL values rather than zero rows.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-8e740d9161",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12219,
+  "chars_out": 2792
+ }
+}

@@ -1,0 +1,42 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH group_stats AS (\n  SELECT \n    o.timespan,\n    COUNT(*) as match_count,\n    AVG(CASE \n      WHEN f.rebrate IS NOT NULL AND f.feerate IS NOT NULL\n      THEN f.rebrate / NULLIF(f.feerate, 0)\n    END) as avg_ratio\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\ncross_group_avg AS (\n  SELECT AVG(match_count) as avg_match_count\n  FROM group_stats\n),\nfiltered_groups AS (\n  SELECT gs.match_count, gs.avg_ratio, cga.avg_match_count\n  FROM group_stats gs\n  CROSS JOIN cross_group_avg cga\n  WHERE gs.match_count > cga.avg_match_count\n)\nSELECT \n  AVG(avg_ratio) as avg_of_avg_ratios,\n  SUM(match_count) as total_match_counts,\n  AVG(match_count - avg_match_count) as avg_excess_match_count\nFROM filtered_groups",
+  "assumptions": [
+   {
+    "assumption": "\"Ignoring missing values\" applies only to the rebrate/feerate ratio calculation, not to the match count. Rows with NULL rebrate or feerate are excluded from the ratio average (via CASE) but still counted in match_count.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Division by zero (feerate = 0) is handled by converting it to NULL, which is then ignored by AVG.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"Ignoring missing values\" means excluding rows with NULL rebrate or feerate entirely from each group\u2014both from match count and from ratio calculation.",
+    "sql": "WITH group_stats AS (\n  SELECT \n    o.timespan,\n    COUNT(*) as match_count,\n    AVG(f.rebrate / NULLIF(f.feerate, 0)) as avg_ratio\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.rebrate IS NOT NULL AND f.feerate IS NOT NULL\n  GROUP BY o.timespan\n),\ncross_group_avg AS (\n  SELECT AVG(match_count) as avg_match_count\n  FROM group_stats\n),\nfiltered_groups AS (\n  SELECT gs.match_count, gs.avg_ratio, cga.avg_match_count\n  FROM group_stats gs\n  CROSS JOIN cross_group_avg cga\n  WHERE gs.match_count > cga.avg_match_count\n)\nSELECT \n  AVG(avg_ratio) as avg_of_avg_ratios,\n  SUM(match_count) as total_match_counts,\n  AVG(match_count - avg_match_count) as avg_excess_match_count\nFROM filtered_groups"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"Ignoring missing values\" means excluding rows with NULL rebrate or feerate entirely from each group\u2014both from match count and from ratio calculation.",
+   "sql": "WITH group_stats AS (\n  SELECT \n    o.timespan,\n    COUNT(*) as match_count,\n    AVG(f.rebrate / NULLIF(f.feerate, 0)) as avg_ratio\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.rebrate IS NOT NULL AND f.feerate IS NOT NULL\n  GROUP BY o.timespan\n),\ncross_group_avg AS (\n  SELECT AVG(match_count) as avg_match_count\n  FROM group_stats\n),\nfiltered_groups AS (\n  SELECT gs.match_count, gs.avg_ratio, cga.avg_match_count\n  FROM group_stats gs\n  CROSS JOIN cross_group_avg cga\n  WHERE gs.match_count > cga.avg_match_count\n)\nSELECT \n  AVG(avg_ratio) as avg_of_avg_ratios,\n  SUM(match_count) as total_match_counts,\n  AVG(match_count - avg_match_count) as avg_excess_match_count\nFROM filtered_groups",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 68.1,
+ "chars_out": 2250
+}

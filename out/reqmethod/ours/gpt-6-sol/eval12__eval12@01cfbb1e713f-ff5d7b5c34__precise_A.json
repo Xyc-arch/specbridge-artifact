@@ -1,0 +1,17 @@
+{
+ "readings": [
+  "Using fees joined to their orders (`fees.orderslink` = `orders.recordvault`) and those orders' users (`orders.userlink` = `users.userstamp`), drop any fee without a match. Compute the average fee rate (`feerate`, ignoring missing values) for each pair of orderslink and account scope (`users.acctscope`). Keep only the pairs whose average is strictly above the mean of all the pair averages, and compute each kept pair's excess over that mean. Within each account scope, rank the pairs by excess from largest to smallest. Tied pairs share a rank and the next rank skips ahead. Return every pair ranked 3 or better, showing orderslink, account scope, average fee rate, excess and rank, all unrounded."
+ ],
+ "queries": [
+  "WITH pair_averages AS (\n    SELECT f.orderslink,\n           u.acctscope,\n           AVG(f.feerate) AS average_fee_rate\n    FROM fees AS f\n    JOIN orders AS o ON f.orderslink = o.recordvault\n    JOIN users AS u ON o.userlink = u.userstamp\n    GROUP BY f.orderslink, u.acctscope\n),\noverall_mean AS (\n    SELECT AVG(average_fee_rate) AS mean_pair_average\n    FROM pair_averages\n),\nranked AS (\n    SELECT p.orderslink,\n           p.acctscope,\n           p.average_fee_rate,\n           p.average_fee_rate - m.mean_pair_average AS excess,\n           RANK() OVER (\n               PARTITION BY p.acctscope\n               ORDER BY p.average_fee_rate - m.mean_pair_average DESC\n           ) AS rank\n    FROM pair_averages AS p\n    CROSS JOIN overall_mean AS m\n    WHERE p.average_fee_rate > m.mean_pair_average\n)\nSELECT orderslink, acctscope, average_fee_rate, excess, rank\nFROM ranked\nWHERE rank <= 3"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "ours",
+ "cost": {
+  "calls": 2,
+  "chars_in": 27345,
+  "chars_out": 1609
+ }
+}

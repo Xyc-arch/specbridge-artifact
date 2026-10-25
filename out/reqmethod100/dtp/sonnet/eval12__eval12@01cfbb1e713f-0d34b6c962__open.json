@@ -1,0 +1,56 @@
+{
+ "interpretations": [
+  "Spend ratio per event = SUM(spent) / SUM(amount) across the event's budget lines, ignoring rows where spent or amount is NULL. The average is the mean of these per-event ratios across all events, and the output is the top 10 by ratio \u00f7 average.",
+  "Spend ratio per event = AVG(spent / amount) across its budget lines, using per-line ratios. The average is the mean of the per-event ratios.",
+  "Spend ratio per event = SUM(spent) / SUM(amount), where the \"average spend ratio across all events\" is the overall ratio, SUM(spent) / SUM(amount) over all budget lines.",
+  "Spend ratio per event = SUM(spent) / SUM(amount), where the \"average spend ratio across all events\" is the average of the per-line ratios across all budget lines.",
+  "Spend ratio per event = AVG(spent) / AVG(amount) across its budget lines, with the average being the mean of the per-event ratios.",
+  "\"Ignoring missing values\" means excluding budget lines where either spent or amount is NULL, so both sums cover the same set of lines.",
+  "\"Ignoring missing values\" means that SUM(spent) and SUM(amount) are each computed over their own non-NULL values independently, so the line sets may differ.",
+  "\"Ignoring missing values\" means excluding events whose spend ratio is NULL from the average calculation. Those events can still appear in the output, with a NULL ratio and a NULL relative figure.",
+  "Events with amount = 0 (division by zero) are excluded from the average and from the output.",
+  "Events with amount = 0 give a NULL ratio, and the event is kept in the output, sorted last.",
+  "The event set is the distinct non-NULL budget.link_to_event values, meaning only events that have budget lines.",
+  "The event set includes budget rows with a NULL link_to_event as one group, with a NULL event id.",
+  "The event set is all rows in the event table, including events with no budget lines, with NULL ratios sorted last.",
+  "The \"relative figure\" is the event's ratio divided by the average ratio. The output columns are event id, ratio, and relative figure.",
+  "The \"relative figure\" is the event's ratio divided by the average ratio, expressed as a percentage.",
+  "Sorting is by the relative figure descending, with NULLs last, and then limited to 10 rows. Ties are broken arbitrarily.",
+  "Sorting is by the relative figure descending, with NULLs last, and ties are broken by event id.",
+  "The ratio is computed with integer division, because budget.amount is INTEGER. This is unlikely, since spent is REAL.",
+  "The ratio is computed with real division, by casting or because spent is REAL. No rounding is applied to any value.",
+  "\"Spend ratio\" is amount-weighted, SUM(spent) / SUM(amount). \"Ratio of spend\" could instead mean spent divided by remaining, but this reading is unlikely.",
+  "The \"average spend ratio across all events\" is computed over only the top events, or over events after the NULL filter, rather than over all events.",
+  "The event identifier shown is budget.link_to_event. The event name is not requested.",
+  "Some interpretations are missing:",
+  "Spend ratio per event = SUM(spent) / SUM(amount), where the \"average spend ratio across all events\" is AVG(spent) / AVG(amount) over all budget lines.",
+  "Spend ratio per event = AVG(spent / amount) across its budget lines, where the \"average spend ratio across all events\" is the overall ratio SUM(spent) / SUM(amount) over all budget lines.",
+  "Spend ratio per event = AVG(spent / amount) across its budget lines, where the \"average spend ratio across all events\" is the average of the per-line ratios across all budget lines.",
+  "\"Ignoring missing values\" means NULL spent or amount is treated as 0 (COALESCE), so those lines still count in the sums.",
+  "Events with amount = 0 are kept with a ratio of 0, or with an infinite or error value, rather than NULL.",
+  "Lines with amount = 0 are excluded from the per-line ratio, but the event's other lines are kept.",
+  "The relative figure is computed with a window-function average that includes all events, so the average is not limited to the top 10.",
+  "The event set is limited to events that also exist in the event table, so budget rows whose link_to_event has no matching event are excluded."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT link_to_event, SUM(spent) * 1.0 / SUM(amount) AS ratio\n  FROM budget\n  WHERE spent IS NOT NULL AND amount IS NOT NULL\n  GROUP BY link_to_event\n)\nSELECT link_to_event\nFROM r\nORDER BY ratio / (SELECT AVG(ratio) FROM r) DESC\nLIMIT 10;\n",
+  "SELECT AVG(event_ratio) FROM (SELECT link_to_event, AVG(spent * 1.0 / amount) AS event_ratio FROM budget GROUP BY link_to_event);\n",
+  "SELECT SUM(spent) / SUM(amount) FROM budget",
+  "SELECT AVG(spent * 1.0 / amount) FROM budget WHERE amount <> 0",
+  "SELECT AVG(ratio) FROM (SELECT AVG(spent) / AVG(amount) AS ratio FROM budget GROUP BY link_to_event)",
+  "SELECT SUM(spent) * 1.0 / SUM(amount) FROM budget WHERE spent IS NOT NULL AND amount IS NOT NULL;\n"
+ ],
+ "raw": [
+  "1. Spend ratio per event = SUM(spent) / SUM(amount) across the event's budget lines, ignoring rows where spent or amount is NULL. The average is the mean of these per-event ratios across all events, and the output is the top 10 by ratio \u00f7 average.\n2. Spend ratio per event = AVG(spent / amount) across its budget lines, using per-line ratios. The average is the mean of the per-event ratios.\n3. Spend ratio per event = SUM(spent) / SUM(amount), where the \"average spend ratio across all events\" is the overall ratio, SUM(spent) / SUM(amount) over all budget lines.\n4. Spend ratio per event = SUM(spent) / SUM(amount), where the \"average spend ratio across all events\" is the average of the per-line ratios across all budget lines.\n5. Spend ratio per event = AVG(spent) / AVG(amount) across its budget lines, with the average being the mean of the per-event ratios.\n6. \"Ignoring missing values\" means excluding budget lines where either spent or amount is NULL, so both sums cover the same set of lines.\n7. \"Ignoring missing values\" means that SUM(spent) and SUM(amount) are each computed over their own non-NULL values independently, so the line sets may differ.\n8. \"Ignoring missing values\" means excluding events whose spend ratio is NULL from the average calculation. Those events can still appear in the output, with a NULL ratio and a NULL relative figure.\n9. Events with amount = 0 (division by zero) are excluded from the average and from the output.\n10. Events with amount = 0 give a NULL ratio, and the event is kept in the output, sorted last.\n11. The event set is the distinct non-NULL budget.link_to_event values, meaning only events that have budget lines.\n12. The event set includes budget rows with a NULL link_to_event as one group, with a NULL event id.\n13. The event set is all rows in the event table, including events with no budget lines, with NULL ratios sorted last.\n14. The \"relative figure\" is the event's ratio divided by the average ratio. The output columns are event id, ratio, and relative figure.\n15. The \"relative figure\" is the event's ratio divided by the average ratio, expressed as a percentage.\n16. Sorting is by the relative figure descending, with NULLs last, and then limited to 10 rows. Ties are broken arbitrarily.\n17. Sorting is by the relative figure descending, with NULLs last, and ties are broken by event id.\n18. The ratio is computed with integer division, because budget.amount is INTEGER. This is unlikely, since spent is REAL.\n19. The ratio is computed with real division, by casting or because spent is REAL. No rounding is applied to any value.\n20. \"Spend ratio\" is amount-weighted, SUM(spent) / SUM(amount). \"Ratio of spend\" could instead mean spent divided by remaining, but this reading is unlikely.\n21. The \"average spend ratio across all events\" is computed over only the top events, or over events after the NULL filter, rather than over all events.\n22. The event identifier shown is budget.link_to_event. The event name is not requested.",
+  "Some interpretations are missing:\n\nSpend ratio per event = SUM(spent) / SUM(amount), where the \"average spend ratio across all events\" is AVG(spent) / AVG(amount) over all budget lines.\nSpend ratio per event = AVG(spent / amount) across its budget lines, where the \"average spend ratio across all events\" is the overall ratio SUM(spent) / SUM(amount) over all budget lines.\nSpend ratio per event = AVG(spent / amount) across its budget lines, where the \"average spend ratio across all events\" is the average of the per-line ratios across all budget lines.\n\"Ignoring missing values\" means NULL spent or amount is treated as 0 (COALESCE), so those lines still count in the sums.\nEvents with amount = 0 are kept with a ratio of 0, or with an infinite or error value, rather than NULL.\nLines with amount = 0 are excluded from the per-line ratio, but the event's other lines are kept.\nThe relative figure is computed with a window-function average that includes all events, so the average is not limited to the top 10.\nThe event set is limited to events that also exist in the event table, so budget rows whose link_to_event has no matching event are excluded."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0d34b6c962",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 62135,
+  "chars_out": 5090
+ }
+}

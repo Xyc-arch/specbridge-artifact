@@ -1,0 +1,22 @@
+{
+ "readings": [
+  "Consider only accounts that have at least one row in Financial_Transactions. Join each to its customer and drop accounts whose customer is missing or whose town_city is null. For each remaining account, return: account_id; town_city; its number of transaction rows; that count divided by the total transaction rows of the remaining accounts in the same town_city; and that count divided by the average transaction count per account. Compute the average over only the remaining accounts, meaning those with a customer and a town. Return the top 10 accounts by ratio to the average, descending, unrounded.",
+  "Consider only accounts that have at least one row in Financial_Transactions. Compute the average transaction count per account over all of these accounts, before dropping any for a missing customer or town. Then join each account to its customer and drop accounts whose customer is missing or whose town_city is null. For each remaining account, return: account_id; town_city; its number of transaction rows; that count divided by the total transaction rows of the remaining accounts in the same town_city; and that count divided by the average computed before dropping. Return the top 10 accounts by ratio to the average, descending, unrounded."
+ ],
+ "queries": [
+  "WITH tx AS (\n  SELECT account_id, COUNT(*) AS cnt\n  FROM Financial_Transactions\n  GROUP BY account_id\n),\nvalid AS (\n  SELECT a.account_id, c.town_city, tx.cnt\n  FROM tx\n  JOIN Accounts a ON a.account_id = tx.account_id\n  JOIN Customers c ON c.customer_id = a.customer_id\n  WHERE c.town_city IS NOT NULL\n)\nSELECT\n  account_id,\n  town_city,\n  cnt AS transaction_count,\n  cnt * 1.0 / SUM(cnt) OVER (PARTITION BY town_city) AS ratio_to_town_total,\n  cnt * 1.0 / AVG(cnt) OVER () AS ratio_to_average\nFROM valid\nORDER BY ratio_to_average DESC\nLIMIT 10;\n",
+  "WITH tc AS (\n  SELECT account_id, COUNT(*) AS cnt\n  FROM Financial_Transactions\n  GROUP BY account_id\n),\navg_all AS (\n  SELECT AVG(cnt) AS avg_cnt FROM tc\n),\nj AS (\n  SELECT a.account_id, c.town_city, tc.cnt\n  FROM tc\n  JOIN Accounts a ON a.account_id = tc.account_id\n  JOIN Customers c ON c.customer_id = a.customer_id\n  WHERE c.town_city IS NOT NULL\n)\nSELECT j.account_id,\n       j.town_city,\n       j.cnt AS transaction_count,\n       j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS ratio_to_town_total,\n       j.cnt * 1.0 / (SELECT avg_cnt FROM avg_all) AS ratio_to_average\nFROM j\nORDER BY ratio_to_average DESC\nLIMIT 10;\n"
+ ],
+ "raw": [
+  "{\"readings\": [\"Consider only accounts that have at least one row in Financial_Transactions. Join each to its customer and drop accounts whose customer is missing or whose town_city is null. For each remaining account, return: account_id; town_city; its number of transaction rows; that count divided by the total transaction rows of the remaining accounts in the same town_city; and that count divided by the average transaction count per account. Compute the average over only the remaining accounts, meaning those with a customer and a town. Return the top 10 accounts by ratio to the average, descending, unrounded.\", \"Consider only accounts that have at least one row in Financial_Transactions. Compute the average transaction count per account over all of these accounts, before dropping any for a missing customer or town. Then join each account to its customer and drop accounts whose customer is missing or whose town_city is null. For each remaining account, return: account_id; town_city; its number of transaction rows; that count divided by the total transaction rows of the remaining accounts in the same town_city; and that count divided by the average computed before dropping. Return the top 10 accounts by ratio to the average, descending, unrounded.\"]}"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11867,
+  "chars_out": 2474
+ }
+}

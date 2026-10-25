@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-3b551d13a2",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The average transaction amount is the plain average of the stored, unsigned `amount`.",
+ "b": {
+  "request": "For each account with at least one row in `trans`, show its account ID, the arithmetic mean of its stored transaction amounts, its transaction count, and that count divided by the mean transaction count across all accounts represented in `trans`; rank by this ratio descending and return 10 rows, breaking a cutoff tie arbitrarily, without rounding",
+  "sql": "WITH account_stats AS (\n    SELECT account_id, AVG(amount) AS mean_amount, COUNT(*) AS transaction_count\n    FROM trans\n    GROUP BY account_id\n)\nSELECT account_id,\n       mean_amount,\n       transaction_count,\n       transaction_count * 1.0 / AVG(transaction_count) OVER () AS count_to_mean_ratio\nFROM account_stats\nORDER BY count_to_mean_ratio DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For every account in `trans`, show the account id, its average transaction `amount` across its credits and withdrawals, how many transactions it has, and that count divided by the average number of transactions per account over all accounts. Rank by that ratio, highest first, and keep only the first 10 rows (break any tie at the cut arbitrarily); don't round. The average transaction amount is the plain average of the stored, unsigned `amount`.",
+  "sql": "WITH account_stats AS (\n    SELECT\n        account_id,\n        AVG(amount) AS avg_transaction_amount,\n        COUNT(*) AS transaction_count\n    FROM trans\n    GROUP BY account_id\n),\nranked AS (\n    SELECT\n        account_id,\n        avg_transaction_amount,\n        transaction_count,\n        transaction_count * 1.0 / AVG(transaction_count) OVER () AS ratio\n    FROM account_stats\n)\nSELECT account_id, avg_transaction_amount, transaction_count, ratio\nFROM ranked\nORDER BY ratio DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For every account that appears in `trans`, give the account id (`account_id`), the average of its transactions' `amount` exactly as stored (always non-negative, so credits and withdrawals both add positively), its number of transactions, and that number divided by the average number of transactions per account (averaged over all accounts in `trans`). Sort by that ratio from highest to lowest and keep exactly the first 10 rows, breaking any tie at the 10th place arbitrarily; do not round anything.",
+  "sql": "WITH account_stats AS (\n    SELECT account_id,\n           AVG(amount) AS avg_amount,\n           COUNT(*) AS transaction_count\n    FROM trans\n    GROUP BY account_id\n),\naccount_avg AS (\n    SELECT AVG(transaction_count) AS avg_transaction_count\n    FROM account_stats\n)\nSELECT account_stats.account_id,\n       account_stats.avg_amount,\n       account_stats.transaction_count,\n       account_stats.transaction_count / account_avg.avg_transaction_count AS ratio\nFROM account_stats\nCROSS JOIN account_avg\nORDER BY ratio DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For every account in `trans`, show its account ID, the plain average of the stored unsigned transaction amounts across credits and withdrawals, its transaction count, and that count divided by the average transaction count across all accounts. Rank by the ratio in descending order, keep the first 10 rows, and break any tie at the cutoff arbitrarily. Do not round.",
+  "sql": "WITH account_stats AS (\n    SELECT account_id, AVG(amount) AS avg_transaction_amount, COUNT(*) AS transaction_count\n    FROM trans\n    GROUP BY account_id\n),\naccount_ratios AS (\n    SELECT account_id,\n           avg_transaction_amount,\n           transaction_count,\n           1.0 * transaction_count / AVG(transaction_count) OVER () AS ratio\n    FROM account_stats\n)\nSELECT account_id, avg_transaction_amount, transaction_count, ratio\nFROM account_ratios\nORDER BY ratio DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

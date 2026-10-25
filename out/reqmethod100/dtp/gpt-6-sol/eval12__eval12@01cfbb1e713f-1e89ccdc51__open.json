@@ -1,0 +1,30 @@
+{
+ "interpretations": [
+  "Group results across all years by `races.name`; select names whose summed `results.points` exceed the mean of those name-level totals; return the sum of their points, the average `results.laps` per driver result, and the mean points above that threshold per selected name.",
+  "Use the same name-level points threshold, but calculate average laps by first averaging `results.laps` within each selected race name, then giving each name equal weight.",
+  "Use the same name-level points threshold, but calculate average laps as the mean of each selected race name\u2019s total completed laps across its driver results.",
+  "Treat each `races.raceId` as a separate race occurrence, even when names repeat across years; select occurrences whose total `results.points` exceed the mean occurrence total, then combine their points, average driver-result laps, and average excess points in one row.",
+  "Use the race-name points threshold, but average `results.laps` within each selected race occurrence, then give each occurrence equal weight.",
+  "Use the race-name points threshold, but total `results.laps` within each selected race occurrence, then average those occurrence totals."
+ ],
+ "queries": [
+  "WITH name_totals AS (\n    SELECT\n        races.name,\n        SUM(results.points) AS total_points,\n        SUM(CAST(results.laps AS REAL)) AS total_laps,\n        COUNT(results.laps) AS lap_count\n    FROM races\n    JOIN results ON results.raceId = races.raceId\n    GROUP BY races.name\n)\nSELECT\n    SUM(total_points) AS total_points,\n    SUM(total_laps) / SUM(lap_count) AS average_laps,\n    AVG(total_points) AS mean_points_per_name\nFROM name_totals\nWHERE total_points > (SELECT AVG(total_points) FROM name_totals)",
+  "WITH selected_names AS (\n    SELECT r.name, AVG(CAST(res.laps AS REAL)) AS average_laps\n    FROM races AS r\n    JOIN results AS res ON res.raceId = r.raceId\n    GROUP BY r.name\n    HAVING SUM(res.points) >= :points_threshold\n)\nSELECT AVG(average_laps) AS average_laps\nFROM selected_names;\n",
+  "SELECT AVG(total_laps) AS average_laps\nFROM (\n    SELECT r.name, SUM(CAST(res.laps AS INTEGER)) AS total_laps\n    FROM races AS r\n    JOIN results AS res ON res.raceId = r.raceId\n    GROUP BY r.name\n    HAVING SUM(res.points) > :points_threshold\n)",
+  "WITH occurrence_totals AS (\n    SELECT raceId, SUM(points) AS total_points\n    FROM results\n    GROUP BY raceId\n),\nmean_total AS (\n    SELECT AVG(total_points) AS points_per_occurrence\n    FROM occurrence_totals\n),\nselected_occurrences AS (\n    SELECT o.raceId, o.total_points\n    FROM occurrence_totals AS o\n    CROSS JOIN mean_total AS m\n    WHERE o.total_points > m.points_per_occurrence\n)\nSELECT\n    SUM(s.total_points) AS combined_points,\n    (\n        SELECT AVG(CAST(r.laps AS REAL))\n        FROM results AS r\n        JOIN selected_occurrences AS selected ON selected.raceId = r.raceId\n    ) AS average_driver_result_laps,\n    AVG(s.total_points - m.points_per_occurrence) AS average_excess_points\nFROM selected_occurrences AS s\nCROSS JOIN mean_total AS m",
+  "WITH qualifying_names AS (\n    SELECT r.name\n    FROM races AS r\n    JOIN results AS res ON res.raceId = r.raceId\n    GROUP BY r.name\n    HAVING SUM(res.points) > :points_threshold\n),\nrace_totals AS (\n    SELECT r.raceId, SUM(CAST(res.laps AS INTEGER)) AS total_laps\n    FROM races AS r\n    JOIN qualifying_names AS q ON q.name = r.name\n    JOIN results AS res ON res.raceId = r.raceId\n    GROUP BY r.raceId\n)\nSELECT AVG(total_laps)\nFROM race_totals"
+ ],
+ "raw": [
+  "Group results across all years by `races.name`; select names whose summed `results.points` exceed the mean of those name-level totals; return the sum of their points, the average `results.laps` per driver result, and the mean points above that threshold per selected name.\n\nUse the same name-level points threshold, but calculate average laps by first averaging `results.laps` within each selected race name, then giving each name equal weight.\n\nUse the same name-level points threshold, but calculate average laps as the mean of each selected race name\u2019s total completed laps across its driver results.\n\nTreat each `races.raceId` as a separate race occurrence, even when names repeat across years; select occurrences whose total `results.points` exceed the mean occurrence total, then combine their points, average driver-result laps, and average excess points in one row.",
+  "Use the race-name points threshold, but average `results.laps` within each selected race occurrence, then give each occurrence equal weight.\n\nUse the race-name points threshold, but total `results.laps` within each selected race occurrence, then average those occurrence totals."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 98656,
+  "chars_out": 3518
+ }
+}

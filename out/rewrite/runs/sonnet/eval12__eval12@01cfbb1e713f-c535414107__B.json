@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c535414107",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "A blank sex means unknown, so those patients are dropped before grouping and before the mean is computed.",
+ "a": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), first average each patient's (`ID`, `SEX`) `ALB` and their per-test ratio of `UN` to `T-BIL`. Then, for each sex (leaving out patients whose `SEX` is blank or missing), average those patient-level figures. Which sexes have an average `ALB` above the mean of the sex-level `ALB` averages? Show the sex, its average `ALB`, its average `UN`/`T-BIL` ratio, and how far its `ALB` average is above that mean. Averages ignore missing values (including ratios that can't be computed); don't round.",
+  "sql": "WITH pat AS (SELECT p.ID, p.SEX, AVG(l.ALB) AS alb, AVG(l.UN * 1.0 / NULLIF(l.`T-BIL`, 0)) AS ratio FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> '' GROUP BY p.ID, p.SEX), sx AS (SELECT SEX, AVG(alb) AS avg_alb, AVG(ratio) AS avg_ratio FROM pat GROUP BY SEX), m AS (SELECT AVG(avg_alb) AS mean_alb FROM sx) SELECT sx.SEX, sx.avg_alb, sx.avg_ratio, sx.avg_alb - m.mean_alb AS diff_above_mean FROM sx, m WHERE sx.avg_alb > m.mean_alb",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Patients with a blank (empty or NULL) `SEX` are excluded before grouping and before the mean of the sex-level `ALB` averages is computed. Only sexes whose average `ALB` is above that mean are returned, each with its average `ALB`, its average `UN`/`T-BIL` ratio, and the amount by which its `ALB` average exceeds that mean",
+  "sql": "WITH s AS (SELECT P.SEX AS SEX, AVG(L.ALB) AS avg_alb, AVG(L.UN * 1.0 / NULLIF(L.`T-BIL`, 0)) AS avg_un_tbil_ratio FROM Patient P JOIN Laboratory L ON P.ID = L.ID WHERE P.SEX IS NOT NULL AND TRIM(P.SEX) <> '' GROUP BY P.SEX), m AS (SELECT AVG(avg_alb) AS mean_alb FROM s) SELECT s.SEX, s.avg_alb, s.avg_un_tbil_ratio, s.avg_alb - m.mean_alb AS alb_excess_over_mean FROM s CROSS JOIN m WHERE s.avg_alb > m.mean_alb",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), first average each patient's (`ID`, `SEX`) `ALB` and their per-test ratio of `UN` to `T-BIL`. Then average those patient-level figures for each sex. Which sexes have an average `ALB` above the mean of the sex-level `ALB` averages? Show the sex, its average `ALB`, its average `UN`/`T-BIL` ratio, and how far its `ALB` average is above that mean. Averages ignore missing values (including ratios that can't be computed); don't round. A blank sex means unknown, so those patients are dropped before grouping and before the mean is computed.",
+  "sql": "WITH p AS (SELECT P.ID, P.SEX, AVG(L.ALB) AS alb, AVG(CAST(L.UN AS REAL) / NULLIF(L.`T-BIL`, 0)) AS ratio FROM Laboratory L JOIN Patient P ON P.ID = L.ID WHERE P.SEX IS NOT NULL AND TRIM(P.SEX) <> '' GROUP BY P.ID, P.SEX), s AS (SELECT SEX, AVG(alb) AS alb, AVG(ratio) AS ratio FROM p GROUP BY SEX), m AS (SELECT AVG(alb) AS mean_alb FROM s) SELECT s.SEX, s.alb AS avg_alb, s.ratio AS avg_un_tbil_ratio, s.alb - m.mean_alb AS alb_above_mean FROM s, m WHERE s.alb > m.mean_alb",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), and excluding patients with a blank `SEX` (unknown) before any grouping or computing of means, first average each patient's (`ID`, `SEX`) `ALB` and their per-test ratio of `UN` to `T-BIL`. Then average those patient-level figures for each sex. Which sexes have an average `ALB` above the mean of the sex-level `ALB` averages? Show the sex, its average `ALB`, its average `UN`/`T-BIL` ratio, and how far its `ALB` average is above that mean. Averages ignore missing values (including ratios that can't be computed); don't round.",
+  "sql": "WITH p AS (SELECT P.ID, P.SEX, AVG(L.ALB) AS alb, AVG(CASE WHEN L.`T-BIL` IS NOT NULL AND L.`T-BIL` <> 0 THEN L.UN * 1.0 / L.`T-BIL` END) AS ratio FROM Laboratory L JOIN Patient P ON L.ID = P.ID WHERE P.SEX IS NOT NULL AND TRIM(P.SEX) <> '' GROUP BY P.ID, P.SEX), s AS (SELECT SEX, AVG(alb) AS avg_alb, AVG(ratio) AS avg_ratio FROM p GROUP BY SEX), m AS (SELECT AVG(avg_alb) AS mean_alb FROM s) SELECT s.SEX, s.avg_alb, s.avg_ratio, s.avg_alb - m.mean_alb AS alb_above_mean FROM s, m WHERE s.avg_alb > m.mean_alb",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

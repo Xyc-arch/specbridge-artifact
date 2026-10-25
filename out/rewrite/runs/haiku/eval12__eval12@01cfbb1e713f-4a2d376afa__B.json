@@ -1,0 +1,40 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4a2d376afa",
+ "model": "haiku",
+ "reading": "B",
+ "description": "The overall HGB average is taken over every lab record directly, so patients with more tests weigh more.",
+ "c": {
+  "request": "Among patients whose average hemoglobin (`HGB`) across their lab records (ignoring missing values) is above the overall average hemoglobin, list the patient ID, their average HGB, how far it is above the overall average, and their average minus the average of these above-average patients' averages. Show the top 10 by that last value, highest first, unrounded. The overall HGB average is taken over every lab record directly, so patients with more tests weigh more.",
+  "sql": "WITH overall AS (SELECT AVG(HGB) AS overall_avg FROM Laboratory WHERE HGB IS NOT NULL), patient_avg AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), above AS (SELECT p.ID, p.avg_hgb FROM patient_avg p, overall o WHERE p.avg_hgb > o.overall_avg), above_mean AS (SELECT AVG(avg_hgb) AS mean_of_above FROM above) SELECT a.ID, a.avg_hgb AS avg_hgb, a.avg_hgb - o.overall_avg AS diff_from_overall, a.avg_hgb - m.mean_of_above AS diff_from_above_mean FROM above a, overall o, above_mean m ORDER BY diff_from_above_mean DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each patient ID in the Laboratory table, compute their average hemoglobin (`HGB`) over their lab records, ignoring missing values. Define the overall average as the mean `HGB` over all individual lab records pooled together, so each test counts once and patients with more tests weigh more. Keep the patients whose average is above that overall average. For each kept patient, list the ID, their average HGB, how far it is above the overall average, and their average minus the mean of the kept patients' averages. Sort by that last value from highest to lowest and show the top 10, unrounded.",
+  "sql": "WITH overall AS (SELECT AVG(HGB) AS overall_avg FROM Laboratory WHERE HGB IS NOT NULL), patient_avg AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), kept AS (SELECT p.ID, p.avg_hgb, p.avg_hgb - o.overall_avg AS above_overall FROM patient_avg p CROSS JOIN overall o WHERE p.avg_hgb > o.overall_avg), kept_mean AS (SELECT AVG(avg_hgb) AS mean_kept FROM kept) SELECT k.ID, k.avg_hgb, k.above_overall, k.avg_hgb - m.mean_kept AS dev_from_kept_mean FROM kept k CROSS JOIN kept_mean m ORDER BY dev_from_kept_mean DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "d": {
+  "request": "Patients whose mean HGB over their non-null Laboratory rows exceeds the record-level mean HGB across all non-null Laboratory rows; return ID, patient mean HGB, patient mean minus overall mean, and patient mean minus the mean of those above-average patient means, unrounded, ordered by the last value descending, top 10.",
+  "sql": "WITH lab AS (SELECT ID, HGB FROM Laboratory WHERE HGB IS NOT NULL), overall AS (SELECT AVG(HGB) AS overall_mean FROM lab), patient_means AS (SELECT ID, AVG(HGB) AS patient_mean FROM lab GROUP BY ID), above AS (SELECT pm.ID, pm.patient_mean FROM patient_means pm, overall o WHERE pm.patient_mean > o.overall_mean), above_mean AS (SELECT AVG(patient_mean) AS mean_above FROM above) SELECT a.ID, a.patient_mean AS patient_mean_hgb, a.patient_mean - o.overall_mean AS diff_from_overall, a.patient_mean - am.mean_above AS diff_from_above_mean FROM above a, overall o, above_mean am ORDER BY diff_from_above_mean DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Among patients whose mean HGB over all their Laboratory rows (NULLs excluded) exceeds the mean HGB over all Laboratory rows (each row weighted equally), return ID, patient mean HGB, the difference from the overall row-level mean, and the difference from the mean of those above-average patients' means, ordered by the last value descending, top 10, unrounded.",
+  "sql": "WITH overall AS (SELECT AVG(HGB) AS overall_mean FROM Laboratory), patient_means AS (SELECT ID, AVG(HGB) AS patient_mean FROM Laboratory GROUP BY ID HAVING AVG(HGB) > (SELECT overall_mean FROM overall)), above AS (SELECT ID, patient_mean, (SELECT AVG(patient_mean) FROM patient_means) AS above_avg_mean FROM patient_means) SELECT ID, patient_mean AS mean_hgb, patient_mean - (SELECT overall_mean FROM overall) AS diff_from_overall, patient_mean - above_avg_mean AS diff_from_above_avg FROM above ORDER BY diff_from_above_avg DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "Among patients whose mean HGB over all their Laboratory rows (NULLs excluded) exceeds the mean HGB over all Laboratory rows (each row weighted equally), return ID, patient mean HGB, the difference from the overall row-level mean, and the difference from the mean of those above-average patients' means, ordered by the last value descending, top 10, unrounded."
+ },
+ "calls": 6
+}

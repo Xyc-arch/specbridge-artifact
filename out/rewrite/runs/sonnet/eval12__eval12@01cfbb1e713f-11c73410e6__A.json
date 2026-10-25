@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-11c73410e6",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "Each equipment status's average pulse rate is taken over all its signals, each signal weighted equally.",
+ "a": {
+  "request": "Match each signal to its telescope via `signals.telescref` = `telescopes.telescregistry`, and drop signals without a matching telescope. For each equipment status (`telescopes.equipstatus`), compute the average pulse rate (`signals.pulsepersec`), with each signal counting once, ignoring missing pulse rates. Take the mean of these status averages and keep the statuses whose average is above it, noting how far above each one is. Then take the mean of the kept statuses' averages and keep only the statuses whose average is above that second mean, again noting how far above each one is. Return one row with three values: the average pulse-rate average of the remaining statuses, their average excess over the first mean, and their average excess over the second mean. Don't round.",
+  "sql": "WITH status_avg AS (SELECT t.equipstatus AS st, AVG(s.pulsepersec) AS avg_pr FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry WHERE t.equipstatus IS NOT NULL GROUP BY t.equipstatus HAVING AVG(s.pulsepersec) IS NOT NULL), m1 AS (SELECT AVG(avg_pr) AS mean1 FROM status_avg), kept1 AS (SELECT a.st, a.avg_pr, a.avg_pr - m1.mean1 AS exc1 FROM status_avg a CROSS JOIN m1 WHERE a.avg_pr > m1.mean1), m2 AS (SELECT AVG(avg_pr) AS mean2 FROM kept1), kept2 AS (SELECT k.st, k.avg_pr, k.exc1, k.avg_pr - m2.mean2 AS exc2 FROM kept1 k CROSS JOIN m2 WHERE k.avg_pr > m2.mean2) SELECT AVG(avg_pr) AS avg_pulse_rate_average, AVG(exc1) AS avg_excess_over_first_mean, AVG(exc2) AS avg_excess_over_second_mean FROM kept2",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Join signals to telescopes on telescref = telescregistry (inner join), group by equipstatus and compute each status's average pulsepersec over all its signals pooled (each signal weighted equally, NULL pulse rates ignored), then keep statuses whose average exceeds the mean of all status averages (recording each excess), then from those keep statuses whose average exceeds the mean of the kept averages (recording each excess), and return one row with the average pulse rate of the final statuses, their average excess over the first mean, and their average excess over the second mean, unrounded",
+  "sql": "WITH status_avg AS (SELECT t.equipstatus AS equipstatus, AVG(s.pulsepersec) AS avg_pulse FROM signals s INNER JOIN telescopes t ON s.telescref = t.telescregistry GROUP BY t.equipstatus), m1 AS (SELECT AVG(avg_pulse) AS mean1 FROM status_avg WHERE avg_pulse IS NOT NULL), kept1 AS (SELECT sa.equipstatus, sa.avg_pulse, sa.avg_pulse - m1.mean1 AS excess1 FROM status_avg sa CROSS JOIN m1 WHERE sa.avg_pulse > m1.mean1), m2 AS (SELECT AVG(avg_pulse) AS mean2 FROM kept1), kept2 AS (SELECT k.equipstatus, k.avg_pulse, k.excess1, k.avg_pulse - m2.mean2 AS excess2 FROM kept1 k CROSS JOIN m2 WHERE k.avg_pulse > m2.mean2) SELECT AVG(avg_pulse) AS avg_pulse_rate, AVG(excess1) AS avg_excess_over_first_mean, AVG(excess2) AS avg_excess_over_second_mean FROM kept2",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Link each signal to its telescope (`signals.telescref` = `telescopes.telescregistry`), and drop signals with no matching telescope. For each equipment status (`telescopes.equipstatus`), what is the average pulse rate (`signals.pulsepersec`) of the telescopes in that status, based on the signals they detected and ignoring missing pulse rates? Keep the statuses whose average is above the mean of all the status averages, and note how far above it each one is. From those, keep only the statuses whose average is above the mean of the kept ones, again noting the excess. Give one row with three values: the average pulse rate of the final statuses, their average excess over the first mean, and their average excess over the second mean. Don't round. Each equipment status's average pulse rate is taken over all its signals, each signal weighted equally.",
+  "sql": "WITH status_avg AS (SELECT t.equipstatus AS equipstatus, AVG(s.pulsepersec) AS avg_pulse FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry GROUP BY t.equipstatus), m1 AS (SELECT AVG(avg_pulse) AS mean1 FROM status_avg), kept1 AS (SELECT sa.equipstatus, sa.avg_pulse, sa.avg_pulse - m1.mean1 AS excess1 FROM status_avg sa CROSS JOIN m1 WHERE sa.avg_pulse > m1.mean1), m2 AS (SELECT AVG(avg_pulse) AS mean2 FROM kept1), kept2 AS (SELECT k.avg_pulse, k.excess1, k.avg_pulse - m2.mean2 AS excess2 FROM kept1 k CROSS JOIN m2 WHERE k.avg_pulse > m2.mean2) SELECT AVG(avg_pulse) AS avg_pulse_rate, AVG(excess1) AS avg_excess_over_first_mean, AVG(excess2) AS avg_excess_over_second_mean FROM kept2",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Link each signal to its telescope (`signals.telescref` = `telescopes.telescregistry`) and drop signals with no matching telescope. For each equipment status (`telescopes.equipstatus`), compute the average pulse rate (`signals.pulsepersec`) over all of that status's signals, ignoring missing pulse rates and weighting each signal equally (not averaging per telescope). Keep the statuses whose average is above the mean of all the status averages, and note how far above that mean each one is. From those, keep only the statuses whose average is above the mean of the kept ones, again noting the excess. Return one row with three values: the average pulse rate of the final statuses, their average excess over the first mean, and their average excess over the second mean. Don't round.",
+  "sql": "WITH status_avg AS (SELECT t.equipstatus AS equipstatus, AVG(s.pulsepersec) AS avg_pulse FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry GROUP BY t.equipstatus), m1 AS (SELECT AVG(avg_pulse) AS mean1 FROM status_avg WHERE avg_pulse IS NOT NULL), first_keep AS (SELECT a.equipstatus, a.avg_pulse, a.avg_pulse - m1.mean1 AS excess1 FROM status_avg a CROSS JOIN m1 WHERE a.avg_pulse > m1.mean1), m2 AS (SELECT AVG(avg_pulse) AS mean2 FROM first_keep), final AS (SELECT f.avg_pulse, f.excess1, f.avg_pulse - m2.mean2 AS excess2 FROM first_keep f CROSS JOIN m2 WHERE f.avg_pulse > m2.mean2) SELECT AVG(avg_pulse) AS avg_pulse_rate, AVG(excess1) AS avg_excess_over_first_mean, AVG(excess2) AS avg_excess_over_second_mean FROM final",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bd9abe3fd9",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "The usage gap is CPU minus GPU, keeping the sign.",
+ "b": {
+  "request": "For processing records with a matching site, group by `scanprocessing.zoneref` and `sites.insurstat`; report each group\u2019s site code, insurance status, average `remaingb`, average signed usage gap (`proccpu - procgpu`), and its average `remaingb` divided by the mean of all nonmissing group averages of `remaingb`. Ignore missing values in each average, return no rows if the overall mean is missing, do not round, sort by the ratio descending with missing ratios last, and return the first 10 rows",
+  "sql": "WITH grouped AS (SELECT sp.zoneref AS site_code, s.insurstat AS insurance_status, AVG(sp.remaingb) AS avg_remaingb, AVG(sp.proccpu - sp.procgpu) AS avg_signed_usage_gap FROM scanprocessing AS sp JOIN sites AS s ON s.zoneregistry = sp.zoneref GROUP BY sp.zoneref, s.insurstat), overall AS (SELECT AVG(avg_remaingb) AS mean_group_remaingb FROM grouped) SELECT g.site_code, g.insurance_status, g.avg_remaingb, g.avg_signed_usage_gap, g.avg_remaingb / o.mean_group_remaingb AS remaining_storage_ratio FROM grouped AS g CROSS JOIN overall AS o WHERE o.mean_group_remaingb IS NOT NULL ORDER BY remaining_storage_ratio DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Using only processing records whose site code (`scanprocessing.zoneref`) matches a site in `sites`, group by that site code and the site's insurance status (`sites.insurstat`). For each group, show the site code, the insurance status, the average remaining storage (`remaingb`), the average of CPU usage minus GPU usage (`proccpu` \u2212 `procgpu`, kept signed so it can be negative), and the ratio of the group's average remaining storage to the mean of all groups' average remaining storage values (ignoring missing ones; return no rows if that mean is missing). Ignore missing values in all averages and don't round anything. Sort by that ratio from highest to lowest with missing ratios last, and return only the top 10 rows.",
+  "sql": "WITH site_groups AS (SELECT sp.zoneref AS site_code, s.insurstat AS insurance_status, AVG(sp.remaingb) AS avg_remaining_storage, AVG(sp.proccpu - sp.procgpu) AS avg_cpu_minus_gpu FROM scanprocessing AS sp JOIN sites AS s ON s.zoneregistry = sp.zoneref GROUP BY sp.zoneref, s.insurstat), scored AS (SELECT site_code, insurance_status, avg_remaining_storage, avg_cpu_minus_gpu, AVG(avg_remaining_storage) OVER () AS mean_group_storage FROM site_groups) SELECT site_code, insurance_status, avg_remaining_storage, avg_cpu_minus_gpu, avg_remaining_storage / mean_group_storage AS storage_ratio FROM scored WHERE mean_group_storage IS NOT NULL ORDER BY storage_ratio DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Using only processing records whose site code (`scanprocessing.zoneref`) matches a site in `sites`, group by that site code and the site's insurance status (`sites.insurstat`). For each group, show the site code, the insurance status, the average remaining storage (`remaingb`), the average CPU\u2013GPU usage gap (`proccpu`, `procgpu`), and the ratio of the group's average remaining storage to the mean of all groups' average remaining storage values (ignoring missing ones; return no rows if that mean is missing). Ignore missing values in all averages and don't round anything. Sort by that ratio from highest to lowest with missing ratios last, and return only the top 10 rows. The usage gap is CPU minus GPU, keeping the sign.",
+  "sql": "WITH site_groups AS (SELECT p.zoneref AS site_code, s.insurstat AS insurance_status, AVG(p.remaingb) AS avg_remaining_storage, AVG(p.proccpu - p.procgpu) AS avg_cpu_gpu_gap FROM scanprocessing AS p JOIN sites AS s ON s.zoneregistry = p.zoneref GROUP BY p.zoneref, s.insurstat), group_means AS (SELECT site_groups.*, AVG(avg_remaining_storage) OVER () AS mean_group_storage FROM site_groups) SELECT site_code, insurance_status, avg_remaining_storage, avg_cpu_gpu_gap, avg_remaining_storage / NULLIF(mean_group_storage, 0) AS storage_ratio FROM group_means WHERE mean_group_storage IS NOT NULL ORDER BY storage_ratio DESC NULLS LAST LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using only processing records whose site code (`scanprocessing.zoneref`) matches a site in `sites`, group by site code and insurance status (`sites.insurstat`). For each group, show the site code, insurance status, average remaining storage (`remaingb`), average signed CPU\u2013GPU usage gap (`proccpu - procgpu`), and the ratio of the group\u2019s average remaining storage to the mean of all groups\u2019 average remaining storage values. Ignore missing values in all averages, return no rows if that overall mean is missing, and do not round. Sort by the ratio from highest to lowest, with missing ratios last, and return only the top 10 rows.",
+  "sql": "WITH site_groups AS (SELECT sp.zoneref AS site_code, s.insurstat AS insurance_status, AVG(sp.remaingb) AS avg_remaining_storage, AVG(sp.proccpu - sp.procgpu) AS avg_cpu_gpu_gap FROM scanprocessing AS sp JOIN sites AS s ON s.zoneregistry = sp.zoneref GROUP BY sp.zoneref, s.insurstat), overall AS (SELECT AVG(avg_remaining_storage) AS mean_group_storage FROM site_groups) SELECT g.site_code, g.insurance_status, g.avg_remaining_storage, g.avg_cpu_gpu_gap, g.avg_remaining_storage / NULLIF(o.mean_group_storage, 0) AS storage_ratio FROM site_groups AS g CROSS JOIN overall AS o WHERE o.mean_group_storage IS NOT NULL ORDER BY CASE WHEN g.avg_remaining_storage / NULLIF(o.mean_group_storage, 0) IS NULL THEN 1 ELSE 0 END, storage_ratio DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

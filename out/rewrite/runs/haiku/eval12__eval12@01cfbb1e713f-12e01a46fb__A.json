@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-12e01a46fb",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Average the stored season-to-date running win count over each country's standings rows.",
+ "b": {
+  "request": "For each country with races, average the stored `constructorStandings.wins` (season-to-date running count) over all `constructorStandings` rows joined to that country's races via `races.circuitId` \u2192 `circuits.country`. Keep countries whose average exceeds the overall average across countries, then keep those whose average also exceeds the mean of that above-average group. Return one row: the mean of the qualifying countries' averages, the mean of (country average \u2212 overall average), and the mean of (country average \u2212 above-group average), all unrounded",
+  "sql": "WITH country_avg AS (SELECT c.country AS country, AVG(cs.wins) AS avg_wins FROM constructorStandings cs JOIN races r ON r.raceId = cs.raceId JOIN circuits c ON c.circuitId = r.circuitId WHERE c.country IS NOT NULL GROUP BY c.country), overall AS (SELECT AVG(avg_wins) AS overall_avg FROM country_avg), above AS (SELECT ca.country, ca.avg_wins FROM country_avg ca, overall o WHERE ca.avg_wins > o.overall_avg), above_mean AS (SELECT AVG(avg_wins) AS above_avg FROM above), qualifying AS (SELECT ca.country, ca.avg_wins FROM country_avg ca, above_mean am WHERE ca.avg_wins > am.above_avg) SELECT AVG(q.avg_wins) AS mean_qualifying_avg, AVG(q.avg_wins - o.overall_avg) AS mean_diff_overall, AVG(q.avg_wins - am.above_avg) AS mean_diff_above FROM qualifying q, overall o, above_mean am;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Link constructor standings to their races and circuits. For each circuit country, compute the average of `constructorStandings.wins` as stored (the season-to-date running count of wins) across that country's standings rows. Keep the countries whose average is above the mean of all country averages, and note how far each is above it. Among those, keep the countries whose average is also above the mean of the kept countries' averages, and note how far each is above that second mean. Return one row with three unrounded values: the mean of these final countries' average wins, the mean of their excess over the all-country mean, and the mean of their excess over the above-average group's mean.",
+  "sql": "WITH country_avg AS (SELECT c.country AS country, AVG(cs.wins) AS avg_wins FROM constructorStandings cs JOIN races r ON cs.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId GROUP BY c.country), m1 AS (SELECT AVG(avg_wins) AS mean_all FROM country_avg), above1 AS (SELECT ca.country, ca.avg_wins, ca.avg_wins - m1.mean_all AS excess1 FROM country_avg ca CROSS JOIN m1 WHERE ca.avg_wins > m1.mean_all), m2 AS (SELECT AVG(avg_wins) AS mean_above FROM above1), above2 AS (SELECT a.country, a.avg_wins, a.excess1, a.avg_wins - m2.mean_above AS excess2 FROM above1 a CROSS JOIN m2 WHERE a.avg_wins > m2.mean_above) SELECT AVG(avg_wins) AS mean_final_avg_wins, AVG(excess1) AS mean_excess_over_all_mean, AVG(excess2) AS mean_excess_over_above_mean FROM above2;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For each country where races are held, look at the average constructor wins per standings entry at its races. Take the countries above the overall average, and then those of them that are also above the average of that above-average group. Give one row with three unrounded figures: the mean of those countries' average wins, the mean of how far they exceed the overall average, and the mean of how far they exceed the above-average group's average. Average the stored season-to-date running win count over each country's standings rows.",
+  "sql": "WITH country_avg AS (SELECT c.country, AVG(cs.wins) AS avg_wins FROM constructorStandings cs JOIN races r ON r.raceId = cs.raceId JOIN circuits c ON c.circuitId = r.circuitId WHERE c.country IS NOT NULL GROUP BY c.country), overall AS (SELECT AVG(avg_wins) AS overall_avg FROM country_avg), above AS (SELECT ca.country, ca.avg_wins, o.overall_avg FROM country_avg ca CROSS JOIN overall o WHERE ca.avg_wins > o.overall_avg), above_stats AS (SELECT AVG(avg_wins) AS group_avg FROM above), selected AS (SELECT a.avg_wins, a.overall_avg, s.group_avg FROM above a CROSS JOIN above_stats s WHERE a.avg_wins > s.group_avg) SELECT AVG(avg_wins) AS mean_country_avg_wins, AVG(avg_wins - overall_avg) AS mean_excess_over_overall, AVG(avg_wins - group_avg) AS mean_excess_over_group_avg FROM selected",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each country where races are held, average the stored season-to-date running win count across all of that country's standings rows. Then take the countries whose average is above the overall average across countries, and of those, keep the ones that are also above the average of that above-average group. Return one row with three unrounded figures: the mean of those countries' averages, the mean of how far each exceeds the overall average, and the mean of how far each exceeds the above-average group's average.",
+  "sql": "WITH country_avg AS (SELECT c.country AS country, AVG(ds.wins) AS avg_wins FROM driverStandings ds JOIN races r ON r.raceId = ds.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY c.country), overall AS (SELECT AVG(avg_wins) AS g FROM country_avg), above AS (SELECT ca.country, ca.avg_wins FROM country_avg ca, overall o WHERE ca.avg_wins > o.g), above_avg AS (SELECT AVG(avg_wins) AS a FROM above), kept AS (SELECT ab.country, ab.avg_wins FROM above ab, above_avg aa WHERE ab.avg_wins > aa.a) SELECT AVG(k.avg_wins) AS mean_of_country_averages, AVG(k.avg_wins - o.g) AS mean_excess_over_overall, AVG(k.avg_wins - aa.a) AS mean_excess_over_above_group FROM kept k, overall o, above_avg aa;",
+  "executes": true,
+  "matches": []
+ }
+}

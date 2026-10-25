@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Count examination records for each patient-sex value, treating empty strings and NULLs as separate groups; show each group\u2019s share of all examination records, then add one row for groups whose counts exceed the mean group count, with their combined count, mean share, and mean count above that threshold.",
+  "Count distinct patients with at least one examination for each patient-sex value, treating empty strings and NULLs as separate groups; show each group\u2019s share of all examined patients, then add the same summary for groups above the mean group count.",
+  "Count examination records by sex, but include every sex value in the Patient table, assigning zero to groups with no examinations; calculate the mean across all those groups before producing the summary row.",
+  "Count examined patients by sex, but include every sex value in the Patient table, assigning zero to groups with no examined patients; calculate the mean across all those groups before producing the summary row.",
+  "Use examination-record counts by sex for \u201chow many were examined,\u201d but calculate each group\u2019s share against the total number of patients.",
+  "Use distinct examined-patient counts by sex for \u201chow many were examined,\u201d but calculate each group\u2019s share against the total number of patients, including patients without examinations.",
+  "For above-average sex groups, report \u201caverage share\u201d as the arithmetic mean of their individual shares.",
+  "For above-average sex groups, report \u201caverage share\u201d as their combined count divided by the overall total.",
+  "For above-average sex groups, report how far above the per-sex average they are as the mean difference in examination or patient counts.",
+  "For above-average sex groups, report how far above the per-sex average they are as the mean percentage by which their counts exceed that average.",
+  "For above-average sex groups, report how far above the per-sex average they are as the mean difference between each group\u2019s share and the average share per sex, in percentage points.",
+  "Show every sex group\u2019s count and share, followed by one summary row for the above-average groups.",
+  "Show only the above-average sex groups\u2019 counts and shares, followed by one summary row for those groups.",
+  "Show blank and missing sex groups in the results, but calculate the per-sex average using only known sexes.",
+  "Calculate the per-sex average across all groups, but include only known sexes in the above-average summary.",
+  "Treat whitespace-only sex values as blank sex values."
+ ],
+ "queries": [
+  "WITH sex_counts AS (\n    SELECT p.SEX AS sex, COUNT(*) AS examination_count\n    FROM Examination AS e\n    LEFT JOIN Patient AS p ON p.ID = e.ID\n    GROUP BY p.SEX\n),\ngroup_shares AS (\n    SELECT\n        sex,\n        examination_count,\n        1.0 * examination_count / SUM(examination_count) OVER () AS share\n    FROM sex_counts\n)\nSELECT\n    sex,\n    examination_count,\n    share,\n    NULL AS mean_count\nFROM group_shares",
+  "WITH group_counts AS (\n    SELECT p.SEX AS sex, COUNT(DISTINCT p.ID) AS patient_count\n    FROM Patient AS p\n    JOIN Examination AS e ON e.ID = p.ID\n    GROUP BY p.SEX\n),\nsummary AS (\n    SELECT\n        sex,\n        patient_count,\n        1.0 * patient_count / SUM(patient_count) OVER () AS share\n    FROM group_counts\n)\nSELECT sex, patient_count, share\nFROM summary\nUNION ALL\nSELECT sex, patient_count, share\nFROM summary\nWHERE patient_count > (SELECT AVG(patient_count) FROM group_counts)",
+  "WITH sex_counts AS (\n    SELECT p.SEX, COUNT(e.rowid) AS examination_count\n    FROM Patient AS p\n    LEFT JOIN Examination AS e ON e.ID = p.ID\n    GROUP BY p.SEX\n)\nSELECT SEX, examination_count FROM sex_counts\nUNION ALL\nSELECT 'Average', AVG(examination_count) FROM sex_counts",
+  "WITH counts_by_sex AS (\n    SELECT p.SEX, COUNT(DISTINCT e.ID) AS examined_patients\n    FROM Patient AS p\n    LEFT JOIN Examination AS e ON e.ID = p.ID\n    GROUP BY p.SEX\n)\nSELECT SEX, examined_patients\nFROM (\n    SELECT SEX, examined_patients, 0 AS sort_order FROM counts_by_sex\n    UNION ALL\n    SELECT 'Mean', AVG(examined_patients), 1 FROM counts_by_sex\n)\nORDER BY sort_order, SEX",
+  "SELECT p.SEX,\n       COUNT(e.ID) AS examined_count,\n       COUNT(e.ID) * 100.0 / (SELECT COUNT(*) FROM Patient) AS patient_share_percent\nFROM Patient AS p\nLEFT JOIN Examination AS e ON e.ID = p.ID\nGROUP BY p.SEX",
+  "SELECT\n    p.SEX,\n    COUNT(DISTINCT e.ID) AS examined_patient_count,\n    COUNT(DISTINCT e.ID) * 1.0 / (SELECT COUNT(*) FROM Patient) AS share_of_total_patients\nFROM Patient AS p\nLEFT JOIN Examination AS e ON e.ID = p.ID\nGROUP BY p.SEX"
+ ],
+ "raw": [
+  "Count examination records for each patient-sex value, treating empty strings and NULLs as separate groups; show each group\u2019s share of all examination records, then add one row for groups whose counts exceed the mean group count, with their combined count, mean share, and mean count above that threshold.\n\nCount distinct patients with at least one examination for each patient-sex value, treating empty strings and NULLs as separate groups; show each group\u2019s share of all examined patients, then add the same summary for groups above the mean group count.\n\nCount examination records by sex, but include every sex value in the Patient table, assigning zero to groups with no examinations; calculate the mean across all those groups before producing the summary row.\n\nCount examined patients by sex, but include every sex value in the Patient table, assigning zero to groups with no examined patients; calculate the mean across all those groups before producing the summary row.\n\nUse examination-record counts by sex for \u201chow many were examined,\u201d but calculate each group\u2019s share against the total number of patients.\n\nUse distinct examined-patient counts by sex for \u201chow many were examined,\u201d but calculate each group\u2019s share against the total number of patients, including patients without examinations.\n\nFor above-average sex groups, report \u201caverage share\u201d as the arithmetic mean of their individual shares.\n\nFor above-average sex groups, report \u201caverage share\u201d as their combined count divided by the overall total.\n\nFor above-average sex groups, report how far above the per-sex average they are as the mean difference in examination or patient counts.\n\nFor above-average sex groups, report how far above the per-sex average they are as the mean percentage by which their counts exceed that average.\n\nFor above-average sex groups, report how far above the per-sex average they are as the mean difference between each group\u2019s share and the average share per sex, in percentage points.\n\nShow every sex group\u2019s count and share, followed by one summary row for the above-average groups.\n\nShow only the above-average sex groups\u2019 counts and shares, followed by one summary row for those groups.",
+  "Show blank and missing sex groups in the results, but calculate the per-sex average using only known sexes.\n\nCalculate the per-sex average across all groups, but include only known sexes in the above-average summary.\n\nTreat whitespace-only sex values as blank sex values."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b6c13c0329",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67852,
+  "chars_out": 4683
+ }
+}

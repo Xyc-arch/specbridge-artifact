@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-43277f1d9e",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The benchmark is the average of the per-trading-pair average net fee rates, so each pair counts equally.",
+ "c": {
+  "request": "Using fee records matched to their orders (the order's `recordvault` equals the fee's `orderslink`, compared exactly as text; unmatched fees dropped), which trading pairs (`mktnote`, with records lacking a pair treated as one group) have an average net fee rate (`feerate` minus `rebrate`) strictly above the overall average net fee rate? Give me one row for those pairs: the mean of their average net fee rate, and the mean amount by which they exceed the overall average. If the overall average is missing, no pairs count. Skip missing values in the averages (missing if there's nothing to average) and don't round anything. The benchmark is the average of the per-trading-pair average net fee rates, so each pair counts equally.",
+  "sql": "WITH matched_fees AS (\n  SELECT o.mktnote, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON o.recordvault::text = f.orderslink::text\n), pair_averages AS (\n  SELECT mktnote, AVG(net_fee_rate) AS avg_net_fee_rate\n  FROM matched_fees\n  GROUP BY mktnote\n), benchmark AS (\n  SELECT AVG(avg_net_fee_rate) AS overall_avg_net_fee_rate\n  FROM pair_averages\n), above_pairs AS (\n  SELECT p.avg_net_fee_rate, p.avg_net_fee_rate - b.overall_avg_net_fee_rate AS excess\n  FROM pair_averages AS p\n  CROSS JOIN benchmark AS b\n  WHERE b.overall_avg_net_fee_rate IS NOT NULL\n    AND p.avg_net_fee_rate > b.overall_avg_net_fee_rate\n)\nSELECT AVG(avg_net_fee_rate) AS mean_pair_avg_net_fee_rate,\n       AVG(excess) AS mean_excess_overall_avg\nFROM above_pairs;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Match each fee record to its order (the order's `recordvault` equals the fee's `orderslink`, compared exactly as text), and leave out fee records with no matching order. Group the matched records by trading pair (`mktnote`), with records lacking a trading pair forming one group, and work out each pair's average net fee rate (`feerate` minus `rebrate`). For the benchmark, take the mean of those per-pair average net fee rates, with each trading pair counting equally. Keep only the trading pairs whose average net fee rate is strictly above this benchmark (if the benchmark is missing, keep none), and return a single row with: the average of their average net fee rates, and the average amount by which they exceed the benchmark. Skip missing values in every average (an average with nothing to average is missing), and don't round the results.",
+  "sql": "WITH matched AS (\n  SELECT o.mktnote, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON o.recordvault::text = f.orderslink::text\n), per_pair AS (\n  SELECT mktnote, AVG(net_fee_rate) AS avg_net_fee_rate\n  FROM matched\n  GROUP BY mktnote\n), benchmark AS (\n  SELECT AVG(avg_net_fee_rate) AS benchmark_rate\n  FROM per_pair\n), above_benchmark AS (\n  SELECT p.avg_net_fee_rate, p.avg_net_fee_rate - b.benchmark_rate AS excess_rate\n  FROM per_pair AS p\n  CROSS JOIN benchmark AS b\n  WHERE b.benchmark_rate IS NOT NULL\n    AND p.avg_net_fee_rate > b.benchmark_rate\n)\nSELECT AVG(avg_net_fee_rate) AS average_pair_net_fee_rate,\n       AVG(excess_rate) AS average_excess_over_benchmark\nFROM above_benchmark;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Compute net fee rate as `feerate - rebrate` for fees exactly matched to orders by `orders.recordvault = fees.orderslink`, dropping unmatched fees. Group by `orders.mktnote`, treating missing `mktnote` values as one group; skip missing net fee rates when averaging. Calculate each pair\u2019s average net fee rate, then calculate the overall benchmark as the average of those pair averages, giving each pair equal weight. Return one row containing the mean of the pair averages strictly above the benchmark and the mean amount by which they exceed it, without rounding; if the benchmark is missing, return no pairs",
+  "sql": "WITH pair_averages AS (\n  SELECT o.mktnote, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  GROUP BY o.mktnote\n),\nbenchmark AS (\n  SELECT AVG(avg_net_fee_rate) AS benchmark_rate\n  FROM pair_averages\n)\nSELECT\n  AVG(p.avg_net_fee_rate) AS mean_pair_average_above_benchmark,\n  AVG(p.avg_net_fee_rate - b.benchmark_rate) AS mean_excess_over_benchmark\nFROM pair_averages AS p\nCROSS JOIN benchmark AS b\nWHERE b.benchmark_rate IS NOT NULL\n  AND p.avg_net_fee_rate > b.benchmark_rate;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using fee records matched to orders where the order\u2019s `recordvault` exactly matches the fee\u2019s `orderslink` as text, and dropping unmatched fees, find the trading pairs (`mktnote`, treating missing pairs as one group) whose average net fee rate (`feerate` minus `rebrate`) is strictly above the average of the per-pair average net fee rates, with each pair weighted equally. Return one row containing the mean of those qualifying pairs\u2019 average net fee rates and the mean amount by which they exceed the benchmark. Skip missing values when averaging, return missing if there\u2019s nothing to average, don\u2019t round, and count no pairs if the benchmark is missing.",
+  "sql": "WITH pair_averages AS (\n  SELECT\n    o.mktnote,\n    AVG(f.feerate - f.rebrate) AS avg_net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON o.recordvault::text = f.orderslink::text\n  GROUP BY o.mktnote\n),\nbenchmark AS (\n  SELECT AVG(avg_net_fee_rate) AS avg_pair_rate\n  FROM pair_averages\n),\nqualifying_pairs AS (\n  SELECT p.avg_net_fee_rate, b.avg_pair_rate\n  FROM pair_averages AS p\n  CROSS JOIN benchmark AS b\n  WHERE b.avg_pair_rate IS NOT NULL\n    AND p.avg_net_fee_rate > b.avg_pair_rate\n)\nSELECT\n  AVG(avg_net_fee_rate) AS mean_qualifying_pair_rate,\n  AVG(avg_net_fee_rate - avg_pair_rate) AS mean_excess_over_benchmark\nFROM qualifying_pairs;",
+  "executes": false,
+  "matches": []
+ }
+}

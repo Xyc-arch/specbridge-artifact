@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate * 1.0 / rental_duration) AS avg_per_day_rate FROM film GROUP BY rating), c AS (SELECT AVG(avg_per_day_rate) AS cross_avg FROM r) SELECT AVG(r.avg_replacement_cost) AS avg_replacement_cost, AVG(r.avg_per_day_rate) AS avg_per_day_rate, AVG(r.avg_per_day_rate - c.cross_avg) AS avg_excess_over_cross_rating_avg FROM r CROSS JOIN c WHERE r.avg_per_day_rate > c.cross_avg",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate) * 1.0 / AVG(rental_duration) AS avg_per_day_rate FROM film GROUP BY rating), c AS (SELECT AVG(avg_per_day_rate) AS cross_avg FROM r) SELECT AVG(r.avg_replacement_cost) AS avg_replacement_cost, AVG(r.avg_per_day_rate) AS avg_per_day_rate, AVG(r.avg_per_day_rate - c.cross_avg) AS avg_excess_over_cross_rating_avg FROM r CROSS JOIN c WHERE r.avg_per_day_rate > c.cross_avg",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate * 1.0 / rental_duration) AS per_day_rate FROM film GROUP BY rating), c AS (SELECT r.*, AVG(per_day_rate) OVER () AS cross_avg FROM r) SELECT AVG(avg_replacement_cost) AS avg_replacement_cost, AVG(per_day_rate) AS avg_per_day_rate, AVG(per_day_rate - cross_avg) AS avg_excess_over_cross_avg FROM c WHERE per_day_rate > cross_avg",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate) * 1.0 / AVG(rental_duration) AS per_day_rate FROM film GROUP BY rating), c AS (SELECT r.*, AVG(per_day_rate) OVER () AS cross_avg FROM r) SELECT AVG(avg_replacement_cost) AS avg_replacement_cost, AVG(per_day_rate) AS avg_per_day_rate, AVG(per_day_rate - cross_avg) AS avg_excess_over_cross_avg FROM c WHERE per_day_rate > cross_avg",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS per_day FROM film GROUP BY rating), x AS (SELECT r.*, AVG(per_day) OVER () AS overall FROM r) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(per_day) AS avg_per_day_rate, AVG(per_day - overall) AS avg_excess_over_cross_rating_avg FROM x WHERE per_day > overall",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate) * 1.0 / AVG(rental_duration) AS per_day FROM film GROUP BY rating), x AS (SELECT r.*, AVG(per_day) OVER () AS overall FROM r) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(per_day) AS avg_per_day_rate, AVG(per_day - overall) AS avg_excess_over_cross_rating_avg FROM x WHERE per_day > overall"
+ ],
+ "responses": [
+  {
+   "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate * 1.0 / rental_duration) AS avg_per_day_rate FROM film GROUP BY rating), c AS (SELECT AVG(avg_per_day_rate) AS cross_avg FROM r) SELECT AVG(r.avg_replacement_cost) AS avg_replacement_cost, AVG(r.avg_per_day_rate) AS avg_per_day_rate, AVG(r.avg_per_day_rate - c.cross_avg) AS avg_excess_over_cross_rating_avg FROM r CROSS JOIN c WHERE r.avg_per_day_rate > c.cross_avg",
+   "assumptions": [
+    {
+     "assumption": "A film's per-day rate is rental_rate / rental_duration. A rating's per-day rate is the average of that ratio over its films.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The cross-rating average is the simple, unweighted mean of the 5 rating-level per-day rates.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The single output row averages the qualifying ratings' values with equal weight per rating. That means the mean of their average replacement costs, the mean of their per-day rates, and the mean of their excess over the cross-rating average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "No rounding is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "A rating's per-day rate is the ratio of its averages (average rental_rate divided by average rental_duration) instead of the average of per-film ratios.",
+     "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate) * 1.0 / AVG(rental_duration) AS avg_per_day_rate FROM film GROUP BY rating), c AS (SELECT AVG(avg_per_day_rate) AS cross_avg FROM r) SELECT AVG(r.avg_replacement_cost) AS avg_replacement_cost, AVG(r.avg_per_day_rate) AS avg_per_day_rate, AVG(r.avg_per_day_rate - c.cross_avg) AS avg_excess_over_cross_rating_avg FROM r CROSS JOIN c WHERE r.avg_per_day_rate > c.cross_avg"
+    }
+   ]
+  },
+  {
+   "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate * 1.0 / rental_duration) AS per_day_rate FROM film GROUP BY rating), c AS (SELECT r.*, AVG(per_day_rate) OVER () AS cross_avg FROM r) SELECT AVG(avg_replacement_cost) AS avg_replacement_cost, AVG(per_day_rate) AS avg_per_day_rate, AVG(per_day_rate - cross_avg) AS avg_excess_over_cross_avg FROM c WHERE per_day_rate > cross_avg",
+   "assumptions": [
+    {
+     "assumption": "A rating's per-day rate is the average of each film's rental_rate divided by its rental_duration. The cross-rating average is the unweighted mean of the 5 ratings' per-day rates.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The single output row averages the qualifying ratings' values with equal weight per rating. Its average replacement cost is the mean of the ratings' average replacement costs, and the excess is the mean of (rating per-day rate minus cross-rating average).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "A rating's per-day rate is its average rental_rate divided by its average rental_duration, i.e. a ratio of averages instead of an average of film-level ratios.",
+     "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_replacement_cost, AVG(rental_rate) * 1.0 / AVG(rental_duration) AS per_day_rate FROM film GROUP BY rating), c AS (SELECT r.*, AVG(per_day_rate) OVER () AS cross_avg FROM r) SELECT AVG(avg_replacement_cost) AS avg_replacement_cost, AVG(per_day_rate) AS avg_per_day_rate, AVG(per_day_rate - cross_avg) AS avg_excess_over_cross_avg FROM c WHERE per_day_rate > cross_avg"
+    }
+   ]
+  },
+  {
+   "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS per_day FROM film GROUP BY rating), x AS (SELECT r.*, AVG(per_day) OVER () AS overall FROM r) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(per_day) AS avg_per_day_rate, AVG(per_day - overall) AS avg_excess_over_cross_rating_avg FROM x WHERE per_day > overall",
+   "assumptions": [
+    {
+     "assumption": "A rating's per-day rate is the average over its films of rental_rate / rental_duration (not average rate divided by average duration).",
+     "unresolved": true
+    },
+    {
+     "assumption": "The cross-rating average is the simple unweighted mean of the 5 rating-level per-day rates.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The single output row averages the qualifying ratings' values with equal weight per rating (not weighted by film count).",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Per-day rate of a rating defined as AVG(rental_rate) / AVG(rental_duration) for that rating.",
+     "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate) * 1.0 / AVG(rental_duration) AS per_day FROM film GROUP BY rating), x AS (SELECT r.*, AVG(per_day) OVER () AS overall FROM r) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(per_day) AS avg_per_day_rate, AVG(per_day - overall) AS avg_excess_over_cross_rating_avg FROM x WHERE per_day > overall"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-a2c14da395",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42579,
+  "chars_out": 4708
+ }
+}

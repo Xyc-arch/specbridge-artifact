@@ -1,0 +1,58 @@
+{
+ "interpretations": [
+  "Average the per-line ratio (spent \u2212 amount)/amount for each event, using plain division, so a budget line with amount 0 is an error or NULL. Rank within each location with RANK() ordered by the average descending. Events whose average is NULL come last. Keep rank \u2264 3.",
+  "Same as 1, but budget lines with amount = 0 are excluded from the average, so no division by zero happens.",
+  "Same as 1, but the average is a ratio of sums, (sum of spent \u2212 sum of amount) / sum of amount per event, instead of an average of per-line ratios.",
+  "Only events with at least one budget line are included (inner join). Events with no budget lines are left out.",
+  "Events with no budget lines are kept (left join) and get a NULL average. They rank last within their location and appear if their rank is \u2264 3.",
+  "\"Events with no average last\" is read as NULLs sorted last in the descending ordering. These events are ranked after all events with an average.",
+  "\"Events with no average last\" is read as NULL-average events being left out of the ranking entirely and not shown.",
+  "Ties use RANK() semantics (1, 1, 3), so ranks are skipped after a tie. Rank \u2264 3 can return more than 3 events when there are ties at the boundary.",
+  "Events with a NULL average tie with one another and share a rank, which could be 3 or better if few events in the location have averages.",
+  "\"Events with no recorded location\" means location IS NULL. These are excluded.",
+  "\"Events with no recorded location\" means location is NULL or an empty string (or only whitespace). These are excluded.",
+  "Events with a NULL or empty location are excluded before ranking, so they do not form their own partition.",
+  "Matching budget lines to events is through budget.link_to_event = event.event_id. Budget lines with a NULL link are ignored.",
+  "\"Ranked 3 or better\" means rank \u2264 3, so ranks 1, 2 and 3 are shown.",
+  "The average ratio is shown unrounded.",
+  "The average ratio is shown as a percentage or rounded.",
+  "Output columns are event_id, location, average ratio and rank, in that order.",
+  "Output is ordered by location and rank, or by rank alone, or by average ratio descending. No ordering is specified.",
+  "Events at the same location with the same average share a rank, and the next rank is skipped. This could be read as DENSE_RANK() if \"skipped\" is ignored, but the stated rule is RANK().",
+  "Events with the same location string that differ in case or whitespace are treated as different locations. Alternatively, they are normalized into the same location.",
+  "A positive ratio means the event overspent its budget. A negative ratio means it underspent. Highest-first ranking puts the most over-budget events first.",
+  "Budget lines with a NULL spent or NULL amount give a NULL ratio. They are skipped by AVG and are not counted as zero.",
+  "Budget lines with a NULL ratio are treated as 0 in the average. This is unlikely.",
+  "An event whose budget lines all have NULL or invalid ratios gets a NULL average and is ranked last.",
+  "Missing interpretations:",
+  "Budget lines with amount = 0 give NULL via NULLIF, so they are skipped by AVG instead of causing an error (this differs from excluding them with a WHERE filter only when an event has only zero-amount lines, which then gets a NULL average and ranks last rather than disappearing).",
+  "The ratio is computed with integer division, since `amount` is INTEGER and `spent` is REAL. This is not an issue if `spent` is REAL, but it could be read as truncating if `spent` is cast to integer.",
+  "Events whose only budget lines have amount 0 are dropped from the event list entirely, because the zero-amount lines are filtered out before grouping.",
+  "Rank is computed before the location filter, so events with no location form their own partition and could affect other ranks. This is unlikely, since the partition is by location.",
+  "Rank \u2264 3 is applied after ranking, in an outer query or CTE, rather than by limiting rows per location with ROW_NUMBER. This is the same as the stated RANK() rule.",
+  "\"Budget lines (matched by event id)\" is read as matching on `budget.link_to_event`, with the event table's `event_id` also matched through `expense` or `attendance`. This is unlikely.",
+  "Events with a NULL average are ranked last and then excluded because \"events with no average\" is read as not having a rank, while events with averages are kept.",
+  "The average is of the absolute ratio, abs((spent \u2212 amount)/amount), rather than the signed ratio.",
+  "Ranking within each location uses a tie-break on event id to make the order deterministic, but ties still share a rank."
+ ],
+ "queries": [
+  "SELECT event_id, location, avg_ratio, rnk\nFROM (\n    SELECT e.event_id,\n           e.location,\n           AVG((b.spent - b.amount) / b.amount) AS avg_ratio,\n           RANK() OVER (PARTITION BY e.location ORDER BY AVG((b.spent - b.amount) / b.amount) DESC NULLS LAST) AS rnk\n    FROM event e\n    JOIN budget b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.location\n)\nWHERE rnk <= 3;\n",
+  "SELECT AVG(spent * 1.0 / amount) FROM budget WHERE amount <> 0;\n",
+  "SELECT e.event_name, (SUM(b.spent) - SUM(b.amount)) * 1.0 / SUM(b.amount) AS ratio\nFROM budget b\nJOIN event e ON b.link_to_event = e.event_id\nGROUP BY e.event_id, e.event_name",
+  "SELECT event_name, location, avg_amount\nFROM (\n    SELECT e.event_name,\n           e.location,\n           AVG(b.amount) AS avg_amount,\n           RANK() OVER (PARTITION BY e.location ORDER BY AVG(b.amount) DESC) AS rnk\n    FROM event e\n    LEFT JOIN budget b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.event_name, e.location\n)\nWHERE rnk <= 3;\n",
+  "SELECT e.event_name\nFROM event e\nLEFT JOIN budget b ON b.link_to_event = e.event_id\nLEFT JOIN expense x ON x.link_to_budget = b.budget_id\nGROUP BY e.event_id, e.event_name\nORDER BY AVG(x.cost) IS NULL, AVG(x.cost) DESC;\n"
+ ],
+ "raw": [
+  "1. Average the per-line ratio (spent \u2212 amount)/amount for each event, using plain division, so a budget line with amount 0 is an error or NULL. Rank within each location with RANK() ordered by the average descending. Events whose average is NULL come last. Keep rank \u2264 3.\n2. Same as 1, but budget lines with amount = 0 are excluded from the average, so no division by zero happens.\n3. Same as 1, but the average is a ratio of sums, (sum of spent \u2212 sum of amount) / sum of amount per event, instead of an average of per-line ratios.\n4. Only events with at least one budget line are included (inner join). Events with no budget lines are left out.\n5. Events with no budget lines are kept (left join) and get a NULL average. They rank last within their location and appear if their rank is \u2264 3.\n6. \"Events with no average last\" is read as NULLs sorted last in the descending ordering. These events are ranked after all events with an average.\n7. \"Events with no average last\" is read as NULL-average events being left out of the ranking entirely and not shown.\n8. Ties use RANK() semantics (1, 1, 3), so ranks are skipped after a tie. Rank \u2264 3 can return more than 3 events when there are ties at the boundary.\n9. Events with a NULL average tie with one another and share a rank, which could be 3 or better if few events in the location have averages.\n10. \"Events with no recorded location\" means location IS NULL. These are excluded.\n11. \"Events with no recorded location\" means location is NULL or an empty string (or only whitespace). These are excluded.\n12. Events with a NULL or empty location are excluded before ranking, so they do not form their own partition.\n13. Matching budget lines to events is through budget.link_to_event = event.event_id. Budget lines with a NULL link are ignored.\n14. \"Ranked 3 or better\" means rank \u2264 3, so ranks 1, 2 and 3 are shown.\n15. The average ratio is shown unrounded.\n16. The average ratio is shown as a percentage or rounded.\n17. Output columns are event_id, location, average ratio and rank, in that order.\n18. Output is ordered by location and rank, or by rank alone, or by average ratio descending. No ordering is specified.\n19. Events at the same location with the same average share a rank, and the next rank is skipped. This could be read as DENSE_RANK() if \"skipped\" is ignored, but the stated rule is RANK().\n20. Events with the same location string that differ in case or whitespace are treated as different locations. Alternatively, they are normalized into the same location.\n21. A positive ratio means the event overspent its budget. A negative ratio means it underspent. Highest-first ranking puts the most over-budget events first.\n22. Budget lines with a NULL spent or NULL amount give a NULL ratio. They are skipped by AVG and are not counted as zero.\n23. Budget lines with a NULL ratio are treated as 0 in the average. This is unlikely.\n24. An event whose budget lines all have NULL or invalid ratios gets a NULL average and is ranked last.",
+  "Missing interpretations:\n\nBudget lines with amount = 0 give NULL via NULLIF, so they are skipped by AVG instead of causing an error (this differs from excluding them with a WHERE filter only when an event has only zero-amount lines, which then gets a NULL average and ranks last rather than disappearing).\nThe ratio is computed with integer division, since `amount` is INTEGER and `spent` is REAL. This is not an issue if `spent` is REAL, but it could be read as truncating if `spent` is cast to integer.\nEvents whose only budget lines have amount 0 are dropped from the event list entirely, because the zero-amount lines are filtered out before grouping.\nRank is computed before the location filter, so events with no location form their own partition and could affect other ranks. This is unlikely, since the partition is by location.\nRank \u2264 3 is applied after ranking, in an outer query or CTE, rather than by limiting rows per location with ROW_NUMBER. This is the same as the stated RANK() rule.\n\"Budget lines (matched by event id)\" is read as matching on `budget.link_to_event`, with the event table's `event_id` also matched through `expense` or `attendance`. This is unlikely.\nEvents with a NULL average are ranked last and then excluded because \"events with no average\" is read as not having a rank, while events with averages are kept.\nThe average is of the absolute ratio, abs((spent \u2212 amount)/amount), rather than the signed ratio.\nRanking within each location uses a tie-break on event id to make the order deterministic, but ties still share a rank."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-be1e5ce229",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 62049,
+  "chars_out": 6367
+ }
+}

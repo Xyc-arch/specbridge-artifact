@@ -1,0 +1,33 @@
+{
+ "interpretations": [
+  "Include every customer, treating customers without invoices as having spent zero. Select customers whose revenue share exceeds the average share across all customers; report their mean total spend, mean share, and mean share minus that average share.",
+  "Apply the same all-customer threshold, but report the qualifying customers\u2019 mean share excess relative to the average share: `(share / average share) - 1`.",
+  "Apply the same all-customer threshold, but use the mean invoice amount for qualifying customers as the spending figure; report the mean share and mean absolute share excess.",
+  "Apply the same all-customer threshold and mean invoice amount, but report relative share excess.",
+  "Consider only customers with invoices when calculating the average share and selecting customers above it; report their mean total spend, mean share, and mean absolute share excess.",
+  "Apply the invoiced-customer threshold, but report relative share excess.",
+  "Apply the invoiced-customer threshold, but use the mean invoice amount for qualifying customers as the spending figure; report the mean share and mean absolute share excess.",
+  "Apply the invoiced-customer threshold and mean invoice amount, but report relative share excess."
+ ],
+ "queries": [
+  "WITH customer_spend AS (\n    SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS spend\n    FROM Customer AS c\n    LEFT JOIN Invoice AS i ON i.CustomerId = c.CustomerId\n    GROUP BY c.CustomerId\n),\ncustomer_shares AS (\n    SELECT\n        spend,\n        1.0 * spend / NULLIF(SUM(spend) OVER (), 0) AS share,\n        1.0 / COUNT(*) OVER () AS average_share\n    FROM customer_spend\n)\nSELECT\n    AVG(spend) AS mean_total_spend,\n    AVG(share) AS mean_share,\n    AVG(share - average_share) AS mean_share_above_average\nFROM customer_shares\nWHERE share > average_share",
+  "WITH customer_totals AS (\n    SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total_spent\n    FROM Customer AS c\n    LEFT JOIN Invoice AS i ON i.CustomerId = c.CustomerId\n    GROUP BY c.CustomerId\n),\nshares AS (\n    SELECT total_spent * 1.0 / SUM(total_spent) OVER () AS share\n    FROM customer_totals\n),\nshares_with_average AS (\n    SELECT share, AVG(share) OVER () AS average_share\n    FROM shares\n)\nSELECT AVG(share / average_share - 1) AS mean_share_excess\nFROM shares_with_average\nWHERE share > average_share",
+  "WITH customer_spending AS (\n    SELECT c.CustomerId,\n           COALESCE(SUM(i.Total), 0) AS total_spending,\n           AVG(i.Total) AS mean_invoice_amount\n    FROM Customer AS c\n    LEFT JOIN Invoice AS i ON i.CustomerId = c.CustomerId\n    GROUP BY c.CustomerId\n),\nqualifying AS (\n    SELECT mean_invoice_amount\n    FROM customer_spending\n    WHERE total_spending > (SELECT AVG(total_spending) FROM customer_spending)\n),\nshares AS (\n    SELECT mean_invoice_amount * 1.0\n               / SUM(mean_invoice_amount) OVER () AS share,\n           1.0 / COUNT(*) OVER () AS equal_share\n    FROM qualifying\n)\nSELECT AVG(share) AS mean_share,\n       AVG(ABS(share - equal_share)) AS mean_absolute_share_excess\nFROM shares;\n",
+  "WITH customer_spend AS (\n    SELECT c.CustomerId,\n           AVG(i.Total) AS mean_invoice_amount,\n           COALESCE(SUM(i.Total), 0) AS total_spend\n    FROM Customer AS c\n    LEFT JOIN Invoice AS i ON i.CustomerId = c.CustomerId\n    GROUP BY c.CustomerId\n),\nthreshold AS (\n    SELECT AVG(total_spend) AS mean_customer_spend\n    FROM customer_spend\n)\nSELECT cs.CustomerId,\n       cs.mean_invoice_amount,\n       cs.total_spend / t.mean_customer_spend - 1 AS relative_share_excess\nFROM customer_spend AS cs\nCROSS JOIN threshold AS t\nWHERE cs.total_spend > t.mean_customer_spend",
+  "WITH customer_spend AS (\n    SELECT CustomerId, SUM(Total) AS total_spend\n    FROM Invoice\n    GROUP BY CustomerId\n),\ncustomer_share AS (\n    SELECT total_spend,\n           1.0 * total_spend / SUM(total_spend) OVER () AS share\n    FROM customer_spend\n),\nshares_with_average AS (\n    SELECT total_spend,\n           share,\n           AVG(share) OVER () AS average_share\n    FROM customer_share\n)\nSELECT AVG(total_spend) AS mean_total_spend,\n       AVG(share) AS mean_share,\n       AVG(ABS(share - average_share)) AS mean_absolute_share_excess\nFROM shares_with_average\nWHERE share > average_share",
+  "WITH customer_spend AS (\n  SELECT CustomerId, SUM(Total) AS spend\n  FROM Invoice\n  GROUP BY CustomerId\n),\nbenchmark AS (\n  SELECT AVG(spend) AS average_spend\n  FROM customer_spend\n)\nSELECT customer_spend.spend / benchmark.average_spend - 1 AS relative_share_excess\nFROM customer_spend\nCROSS JOIN benchmark\nWHERE customer_spend.spend > benchmark.average_spend"
+ ],
+ "raw": [
+  "1. Include every customer, treating customers without invoices as having spent zero. Select customers whose revenue share exceeds the average share across all customers; report their mean total spend, mean share, and mean share minus that average share.\n2. Apply the same all-customer threshold, but report the qualifying customers\u2019 mean share excess relative to the average share: `(share / average share) - 1`.\n3. Apply the same all-customer threshold, but use the mean invoice amount for qualifying customers as the spending figure; report the mean share and mean absolute share excess.\n4. Apply the same all-customer threshold and mean invoice amount, but report relative share excess.\n5. Consider only customers with invoices when calculating the average share and selecting customers above it; report their mean total spend, mean share, and mean absolute share excess.\n6. Apply the invoiced-customer threshold, but report relative share excess.\n7. Apply the invoiced-customer threshold, but use the mean invoice amount for qualifying customers as the spending figure; report the mean share and mean absolute share excess.\n8. Apply the invoiced-customer threshold and mean invoice amount, but report relative share excess.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-d901f0eed2",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 41685,
+  "chars_out": 4598
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "The first benchmark is the mean unfilled quantity over all execution records.",
+ "a": {
+  "request": "Using the order executions, find each order's (`ordersmark`) average unfilled quantity (`remaincount`), ignoring missing values; executions with no order reference count together as one order. Take the mean unfilled quantity across all individual execution records, and keep the orders whose average is above it, noting how far above it they are. Among those orders, take the mean of their averages, keep only the orders above that mean as well, and note how far above it they are. Return one row with three values, without rounding: the average of the remaining orders' averages, their average excess over the first benchmark, and their average excess over the second.",
+  "sql": "WITH per_order AS (SELECT ordersmark, AVG(remaincount) AS avg_remain FROM orderexecutions GROUP BY ordersmark), execution_mean AS (SELECT AVG(remaincount) AS benchmark FROM orderexecutions), above_first AS (SELECT p.ordersmark, p.avg_remain, p.avg_remain - e.benchmark AS excess_first FROM per_order p CROSS JOIN execution_mean e WHERE p.avg_remain > e.benchmark), second_mean AS (SELECT AVG(avg_remain) AS benchmark FROM above_first), above_second AS (SELECT a.avg_remain, a.excess_first, a.avg_remain - s.benchmark AS excess_second FROM above_first a CROSS JOIN second_mean s WHERE a.avg_remain > s.benchmark) SELECT AVG(avg_remain) AS average_remaining_average, AVG(excess_first) AS average_excess_over_first_benchmark, AVG(excess_second) AS average_excess_over_second_benchmark FROM above_second;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Using the order executions, find each order's (`ordersmark`) average unfilled quantity (`remaincount`), ignoring missing values; executions with no order reference count together as one order. Which orders are above the overall average unfilled quantity, and by how much? Among those orders, keep only the ones that are also above the group's own average, and note how far above it they are. Return one row with three values, without rounding: the average of these orders' averages, their average excess over the overall average, and their average excess over the second average. The first benchmark is the mean unfilled quantity over all execution records.",
+  "sql": "WITH execution_avgs AS (\n    SELECT ordersmark, AVG(remaincount) AS avg_unfilled\n    FROM orderexecutions\n    WHERE remaincount IS NOT NULL\n    GROUP BY ordersmark\n),\noverall_avg AS (\n    SELECT AVG(remaincount) AS avg_unfilled\n    FROM orderexecutions\n),\nqualified AS (\n    SELECT e.avg_unfilled\n    FROM execution_avgs e\n    CROSS JOIN overall_avg o\n    WHERE e.avg_unfilled > o.avg_unfilled\n),\nqualified_stats AS (\n    SELECT AVG(avg_unfilled) AS group_avg\n    FROM qualified\n),\nfinal_orders AS (\n    SELECT q.avg_unfilled, o.avg_unfilled AS overall_avg, s.group_avg\n    FROM qualified q\n    CROSS JOIN overall_avg o\n    CROSS JOIN qualified_stats s\n    WHERE q.avg_unfilled > s.group_avg\n)\nSELECT AVG(avg_unfilled),\n       AVG(avg_unfilled - overall_avg),\n       AVG(avg_unfilled - group_avg)\nFROM final_orders;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Compute each `ordersmark` group\u2019s mean non-NULL `remaincount`, treating NULL `ordersmark` values as one group. Keep groups whose mean exceeds the mean of all non-NULL execution `remaincount` values, and calculate their excess over that overall mean. From those groups, keep only groups whose mean also exceeds the mean of the group means for all orders, and calculate their excess over that group mean. Return one row containing the mean of the retained groups\u2019 means, their mean excess over the overall execution mean, and their mean excess over the mean of all order means, without rounding",
+  "sql": "WITH order_means AS (\n  SELECT ordersmark, AVG(remaincount) AS mean_remaincount\n  FROM orderexecutions\n  GROUP BY ordersmark\n), overall_mean AS (\n  SELECT AVG(remaincount) AS mean_remaincount\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n), group_mean AS (\n  SELECT AVG(mean_remaincount) AS mean_remaincount\n  FROM order_means\n), retained AS (\n  SELECT om.mean_remaincount, o.mean_remaincount AS overall_mean, g.mean_remaincount AS group_mean\n  FROM order_means om\n  CROSS JOIN overall_mean o\n  CROSS JOIN group_mean g\n  WHERE om.mean_remaincount > o.mean_remaincount\n    AND om.mean_remaincount > g.mean_remaincount\n)\nSELECT AVG(mean_remaincount) AS mean_retained_group_mean,\n       AVG(mean_remaincount - overall_mean) AS mean_excess_over_overall_execution_mean,\n       AVG(mean_remaincount - group_mean) AS mean_excess_over_all_order_group_means\nFROM retained;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the order execution records, calculate the mean unfilled quantity (`remaincount`) across all records. Then, for each order (`ordersmark`), calculate its average unfilled quantity, ignoring missing values; treat executions without an order reference as one order. Keep orders whose average exceeds the execution-record mean, then retain only those whose average also exceeds the mean for that group. Return one row with three unrounded values: the average of the retained orders\u2019 averages, their average excess over the execution-record mean, and their average excess over the group mean.",
+  "sql": "WITH execution_mean AS (\n  SELECT AVG(remaincount) AS mean_remain\n  FROM orderexecutions\n), order_averages AS (\n  SELECT ordersmark, AVG(remaincount) AS avg_remain\n  FROM orderexecutions\n  GROUP BY ordersmark\n), above_execution_mean AS (\n  SELECT oa.avg_remain, em.mean_remain\n  FROM order_averages oa\n  CROSS JOIN execution_mean em\n  WHERE oa.avg_remain > em.mean_remain\n), group_mean AS (\n  SELECT AVG(avg_remain) AS mean_avg_remain\n  FROM above_execution_mean\n), retained AS (\n  SELECT a.avg_remain, a.mean_remain, gm.mean_avg_remain\n  FROM above_execution_mean a\n  CROSS JOIN group_mean gm\n  WHERE a.avg_remain > gm.mean_avg_remain\n)\nSELECT AVG(avg_remain) AS average_retained_orders_average,\n       AVG(avg_remain - mean_remain) AS average_excess_over_execution_mean,\n       AVG(avg_remain - mean_avg_remain) AS average_excess_over_group_mean\nFROM retained;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

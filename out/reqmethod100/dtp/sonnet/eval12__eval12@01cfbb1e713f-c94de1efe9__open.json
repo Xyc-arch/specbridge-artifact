@@ -1,0 +1,43 @@
+{
+ "interpretations": [
+  "Ratio is computed per patient as AVG(HGB)/AVG(HCT), where each average ignores nulls separately. The mean of that ratio is then taken across patients.",
+  "Ratio is computed per patient as AVG(HGB/HCT), the average of the row-level ratios. Rows with a null HGB or HCT are ignored. The mean is taken across patients.",
+  "The \"mean of that ratio across all patients\" is the average of the per-patient ratios, each patient weighted equally.",
+  "The \"mean of that ratio across all patients\" is the average of the row-level HGB/HCT ratios over all lab records, so patients with more records weigh more.",
+  "The \"mean of that ratio across all patients\" is the overall SUM(HGB)/SUM(HCT) across all records.",
+  "The mean is computed only over patients who have a matching lab record and a non-null ratio. Alternatively, it is computed over all patients in the Patient table, with patients lacking lab data ignored as missing.",
+  "Grouping by ID and SEX gives one row per patient. If a patient has a null SEX, it still forms its own group. Alternatively, patients with null SEX are excluded.",
+  "Rows where HCT is 0 are treated as division by zero and yield a null ratio. Alternatively, they are excluded or cause an error.",
+  "A patient whose ratio is null is excluded, since null is not greater than the mean. Alternatively, such patients are kept with a null gap and sorted last.",
+  "\"Greater than\" is strict (>), so patients equal to the mean are excluded. Alternatively, it is read as \u2265.",
+  "Average WBC is computed over all of a patient's lab rows with non-null WBC, independent of whether HGB/HCT are present in the same row. Alternatively, WBC is averaged only over rows where HGB and HCT are also non-null.",
+  "The gap is the ratio minus the mean, ordered descending. Ties have no specified order, or are broken by patient ID.",
+  "The output columns are ID, SEX, average WBC, ratio and gap, with the first 10 rows after sorting and no rounding.",
+  "Integer division could apply if HGB and HCT were integers, but both are REAL, so the division is floating point.",
+  "Missing interpretations:",
+  "\"Mean of that ratio across all patients\" is computed over the post-filter set of patients that remain after the join and grouping. That is the same set as the output candidates, so the mean is not computed over a wider set such as patients with no sex value.",
+  "The \"mean\" is a window function, AVG(ratio) OVER (), computed after grouping. Alternatively, it is a scalar subquery that recomputes the per-patient aggregation. These give the same value, but only if both use the same patient set.",
+  "HGB/HCT rows are included only when both HGB and HCT are non-null, for the AVG(HGB)/AVG(HCT) reading. Alternatively, each average uses all of its own non-null rows, so the numerator and denominator may come from different row sets.",
+  "\"Missing values last\" in the sort means NULLs sort after all non-null gaps in descending order. Because patients with a null ratio are filtered out by the comparison, this only matters under the keep-null-ratio reading.",
+  "A patient whose average WBC is null (all WBC values missing) is still kept, and the WBC output is null."
+ ],
+ "queries": [
+  "SELECT AVG(r) FROM (SELECT AVG(HGB) / AVG(HCT) AS r FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL AND AVG(HCT) IS NOT NULL AND AVG(HCT) <> 0)",
+  "SELECT AVG(patient_ratio) FROM (\n  SELECT ID, AVG(HGB * 1.0 / HCT) AS patient_ratio\n  FROM Laboratory\n  WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0\n  GROUP BY ID\n);\n",
+  "SELECT AVG(HGB * 1.0 / HCT) FROM Laboratory WHERE HCT IS NOT NULL AND HCT <> 0 AND HGB IS NOT NULL",
+  "SELECT SUM(HGB) / SUM(HCT) FROM Laboratory"
+ ],
+ "raw": [
+  "1. Ratio is computed per patient as AVG(HGB)/AVG(HCT), where each average ignores nulls separately. The mean of that ratio is then taken across patients.\n2. Ratio is computed per patient as AVG(HGB/HCT), the average of the row-level ratios. Rows with a null HGB or HCT are ignored. The mean is taken across patients.\n3. The \"mean of that ratio across all patients\" is the average of the per-patient ratios, each patient weighted equally.\n4. The \"mean of that ratio across all patients\" is the average of the row-level HGB/HCT ratios over all lab records, so patients with more records weigh more.\n5. The \"mean of that ratio across all patients\" is the overall SUM(HGB)/SUM(HCT) across all records.\n6. The mean is computed only over patients who have a matching lab record and a non-null ratio. Alternatively, it is computed over all patients in the Patient table, with patients lacking lab data ignored as missing.\n7. Grouping by ID and SEX gives one row per patient. If a patient has a null SEX, it still forms its own group. Alternatively, patients with null SEX are excluded.\n8. Rows where HCT is 0 are treated as division by zero and yield a null ratio. Alternatively, they are excluded or cause an error.\n9. A patient whose ratio is null is excluded, since null is not greater than the mean. Alternatively, such patients are kept with a null gap and sorted last.\n10. \"Greater than\" is strict (>), so patients equal to the mean are excluded. Alternatively, it is read as \u2265.\n11. Average WBC is computed over all of a patient's lab rows with non-null WBC, independent of whether HGB/HCT are present in the same row. Alternatively, WBC is averaged only over rows where HGB and HCT are also non-null.\n12. The gap is the ratio minus the mean, ordered descending. Ties have no specified order, or are broken by patient ID.\n13. The output columns are ID, SEX, average WBC, ratio and gap, with the first 10 rows after sorting and no rounding.\n14. Integer division could apply if HGB and HCT were integers, but both are REAL, so the division is floating point.",
+  "Missing interpretations:\n\n\"Mean of that ratio across all patients\" is computed over the post-filter set of patients that remain after the join and grouping. That is the same set as the output candidates, so the mean is not computed over a wider set such as patients with no sex value.\n\nThe \"mean\" is a window function, AVG(ratio) OVER (), computed after grouping. Alternatively, it is a scalar subquery that recomputes the per-patient aggregation. These give the same value, but only if both use the same patient set.\n\nHGB/HCT rows are included only when both HGB and HCT are non-null, for the AVG(HGB)/AVG(HCT) reading. Alternatively, each average uses all of its own non-null rows, so the numerator and denominator may come from different row sets.\n\n\"Missing values last\" in the sort means NULLs sort after all non-null gaps in descending order. Because patients with a null ratio are filtered out by the comparison, this only matters under the keep-null-ratio reading.\n\nA patient whose average WBC is null (all WBC values missing) is still kept, and the WBC output is null."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67806,
+  "chars_out": 4249
+ }
+}

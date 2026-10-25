@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bf298fafe5",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Compare each status's average leftover (amount \u2212 spent) with the average leftover over all budget rows taken together.",
+ "a": {
+  "request": "For each event status in the budget table (`budget.event_status`), what is the average of the amount budgeted minus the amount spent (`amount` \u2212 `spent`), ignoring rows where that difference is missing? How far is each status's average from the baseline you get by averaging `amount` \u2212 `spent` across all budget rows together, with each budget row counting equally? Return the status, its average, and its average minus that baseline, all unrounded. Return nothing if the baseline is missing.",
+  "sql": "WITH baseline AS (\n    SELECT AVG(amount - spent) AS baseline_avg\n    FROM budget\n)\nSELECT b.event_status AS status,\n       AVG(b.amount - b.spent) AS average_difference,\n       AVG(b.amount - b.spent) - baseline.baseline_avg AS difference_from_baseline\nFROM budget AS b\nCROSS JOIN baseline\nWHERE b.amount - b.spent IS NOT NULL\n  AND baseline.baseline_avg IS NOT NULL\nGROUP BY b.event_status;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each budget event_status, calculate the average of amount minus spent over rows where both values are present, and show that average and its difference from the average across all budget rows with both values present; return no results if the overall average is unavailable",
+  "sql": "WITH overall AS (\n    SELECT AVG(amount - spent) AS overall_avg\n    FROM budget\n    WHERE amount IS NOT NULL AND spent IS NOT NULL\n)\nSELECT b.event_status,\n       AVG(b.amount - b.spent) AS average_amount_minus_spent,\n       AVG(b.amount - b.spent) - o.overall_avg AS difference_from_overall_average\nFROM budget AS b\nCROSS JOIN overall AS o\nWHERE b.amount IS NOT NULL\n  AND b.spent IS NOT NULL\n  AND o.overall_avg IS NOT NULL\nGROUP BY b.event_status;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each event status in the budget table, what's the average amount left over (amount budgeted minus amount spent, ignoring missing values), and how does it compare with the overall average? Show the status, its average, and its difference from the overall average, unrounded, and return nothing if there is no overall average to compare against. Compare each status's average leftover (amount \u2212 spent) with the average leftover over all budget rows taken together.",
+  "sql": "WITH overall AS (\n    SELECT AVG(amount - spent) AS overall_avg\n    FROM budget\n    WHERE amount IS NOT NULL AND spent IS NOT NULL\n), status_averages AS (\n    SELECT event_status, AVG(amount - spent) AS status_avg\n    FROM budget\n    WHERE amount IS NOT NULL AND spent IS NOT NULL\n    GROUP BY event_status\n)\nSELECT s.event_status AS status,\n       s.status_avg AS average_leftover,\n       s.status_avg - o.overall_avg AS difference_from_overall_average\nFROM status_averages AS s\nCROSS JOIN overall AS o\nWHERE o.overall_avg IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each event status in the budget table, what is the average leftover amount (amount budgeted minus amount spent), and how does it compare with the average leftover across all budget rows? Ignore missing values, report the averages and differences unrounded, and return nothing if there is no overall average to compare against.",
+  "sql": "WITH overall AS (\n    SELECT AVG(amount - spent) AS overall_avg\n    FROM budget\n    WHERE amount IS NOT NULL AND spent IS NOT NULL\n)\nSELECT event_status,\n       AVG(amount - spent) AS average_leftover,\n       AVG(amount - spent) - overall.overall_avg AS difference_from_overall\nFROM budget\nCROSS JOIN overall\nWHERE amount IS NOT NULL AND spent IS NOT NULL\n  AND overall.overall_avg IS NOT NULL\nGROUP BY event_status;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

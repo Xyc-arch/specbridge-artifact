@@ -1,0 +1,94 @@
+{
+ "queries": [
+  "WITH pr AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS r FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), ov AS (SELECT AVG(r) AS a FROM pr), g1 AS (SELECT pr.ID, pr.r, pr.r - ov.a AS d1 FROM pr, ov WHERE pr.r > ov.a), ga AS (SELECT AVG(r) AS a FROM g1), g2 AS (SELECT g1.r, g1.d1, g1.r - ga.a AS d2 FROM g1, ga WHERE g1.r > ga.a) SELECT AVG(r) AS avg_ratio, AVG(d1) AS avg_above_overall, AVG(d2) AS avg_above_group FROM g2;",
+  "WITH pr AS (SELECT ID, Date, HGB * 1.0 / HCT AS r FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0), ov AS (SELECT AVG(r) AS a FROM pr), g1 AS (SELECT pr.r, pr.r - ov.a AS d1 FROM pr, ov WHERE pr.r > ov.a), ga AS (SELECT AVG(r) AS a FROM g1), g2 AS (SELECT g1.r, g1.d1, g1.r - ga.a AS d2 FROM g1, ga WHERE g1.r > ga.a) SELECT AVG(r) AS avg_ratio, AVG(d1) AS avg_above_overall, AVG(d2) AS avg_above_group FROM g2;",
+  "WITH pr AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), overall AS (SELECT AVG(ratio) AS avg_all FROM pr), g1 AS (SELECT pr.ID, pr.ratio, pr.ratio - o.avg_all AS above_overall FROM pr, overall o WHERE pr.ratio > o.avg_all), grp AS (SELECT AVG(ratio) AS avg_grp FROM g1), g2 AS (SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - grp.avg_grp AS above_group FROM g1, grp WHERE g1.ratio > grp.avg_grp) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2",
+  "WITH r AS (SELECT ID, HGB * 1.0 / HCT AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0), g1 AS (SELECT ratio, ratio - (SELECT AVG(ratio) FROM r) AS above_overall FROM r WHERE ratio > (SELECT AVG(ratio) FROM r)), g2 AS (SELECT ratio, above_overall, ratio - (SELECT AVG(ratio) FROM g1) AS above_group FROM g1 WHERE ratio > (SELECT AVG(ratio) FROM g1)) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2",
+  "WITH pr AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), overall AS (SELECT AVG(ratio) AS avg_all FROM pr), g1 AS (SELECT pr.ID, pr.ratio, pr.ratio - o.avg_all AS above_overall FROM pr CROSS JOIN overall o WHERE pr.ratio > o.avg_all), g1avg AS (SELECT AVG(ratio) AS avg_group FROM g1), g2 AS (SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - a.avg_group AS above_group FROM g1 CROSS JOIN g1avg a WHERE g1.ratio > a.avg_group) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2",
+  "WITH pr AS (SELECT ID, SUM(HGB) * 1.0 / SUM(HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL GROUP BY ID HAVING SUM(HCT) <> 0), overall AS (SELECT AVG(ratio) AS avg_all FROM pr), g1 AS (SELECT pr.ID, pr.ratio, pr.ratio - o.avg_all AS above_overall FROM pr CROSS JOIN overall o WHERE pr.ratio > o.avg_all), g1avg AS (SELECT AVG(ratio) AS avg_group FROM g1), g2 AS (SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - a.avg_group AS above_group FROM g1 CROSS JOIN g1avg a WHERE g1.ratio > a.avg_group) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2"
+ ],
+ "responses": [
+  {
+   "sql": "WITH pr AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS r FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), ov AS (SELECT AVG(r) AS a FROM pr), g1 AS (SELECT pr.ID, pr.r, pr.r - ov.a AS d1 FROM pr, ov WHERE pr.r > ov.a), ga AS (SELECT AVG(r) AS a FROM g1), g2 AS (SELECT g1.r, g1.d1, g1.r - ga.a AS d2 FROM g1, ga WHERE g1.r > ga.a) SELECT AVG(r) AS avg_ratio, AVG(d1) AS avg_above_overall, AVG(d2) AS avg_above_group FROM g2;",
+   "assumptions": [
+    {
+     "assumption": "A patient has multiple lab tests, so each patient's ratio is the mean of HGB/HCT over all of their lab rows with non-null HGB and non-zero, non-null HCT.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The 'overall average across all patients' is the unweighted mean of the per-patient ratios, and the 'group average' is the mean of the per-patient ratios in the first filtered group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How far above' means the simple difference (ratio minus the average), not a percentage.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Treat each lab test row (not each patient) as the unit: the overall average and group average are taken over individual HGB/HCT ratios.",
+     "sql": "WITH pr AS (SELECT ID, Date, HGB * 1.0 / HCT AS r FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0), ov AS (SELECT AVG(r) AS a FROM pr), g1 AS (SELECT pr.r, pr.r - ov.a AS d1 FROM pr, ov WHERE pr.r > ov.a), ga AS (SELECT AVG(r) AS a FROM g1), g2 AS (SELECT g1.r, g1.d1, g1.r - ga.a AS d2 FROM g1, ga WHERE g1.r > ga.a) SELECT AVG(r) AS avg_ratio, AVG(d1) AS avg_above_overall, AVG(d2) AS avg_above_group FROM g2;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH pr AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), overall AS (SELECT AVG(ratio) AS avg_all FROM pr), g1 AS (SELECT pr.ID, pr.ratio, pr.ratio - o.avg_all AS above_overall FROM pr, overall o WHERE pr.ratio > o.avg_all), grp AS (SELECT AVG(ratio) AS avg_grp FROM g1), g2 AS (SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - grp.avg_grp AS above_group FROM g1, grp WHERE g1.ratio > grp.avg_grp) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2",
+   "assumptions": [
+    {
+     "assumption": "A patient's ratio is the mean of HGB/HCT over all their lab rows, so each patient counts once in every average.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Lab rows with NULL HGB or NULL/zero HCT are ignored.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'overall average' is the mean of the per-patient ratios, not the mean of all lab rows. The 'group average' is the mean ratio of the patients above the overall average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Above' is strict (>).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Treat each lab test row as a unit, with no per-patient aggregation. The ratio is computed per row, and the two filters and averages run over rows.",
+     "sql": "WITH r AS (SELECT ID, HGB * 1.0 / HCT AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0), g1 AS (SELECT ratio, ratio - (SELECT AVG(ratio) FROM r) AS above_overall FROM r WHERE ratio > (SELECT AVG(ratio) FROM r)), g2 AS (SELECT ratio, above_overall, ratio - (SELECT AVG(ratio) FROM g1) AS above_group FROM g1 WHERE ratio > (SELECT AVG(ratio) FROM g1)) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2"
+    }
+   ]
+  },
+  {
+   "sql": "WITH pr AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), overall AS (SELECT AVG(ratio) AS avg_all FROM pr), g1 AS (SELECT pr.ID, pr.ratio, pr.ratio - o.avg_all AS above_overall FROM pr CROSS JOIN overall o WHERE pr.ratio > o.avg_all), g1avg AS (SELECT AVG(ratio) AS avg_group FROM g1), g2 AS (SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - a.avg_group AS above_group FROM g1 CROSS JOIN g1avg a WHERE g1.ratio > a.avg_group) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2",
+   "assumptions": [
+    {
+     "assumption": "A patient's ratio is the mean of HGB/HCT over all of their lab rows. Rows with a NULL or zero HGB or HCT are excluded. The request does not say how to combine a patient's multiple lab tests into one ratio.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-patient ratios, over patients that have at least one valid lab row.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The group average is the mean ratio of the patients who passed the first filter. The second filter keeps patients strictly above it.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "A patient's ratio is total HGB divided by total HCT across all of their lab rows (SUM(HGB)/SUM(HCT)), instead of the mean of the per-row ratios.",
+     "sql": "WITH pr AS (SELECT ID, SUM(HGB) * 1.0 / SUM(HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL GROUP BY ID HAVING SUM(HCT) <> 0), overall AS (SELECT AVG(ratio) AS avg_all FROM pr), g1 AS (SELECT pr.ID, pr.ratio, pr.ratio - o.avg_all AS above_overall FROM pr CROSS JOIN overall o WHERE pr.ratio > o.avg_all), g1avg AS (SELECT AVG(ratio) AS avg_group FROM g1), g2 AS (SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - a.avg_group AS above_group FROM g1 CROSS JOIN g1avg a WHERE g1.ratio > a.avg_group) SELECT AVG(ratio) AS avg_ratio, AVG(above_overall) AS avg_above_overall, AVG(above_group) AS avg_above_group FROM g2"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ef4d2acbf1",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 26094,
+  "chars_out": 5751
+ }
+}

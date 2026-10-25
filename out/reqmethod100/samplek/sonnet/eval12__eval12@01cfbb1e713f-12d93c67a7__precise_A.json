@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), s AS (SELECT timespan, avg_ratio, cnt, AVG(cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(cnt) AS total_fee_records, AVG(cnt - avg_cnt) AS avg_excess_over_mean_count FROM s WHERE cnt > avg_cnt",
+  "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratio, SUM(g.cnt) AS total_fee_records, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_mean FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt",
+  "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT timespan, avg_ratio, cnt, AVG(cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(cnt) AS total_fee_records, AVG(cnt - avg_cnt) AS avg_excess_over_mean_count FROM a WHERE cnt > avg_cnt"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), s AS (SELECT timespan, avg_ratio, cnt, AVG(cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(cnt) AS total_fee_records, AVG(cnt - avg_cnt) AS avg_excess_over_mean_count FROM s WHERE cnt > avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "The ratio rebrate/feerate is computed per fee row and then averaged per group. Rows with a NULL rate give a NULL ratio and are ignored.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A feerate of 0 is treated as missing (NULLIF), which avoids division by zero. Such rows are excluded from the ratio average but still counted as fee records.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The fee-record count is COUNT(*) over the joined rows. Orders with a NULL timespan, if any, form their own group and count toward the cross-group average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratio, SUM(g.cnt) AS total_fee_records, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_mean FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "A fee row with feerate = 0 has no defined ratio, so it is treated as missing (NULLIF) and left out of the average. It still counts in the fee-record count.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The fee-record count is COUNT(*) of joined rows per group, which includes rows whose ratio is missing. The cross-group average count is the plain mean of the per-group counts, with each group weighted equally.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If some orders have a NULL timespan, they form their own group and are included in the group count and the cross-group average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT timespan, avg_ratio, cnt, AVG(cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(cnt) AS total_fee_records, AVG(cnt - avg_cnt) AS avg_excess_over_mean_count FROM a WHERE cnt > avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "A feerate of 0 gives a missing ratio (NULLIF avoids division by zero), so that row is ignored in the group's average. Rows with NULL rebrate or feerate are ignored too. Each row's ratio is averaged, rather than dividing the average rebrate by the average feerate.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The fee-record count is COUNT(*) over the joined rows. The cross-group average count is taken over all groups, including a NULL timespan group if one exists.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 41415,
+  "chars_out": 2984
+ }
+}

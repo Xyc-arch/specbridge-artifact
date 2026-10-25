@@ -1,0 +1,36 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-91cfb4e1db",
+ "wording": "open",
+ "model": "gpt-6-luna",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH matched AS (\n  SELECT s.optvolrt, t.transreg, tr.tradekind\n  FROM sentimentandfundamentals AS s\n  JOIN transactionrecord AS t ON s.transref = t.transreg\n  JOIN trader AS tr ON t.trdref = tr.tradereg\n), overall AS (\n  SELECT AVG(optvolrt) AS overall_avg\n  FROM matched\n), pairs AS (\n  SELECT transreg, tradekind, AVG(optvolrt) AS avg_optvolrt\n  FROM matched\n  GROUP BY transreg, tradekind\n), deviations AS (\n  SELECT p.transreg, p.tradekind, p.avg_optvolrt,\n         ABS(p.avg_optvolrt - o.overall_avg) AS deviation\n  FROM pairs AS p\n  CROSS JOIN overall AS o\n), scored AS (\n  SELECT d.*,\n         AVG(deviation) OVER (PARTITION BY tradekind) AS type_avg_deviation\n  FROM deviations AS d\n  WHERE tradekind IS NOT NULL\n)\nSELECT tradekind,\n       AVG(avg_optvolrt) AS average_option_volume_ratio,\n       AVG(deviation) AS average_deviation,\n       AVG(deviation - type_avg_deviation) AS average_excess\nFROM scored\nWHERE deviation > type_avg_deviation\nGROUP BY tradekind;",
+  "assumptions": [
+   {
+    "assumption": "\u201cDeviation\u201d means absolute distance from the overall average, computed from matched sentiment snapshot rows; the comparison and final averages are over transaction-reference/trader-type pairs. SQL AVG ignores missing ratios, and pairs with a missing pair average or missing overall average do not qualify.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If deviation means signed difference from the overall average, where above-average pairs have positive deviation, replace the ABS expression with a signed subtraction.",
+    "sql": "WITH matched AS (\n  SELECT s.optvolrt, t.transreg, tr.tradekind\n  FROM sentimentandfundamentals AS s\n  JOIN transactionrecord AS t ON s.transref = t.transreg\n  JOIN trader AS tr ON t.trdref = tr.tradereg\n), overall AS (\n  SELECT AVG(optvolrt) AS overall_avg FROM matched\n), pairs AS (\n  SELECT transreg, tradekind, AVG(optvolrt) AS avg_optvolrt\n  FROM matched\n  GROUP BY transreg, tradekind\n), deviations AS (\n  SELECT p.transreg, p.tradekind, p.avg_optvolrt,\n         p.avg_optvolrt - o.overall_avg AS deviation\n  FROM pairs AS p CROSS JOIN overall AS o\n), scored AS (\n  SELECT d.*, AVG(deviation) OVER (PARTITION BY tradekind) AS type_avg_deviation\n  FROM deviations AS d\n  WHERE tradekind IS NOT NULL\n)\nSELECT tradekind,\n       AVG(avg_optvolrt) AS average_option_volume_ratio,\n       AVG(deviation) AS average_deviation,\n       AVG(deviation - type_avg_deviation) AS average_excess\nFROM scored\nWHERE deviation > type_avg_deviation\nGROUP BY tradekind;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [],
+ "alternatives": [
+  {
+   "interpretation": "If deviation means signed difference from the overall average, where above-average pairs have positive deviation, replace the ABS expression with a signed subtraction.",
+   "sql": "WITH matched AS (\n  SELECT s.optvolrt, t.transreg, tr.tradekind\n  FROM sentimentandfundamentals AS s\n  JOIN transactionrecord AS t ON s.transref = t.transreg\n  JOIN trader AS tr ON t.trdref = tr.tradereg\n), overall AS (\n  SELECT AVG(optvolrt) AS overall_avg FROM matched\n), pairs AS (\n  SELECT transreg, tradekind, AVG(optvolrt) AS avg_optvolrt\n  FROM matched\n  GROUP BY transreg, tradekind\n), deviations AS (\n  SELECT p.transreg, p.tradekind, p.avg_optvolrt,\n         p.avg_optvolrt - o.overall_avg AS deviation\n  FROM pairs AS p CROSS JOIN overall AS o\n), scored AS (\n  SELECT d.*, AVG(deviation) OVER (PARTITION BY tradekind) AS type_avg_deviation\n  FROM deviations AS d\n  WHERE tradekind IS NOT NULL\n)\nSELECT tradekind,\n       AVG(avg_optvolrt) AS average_option_volume_ratio,\n       AVG(deviation) AS average_deviation,\n       AVG(deviation - type_avg_deviation) AS average_excess\nFROM scored\nWHERE deviation > type_avg_deviation\nGROUP BY tradekind;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 37.8,
+ "chars_out": 2563
+}

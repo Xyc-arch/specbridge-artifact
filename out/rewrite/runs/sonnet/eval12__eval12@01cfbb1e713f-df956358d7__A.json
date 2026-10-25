@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-df956358d7",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "The overall average budget amount is the average of the per-event average amounts, with each event weighted equally.",
+ "a": {
+  "request": "For each event in the budget table (`budget.link_to_event`), work out the average budgeted `amount` across its budget lines, ignoring missing amounts. Take the overall average as the mean of these per-event averages, with each event counting once, and keep only the events whose average is above it. For each such event, show the event link, its average amount, how far that is above the overall average, and its average minus the mean of the kept events' averages. Sort by this last difference, largest first, and show the top 10.",
+  "sql": "WITH per_event AS (SELECT link_to_event, AVG(amount) AS avg_amount FROM budget WHERE amount IS NOT NULL AND link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM per_event), kept AS (SELECT p.link_to_event, p.avg_amount, p.avg_amount - o.overall_avg AS above_overall FROM per_event p CROSS JOIN overall o WHERE p.avg_amount > o.overall_avg), kept_mean AS (SELECT AVG(avg_amount) AS kept_avg FROM kept) SELECT k.link_to_event, k.avg_amount, k.above_overall, k.avg_amount - km.kept_avg AS diff_from_kept_mean FROM kept k CROSS JOIN kept_mean km ORDER BY diff_from_kept_mean DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Treat each event (`budget.link_to_event`) as one unit by averaging its non-null budget `amount` values, define the overall average as the mean of those per-event averages (each event weighted equally), keep only events whose average is above it, and for each show the event link, its average, its excess over the overall average, and its difference from the mean average of those above-average events, returning the top 10 by that last difference in descending order",
+  "sql": "WITH ev AS (SELECT link_to_event, AVG(amount) AS avg_amount FROM budget WHERE amount IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM ev), above AS (SELECT ev.link_to_event, ev.avg_amount, ev.avg_amount - overall.overall_avg AS excess_over_overall FROM ev, overall WHERE ev.avg_amount > overall.overall_avg) SELECT link_to_event, avg_amount, excess_over_overall, avg_amount - (SELECT AVG(avg_amount) FROM above) AS diff_from_above_mean FROM above ORDER BY diff_from_above_mean DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Which events have an above-average budget amount? For each event (`budget.link_to_event`), using the average `amount` across its budget lines and ignoring missing amounts, show the event link, its average amount, how much it beats the overall average budget amount, and its average minus the mean among those above-average events. List the top 10 by that last gap, largest first. The overall average budget amount is the average of the per-event average amounts, with each event weighted equally.",
+  "sql": "WITH ev AS (SELECT link_to_event, AVG(amount) AS avg_amt FROM budget WHERE amount IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(avg_amt) AS overall_avg FROM ev), above AS (SELECT ev.link_to_event, ev.avg_amt, ev.avg_amt - overall.overall_avg AS diff_from_overall FROM ev, overall WHERE ev.avg_amt > overall.overall_avg) SELECT link_to_event, avg_amt AS average_amount, diff_from_overall AS beats_overall_average, avg_amt - (SELECT AVG(avg_amt) FROM above) AS gap_from_above_average_mean FROM above ORDER BY gap_from_above_average_mean DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Which events have an above-average budget amount? For each event (`budget.link_to_event`), compute the average `amount` across its budget lines, ignoring missing amounts. Define the overall average budget amount as the average of these per-event averages, with each event weighted equally. Then show the event link, its average amount, how much it beats the overall average, and its average minus the mean among the above-average events. List the top 10 by that last gap, largest first.",
+  "sql": "WITH per_event AS (SELECT link_to_event, AVG(amount) AS avg_amount FROM budget WHERE amount IS NOT NULL AND link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM per_event), above AS (SELECT p.link_to_event, p.avg_amount, p.avg_amount - o.overall_avg AS beats_overall FROM per_event p, overall o WHERE p.avg_amount > o.overall_avg), above_mean AS (SELECT AVG(avg_amount) AS mean_above FROM above) SELECT a.link_to_event, a.avg_amount, a.beats_overall, a.avg_amount - m.mean_above AS gap_from_above_mean FROM above a, above_mean m ORDER BY gap_from_above_mean DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

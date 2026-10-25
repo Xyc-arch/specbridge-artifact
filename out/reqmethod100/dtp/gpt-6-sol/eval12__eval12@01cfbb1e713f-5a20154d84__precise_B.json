@@ -1,0 +1,31 @@
+{
+ "interpretations": [
+  "For each media type ID with matched tracks, show its name, the sum of its tracks\u2019 non-null `Bytes` divided by the sum of all its tracks\u2019 `Milliseconds`, and that rate divided by the arithmetic mean of the rates for all represented media type IDs; keep separate rows for IDs that share a name.",
+  "For each distinct media type name among matched tracks, combine tracks from IDs with that name, calculate the ratio of the two totals, and divide it by the arithmetic mean of the rates for all distinct names.",
+  "For each media type ID with matched tracks, exclude tracks whose `Bytes` is null from both totals when calculating its rate, then divide that rate by the arithmetic mean of the resulting media type rates.",
+  "For each media type ID with matched tracks, treat null `Bytes` as zero when calculating its rate, then divide that rate by the arithmetic mean of the media type rates.",
+  "For each distinct media type name, combine tracks from IDs with that name to calculate its rate, then divide by the simple mean of the rates calculated separately for each represented media type ID.",
+  "For each represented media type ID, calculate its rate separately, then divide by the simple mean of the rates calculated from combined tracks for each distinct media type name."
+ ],
+ "queries": [
+  "WITH rates AS (\n  SELECT\n    m.MediaTypeId,\n    m.Name,\n    1.0 * SUM(COALESCE(t.Bytes, 0)) / SUM(t.Milliseconds) AS rate\n  FROM MediaType AS m\n  JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT\n  Name,\n  rate,\n  rate / (SELECT AVG(rate) FROM rates)\nFROM rates",
+  "WITH rates AS (\n    SELECT m.Name,\n           1.0 * SUM(t.Bytes) / SUM(t.Milliseconds) AS rate\n    FROM Track AS t\n    JOIN MediaType AS m ON m.MediaTypeId = t.MediaTypeId\n    GROUP BY m.Name\n)\nSELECT Name,\n       rate / AVG(rate) OVER () AS normalized_rate\nFROM rates",
+  "WITH media_type_rates AS (\n  SELECT\n    MediaTypeId,\n    SUM(Bytes) * 1.0 / SUM(Milliseconds) AS rate\n  FROM Track\n  WHERE Bytes IS NOT NULL\n  GROUP BY MediaTypeId\n)\nSELECT\n  MediaTypeId,\n  rate / (SELECT AVG(rate) FROM media_type_rates) AS normalized_rate\nFROM media_type_rates;\n",
+  "WITH media_type_rates AS (\n  SELECT\n    MediaTypeId,\n    1.0 * SUM(COALESCE(Bytes, 0)) / SUM(Milliseconds) AS rate\n  FROM Track\n  GROUP BY MediaTypeId\n)\nSELECT\n  MediaTypeId,\n  rate / (SELECT AVG(rate) FROM media_type_rates) AS relative_rate\nFROM media_type_rates",
+  "WITH id_rates AS (\n    SELECT\n        mt.MediaTypeId,\n        mt.Name,\n        SUM(t.Bytes) AS total_bytes,\n        SUM(t.Milliseconds) AS total_milliseconds,\n        1.0 * SUM(t.Bytes) / SUM(t.Milliseconds) AS rate\n    FROM MediaType AS mt\n    JOIN Track AS t ON t.MediaTypeId = mt.MediaTypeId\n    WHERE t.Bytes IS NOT NULL\n    GROUP BY mt.MediaTypeId, mt.Name\n)\nSELECT\n    Name,\n    (1.0 * SUM(total_bytes) / SUM(total_milliseconds)) / AVG(rate) AS rate_ratio\nFROM id_rates\nGROUP BY Name;\n",
+  "WITH id_rates AS (\n    SELECT MediaTypeId,\n           SUM(Bytes) * 1.0 / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) AS rate\n    FROM Track\n    GROUP BY MediaTypeId\n),\nname_rates AS (\n    SELECT m.Name,\n           SUM(t.Bytes) * 1.0 / SUM(CASE WHEN t.Bytes IS NOT NULL THEN t.Milliseconds END) AS rate\n    FROM Track AS t\n    JOIN MediaType AS m ON m.MediaTypeId = t.MediaTypeId\n    GROUP BY m.Name\n)\nSELECT MediaTypeId,\n       rate / (SELECT AVG(rate) FROM name_rates) AS relative_rate\nFROM id_rates;\n"
+ ],
+ "raw": [
+  "For each media type ID with matched tracks, show its name, the sum of its tracks\u2019 non-null `Bytes` divided by the sum of all its tracks\u2019 `Milliseconds`, and that rate divided by the arithmetic mean of the rates for all represented media type IDs; keep separate rows for IDs that share a name.\n\nFor each distinct media type name among matched tracks, combine tracks from IDs with that name, calculate the ratio of the two totals, and divide it by the arithmetic mean of the rates for all distinct names.\n\nFor each media type ID with matched tracks, exclude tracks whose `Bytes` is null from both totals when calculating its rate, then divide that rate by the arithmetic mean of the resulting media type rates.\n\nFor each media type ID with matched tracks, treat null `Bytes` as zero when calculating its rate, then divide that rate by the arithmetic mean of the media type rates.",
+  "For each distinct media type name, combine tracks from IDs with that name to calculate its rate, then divide by the simple mean of the rates calculated separately for each represented media type ID.\n\nFor each represented media type ID, calculate its rate separately, then divide by the simple mean of the rates calculated from combined tracks for each distinct media type name."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5a20154d84",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 41827,
+  "chars_out": 3404
+ }
+}

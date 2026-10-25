@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-43277f1d9e",
+ "model": "haiku",
+ "reading": "B",
+ "description": "The benchmark is the average net fee rate over all matched fee records pooled together, so each fee record counts equally.",
+ "a": {
+  "request": "Match each fee record to its order (the order's `recordvault` equals the fee's `orderslink`, compared exactly as text), and leave out fee records with no matching order. Group the matched records by trading pair (`mktnote`), with records lacking a trading pair forming one group, and work out each pair's average net fee rate (`feerate` minus `rebrate`). For the benchmark, take the average net fee rate over all matched fee records pooled together, with each fee record counting equally. Keep only the trading pairs whose average net fee rate is strictly above this benchmark (if the benchmark is missing, keep none), and return a single row with: the average of their average net fee rates, and the average amount by which they exceed the benchmark. Skip missing values in every average (an average with nothing to average is missing), and don't round the results.",
+  "sql": "WITH matched AS (SELECT o.mktnote, f.feerate - f.rebrate AS net_rate FROM fees f INNER JOIN orders o ON o.recordvault = f.orderslink), benchmark AS (SELECT AVG(net_rate) AS bench FROM matched), pair_avgs AS (SELECT mktnote, AVG(net_rate) AS pair_avg FROM matched GROUP BY mktnote), above AS (SELECT p.pair_avg, p.pair_avg - b.bench AS excess FROM pair_avgs p CROSS JOIN benchmark b WHERE p.pair_avg > b.bench) SELECT AVG(pair_avg) AS avg_pair_net_rate, AVG(excess) AS avg_excess_over_benchmark FROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Using fee records matched to their orders (the order's `recordvault` equals the fee's `orderslink`, compared exactly as text; unmatched fees dropped), which trading pairs (`mktnote`, with records lacking a pair treated as one group) have an average net fee rate (`feerate` minus `rebrate`) strictly above the overall average net fee rate? Give me one row for those pairs: the mean of their average net fee rate, and the mean amount by which they exceed the overall average. If the overall average is missing, no pairs count. Skip missing values in the averages (missing if there's nothing to average) and don't round anything. The benchmark is the average net fee rate over all matched fee records pooled together, so each fee record counts equally.",
+  "sql": "WITH matched AS (SELECT o.mktnote, f.feerate - f.rebrate AS net FROM fees f JOIN orders o ON o.recordvault = f.orderslink), pairavg AS (SELECT mktnote, AVG(net) AS avg_net FROM matched GROUP BY mktnote), overall AS (SELECT AVG(net) AS overall_avg FROM matched) SELECT AVG(p.avg_net) AS mean_pair_avg_net_fee_rate, AVG(p.avg_net - o.overall_avg) AS mean_excess_over_overall FROM pairavg p CROSS JOIN overall o WHERE p.avg_net > o.overall_avg;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Which trading pairs, grouped by `mktnote` (with NULL `mktnote` as one group), whose mean of per-fee-record net fee rate (`feerate` \u2212 `rebrate`, skipping NULLs) over fee records matched to orders by exact `recordvault = orderslink` text match exceeds the pooled mean of that net fee rate across all matched fee records, with each fee record weighted equally?",
+  "sql": "WITH matched AS (SELECT o.mktnote, f.feerate - f.rebrate AS net FROM fees f JOIN orders o ON o.recordvault = f.orderslink WHERE f.feerate IS NOT NULL AND f.rebrate IS NOT NULL), overall AS (SELECT AVG(net) AS pooled FROM matched), grp AS (SELECT mktnote, AVG(net) AS gmean FROM matched GROUP BY mktnote) SELECT g.mktnote, g.gmean FROM grp g CROSS JOIN overall WHERE g.gmean > overall.pooled;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the matched fee records, what is the average net fee rate (`feerate` minus `rebrate`) pooled across all records, with each fee record weighted equally? Then, using that pooled average as the benchmark, which trading pairs (`mktnote`, with records lacking a pair treated as one group) have an average net fee rate strictly above it? For those pairs, give one row with the mean of their average net fee rate and the mean amount by which they exceed the pooled overall average, where matching is on `recordvault` equal to `orderslink` as exact text, unmatched fees are dropped, missing values are skipped, and nothing is rounded.",
+  "sql": "WITH matched AS (\n  SELECT o.mktnote, f.feerate - f.rebrate AS net\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL AND f.rebrate IS NOT NULL\n),\noverall AS (\n  SELECT AVG(net) AS pooled FROM matched\n),\npairs AS (\n  SELECT mktnote, AVG(net) AS pair_avg\n  FROM matched\n  GROUP BY mktnote\n  HAVING AVG(net) > (SELECT pooled FROM overall)\n)\nSELECT AVG(p.pair_avg) AS mean_pair_avg_net,\n       AVG(p.pair_avg - o.pooled) AS mean_excess_over_pooled\nFROM pairs p\nCROSS JOIN overall o;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

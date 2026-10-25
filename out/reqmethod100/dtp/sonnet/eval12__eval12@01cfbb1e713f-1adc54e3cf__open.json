@@ -1,0 +1,48 @@
+{
+ "interpretations": [
+  "Media type = MediaType.Name; rate per media type = SUM(Bytes)/SUM(Milliseconds) over its tracks (ratio of totals); the average is the simple mean of these per-media-type rates; show name, rate, and rate minus average.",
+  "Rate per media type = AVG(Bytes/Milliseconds) computed per track (mean of per-track ratios); the average is the simple mean of these per-media-type rates; show name, rate, and difference.",
+  "Same as interpretation 1, but the \"average across all media types\" is the overall rate across all tracks (SUM(Bytes)/SUM(Milliseconds) over all tracks) rather than the mean of the per-type rates.",
+  "Same as interpretation 2, but the average is the mean of per-track ratios across all tracks, not the mean of per-type averages.",
+  "Rate per media type = AVG(Bytes)/AVG(Milliseconds) within each media type; the average is the simple mean of these per-type rates.",
+  "Media types with no tracks are excluded from the average, using an inner join from Track to MediaType, so only media types that have tracks count.",
+  "Media types with no tracks are included in the average, using a left join from MediaType, with a rate of NULL or 0. This conflicts with \"counting only tracks that have a media type\", so it is less likely.",
+  "Tracks with NULL Bytes are excluded from both numerator and denominator, so their Milliseconds are not counted.",
+  "Tracks with NULL Bytes are included in the Milliseconds sum but contribute nothing to Bytes, so their Milliseconds still count.",
+  "Difference = media type rate \u2212 average (absolute amount, unrounded).",
+  "Difference = (rate \u2212 average)/average, a percentage or ratio exceeding the average, unrounded.",
+  "Rate expressed as bytes per millisecond, with integer division avoided (floating-point), versus integer division truncation in SQLite; \"unrounded\" implies floating-point.",
+  "\"Strictly higher\" (>) than the average versus higher or equal (>=).",
+  "Output ordered by the excess descending, or by name, or with no order specified.",
+  "Missing interpretations:",
+  "The \"simple average across all media types\" is the mean of per-type rates, where each type's rate is computed with Bytes and Milliseconds restricted to tracks with non-NULL Bytes (Bytes IS NOT NULL on both sums). This is a mix of interpretations 1 and 8 applied specifically to the average.",
+  "Rate per media type = SUM(Bytes)/SUM(Milliseconds), with the average taken as a weighted average across tracks, or as the average of the per-type AVG(Bytes)/AVG(Milliseconds) values. The second variant is covered by 5, the first by 3.",
+  "Rate per media type = SUM(Bytes)/SUM(Milliseconds) with the average computed over only the media types that appear in the result of the comparison (a circular or self-including average). This is the same as 1, so it is not new.",
+  "Rate is the inverse, milliseconds per byte. This reading is unlikely.",
+  "Rate is scaled to another unit, such as bytes per second or kilobytes per second, rather than bytes per millisecond. This reading is unlikely.",
+  "Excess is shown as a ratio, rate divided by average, rather than a difference or a relative difference.",
+  "Media types are identified by MediaTypeId, or by both MediaTypeId and Name, rather than by Name alone. This matters if names are duplicated and would need to be grouped separately.",
+  "Tracks with zero Milliseconds are excluded to avoid division by zero in per-track ratio interpretations."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT m.Name AS Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS rate\n  FROM MediaType m\n  JOIN Track t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT Name, rate, rate - (SELECT AVG(rate) FROM r) AS diff_from_avg\nFROM r;\n",
+  "WITH r AS (\n  SELECT m.Name AS name, AVG(t.Bytes * 1.0 / t.Milliseconds) AS rate\n  FROM Track t\n  JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT name, rate, rate - (SELECT AVG(rate) FROM r) AS difference\nFROM r;\n",
+  "SELECT m.Name\nFROM MediaType m\nJOIN Track t ON t.MediaTypeId = m.MediaTypeId\nGROUP BY m.MediaTypeId, m.Name\nHAVING CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) > (SELECT CAST(SUM(Bytes) AS REAL) / SUM(Milliseconds) FROM Track)",
+  "SELECT AVG(Bytes * 1.0 / Milliseconds) FROM Track;\n",
+  "SELECT AVG(rate) FROM (SELECT AVG(Bytes) * 1.0 / AVG(Milliseconds) AS rate FROM Track GROUP BY MediaTypeId)",
+  "SELECT AVG(track_count) FROM (SELECT COUNT(*) AS track_count FROM Track JOIN MediaType ON Track.MediaTypeId = MediaType.MediaTypeId GROUP BY MediaType.MediaTypeId)"
+ ],
+ "raw": [
+  "1. Media type = MediaType.Name; rate per media type = SUM(Bytes)/SUM(Milliseconds) over its tracks (ratio of totals); the average is the simple mean of these per-media-type rates; show name, rate, and rate minus average.\n2. Rate per media type = AVG(Bytes/Milliseconds) computed per track (mean of per-track ratios); the average is the simple mean of these per-media-type rates; show name, rate, and difference.\n3. Same as interpretation 1, but the \"average across all media types\" is the overall rate across all tracks (SUM(Bytes)/SUM(Milliseconds) over all tracks) rather than the mean of the per-type rates.\n4. Same as interpretation 2, but the average is the mean of per-track ratios across all tracks, not the mean of per-type averages.\n5. Rate per media type = AVG(Bytes)/AVG(Milliseconds) within each media type; the average is the simple mean of these per-type rates.\n6. Media types with no tracks are excluded from the average, using an inner join from Track to MediaType, so only media types that have tracks count.\n7. Media types with no tracks are included in the average, using a left join from MediaType, with a rate of NULL or 0. This conflicts with \"counting only tracks that have a media type\", so it is less likely.\n8. Tracks with NULL Bytes are excluded from both numerator and denominator, so their Milliseconds are not counted.\n9. Tracks with NULL Bytes are included in the Milliseconds sum but contribute nothing to Bytes, so their Milliseconds still count.\n10. Difference = media type rate \u2212 average (absolute amount, unrounded).\n11. Difference = (rate \u2212 average)/average, a percentage or ratio exceeding the average, unrounded.\n12. Rate expressed as bytes per millisecond, with integer division avoided (floating-point), versus integer division truncation in SQLite; \"unrounded\" implies floating-point.\n13. \"Strictly higher\" (>) than the average versus higher or equal (>=).\n14. Output ordered by the excess descending, or by name, or with no order specified.",
+  "Missing interpretations:\n\nThe \"simple average across all media types\" is the mean of per-type rates, where each type's rate is computed with Bytes and Milliseconds restricted to tracks with non-NULL Bytes (Bytes IS NOT NULL on both sums). This is a mix of interpretations 1 and 8 applied specifically to the average.\nRate per media type = SUM(Bytes)/SUM(Milliseconds), with the average taken as a weighted average across tracks, or as the average of the per-type AVG(Bytes)/AVG(Milliseconds) values. The second variant is covered by 5, the first by 3.\nRate per media type = SUM(Bytes)/SUM(Milliseconds) with the average computed over only the media types that appear in the result of the comparison (a circular or self-including average). This is the same as 1, so it is not new.\nRate is the inverse, milliseconds per byte. This reading is unlikely.\nRate is scaled to another unit, such as bytes per second or kilobytes per second, rather than bytes per millisecond. This reading is unlikely.\nExcess is shown as a ratio, rate divided by average, rather than a difference or a relative difference.\nMedia types are identified by MediaTypeId, or by both MediaTypeId and Name, rather than by Name alone. This matters if names are duplicated and would need to be grouped separately.\nTracks with zero Milliseconds are excluded to avoid division by zero in per-track ratio interpretations."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1adc54e3cf",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42317,
+  "chars_out": 4715
+ }
+}

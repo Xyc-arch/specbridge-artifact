@@ -1,0 +1,49 @@
+{
+ "interpretations": [
+  "Inner join fees (feerate > 0.0009) to orders on exact orderslink = recordvault. Group by orderslink and dealedge. The group average net rate is AVG(feerate \u2212 rebrate), where a null rebrate makes that row's net null so AVG skips it. The record count is all joined rows in the group, including those with null net. The side average is the unweighted mean of the group averages, groups with a null average are excluded, and the top 10 groups by (group average \u2212 side average) descending are returned, nulls last.",
+  "Same as 1, but the record count is only the rows with a non-null net fee rate (COUNT of the net rate expression).",
+  "Same as 1, but a null rebrate is treated as 0, so net = feerate for those rows, and every row is counted and averaged.",
+  "Same as 1, but rows with a null feerate or null rebrate are dropped before grouping, so the count and averages only use rows where both values are present.",
+  "Same as 1, but the side average is the mean over all groups of that side, including groups with a null average, which are treated as 0.",
+  "Same as 1, but the side average is weighted by record count, i.e. the average net rate across all rows of that side. This differs from \"average of group averages\".",
+  "Same as 1, but if recordvault is duplicated in orders, the join multiplies fee rows, and every joined row is counted and averaged.",
+  "Same as 1, but orders with a null dealedge form their own side group and are included in the side averages and output.",
+  "Same as 1, but orders with a null dealedge are excluded from the output and the side averages.",
+  "Same as 1, but ties in the difference are broken arbitrarily, so the top 10 is nondeterministic.",
+  "Same as 1, but ties in the difference are broken by orderslink or side, so the order is deterministic.",
+  "Same as 1, but the difference is sorted ascending instead of descending.",
+  "Same as 1, but the 10-row limit applies per side (top 10 Buy and top 10 Sell), not overall.",
+  "Same as 1, but the feerate > 0.0009 filter applies only to which fee rows are grouped. The side average is computed from groups built from all fees, not just the filtered ones.",
+  "Same as 1, but the side average is computed after the \"greater than side average\" filter, using only the groups that pass.",
+  "Same as 1, but the count is the number of distinct fee records (feesnode) in the group rather than joined rows.",
+  "Missing interpretations:",
+  "Same as 1, but the side average is computed over groups with a non-null average only, and the difference is null for groups with a null average. Those groups sort last but are excluded by the \"strictly greater\" filter.",
+  "Same as 1, but \"ignoring missing values\" also covers a null feerate. Since the feerate > 0.0009 filter already removes null feerates, this is the same as 1.",
+  "Same as 1, but the feerate > 0.0009 comparison is done on the text or rounded value rather than the exact decimal, so borderline values such as 0.00090 are handled differently.",
+  "Same as 1, but the join is case-insensitive or trims whitespace on orderslink = recordvault, instead of the exact text match the question specifies.",
+  "Same as 1, but groups are formed by orderslink only (side taken from the order), so the side average is computed over those groups.",
+  "Same as 1, but the side average is computed over groups before the feerate filter on orders, with only fees with a matching order retained.",
+  "Same as 1, but the output is limited to the top 10 after tie-breaking by the group average net rate descending."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT f.orderslink AS orderslink,\n         o.dealedge AS dealedge,\n         AVG(f.feerate - f.rebrate) AS group_avg_net_rate,\n         COUNT(*) AS record_count\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n  GROUP BY f.orderslink, o.dealedge\n),\ns AS (\n  SELECT dealedge,\n         AVG(group_avg_net_rate) AS side_avg_net_rate\n  FROM g\n  WHERE group_avg_net_rate IS NOT NULL\n  GROUP BY dealedge\n)\nSELECT g.orderslink,\n       g.dealedge,\n       g.group_avg_net_rate,\n       g.record_count,\n       s.side_avg_net_rate,\n       g.group_avg_net_rate - s.side_avg_net_rate AS diff_from_side_avg\nFROM g\nLEFT JOIN s ON g.dealedge = s.dealedge\nORDER BY diff_from_side_avg DESC NULLS LAST\nLIMIT 10;\n",
+  "SELECT feerange, AVG(feerate - rebrate) AS avg_net_fee_rate, COUNT(feerate - rebrate) AS record_count FROM fees GROUP BY feerange",
+  "SELECT AVG(feerate - COALESCE(rebrate, 0)) FROM fees",
+  "SELECT feerange, COUNT(*) AS fee_count, AVG(feerate) AS avg_feerate, AVG(rebrate) AS avg_rebrate\nFROM fees\nWHERE feerate IS NOT NULL AND rebrate IS NOT NULL\nGROUP BY feerange;\n",
+  "SELECT dealedge, AVG(COALESCE(group_avg, 0)) AS side_avg\nFROM (\n  SELECT dealedge, mktnote, AVG(notionsum) AS group_avg\n  FROM orders\n  GROUP BY dealedge, mktnote\n)\nGROUP BY dealedge;\n",
+  "SELECT o.dealedge, AVG(f.feerate - f.rebrate) AS avg_net_rate\nFROM fees f\nJOIN orders o ON f.orderslink = o.recordvault\nGROUP BY o.dealedge;\n"
+ ],
+ "raw": [
+  "1. Inner join fees (feerate > 0.0009) to orders on exact orderslink = recordvault. Group by orderslink and dealedge. The group average net rate is AVG(feerate \u2212 rebrate), where a null rebrate makes that row's net null so AVG skips it. The record count is all joined rows in the group, including those with null net. The side average is the unweighted mean of the group averages, groups with a null average are excluded, and the top 10 groups by (group average \u2212 side average) descending are returned, nulls last.\n2. Same as 1, but the record count is only the rows with a non-null net fee rate (COUNT of the net rate expression).\n3. Same as 1, but a null rebrate is treated as 0, so net = feerate for those rows, and every row is counted and averaged.\n4. Same as 1, but rows with a null feerate or null rebrate are dropped before grouping, so the count and averages only use rows where both values are present.\n5. Same as 1, but the side average is the mean over all groups of that side, including groups with a null average, which are treated as 0.\n6. Same as 1, but the side average is weighted by record count, i.e. the average net rate across all rows of that side. This differs from \"average of group averages\".\n7. Same as 1, but if recordvault is duplicated in orders, the join multiplies fee rows, and every joined row is counted and averaged.\n8. Same as 1, but orders with a null dealedge form their own side group and are included in the side averages and output.\n9. Same as 1, but orders with a null dealedge are excluded from the output and the side averages.\n10. Same as 1, but ties in the difference are broken arbitrarily, so the top 10 is nondeterministic.\n11. Same as 1, but ties in the difference are broken by orderslink or side, so the order is deterministic.\n12. Same as 1, but the difference is sorted ascending instead of descending.\n13. Same as 1, but the 10-row limit applies per side (top 10 Buy and top 10 Sell), not overall.\n14. Same as 1, but the feerate > 0.0009 filter applies only to which fee rows are grouped. The side average is computed from groups built from all fees, not just the filtered ones.\n15. Same as 1, but the side average is computed after the \"greater than side average\" filter, using only the groups that pass.\n16. Same as 1, but the count is the number of distinct fee records (feesnode) in the group rather than joined rows.",
+  "Missing interpretations:\n\nSame as 1, but the side average is computed over groups with a non-null average only, and the difference is null for groups with a null average. Those groups sort last but are excluded by the \"strictly greater\" filter.\n\nSame as 1, but \"ignoring missing values\" also covers a null feerate. Since the feerate > 0.0009 filter already removes null feerates, this is the same as 1.\n\nSame as 1, but the feerate > 0.0009 comparison is done on the text or rounded value rather than the exact decimal, so borderline values such as 0.00090 are handled differently.\n\nSame as 1, but the join is case-insensitive or trims whitespace on orderslink = recordvault, instead of the exact text match the question specifies.\n\nSame as 1, but groups are formed by orderslink only (side taken from the order), so the side average is computed over those groups.\n\nSame as 1, but the side average is computed over groups before the feerate filter on orders, with only fees with a matching order retained.\n\nSame as 1, but the output is limited to the top 10 after tie-breaking by the group average net rate descending."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 108380,
+  "chars_out": 5233
+ }
+}

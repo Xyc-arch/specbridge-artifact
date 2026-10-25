@@ -1,0 +1,37 @@
+{
+ "interpretations": [
+  "Group by the observatory's lunar phase. Show the phase, the average of per-station average bandwidth usage, the number of telescopes in that phase, and each phase's telescope count as a share of the total telescope count (all matched telescopes). Telescopes with no matching station are excluded, and a null phase is its own group",
+  "Same as 1, but \"how many there are\" is the number of distinct observatory stations in each phase, and the share is that count divided by the total number of distinct stations across all phases",
+  "Same as 1, but the count is the number of distinct telescopes in each phase. The share is that count over the total distinct matched telescopes",
+  "Same as 1, but \"how many\" counts only telescopes with a non-null bandwidth usage value in that phase. The share is that count over the total of such telescopes",
+  "Same as 1, but the share is expressed as a fraction (0\u20131) rather than a percentage",
+  "Same as 1, but the share is expressed as a percentage (0\u2013100)",
+  "The average is the plain mean of `bandusagepct` across all telescopes in the phase (ignoring nulls), not station-first. The count and share are telescopes, as in",
+  "The average is computed per station (mean over that station's telescopes, nulls ignored), then averaged across stations in the phase. A station whose telescopes all have null bandwidth contributes nothing to the average but is still counted as a station in interpretation",
+  "The \"overall total\" for the share is the total across all telescopes, including those without a matching station, so the shares of the matched phases may not sum to 100%",
+  "The \"overall total\" for the share is the total across matched telescopes only, so the shares sum to the full total",
+  "The values are returned unrounded, with full precision for both the average and the share",
+  "The \"how many there are with that phase\" counts observatories (stations) having that phase, while the share is computed against the total number of observatories, including those with no telescopes",
+  "The \"how many there are with that phase\" counts signals detected by telescopes at stations with that phase, and the share is of the total signals",
+  "Not all interpretations are covered. These are missing:",
+  "Same as 1, but \"how many there are\" is the number of distinct stations in that phase that have at least one telescope with non-null bandwidth usage. The share is that count over the total of such stations",
+  "Same as 1, but \"how many there are\" is the number of observatory stations in that phase that have at least one matched telescope. The share is that count over all stations that have matched telescopes. This differs from interpretation 2 only if stations with no telescopes are handled differently, so it is an explicit variant",
+  "Same as 1, but the share is each phase's total bandwidth usage (the sum of `bandusagepct`) over the overall sum, rather than a share of the count",
+  "Same as 1, but the share is each phase's station-first average bandwidth over the sum of all phases' averages"
+ ],
+ "queries": [
+  "WITH st AS (\n  SELECT o.lunarstage AS phase, o.observstation, AVG(t.bandusagepct) AS avgbw, COUNT(*) AS cnt\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n  GROUP BY o.observstation, o.lunarstage\n)\nSELECT phase,\n       AVG(avgbw) AS avg_station_bandwidth_usage,\n       SUM(cnt) AS telescope_count,\n       SUM(cnt) * 1.0 / (SELECT SUM(cnt) FROM st) AS telescope_share\nFROM st\nGROUP BY phase;\n",
+  "SELECT lunarstage, COUNT(DISTINCT observstation) AS station_count, CAST(COUNT(DISTINCT observstation) AS REAL) / (SELECT COUNT(DISTINCT observstation) FROM observatories) AS share\nFROM observatories\nGROUP BY lunarstage",
+  "SELECT o.lunarstage AS phase,\n       COUNT(DISTINCT t.telescregistry) AS telescope_count,\n       COUNT(DISTINCT t.telescregistry) * 1.0 / (SELECT COUNT(DISTINCT t2.telescregistry)\n                                                 FROM signals s2\n                                                 JOIN telescopes t2 ON s2.telescref = t2.telescregistry\n                                                 JOIN observatories o2 ON t2.observstation = o2.observstation) AS share\nFROM signals s\nJOIN telescopes t ON s.telescref = t.telescregistry\nJOIN observatories o ON t.observstation = o.observstation\nGROUP BY o.lunarstage",
+  "SELECT o.lunarstage,\n       COUNT(t.telescregistry) AS telescope_count,\n       COUNT(t.telescregistry) * 1.0 / SUM(COUNT(t.telescregistry)) OVER () AS share\nFROM telescopes t\nJOIN observatories o ON t.observstation = o.observstation\nWHERE t.bandusagepct IS NOT NULL\nGROUP BY o.lunarstage;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 323351,
+  "chars_out": 5392
+ }
+}

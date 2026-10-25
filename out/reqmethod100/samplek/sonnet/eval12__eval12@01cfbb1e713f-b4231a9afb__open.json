@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number) SELECT invoice_number, avg_qty, relative_gap, avg_qty - (SELECT AVG(avg_qty) FROM inv) AS diff_above_overall FROM inv WHERE avg_qty > (SELECT AVG(avg_qty) FROM inv) ORDER BY diff_above_overall DESC LIMIT 10;",
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number) SELECT invoice_number, avg_qty, relative_gap, avg_qty - (SELECT AVG(avg_qty) FROM inv) AS diff_above_overall FROM inv WHERE avg_qty > (SELECT AVG(avg_qty) FROM inv) ORDER BY diff_above_overall DESC LIMIT 10;",
+  "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) / SUM(derived_total_cost) AS rel_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_qty AS average_quantity, p.rel_gap AS relative_gap, p.avg_qty - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_qty > o.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10;",
+  "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, AVG((derived_product_cost - derived_total_cost) / derived_total_cost) AS rel_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_qty AS average_quantity, p.rel_gap AS relative_gap, p.avg_qty - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_qty > o.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10;",
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty AS average_quantity, inv.relative_gap, inv.avg_qty - overall.overall_avg AS diff_above_overall_avg FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10",
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty AS average_quantity, inv.relative_gap, inv.avg_qty - overall.overall_avg AS diff_above_overall_avg FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number) SELECT invoice_number, avg_qty, relative_gap, avg_qty - (SELECT AVG(avg_qty) FROM inv) AS diff_above_overall FROM inv WHERE avg_qty > (SELECT AVG(avg_qty) FROM inv) ORDER BY diff_above_overall DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but numeric, so it is cast to a number before averaging.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the mean of the per-invoice average quantities, not the mean over all line items. Invoices whose quantities are all NULL are left out of it.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The per-invoice relative gap is computed from summed costs: (SUM(product_cost) - SUM(total_cost)) / SUM(total_cost). A zero total gives NULL.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The relative gap is computed per line item and then averaged for each invoice, ignoring NULLs.",
+     "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number) SELECT invoice_number, avg_qty, relative_gap, avg_qty - (SELECT AVG(avg_qty) FROM inv) AS diff_above_overall FROM inv WHERE avg_qty > (SELECT AVG(avg_qty) FROM inv) ORDER BY diff_above_overall DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) / SUM(derived_total_cost) AS rel_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_qty AS average_quantity, p.rel_gap AS relative_gap, p.avg_qty - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_qty > o.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text, so it is cast to a number before averaging.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The invoice's relative gap is computed from the invoice's summed costs: (SUM(derived_product_cost) - SUM(derived_total_cost)) / SUM(derived_total_cost).",
+     "unresolved": true
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-invoice average quantities. Invoices with no non-null quantity are left out of it.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Relative gap computed per line item and then averaged for each invoice, instead of from summed costs.",
+     "sql": "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, AVG((derived_product_cost - derived_total_cost) / derived_total_cost) AS rel_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_qty AS average_quantity, p.rel_gap AS relative_gap, p.avg_qty - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_qty > o.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty AS average_quantity, inv.relative_gap, inv.avg_qty - overall.overall_avg AS diff_above_overall_avg FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text, so it is cast to a number (REAL) before averaging; non-numeric or NULL values are ignored by AVG.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-invoice average quantities (as the request says), not the mean over all line items.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The per-invoice relative gap is computed from the invoice's summed costs: (SUM(derived_product_cost) - SUM(derived_total_cost)) / SUM(derived_total_cost). A zero total gives NULL.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Relative gap is the average of the per-line-item ratios (derived_product_cost - derived_total_cost) / derived_total_cost within each invoice, instead of the ratio of sums.",
+     "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty AS average_quantity, inv.relative_gap, inv.avg_qty - overall.overall_avg AS diff_above_overall_avg FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY diff_above_overall_avg DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b4231a9afb",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12534,
+  "chars_out": 5298
+ }
+}

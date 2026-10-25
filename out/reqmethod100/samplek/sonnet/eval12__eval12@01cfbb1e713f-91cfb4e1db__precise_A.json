@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH combo AS (SELECT s.transref, t.tradekind, AVG(s.optvolrt) AS avg_opt FROM sentimentandfundamentals s JOIN transactionrecord r ON s.transref = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY s.transref, t.tradekind), base AS (SELECT AVG(avg_opt) AS baseline FROM combo), dev AS (SELECT c.transref, c.tradekind, c.avg_opt, c.avg_opt - b.baseline AS deviation FROM combo c CROSS JOIN base b WHERE b.baseline IS NOT NULL), typeavg AS (SELECT tradekind, AVG(deviation) AS type_avg_dev FROM dev GROUP BY tradekind), kept AS (SELECT d.tradekind, d.avg_opt, d.deviation, d.deviation - ta.type_avg_dev AS excess FROM dev d JOIN typeavg ta ON d.tradekind = ta.tradekind WHERE d.tradekind IS NOT NULL AND d.deviation > ta.type_avg_dev) SELECT tradekind, AVG(avg_opt) AS avg_of_avg_optvolrt, AVG(deviation) AS avg_deviation, AVG(excess) AS avg_excess FROM kept GROUP BY tradekind",
+  "WITH j AS (SELECT s.transref, t.tradekind, AVG(s.optvolrt) AS avgv FROM sentimentandfundamentals s JOIN transactionrecord r ON s.transref = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY s.transref, t.tradekind), b AS (SELECT AVG(avgv) AS base FROM j), d AS (SELECT j.transref, j.tradekind, j.avgv, j.avgv - b.base AS dev FROM j CROSS JOIN b WHERE b.base IS NOT NULL), t AS (SELECT d.*, AVG(dev) OVER (PARTITION BY tradekind) AS tdev FROM d) SELECT tradekind, AVG(avgv) AS avg_optvolrt, AVG(dev) AS avg_deviation, AVG(dev - tdev) AS avg_excess FROM t WHERE tradekind IS NOT NULL AND dev > tdev GROUP BY tradekind",
+  "WITH combo AS (SELECT s.transref AS transref, t.tradekind AS tradekind, AVG(s.optvolrt) AS avg_opt FROM sentimentandfundamentals s JOIN transactionrecord r ON s.transref = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY s.transref, t.tradekind), base AS (SELECT AVG(avg_opt) AS baseline FROM combo), dev AS (SELECT c.transref, c.tradekind, c.avg_opt, c.avg_opt - b.baseline AS deviation FROM combo c CROSS JOIN base b WHERE b.baseline IS NOT NULL), typeavg AS (SELECT tradekind, AVG(deviation) AS type_avg_dev FROM dev GROUP BY tradekind), kept AS (SELECT d.tradekind, d.avg_opt, d.deviation, d.deviation - ta.type_avg_dev AS excess FROM dev d JOIN typeavg ta ON d.tradekind = ta.tradekind WHERE d.tradekind IS NOT NULL AND d.deviation > ta.type_avg_dev) SELECT tradekind, AVG(avg_opt) AS avg_option_volume_ratio, AVG(deviation) AS avg_deviation, AVG(excess) AS avg_excess FROM kept GROUP BY tradekind"
+ ],
+ "responses": [
+  {
+   "sql": "WITH combo AS (SELECT s.transref, t.tradekind, AVG(s.optvolrt) AS avg_opt FROM sentimentandfundamentals s JOIN transactionrecord r ON s.transref = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY s.transref, t.tradekind), base AS (SELECT AVG(avg_opt) AS baseline FROM combo), dev AS (SELECT c.transref, c.tradekind, c.avg_opt, c.avg_opt - b.baseline AS deviation FROM combo c CROSS JOIN base b WHERE b.baseline IS NOT NULL), typeavg AS (SELECT tradekind, AVG(deviation) AS type_avg_dev FROM dev GROUP BY tradekind), kept AS (SELECT d.tradekind, d.avg_opt, d.deviation, d.deviation - ta.type_avg_dev AS excess FROM dev d JOIN typeavg ta ON d.tradekind = ta.tradekind WHERE d.tradekind IS NOT NULL AND d.deviation > ta.type_avg_dev) SELECT tradekind, AVG(avg_opt) AS avg_of_avg_optvolrt, AVG(deviation) AS avg_deviation, AVG(excess) AS avg_excess FROM kept GROUP BY tradekind",
+   "assumptions": [
+    {
+     "assumption": "Combinations whose average optvolrt is NULL (all optvolrt missing) still count as combinations but are ignored by the baseline average, and they drop out at the comparison because their deviation is NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Trader types are compared by tradekind; combinations with NULL tradekind are used for the baseline but excluded from the final result.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH j AS (SELECT s.transref, t.tradekind, AVG(s.optvolrt) AS avgv FROM sentimentandfundamentals s JOIN transactionrecord r ON s.transref = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY s.transref, t.tradekind), b AS (SELECT AVG(avgv) AS base FROM j), d AS (SELECT j.transref, j.tradekind, j.avgv, j.avgv - b.base AS dev FROM j CROSS JOIN b WHERE b.base IS NOT NULL), t AS (SELECT d.*, AVG(dev) OVER (PARTITION BY tradekind) AS tdev FROM d) SELECT tradekind, AVG(avgv) AS avg_optvolrt, AVG(dev) AS avg_deviation, AVG(dev - tdev) AS avg_excess FROM t WHERE tradekind IS NOT NULL AND dev > tdev GROUP BY tradekind",
+   "assumptions": [
+    {
+     "assumption": "The baseline averages every combination's average, including combinations with no trader type. Combinations whose average is NULL are skipped, because AVG ignores NULLs.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Combinations with a NULL tradekind are dropped at the comparison step, so they don't appear in the output.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH combo AS (SELECT s.transref AS transref, t.tradekind AS tradekind, AVG(s.optvolrt) AS avg_opt FROM sentimentandfundamentals s JOIN transactionrecord r ON s.transref = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY s.transref, t.tradekind), base AS (SELECT AVG(avg_opt) AS baseline FROM combo), dev AS (SELECT c.transref, c.tradekind, c.avg_opt, c.avg_opt - b.baseline AS deviation FROM combo c CROSS JOIN base b WHERE b.baseline IS NOT NULL), typeavg AS (SELECT tradekind, AVG(deviation) AS type_avg_dev FROM dev GROUP BY tradekind), kept AS (SELECT d.tradekind, d.avg_opt, d.deviation, d.deviation - ta.type_avg_dev AS excess FROM dev d JOIN typeavg ta ON d.tradekind = ta.tradekind WHERE d.tradekind IS NOT NULL AND d.deviation > ta.type_avg_dev) SELECT tradekind, AVG(avg_opt) AS avg_option_volume_ratio, AVG(deviation) AS avg_deviation, AVG(excess) AS avg_excess FROM kept GROUP BY tradekind",
+   "assumptions": [
+    {
+     "assumption": "Combinations whose average optvolrt is NULL (all values missing) still count as combinations but have a NULL deviation. They are ignored by the averages and are never kept, because the comparison with NULL is not true.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Traders with a NULL tradekind form their own combinations. They contribute to the baseline and get a deviation, but they are dropped at the comparison step.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-91cfb4e1db",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 54450,
+  "chars_out": 3860
+ }
+}

@@ -1,0 +1,88 @@
+{
+ "queries": [
+  "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS diff_from_avg_share FROM shares",
+  "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS diff_from_avg_share FROM shares",
+  "WITH per AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.timespan), s AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS diff_from_avg_share FROM s",
+  "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS share_diff_from_avg FROM shares ORDER BY time_in_force",
+  "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT r.ordervault) AS order_count FROM orders o LEFT JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS share_diff_from_avg FROM shares ORDER BY time_in_force"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS diff_from_avg_share FROM shares",
+   "assumptions": [
+    {
+     "assumption": "Distinct orders are counted by orders.recordvault (the unique order reference used in the join), not orderspivot.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders with a NULL timespan form their own group (NULL time-in-force) and are included in the total and the average share, since the request says 'across the time-in-force values' and NULL is not excluded.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Share is a fraction (0-1) rather than a percentage; difference from the average share is share minus the mean of shares across the groups shown.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Exclude orders with NULL timespan, so only real time-in-force values count toward the total and average.",
+     "sql": "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS diff_from_avg_share FROM shares"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.timespan), s AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS diff_from_avg_share FROM s",
+   "assumptions": [
+    {
+     "assumption": "Orders are identified by orders.recordvault (the unique order reference that riskandmargin links to), so distinct orders are counted by recordvault.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Share is a fraction (0-1) of the total distinct matched orders across all time-in-force values, and the difference is share minus the simple average share across the time-in-force groups (not a percentage).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders with NULL timespan form their own group, since the request says to show each time-in-force value and drop only unmatched records.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS share_diff_from_avg FROM shares ORDER BY time_in_force",
+   "assumptions": [
+    {
+     "assumption": "Orders are identified by recordvault (the unique order reference that riskandmargin references), so distinct orders are counted by recordvault.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only time-in-force values that have at least one matched risk/margin record appear; values with no matches are not listed and do not count toward the average share.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Orders with a NULL timespan, if any matched, form their own group and are treated as a time-in-force value in the share and average calculations.",
+     "unresolved": true
+    },
+    {
+     "assumption": "'Difference from the average share' is the signed difference (share minus the mean share across the groups), expressed as a fraction, not a percentage.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include every time-in-force value present in orders, even those with zero matched risk/margin records (count 0), so the average share is taken over all values.",
+     "sql": "WITH per_tif AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT r.ordervault) AS order_count FROM orders o LEFT JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share FROM per_tif) SELECT time_in_force, order_count, share, share - AVG(share) OVER () AS share_diff_from_avg FROM shares ORDER BY time_in_force"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40956,
+  "chars_out": 4479
+ }
+}

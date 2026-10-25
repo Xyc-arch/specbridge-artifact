@@ -1,0 +1,45 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "precise_A",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH group_avgs AS (SELECT rfistat, AVG(modindex) AS avg_modindex FROM signals GROUP BY rfistat), valid AS (SELECT rfistat, avg_modindex FROM group_avgs WHERE avg_modindex IS NOT NULL), baseline AS (SELECT AVG(avg_modindex) AS base FROM valid), kept AS (SELECT v.rfistat, v.avg_modindex, v.avg_modindex - b.base AS above_baseline FROM valid v CROSS JOIN baseline b WHERE v.avg_modindex > b.base), kept_mean AS (SELECT AVG(avg_modindex) AS km FROM kept) SELECT k.rfistat, k.avg_modindex, k.above_baseline, ABS(k.avg_modindex - m.km) AS diff_from_kept_mean FROM kept k CROSS JOIN kept_mean m;",
+  "assumptions": [
+   {
+    "assumption": "Signals with a NULL rfistat form their own group, and AVG(modindex) skips NULL modindex values within each group.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Only NULL counts as 'no status'. Empty-string rfistat values would form a separate group, not be merged with the NULL group.",
+    "unresolved": true
+   },
+   {
+    "assumption": "A group whose modindex values are all NULL has no average. It is excluded from the baseline and from the kept statuses.",
+    "unresolved": false
+   },
+   {
+    "assumption": "'How far it differs from the mean of the kept averages' is the absolute difference, ABS(avg - mean of kept averages).",
+    "unresolved": true
+   },
+   {
+    "assumption": "The baseline is the unweighted mean of the per-status averages, and a status is kept only if its average is strictly greater than the baseline.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Treat the no-status group as not a status at all: exclude signals with NULL rfistat from the grouping, so it is not included in the baseline or the kept results.",
+    "sql": "WITH group_avgs AS (SELECT rfistat, AVG(modindex) AS avg_modindex FROM signals WHERE rfistat IS NOT NULL GROUP BY rfistat), valid AS (SELECT rfistat, avg_modindex FROM group_avgs WHERE avg_modindex IS NOT NULL), baseline AS (SELECT AVG(avg_modindex) AS base FROM valid), kept AS (SELECT v.rfistat, v.avg_modindex, v.avg_modindex - b.base AS above_baseline FROM valid v CROSS JOIN baseline b WHERE v.avg_modindex > b.base), kept_mean AS (SELECT AVG(avg_modindex) AS km FROM kept) SELECT k.rfistat, k.avg_modindex, k.above_baseline, ABS(k.avg_modindex - m.km) AS diff_from_kept_mean FROM kept k CROSS JOIN kept_mean m;"
+   },
+   {
+    "interpretation": "'How far it differs' is a signed difference: avg minus the mean of the kept averages, so values below that mean come out negative.",
+    "sql": "WITH group_avgs AS (SELECT rfistat, AVG(modindex) AS avg_modindex FROM signals GROUP BY rfistat), valid AS (SELECT rfistat, avg_modindex FROM group_avgs WHERE avg_modindex IS NOT NULL), baseline AS (SELECT AVG(avg_modindex) AS base FROM valid), kept AS (SELECT v.rfistat, v.avg_modindex, v.avg_modindex - b.base AS above_baseline FROM valid v CROSS JOIN baseline b WHERE v.avg_modindex > b.base), kept_mean AS (SELECT AVG(avg_modindex) AS km FROM kept) SELECT k.rfistat, k.avg_modindex, k.above_baseline, k.avg_modindex - m.km AS diff_from_kept_mean FROM kept k CROSS JOIN kept_mean m;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [],
+ "seconds": 13.3
+}

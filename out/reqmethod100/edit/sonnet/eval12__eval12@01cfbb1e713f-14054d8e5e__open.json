@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Take the average spend per budget line from the average of summed expense costs, over lines having expenses.",
+  "Take the average spend per budget line as the average of `budget.spent` across all budget rows.",
+  "Include budget lines without expenses as zero when computing the average spend per budget line.",
+  "Use `budget.spent` as each line's total instead of summing expense `cost`."
+ ],
+ "edited": [
+  "For budget lines whose total expense cost (summing `cost` by `link_to_budget`) is above the average spend per budget line, what is their average total, how many expenses do they have altogether, and on average by how much do they exceed that average? Take the average spend per budget line from the average of summed expense costs, over lines having expenses.",
+  "For budget lines whose total expense cost (summing `cost` by `link_to_budget`) is above the average spend per budget line, what is their average total, how many expenses do they have altogether, and on average by how much do they exceed that average? Take the average spend per budget line as the average of `budget.spent` across all budget rows.",
+  "For budget lines whose total expense cost (summing `cost` by `link_to_budget`) is above the average spend per budget line, what is their average total, how many expenses do they have altogether, and on average by how much do they exceed that average? Include budget lines without expenses as zero when computing the average spend per budget line.",
+  "For budget lines whose total expense cost (summing `cost` by `link_to_budget`) is above the average spend per budget line, what is their average total, how many expenses do they have altogether, and on average by how much do they exceed that average? Use `budget.spent` as each line's total instead of summing expense `cost`."
+ ],
+ "queries": [
+  "WITH totals AS (\n    SELECT link_to_budget, SUM(cost) AS total_cost, COUNT(*) AS expense_count\n    FROM expense\n    WHERE link_to_budget IS NOT NULL\n    GROUP BY link_to_budget\n),\navg_total AS (\n    SELECT AVG(total_cost) AS avg_cost FROM totals\n)\nSELECT AVG(t.total_cost) AS average_total,\n       SUM(t.expense_count) AS total_expenses,\n       AVG(t.total_cost - a.avg_cost) AS average_excess\nFROM totals t, avg_total a\nWHERE t.total_cost > a.avg_cost;\n",
+  "WITH totals AS (\n    SELECT link_to_budget, SUM(cost) AS total, COUNT(*) AS cnt\n    FROM expense\n    GROUP BY link_to_budget\n),\navg_spent AS (\n    SELECT AVG(spent) AS a FROM budget\n)\nSELECT AVG(total) AS avg_total,\n       SUM(cnt) AS num_expenses,\n       AVG(total - (SELECT a FROM avg_spent)) AS avg_excess\nFROM totals\nWHERE total > (SELECT a FROM avg_spent);\n",
+  "WITH t AS (\n    SELECT b.budget_id,\n           COALESCE(SUM(e.cost), 0) AS total,\n           COUNT(e.expense_id) AS cnt\n    FROM budget b\n    LEFT JOIN expense e ON e.link_to_budget = b.budget_id\n    GROUP BY b.budget_id\n),\na AS (\n    SELECT AVG(total) AS avg_total FROM t\n)\nSELECT AVG(t.total) AS average_total,\n       SUM(t.cnt) AS total_expenses,\n       AVG(t.total - a.avg_total) AS average_excess\nFROM t, a\nWHERE t.total > a.avg_total;\n",
+  "SELECT\n  (SELECT AVG(b.spent) FROM budget b WHERE b.spent > (SELECT AVG(spent) FROM budget)) AS avg_total,\n  (SELECT COUNT(*) FROM expense e JOIN budget b ON e.link_to_budget = b.budget_id WHERE b.spent > (SELECT AVG(spent) FROM budget)) AS expense_count,\n  (SELECT AVG(b.spent - (SELECT AVG(spent) FROM budget)) FROM budget b WHERE b.spent > (SELECT AVG(spent) FROM budget)) AS avg_excess;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-14054d8e5e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 92970,
+  "chars_out": 7706
+ }
+}

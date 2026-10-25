@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Inner join of executions to orders, grouped by `orderbase` (NULL as its own group). For each group, return the channel, AVG(`fillcount`) ignoring NULLs, COUNT of executions, and that count divided by the total count of linked executions across all channels. The result is an unrounded fraction.",
+  "The same as 1, but the denominator is the total number of all rows in `orderexecutions`, including executions with no matching order.",
+  "The same as 1, but \"number of executions\" is COUNT(`fillcount`), which counts only non-null fill quantities. The fraction's denominator is then either the total of those non-null counts or the total of all linked executions.",
+  "The same as 1, but \"number of executions\" is COUNT(DISTINCT `orderexecmark`), and the denominator is the total distinct linked executions.",
+  "The same as 1, but the fraction is expressed as a percentage (count \u00d7 100 / total) rather than a 0\u20131 value.",
+  "The same as 1, but the fraction is computed with integer division, which would truncate it to 0. The question says \"unrounded,\" so this is unlikely.",
+  "A left join from orders to executions, so channels with no executions appear with a count of 0 and a NULL average. This conflicts with \"looking only at executions that link to an order.\"",
+  "A left join from executions to orders, so executions with no matching order fall into the NULL channel group. This conflicts with \"only executions that link to an order.\" Under this reading, \"missing channel\" covers both orders with a NULL `orderbase` and executions with no order.",
+  "\"Missing channel\" means only `orderbase` IS NULL, and empty strings are left as their own group.",
+  "\"Missing channel\" means NULL or empty-string `orderbase`, merged into one group.",
+  "The average is the simple mean of per-execution `fillcount`, as in 1. Alternatively, it is a per-order average of fill totals, averaged across orders in the channel.",
+  "The average is weighted by something such as `fillsum`, rather than a simple mean.",
+  "The join matches `orderexecutions.ordersmark` to `orders.recordvault` with CHAR(36) padding or case differences normalized.",
+  "Orders with multiple executions are counted once per execution (the default), as opposed to once per order.",
+  "Missing interpretations:",
+  "The average is taken only over executions with a non-null `fillcount`, but the execution count and the fraction's denominator include all linked executions, null `fillcount` or not.",
+  "The fraction's denominator is the total of linked executions whose order has a non-null `orderbase`. The NULL channel group is excluded from the total but still reported.",
+  "Channel matching is case-insensitive or whitespace-trimmed, so values like 'API' and 'api' merge into one group.",
+  "\"Missing channel\" is labeled with a placeholder such as 'Unknown' or 'N/A' instead of NULL.",
+  "The average is rounded, or cast to a specific numeric type, even though the fraction is unrounded.",
+  "The orders-to-executions join is on `orders.recordvault` only, and duplicate `recordvault` values in `orders` multiply the execution rows (fan-out), inflating the counts."
+ ],
+ "queries": [
+  "SELECT o.orderbase AS orderbase,\n       AVG(e.fillcount) AS avg_fillcount,\n       COUNT(*) AS execution_count,\n       CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM orderexecutions e2 JOIN orders o2 ON e2.ordersmark = o2.recordvault) AS fraction\nFROM orderexecutions e\nJOIN orders o ON e.ordersmark = o.recordvault\nGROUP BY o.orderbase",
+  "SELECT 100.0 * COUNT(o.orderspivot) / (SELECT COUNT(*) FROM orderexecutions) AS percentage\nFROM orderexecutions oe\nJOIN orders o ON oe.ordersmark = o.recordvault;\n",
+  "SELECT exectune,\n       COUNT(fillcount) AS number_of_executions,\n       COUNT(fillcount) * 1.0 / (SELECT COUNT(fillcount) FROM orderexecutions) AS fraction\nFROM orderexecutions\nGROUP BY exectune;\n",
+  "SELECT oe.exectune,\n       COUNT(DISTINCT oe.orderexecmark) AS number_of_executions,\n       COUNT(DISTINCT oe.orderexecmark) * 100.0 / (SELECT COUNT(DISTINCT oe2.orderexecmark) FROM orderexecutions oe2 JOIN orders o2 ON oe2.ordersmark = o2.recordvault) AS percentage\nFROM orderexecutions oe\nJOIN orders o ON oe.ordersmark = o.recordvault\nGROUP BY oe.exectune;\n",
+  "SELECT COUNT(CASE WHEN orderflow = 'Filled' THEN 1 END) * 100.0 / COUNT(*) FROM orders;\n"
+ ],
+ "raw": [
+  "1. Inner join of executions to orders, grouped by `orderbase` (NULL as its own group). For each group, return the channel, AVG(`fillcount`) ignoring NULLs, COUNT of executions, and that count divided by the total count of linked executions across all channels. The result is an unrounded fraction.\n2. The same as 1, but the denominator is the total number of all rows in `orderexecutions`, including executions with no matching order.\n3. The same as 1, but \"number of executions\" is COUNT(`fillcount`), which counts only non-null fill quantities. The fraction's denominator is then either the total of those non-null counts or the total of all linked executions.\n4. The same as 1, but \"number of executions\" is COUNT(DISTINCT `orderexecmark`), and the denominator is the total distinct linked executions.\n5. The same as 1, but the fraction is expressed as a percentage (count \u00d7 100 / total) rather than a 0\u20131 value.\n6. The same as 1, but the fraction is computed with integer division, which would truncate it to 0. The question says \"unrounded,\" so this is unlikely.\n7. A left join from orders to executions, so channels with no executions appear with a count of 0 and a NULL average. This conflicts with \"looking only at executions that link to an order.\"\n8. A left join from executions to orders, so executions with no matching order fall into the NULL channel group. This conflicts with \"only executions that link to an order.\" Under this reading, \"missing channel\" covers both orders with a NULL `orderbase` and executions with no order.\n9. \"Missing channel\" means only `orderbase` IS NULL, and empty strings are left as their own group.\n10. \"Missing channel\" means NULL or empty-string `orderbase`, merged into one group.\n11. The average is the simple mean of per-execution `fillcount`, as in 1. Alternatively, it is a per-order average of fill totals, averaged across orders in the channel.\n12. The average is weighted by something such as `fillsum`, rather than a simple mean.\n13. The join matches `orderexecutions.ordersmark` to `orders.recordvault` with CHAR(36) padding or case differences normalized.\n14. Orders with multiple executions are counted once per execution (the default), as opposed to once per order.",
+  "Missing interpretations:\n\nThe average is taken only over executions with a non-null `fillcount`, but the execution count and the fraction's denominator include all linked executions, null `fillcount` or not.\nThe fraction's denominator is the total of linked executions whose order has a non-null `orderbase`. The NULL channel group is excluded from the total but still reported.\nChannel matching is case-insensitive or whitespace-trimmed, so values like 'API' and 'api' merge into one group.\n\"Missing channel\" is labeled with a placeholder such as 'Unknown' or 'N/A' instead of NULL.\nThe average is rounded, or cast to a specific numeric type, even though the fraction is unrounded.\nThe orders-to-executions join is on `orders.recordvault` only, and duplicate `recordvault` values in `orders` multiply the execution rows (fan-out), inflating the counts."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3cc388876c",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107438,
+  "chars_out": 5427
+ }
+}

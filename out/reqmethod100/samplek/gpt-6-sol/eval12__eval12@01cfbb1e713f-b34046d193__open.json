@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH colleges AS (SELECT DISTINCT college FROM major WHERE college IS NOT NULL), college_income AS (SELECT ma.college, SUM(COALESCE(i.amount, 0)) AS total_income_amount FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college), overall AS (SELECT SUM(COALESCE(amount, 0)) AS total_income_amount FROM income) SELECT c.college, COALESCE(ci.total_income_amount, 0) AS total_income_amount, 1.0 * COALESCE(ci.total_income_amount, 0) / NULLIF(o.total_income_amount, 0) AS fraction_of_total_income FROM colleges AS c LEFT JOIN college_income AS ci ON ci.college = c.college CROSS JOIN overall AS o ORDER BY c.college;",
+  "WITH colleges AS (SELECT DISTINCT college FROM major WHERE college IS NOT NULL), college_income AS (SELECT ma.college, SUM(COALESCE(i.amount, 0)) AS total_income_amount FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college), attributable_total AS (SELECT SUM(total_income_amount) AS total_income_amount FROM college_income) SELECT c.college, COALESCE(ci.total_income_amount, 0) AS total_income_amount, 1.0 * COALESCE(ci.total_income_amount, 0) / NULLIF(t.total_income_amount, 0) AS fraction_of_total_income FROM colleges AS c LEFT JOIN college_income AS ci ON ci.college = c.college CROSS JOIN attributable_total AS t ORDER BY c.college;",
+  "SELECT m.college, SUM(i.amount) AS total_income, 1.0 * SUM(i.amount) / NULLIF((SELECT SUM(amount) FROM income), 0) AS fraction_of_total_income FROM income AS i JOIN member AS mem ON mem.member_id = i.link_to_member JOIN major AS m ON m.major_id = mem.link_to_major GROUP BY m.college;",
+  "WITH college_income AS (SELECT ma.college, SUM(i.amount) AS total_income FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college), overall_income AS (SELECT SUM(amount) AS total_income FROM income) SELECT c.college, c.total_income, c.total_income * 1.0 / NULLIF(o.total_income, 0) AS fraction_of_total_income FROM college_income AS c CROSS JOIN overall_income AS o ORDER BY c.college",
+  "WITH college_income AS (SELECT ma.college, SUM(i.amount) AS total_income FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college) SELECT college, total_income, total_income * 1.0 / NULLIF((SELECT SUM(total_income) FROM college_income), 0) AS fraction_of_total_income FROM college_income ORDER BY college"
+ ],
+ "responses": [
+  {
+   "sql": "WITH colleges AS (SELECT DISTINCT college FROM major WHERE college IS NOT NULL), college_income AS (SELECT ma.college, SUM(COALESCE(i.amount, 0)) AS total_income_amount FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college), overall AS (SELECT SUM(COALESCE(amount, 0)) AS total_income_amount FROM income) SELECT c.college, COALESCE(ci.total_income_amount, 0) AS total_income_amount, 1.0 * COALESCE(ci.total_income_amount, 0) / NULLIF(o.total_income_amount, 0) AS fraction_of_total_income FROM colleges AS c LEFT JOIN college_income AS ci ON ci.college = c.college CROSS JOIN overall AS o ORDER BY c.college;",
+   "assumptions": [
+    {
+     "assumption": "Total income means all income records, including any that cannot be linked to a college. A fraction is NULL when total income is zero.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Total income means only income that can be linked to a college.",
+     "sql": "WITH colleges AS (SELECT DISTINCT college FROM major WHERE college IS NOT NULL), college_income AS (SELECT ma.college, SUM(COALESCE(i.amount, 0)) AS total_income_amount FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college), attributable_total AS (SELECT SUM(total_income_amount) AS total_income_amount FROM college_income) SELECT c.college, COALESCE(ci.total_income_amount, 0) AS total_income_amount, 1.0 * COALESCE(ci.total_income_amount, 0) / NULLIF(t.total_income_amount, 0) AS fraction_of_total_income FROM colleges AS c LEFT JOIN college_income AS ci ON ci.college = c.college CROSS JOIN attributable_total AS t ORDER BY c.college;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT m.college, SUM(i.amount) AS total_income, 1.0 * SUM(i.amount) / NULLIF((SELECT SUM(amount) FROM income), 0) AS fraction_of_total_income FROM income AS i JOIN member AS mem ON mem.member_id = i.link_to_member JOIN major AS m ON m.major_id = mem.link_to_major GROUP BY m.college;",
+   "assumptions": [
+    {
+     "assumption": "Total income in the denominator includes every income record, even one that cannot be linked to a college.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH college_income AS (SELECT ma.college, SUM(i.amount) AS total_income FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college), overall_income AS (SELECT SUM(amount) AS total_income FROM income) SELECT c.college, c.total_income, c.total_income * 1.0 / NULLIF(o.total_income, 0) AS fraction_of_total_income FROM college_income AS c CROSS JOIN overall_income AS o ORDER BY c.college",
+   "assumptions": [
+    {
+     "assumption": "\u201cTotal income\u201d includes every income record, even one that cannot be linked to a college. Such records do not appear in a college total.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The denominator is only income that can be linked to a college, so the displayed fractions sum to 1 when that income total is nonzero.",
+     "sql": "WITH college_income AS (SELECT ma.college, SUM(i.amount) AS total_income FROM income AS i JOIN member AS m ON m.member_id = i.link_to_member JOIN major AS ma ON ma.major_id = m.link_to_major WHERE ma.college IS NOT NULL GROUP BY ma.college) SELECT college, total_income, total_income * 1.0 / NULLIF((SELECT SUM(total_income) FROM college_income), 0) AS fraction_of_total_income FROM college_income ORDER BY college"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b34046d193",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 22908,
+  "chars_out": 3607
+ }
+}

@@ -1,0 +1,27 @@
+{
+ "interpretations": [
+  "Count advanced behaviour analysis records for each linked transaction\u2019s `ordertypedist`, grouping missing values together. Divide each count by the total linked analysis count; show groups whose share exceeds the unweighted average share of observed groups.",
+  "Count distinct linked transactions for each `ordertypedist`, grouping missing values together. Divide each count by the total number of distinct linked transactions; show groups whose share exceeds the unweighted average share of observed groups.",
+  "Use analysis-record counts and shares, but calculate the average across all defined order type mixes, including mixes with zero records, plus the missing-value group.",
+  "Use distinct-transaction counts and shares, but calculate the average across all defined order type mixes, including mixes with zero transactions, plus the missing-value group."
+ ],
+ "queries": [
+  "WITH group_counts AS (\n    SELECT t.ordertypedist, COUNT(*) AS analysis_count\n    FROM advancedbehavior AS a\n    JOIN transactionrecord AS t ON t.transreg = a.translink\n    GROUP BY t.ordertypedist\n),\ngroup_shares AS (\n    SELECT\n        ordertypedist,\n        analysis_count,\n        1.0 * analysis_count / SUM(analysis_count) OVER () AS share,\n        COUNT(*) OVER () AS group_count\n    FROM group_counts\n)\nSELECT ordertypedist, analysis_count, share\nFROM group_shares\nWHERE share > 1.0 / group_count",
+  "WITH group_counts AS (\n    SELECT\n        tr.ordertypedist,\n        COUNT(DISTINCT ab.translink) AS transaction_count\n    FROM advancedbehavior AS ab\n    JOIN transactionrecord AS tr\n        ON tr.transreg = ab.translink\n    GROUP BY tr.ordertypedist\n),\nshares AS (\n    SELECT\n        ordertypedist,\n        transaction_count,\n        1.0 * transaction_count\n            / SUM(transaction_count) OVER () AS share\n    FROM group_counts\n)\nSELECT ordertypedist, transaction_count, share\nFROM shares\nWHERE share > (SELECT AVG(share) FROM shares);\n",
+  "WITH order_type_mixes(order_type_mix) AS (\n    VALUES ('Market'), ('Mixed'), ('Limit'), (NULL)\n),\nanalysis_counts AS (\n    SELECT\n        m.order_type_mix,\n        COUNT(a.abhvreg) AS analysis_record_count\n    FROM order_type_mixes AS m\n    LEFT JOIN transactionrecord AS t\n        ON t.ordertypedist IS m.order_type_mix\n    LEFT JOIN advancedbehavior AS a\n        ON a.translink = t.transreg\n    GROUP BY m.order_type_mix\n)\nSELECT\n    order_type_mix,\n    analysis_record_count,\n    1.0 * analysis_record_count\n        / NULLIF(SUM(analysis_record_count) OVER (), 0) AS analysis_record_share,\n    AVG(analysis_record_count) OVER () AS average_analysis_record_count\nFROM analysis_counts;\n",
+  "WITH order_type_mixes (order_type_mix, sort_order) AS (\n    VALUES ('Market', 1), ('Mixed', 2), ('Limit', 3), (NULL, 4)\n),\nmix_counts AS (\n    SELECT\n        m.order_type_mix,\n        m.sort_order,\n        COUNT(DISTINCT t.transreg) AS transaction_count\n    FROM order_type_mixes AS m\n    LEFT JOIN transactionrecord AS t\n        ON t.ordertypedist = m.order_type_mix\n        OR (m.order_type_mix IS NULL AND t.ordertypedist IS NULL)\n    GROUP BY m.order_type_mix, m.sort_order\n)\nSELECT\n    order_type_mix,\n    transaction_count,\n    1.0 * transaction_count / NULLIF(SUM(transaction_count) OVER (), 0) AS transaction_share,\n    AVG(transaction_count) OVER () AS average_transaction_count\nFROM mix_counts\nORDER BY sort_order"
+ ],
+ "raw": [
+  "- Count advanced behaviour analysis records for each linked transaction\u2019s `ordertypedist`, grouping missing values together. Divide each count by the total linked analysis count; show groups whose share exceeds the unweighted average share of observed groups.\n- Count distinct linked transactions for each `ordertypedist`, grouping missing values together. Divide each count by the total number of distinct linked transactions; show groups whose share exceeds the unweighted average share of observed groups.\n- Use analysis-record counts and shares, but calculate the average across all defined order type mixes, including mixes with zero records, plus the missing-value group.\n- Use distinct-transaction counts and shares, but calculate the average across all defined order type mixes, including mixes with zero transactions, plus the missing-value group.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 6,
+  "chars_in": 103760,
+  "chars_out": 3375
+ }
+}

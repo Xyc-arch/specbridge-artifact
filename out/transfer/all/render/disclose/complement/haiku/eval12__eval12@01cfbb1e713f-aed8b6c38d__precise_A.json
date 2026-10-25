@@ -1,0 +1,43 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-aed8b6c38d",
+ "wording": "precise_A",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH per_patient AS (SELECT p.ID, p.SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Laboratory l JOIN Patient p ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_diff) AS overall_mean FROM per_patient), ratios AS (SELECT pp.SEX, pp.avg_pt, pp.avg_diff, pp.avg_diff / o.overall_mean AS ratio FROM per_patient pp CROSS JOIN overall o) SELECT SEX, AVG(avg_pt) AS avg_patient_pt, AVG(avg_diff) AS avg_patient_iga_minus_igm, AVG(ratio) AS avg_ratio_to_overall_mean FROM ratios GROUP BY SEX;",
+  "assumptions": [
+   {
+    "assumption": "The inner JOIN drops lab records with no matching Patient row, as the request specifies. Each patient's SEX comes from the Patient table, and grouping by (ID, SEX) is one row per patient because Patient.ID is the primary key.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Per-record IGA \u2212 IGM is computed only when both values are present. AVG ignores the NULL results, so records with a missing IGA or IGM do not count toward the patient's average.",
+    "unresolved": false
+   },
+   {
+    "assumption": "PT is averaged per patient across that patient's lab records, skipping NULLs. A patient with no non-null PT values gets a NULL average and is excluded from the average-of-PT step.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The overall mean is the unweighted mean of the per-patient IGA \u2212 IGM averages, so each patient counts equally. Patients with no non-null IGA \u2212 IGM values are excluded from it, and their ratios are NULL.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The request names only blank-string SEX values as a separate group. SQL GROUP BY also places SQL NULL SEX values in their own group, and the query keeps them. Whether NULL SEX should be kept or dropped is not settled by the request.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Drop patients whose SEX is NULL, keeping only blank-string and the recorded M/F values as groups.",
+    "sql": "WITH per_patient AS (SELECT p.ID, p.SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Laboratory l JOIN Patient p ON l.ID = p.ID WHERE p.SEX IS NOT NULL GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_diff) AS overall_mean FROM per_patient), ratios AS (SELECT pp.SEX, pp.avg_pt, pp.avg_diff, pp.avg_diff / o.overall_mean AS ratio FROM per_patient pp CROSS JOIN overall o) SELECT SEX, AVG(avg_pt) AS avg_patient_pt, AVG(avg_diff) AS avg_patient_iga_minus_igm, AVG(ratio) AS avg_ratio_to_overall_mean FROM ratios GROUP BY SEX;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 14.8
+}

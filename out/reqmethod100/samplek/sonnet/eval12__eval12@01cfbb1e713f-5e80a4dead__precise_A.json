@@ -1,0 +1,80 @@
+{
+ "queries": [
+  "WITH r AS (SELECT m.Name AS name, AVG(1.0 * t.Bytes / t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), mm AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.name, r.rate, r.track_count, r.rate - mm.mean_rate AS rate_minus_mean FROM r CROSS JOIN mm WHERE r.rate > mm.mean_rate",
+  "WITH r AS (SELECT m.Name AS name, AVG(1.0 * t.Bytes / t.Milliseconds) AS rate, COUNT(t.Bytes) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), mm AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.name, r.rate, r.track_count, r.rate - mm.mean_rate AS rate_minus_mean FROM r CROSS JOIN mm WHERE r.rate > mm.mean_rate",
+  "WITH per_type AS (\n  SELECT m.MediaTypeId, m.Name AS name,\n         AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS rate,\n         COUNT(*) AS track_count\n  FROM Track t\n  JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n),\noverall AS (\n  SELECT AVG(rate) AS mean_rate FROM per_type\n)\nSELECT p.name, p.rate, p.track_count, p.rate - o.mean_rate AS rate_minus_mean\nFROM per_type p\nCROSS JOIN overall o\nWHERE p.rate > o.mean_rate",
+  "WITH r AS (SELECT m.MediaTypeId, m.Name, AVG(t.Bytes * 1.0 / t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name), mean AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.Name, r.rate, r.track_count, r.rate - mean.mean_rate AS rate_minus_mean FROM r CROSS JOIN mean WHERE r.rate > mean.mean_rate",
+  "WITH r AS (SELECT m.MediaTypeId, m.Name, AVG(t.Bytes * 1.0 / t.Milliseconds) AS rate, COUNT(t.Bytes * 1.0 / t.Milliseconds) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name), mean AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.Name, r.rate, r.track_count, r.rate - mean.mean_rate AS rate_minus_mean FROM r CROSS JOIN mean WHERE r.rate > mean.mean_rate"
+ ],
+ "responses": [
+  {
+   "sql": "WITH r AS (SELECT m.Name AS name, AVG(1.0 * t.Bytes / t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), mm AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.name, r.rate, r.track_count, r.rate - mm.mean_rate AS rate_minus_mean FROM r CROSS JOIN mm WHERE r.rate > mm.mean_rate",
+   "assumptions": [
+    {
+     "assumption": "Track count is the number of all tracks matched to the media type, including tracks whose Bytes is NULL and so have no ratio.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Bytes is multiplied by 1.0 so the per-track division is not integer division. Media types are grouped by name, and the overall mean is the plain average of the per-type rates, with types that have no computable rate skipped.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Track count only includes tracks that have a computable ratio (non-NULL Bytes).",
+     "sql": "WITH r AS (SELECT m.Name AS name, AVG(1.0 * t.Bytes / t.Milliseconds) AS rate, COUNT(t.Bytes) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), mm AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.name, r.rate, r.track_count, r.rate - mm.mean_rate AS rate_minus_mean FROM r CROSS JOIN mm WHERE r.rate > mm.mean_rate"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_type AS (\n  SELECT m.MediaTypeId, m.Name AS name,\n         AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS rate,\n         COUNT(*) AS track_count\n  FROM Track t\n  JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n),\noverall AS (\n  SELECT AVG(rate) AS mean_rate FROM per_type\n)\nSELECT p.name, p.rate, p.track_count, p.rate - o.mean_rate AS rate_minus_mean\nFROM per_type p\nCROSS JOIN overall o\nWHERE p.rate > o.mean_rate",
+   "assumptions": [
+    {
+     "assumption": "Media types are grouped by MediaTypeId and Name (the name is shown). Track_count counts all matched tracks of the type, including those with NULL Bytes, which are skipped only in the rate average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The mean of rates is taken over media types that have a defined rate (types with at least one track with non-null Bytes). Types whose rate is NULL are excluded from the mean by AVG.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Milliseconds is NOT NULL, and is assumed non-zero, so there is no division by zero. Bytes is cast to REAL to avoid integer division.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH r AS (SELECT m.MediaTypeId, m.Name, AVG(t.Bytes * 1.0 / t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name), mean AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.Name, r.rate, r.track_count, r.rate - mean.mean_rate AS rate_minus_mean FROM r CROSS JOIN mean WHERE r.rate > mean.mean_rate",
+   "assumptions": [
+    {
+     "assumption": "Track count is the number of matched tracks per media type, including tracks whose Bytes/Milliseconds ratio is missing (NULL Bytes or zero Milliseconds); only the average skips those.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Media types are grouped by MediaTypeId (with name), and the overall mean is the plain average of the per-type rates, with types having no computable rate left out of that mean.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Bytes is multiplied by 1.0 so the per-track division is fractional, not integer division.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Track count only includes tracks that have a computable ratio (the same tracks used in the average).",
+     "sql": "WITH r AS (SELECT m.MediaTypeId, m.Name, AVG(t.Bytes * 1.0 / t.Milliseconds) AS rate, COUNT(t.Bytes * 1.0 / t.Milliseconds) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name), mean AS (SELECT AVG(rate) AS mean_rate FROM r) SELECT r.Name, r.rate, r.track_count, r.rate - mean.mean_rate AS rate_minus_mean FROM r CROSS JOIN mean WHERE r.rate > mean.mean_rate"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5e80a4dead",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16917,
+  "chars_out": 4117
+ }
+}

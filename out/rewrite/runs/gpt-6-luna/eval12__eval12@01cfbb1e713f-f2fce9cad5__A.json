@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f2fce9cad5",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Only (transaction, trader type) pairs whose share is strictly above their trader type's average share are kept.",
+ "b": {
+  "request": "For each trader type, retain transaction\u2013trader type pairs whose count divided by the total count for that trader type is strictly greater than the average of those pair shares; report the average count, average share, and average difference between each retained share and the trader type\u2019s average share, without rounding",
+  "sql": "WITH pair_counts AS (\n  SELECT tr.tradekind, tr.tradereg, COUNT(*) AS pair_count\n  FROM transactionrecord AS tx\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind, tr.tradereg\n), pair_shares AS (\n  SELECT tradekind, tradereg, pair_count,\n         pair_count::numeric / SUM(pair_count) OVER (PARTITION BY tradekind) AS pair_share\n  FROM pair_counts\n), scored_pairs AS (\n  SELECT tradekind, pair_count, pair_share,\n         AVG(pair_share) OVER (PARTITION BY tradekind) AS avg_pair_share\n  FROM pair_shares\n)\nSELECT tradekind,\n       AVG(pair_count) AS average_count,\n       AVG(pair_share) AS average_share,\n       AVG(pair_share - avg_pair_share) AS average_difference\nFROM scored_pairs\nWHERE pair_share > avg_pair_share\nGROUP BY tradekind;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Link the `advancedbehavior` records to their transaction via `translink` and on to the trader who made it (skip anything that doesn't match), and count records for each transaction (`translink`) and trader type combination. Each combination's share is its count over the total for its trader type. Looking only at combinations whose share sits on the upper side of the average share for their trader type, give me, per trader type, the average count, the average share, and the average margin over the trader type's average share \u2014 no rounding. Only (transaction, trader type) pairs whose share is strictly above their trader type's average share are kept.",
+  "sql": "WITH combination_counts AS (\n  SELECT\n    ab.translink,\n    tr.tradekind,\n    COUNT(*) AS record_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY ab.translink, tr.tradekind\n),\ncombination_shares AS (\n  SELECT\n    translink,\n    tradekind,\n    record_count,\n    record_count::numeric / SUM(record_count) OVER (PARTITION BY tradekind) AS share\n  FROM combination_counts\n),\nwith_type_averages AS (\n  SELECT\n    *,\n    AVG(share) OVER (PARTITION BY tradekind) AS average_share\n  FROM combination_shares\n)\nSELECT\n  tradekind,\n  AVG(record_count) AS average_count,\n  AVG(share) AS average_share,\n  AVG(share - average_share) AS average_margin\nFROM with_type_averages\nWHERE share > average_share\nGROUP BY tradekind;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Take the behavioural analysis records in `advancedbehavior`, link each to its transaction through `translink` and then to the trader who made that transaction (dropping records with no match), and count the records for each pair of linked transaction (`translink`) and trader type. Work out each pair's share as its count divided by the total count of all pairs with the same trader type, and keep only the pairs whose share is strictly greater than the average share of pairs of their trader type. For each trader type, return the trader type, the average record count of the kept pairs, their average share, and the average amount by which their share exceeds the trader type's average share, without rounding.",
+  "sql": "WITH pair_counts AS (\n  SELECT\n    ab.translink,\n    tr.tradekind,\n    COUNT(*) AS record_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY ab.translink, tr.tradekind\n),\npair_shares AS (\n  SELECT\n    translink,\n    tradekind,\n    record_count,\n    record_count::numeric / SUM(record_count) OVER (PARTITION BY tradekind) AS share\n  FROM pair_counts\n),\nranked_pairs AS (\n  SELECT\n    translink,\n    tradekind,\n    record_count,\n    share,\n    AVG(share) OVER (PARTITION BY tradekind) AS average_share\n  FROM pair_shares\n)\nSELECT\n  tradekind,\n  AVG(record_count) AS average_record_count,\n  AVG(share) AS average_share,\n  AVG(share - average_share) AS average_excess_share\nFROM ranked_pairs\nWHERE share > average_share\nGROUP BY tradekind;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each trader type, consider only transaction (`translink`) and trader type combinations whose share of that trader type\u2019s total records is strictly above the average share for that trader type. What are the average count, average share, and average margin above the trader type\u2019s average share, with no rounding?",
+  "sql": "WITH combination_counts AS (\n  SELECT tr.\"tradekind\" AS trader_type,\n         ab.\"translink\" AS translink,\n         COUNT(*) AS record_count\n  FROM \"advancedbehavior\" ab\n  JOIN \"transactionrecord\" tx ON tx.\"transreg\" = ab.\"translink\"\n  JOIN \"trader\" tr ON tr.\"tradereg\" = tx.\"trdref\"\n  GROUP BY tr.\"tradekind\", ab.\"translink\"\n), shares AS (\n  SELECT trader_type,\n         translink,\n         record_count,\n         record_count::numeric / SUM(record_count) OVER (PARTITION BY trader_type) AS share\n  FROM combination_counts\n), above_average AS (\n  SELECT *, AVG(share) OVER (PARTITION BY trader_type) AS trader_type_avg_share\n  FROM shares\n)\nSELECT trader_type,\n       AVG(record_count) AS average_count,\n       AVG(share) AS average_share,\n       AVG(share - trader_type_avg_share) AS average_margin_above_average_share\nFROM above_average\nWHERE share > trader_type_avg_share\nGROUP BY trader_type;",
+  "executes": false,
+  "matches": []
+ }
+}

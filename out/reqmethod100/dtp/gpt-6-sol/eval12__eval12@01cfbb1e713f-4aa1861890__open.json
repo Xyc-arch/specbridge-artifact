@@ -1,0 +1,34 @@
+{
+ "interpretations": [
+  "Count each distinct order with at least one matching risk/margin record, grouped by the matched user\u2019s account scope; calculate its share and ratio using only scopes with matched orders.",
+  "Count each risk/margin-to-order match, so an order with multiple matching risk/margin records contributes multiple times; calculate its share and ratio using only scopes with matches.",
+  "Count distinct matched orders for every account scope represented by a user, including scopes with zero matched orders in the average count per scope.",
+  "Count distinct matched orders for every defined account scope (Margin, Spot, Options, Futures), including scopes with no users or matched orders in the average.",
+  "Treat a NULL account scope as its own group when counting matched orders and calculating the average.",
+  "Exclude matched orders whose user has a NULL account scope from the counts, total, and average.",
+  "Show each scope\u2019s share as a fraction of all counted orders.",
+  "Show each scope\u2019s share as a percentage of all counted orders.",
+  "Count each joined risk/margin\u2013order\u2013user row, including extra matches caused by duplicate `orders.recordvault` or `users.userstamp` values."
+ ],
+ "queries": [
+  "WITH scope_counts AS (\n  SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count\n  FROM orders AS o\n  JOIN users AS u ON u.userstamp = o.userlink\n  WHERE EXISTS (\n    SELECT 1\n    FROM riskandmargin AS r\n    WHERE r.ordervault = o.recordvault\n  )\n  GROUP BY u.acctscope\n)\nSELECT\n  acctscope,\n  order_count,\n  100.0 * order_count / SUM(order_count) OVER () AS share,\n  1.0 * order_count / SUM(order_count) OVER () AS ratio\nFROM scope_counts",
+  "WITH scope_matches AS (\n  SELECT u.acctscope, COUNT(*) AS match_count\n  FROM riskandmargin AS r\n  JOIN orders AS o ON o.recordvault = r.ordervault\n  JOIN users AS u ON u.userstamp = o.userlink\n  GROUP BY u.acctscope\n)\nSELECT\n  acctscope,\n  match_count,\n  100.0 * match_count / SUM(match_count) OVER () AS share,\n  1.0 * match_count / SUM(match_count) OVER () AS ratio\nFROM scope_matches",
+  "WITH matched_orders_per_user AS (\n    SELECT\n        u.usersnode,\n        u.acctscope,\n        COUNT(DISTINCT CASE\n            WHEN e.orderexecmark IS NOT NULL THEN o.recordvault\n        END) AS matched_order_count\n    FROM users AS u\n    LEFT JOIN orders AS o ON o.userlink = u.userstamp\n    LEFT JOIN orderexecutions AS e ON e.ordersmark = o.recordvault\n    GROUP BY u.usersnode, u.acctscope\n)\nSELECT\n    acctscope,\n    AVG(matched_order_count) AS average_matched_orders\nFROM matched_orders_per_user\nGROUP BY acctscope",
+  "WITH scopes(acctscope) AS (\n  VALUES ('Margin'), ('Spot'), ('Options'), ('Futures')\n),\norder_counts AS (\n  SELECT s.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count\n  FROM scopes AS s\n  LEFT JOIN users AS u ON u.acctscope = s.acctscope\n  LEFT JOIN orders AS o ON o.userlink = u.userstamp\n  GROUP BY s.acctscope\n)\nSELECT AVG(order_count) AS average_matched_orders\nFROM order_counts",
+  "SELECT u.acctscope,\n       COUNT(o.orderspivot) AS order_count,\n       AVG(o.notionsum) AS average_notional\nFROM users AS u\nJOIN orders AS o ON o.userlink = u.userstamp\nGROUP BY u.acctscope",
+  "SELECT\n    COUNT(*) AS order_count,\n    SUM(o.notionsum) AS total,\n    AVG(o.notionsum) AS average\nFROM orders AS o\nJOIN users AS u ON o.userlink = u.userstamp\nWHERE u.acctscope IS NOT NULL"
+ ],
+ "raw": [
+  "Count each distinct order with at least one matching risk/margin record, grouped by the matched user\u2019s account scope; calculate its share and ratio using only scopes with matched orders.\nCount each risk/margin-to-order match, so an order with multiple matching risk/margin records contributes multiple times; calculate its share and ratio using only scopes with matches.\nCount distinct matched orders for every account scope represented by a user, including scopes with zero matched orders in the average count per scope.\nCount distinct matched orders for every defined account scope (Margin, Spot, Options, Futures), including scopes with no users or matched orders in the average.\nTreat a NULL account scope as its own group when counting matched orders and calculating the average.\nExclude matched orders whose user has a NULL account scope from the counts, total, and average.\nShow each scope\u2019s share as a fraction of all counted orders.\nShow each scope\u2019s share as a percentage of all counted orders.",
+  "Count each joined risk/margin\u2013order\u2013user row, including extra matches caused by duplicate `orders.recordvault` or `users.userstamp` values."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 106048,
+  "chars_out": 3268
+ }
+}

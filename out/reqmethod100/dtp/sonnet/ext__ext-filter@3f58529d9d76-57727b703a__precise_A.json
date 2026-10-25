@@ -1,0 +1,40 @@
+{
+ "interpretations": [
+  "Compare memusagegb >= 60.8 (inclusive), then inner join scanprocessing to sites on zoneref = zoneregistry. Per (zoneref, entrystat) compute AVG(memusagegb) and AVG(procgpu/proc\u53cecpu) using row-level ratios, then per entrystat output the plain average of those per-site averages for both metrics.",
+  "Same as the first, but with a strict threshold, memusagegb > 60.8.",
+  "Same as the first, but the per-site GPU/CPU ratio is the ratio of averages, AVG(procgpu) / AVG(proccpu), not the average of row-level ratios.",
+  "Same as the first, but the per-site average RAM uses only rows where both procgpu and proccpu are non-null, so the RAM and ratio averages share the same row set.",
+  "Same as the first, but the per-site average RAM uses all qualifying rows, while the ratio average skips rows with a null procgpu or proccpu.",
+  "Same as the first, but rows with proccpu = 0 are excluded or turned to NULL (NULLIF) before the ratio, so there is no division by zero.",
+  "Same as the first, but with integer division of procgpu by proccpu, giving truncated ratios, rather than decimal division.",
+  "Same as the first, but the final result is the overall average per entrystat across all qualifying processing rows (row-weighted), not an average of per-site averages.",
+  "Same as the first, but sites with a null entrystat are kept as their own group (NULL access status) in the output.",
+  "Same as the first, but sites with a null entrystat are excluded from the output.",
+  "Same as the first, but a site whose per-site ratio average is null (all ratios missing) is excluded from the final averaging for both metrics, including RAM.",
+  "Same as the first, but a site whose per-site ratio average is null still counts toward the final RAM average and only drops out of the ratio average.",
+  "Same as the first, but a left join to sites is used, so processing rows with no matching site form a NULL-entrystat group (contradicting \"matches a site\").",
+  "Same as the first, but the output also includes the site-level grouping (zoneref and entrystat), rather than one row per entrystat.",
+  "Same as the first, but the final GPU/CPU ratio is expressed as a percentage (multiplied by 100) rather than a plain ratio."
+ ],
+ "queries": [
+  "SELECT entrystat, AVG(avg_mem) AS avg_memusagegb, AVG(avg_ratio) AS avg_gpu_cpu_ratio\nFROM (\n  SELECT sp.zoneref, s.entrystat, AVG(sp.memusagegb) AS avg_mem, AVG(CAST(sp.procgpu AS REAL) / sp.proccpu) AS avg_ratio\n  FROM scanprocessing sp\n  INNER JOIN sites s ON sp.zoneref = s.zoneregistry\n  WHERE sp.memusagegb >= 60.8\n  GROUP BY sp.zoneref, s.entrystat\n) t\nGROUP BY entrystat",
+  "SELECT COUNT(*) FROM scanprocessing WHERE memusagegb > 60.8",
+  "SELECT zoneref, AVG(procgpu) * 1.0 / AVG(proccpu) AS gpu_cpu_ratio\nFROM scanprocessing\nGROUP BY zoneref;\n",
+  "SELECT zoneref, AVG(memusagegb) AS avg_memusagegb, AVG(CAST(procgpu AS REAL) / proccpu) AS avg_gpu_cpu_ratio\nFROM scanprocessing\nWHERE procgpu IS NOT NULL AND proccpu IS NOT NULL AND proccpu <> 0\nGROUP BY zoneref",
+  "SELECT zoneref,\n       AVG(memusagegb) AS avg_memory_usage_gb,\n       AVG(CAST(procgpu AS REAL) / NULLIF(proccpu, 0)) AS avg_gpu_cpu_ratio\nFROM scanprocessing\nGROUP BY zoneref;\n",
+  "SELECT AVG(CAST(procgpu AS REAL) / NULLIF(proccpu, 0)) AS gpu_cpu_ratio FROM scanprocessing;\n"
+ ],
+ "raw": [
+  "Compare memusagegb >= 60.8 (inclusive), then inner join scanprocessing to sites on zoneref = zoneregistry. Per (zoneref, entrystat) compute AVG(memusagegb) and AVG(procgpu/proc\u53cecpu) using row-level ratios, then per entrystat output the plain average of those per-site averages for both metrics.\nSame as the first, but with a strict threshold, memusagegb > 60.8.\nSame as the first, but the per-site GPU/CPU ratio is the ratio of averages, AVG(procgpu) / AVG(proccpu), not the average of row-level ratios.\nSame as the first, but the per-site average RAM uses only rows where both procgpu and proccpu are non-null, so the RAM and ratio averages share the same row set.\nSame as the first, but the per-site average RAM uses all qualifying rows, while the ratio average skips rows with a null procgpu or proccpu.\nSame as the first, but rows with proccpu = 0 are excluded or turned to NULL (NULLIF) before the ratio, so there is no division by zero.\nSame as the first, but with integer division of procgpu by proccpu, giving truncated ratios, rather than decimal division.\nSame as the first, but the final result is the overall average per entrystat across all qualifying processing rows (row-weighted), not an average of per-site averages.\nSame as the first, but sites with a null entrystat are kept as their own group (NULL access status) in the output.\nSame as the first, but sites with a null entrystat are excluded from the output.\nSame as the first, but a site whose per-site ratio average is null (all ratios missing) is excluded from the final averaging for both metrics, including RAM.\nSame as the first, but a site whose per-site ratio average is null still counts toward the final RAM average and only drops out of the ratio average.\nSame as the first, but a left join to sites is used, so processing rows with no matching site form a NULL-entrystat group (contradicting \"matches a site\").\nSame as the first, but the output also includes the site-level grouping (zoneref and entrystat), rather than one row per entrystat.\nSame as the first, but the final GPU/CPU ratio is expressed as a percentage (multiplied by 100) rather than a plain ratio.",
+  "All possible interpretations are covered."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-57727b703a",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327340,
+  "chars_out": 3881
+ }
+}

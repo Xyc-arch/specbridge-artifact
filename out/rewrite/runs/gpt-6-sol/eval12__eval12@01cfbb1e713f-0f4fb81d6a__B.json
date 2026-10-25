@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0f4fb81d6a",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Invoices with no billing state are dropped before grouping.",
+ "b": {
+  "request": "Exclude invoices with a NULL billing state, then count invoices for each billing state. Using the remaining invoices, calculate each state's share of the total count and the average count per state. Keep states whose count exceeds that average, and return one row containing the sum of their invoice counts, the average of their shares, and the average of their counts minus the overall average state count, without rounding",
+  "sql": "WITH state_counts AS (SELECT BillingState, COUNT(*) AS invoice_count FROM Invoice WHERE BillingState IS NOT NULL GROUP BY BillingState), overall AS (SELECT SUM(invoice_count) AS total_count, AVG(invoice_count) AS average_count FROM state_counts) SELECT SUM(s.invoice_count) AS total_invoice_count, AVG(s.invoice_count * 1.0 / o.total_count) AS average_share, AVG(s.invoice_count - o.average_count) AS average_count_above_overall FROM state_counts AS s CROSS JOIN overall AS o WHERE s.invoice_count > o.average_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Group invoices by billing state (`Invoice.BillingState`), leaving out invoices with no billing state entirely, and count the invoices in each group. Work out each group's share of the invoices (its count over the sum of all the groups' counts) and the average count per group. Keep the groups whose count is above that average. Return one row with: the total number of invoices in those groups, the average of their shares, and the average amount by which their count exceeds the average count (count minus average). Don't round.",
+  "sql": "WITH state_counts AS (SELECT BillingState, COUNT(*) AS invoice_count FROM Invoice WHERE BillingState IS NOT NULL GROUP BY BillingState), group_stats AS (SELECT SUM(invoice_count) AS total_invoices, AVG(invoice_count) AS average_count FROM state_counts) SELECT SUM(sc.invoice_count) AS total_invoices, AVG(1.0 * sc.invoice_count / gs.total_invoices) AS average_share, AVG(sc.invoice_count - gs.average_count) AS average_excess FROM state_counts AS sc CROSS JOIN group_stats AS gs WHERE sc.invoice_count > gs.average_count",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Count invoices by billing state, and work out each billing state's share of the invoices (its count over the sum of all the counts) and the average invoice count per billing state. Keep the billing states with more invoices than that average. Give one row with: the total number of invoices across them, their average share, and on average how many invoices above the average count they are (count minus average). No rounding. Invoices with no billing state are dropped before grouping.",
+  "sql": "WITH state_counts AS (SELECT BillingState, COUNT(*) AS invoice_count FROM Invoice WHERE BillingState IS NOT NULL GROUP BY BillingState), stats AS (SELECT SUM(invoice_count) AS total_count, AVG(invoice_count) AS average_count FROM state_counts) SELECT SUM(sc.invoice_count) AS total_invoices, AVG(1.0 * sc.invoice_count / s.total_count) AS average_share, AVG(sc.invoice_count - s.average_count) AS average_above_average FROM state_counts AS sc CROSS JOIN stats AS s WHERE sc.invoice_count > s.average_count",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Exclude invoices with no billing state, then count invoices by billing state. Calculate each state\u2019s share of the remaining invoices and the average invoice count per state. Keep states whose counts exceed that average. Return one row with the total invoice count across those states, their average share, and their average excess count above the overall state average. Do not round.",
+  "sql": "WITH state_counts AS (SELECT BillingState, COUNT(*) AS invoice_count FROM Invoice WHERE BillingState IS NOT NULL GROUP BY BillingState), overall AS (SELECT AVG(invoice_count) AS avg_count, SUM(invoice_count) AS total_count FROM state_counts) SELECT SUM(s.invoice_count) AS total_invoice_count, AVG(1.0 * s.invoice_count / o.total_count) AS average_share, AVG(s.invoice_count - o.avg_count) AS average_excess_count FROM state_counts AS s CROSS JOIN overall AS o WHERE s.invoice_count > o.avg_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

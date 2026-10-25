@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Group player_college by college_id, with NULL college_id rows as one group, counting rows (including multiple years per player). Keep the colleges whose count is above the average of all colleges' counts. Return the average count of those colleges, the average of each one's count divided by the total count, and the average of each one's (count \u2212 overall average).",
+  "Same as 1, but count distinct player_id per college_id, so a player with several years at one college counts once.",
+  "Same as 1, but exclude NULL college_id rows from the group list and the average, and use only non-null college_ids. The total is then the sum of counts over non-null colleges.",
+  "Same as 1, but the NULL group counts in the average, and the NULL group is excluded from the above-average result set, even if it qualifies.",
+  "Same as 1, but the total in (2) is the total number of rows in player_college, including NULL college_id rows, while the average is taken only over non-null colleges.",
+  "Same as 2, but the total in (2) is the count of distinct players overall, not the sum of the per-college distinct counts. This differs when a player attended more than one college.",
+  "Same as 1, but the fraction in (2) is the sum of the qualifying colleges' counts divided by the total, rather than an average of per-college fractions.",
+  "Same as 1, but the average excess in (3) uses the absolute difference. Because every qualifying college is strictly above the average, this gives the same values as the signed difference.",
+  "Same as 1, but \"average across all colleges\" is a weighted average, such as the total count divided by the number of distinct players, rather than the mean of per-college counts.",
+  "Same as 1, but \"average across all colleges\" is taken over the colleges table (college.college_id), so colleges with zero players count as zero. This lowers the average and may admit more colleges.",
+  "Same as 1, but the three values are returned unrounded, with integer division avoided so that fractions and averages are floating-point.",
+  "Same as 1, but the fraction in (2) is expressed as a percentage (multiplied by 100).",
+  "Same as 1, but empty-string college_id values are also treated as missing and grouped with NULL.",
+  "Not all interpretations are covered. Missing:",
+  "Same as 1, but count only rows with a non-null player_id (COUNT(player_id) rather than COUNT(*)).",
+  "Same as 1, but the total in (2) is the sum of counts over only the qualifying (above-average) colleges, not all colleges.",
+  "Same as 1, but count distinct (player_id, year) pairs per college_id.",
+  "Same as 1, but college_id values are trimmed or case-normalized before grouping.",
+  "Same as 2, but with NULL college_id rows excluded, so only distinct players at non-null colleges are counted.",
+  "Same as 1, but the average in (3) is computed as the qualifying colleges' average count minus the all-college average, which equals the mean of the differences. This is the same value, so it is only a different computation path.",
+  "Same as 1, but \"average across all colleges\" is the average over colleges present in both player_college and the college table (joined), so college_ids missing from college are dropped."
+ ],
+ "queries": [
+  "WITH c AS (\n  SELECT college_id, COUNT(*) AS cnt\n  FROM player_college\n  GROUP BY college_id\n),\nt AS (\n  SELECT AVG(cnt) AS avg_cnt, SUM(cnt) AS total_cnt\n  FROM c\n)\nSELECT AVG(c.cnt) AS avg_count,\n       AVG(CAST(c.cnt AS REAL) / t.total_cnt) AS avg_ratio,\n       AVG(c.cnt - t.avg_cnt) AS avg_diff\nFROM c, t\nWHERE c.cnt > t.avg_cnt;\n",
+  "SELECT college_id, COUNT(DISTINCT player_id) FROM player_college GROUP BY college_id;\n",
+  "SELECT college_id,\n       COUNT(*) AS player_count,\n       AVG(COUNT(*)) OVER () AS avg_count,\n       SUM(COUNT(*)) OVER () AS total_count\nFROM player_college\nWHERE college_id IS NOT NULL\nGROUP BY college_id;\n",
+  "SELECT\n  (SELECT COUNT(*) FROM player_college) AS total,\n  (SELECT AVG(cnt) FROM (\n     SELECT COUNT(DISTINCT player_id) AS cnt\n     FROM player_college\n     WHERE college_id IS NOT NULL\n     GROUP BY college_id\n  )) AS average;\n",
+  "SELECT college_id, COUNT(DISTINCT player_id) AS num_players\nFROM player_college\nGROUP BY college_id\nUNION ALL\nSELECT 'TOTAL', COUNT(DISTINCT player_id)\nFROM player_college;\n"
+ ],
+ "raw": [
+  "1. Group player_college by college_id, with NULL college_id rows as one group, counting rows (including multiple years per player). Keep the colleges whose count is above the average of all colleges' counts. Return the average count of those colleges, the average of each one's count divided by the total count, and the average of each one's (count \u2212 overall average).\n2. Same as 1, but count distinct player_id per college_id, so a player with several years at one college counts once.\n3. Same as 1, but exclude NULL college_id rows from the group list and the average, and use only non-null college_ids. The total is then the sum of counts over non-null colleges.\n4. Same as 1, but the NULL group counts in the average, and the NULL group is excluded from the above-average result set, even if it qualifies.\n5. Same as 1, but the total in (2) is the total number of rows in player_college, including NULL college_id rows, while the average is taken only over non-null colleges.\n6. Same as 2, but the total in (2) is the count of distinct players overall, not the sum of the per-college distinct counts. This differs when a player attended more than one college.\n7. Same as 1, but the fraction in (2) is the sum of the qualifying colleges' counts divided by the total, rather than an average of per-college fractions.\n8. Same as 1, but the average excess in (3) uses the absolute difference. Because every qualifying college is strictly above the average, this gives the same values as the signed difference.\n9. Same as 1, but \"average across all colleges\" is a weighted average, such as the total count divided by the number of distinct players, rather than the mean of per-college counts.\n10. Same as 1, but \"average across all colleges\" is taken over the colleges table (college.college_id), so colleges with zero players count as zero. This lowers the average and may admit more colleges.\n11. Same as 1, but the three values are returned unrounded, with integer division avoided so that fractions and averages are floating-point.\n12. Same as 1, but the fraction in (2) is expressed as a percentage (multiplied by 100).\n13. Same as 1, but empty-string college_id values are also treated as missing and grouped with NULL.",
+  "Not all interpretations are covered. Missing:\n\nSame as 1, but count only rows with a non-null player_id (COUNT(player_id) rather than COUNT(*)).\nSame as 1, but the total in (2) is the sum of counts over only the qualifying (above-average) colleges, not all colleges.\nSame as 1, but count distinct (player_id, year) pairs per college_id.\nSame as 1, but college_id values are trimmed or case-normalized before grouping.\nSame as 2, but with NULL college_id rows excluded, so only distinct players at non-null colleges are counted.\nSame as 1, but the average in (3) is computed as the qualifying colleges' average count minus the all-college average, which equals the mean of the differences. This is the same value, so it is only a different computation path.\nSame as 1, but \"average across all colleges\" is the average over colleges present in both player_college and the college table (joined), so college_ids missing from college are dropped."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-696a17f661",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 73060,
+  "chars_out": 5181
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "interpretations": [
+  "Compute each event\u2019s spend ratio as `SUM(spent) / SUM(amount)`, skipping nulls independently in each sum; divide it by the unweighted average of defined event ratios.",
+  "Compute each event\u2019s spend ratio as `SUM(spent) / SUM(amount)` using only budget lines where both values are present; divide it by the unweighted average of defined event ratios.",
+  "Compute each event\u2019s spend ratio as the average of its defined budget line ratios, `spent / amount`; divide it by the unweighted average of defined event ratios.",
+  "Compute each event\u2019s spend ratio as `SUM(spent) / SUM(amount)`, then compare it with the overall ratio `SUM(spent) / SUM(amount)` across all events.",
+  "For each interpretation, show the event id and both ratios without rounding, sort by the relative ratio descending with nulls last, and return the first 10 events."
+ ],
+ "queries": [
+  "WITH event_ratios AS (\n    SELECT e.event_id,\n           SUM(b.spent) / NULLIF(SUM(b.amount), 0) AS spend_ratio\n    FROM event AS e\n    LEFT JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id\n)\nSELECT event_id,\n       spend_ratio / NULLIF(AVG(spend_ratio) OVER (), 0) AS relative_spend_ratio\nFROM event_ratios",
+  "WITH event_ratios AS (\n    SELECT\n        e.event_id,\n        SUM(b.spent) * 1.0 / NULLIF(SUM(b.amount), 0) AS spend_ratio\n    FROM event AS e\n    LEFT JOIN budget AS b\n        ON b.link_to_event = e.event_id\n       AND b.spent IS NOT NULL\n       AND b.amount IS NOT NULL\n    GROUP BY e.event_id\n)\nSELECT\n    event_id,\n    spend_ratio / NULLIF((SELECT AVG(spend_ratio) FROM event_ratios), 0) AS normalized_spend_ratio\nFROM event_ratios",
+  "WITH event_ratios AS (\n    SELECT\n        e.event_id,\n        AVG(1.0 * b.spent / NULLIF(b.amount, 0)) AS spend_ratio\n    FROM event AS e\n    LEFT JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id\n)\nSELECT\n    event_id,\n    spend_ratio / NULLIF((SELECT AVG(spend_ratio) FROM event_ratios), 0) AS relative_spend_ratio\nFROM event_ratios",
+  "WITH overall AS (\n    SELECT SUM(spent) / NULLIF(SUM(amount), 0) AS overall_spend_ratio\n    FROM budget\n)\nSELECT\n    b.link_to_event AS event_id,\n    SUM(b.spent) / NULLIF(SUM(b.amount), 0) AS event_spend_ratio,\n    overall.overall_spend_ratio\nFROM budget AS b\nCROSS JOIN overall\nGROUP BY b.link_to_event"
+ ],
+ "raw": [
+  "Compute each event\u2019s spend ratio as `SUM(spent) / SUM(amount)`, skipping nulls independently in each sum; divide it by the unweighted average of defined event ratios.\nCompute each event\u2019s spend ratio as `SUM(spent) / SUM(amount)` using only budget lines where both values are present; divide it by the unweighted average of defined event ratios.\nCompute each event\u2019s spend ratio as the average of its defined budget line ratios, `spent / amount`; divide it by the unweighted average of defined event ratios.\nCompute each event\u2019s spend ratio as `SUM(spent) / SUM(amount)`, then compare it with the overall ratio `SUM(spent) / SUM(amount)` across all events.\n\nFor each interpretation, show the event id and both ratios without rounding, sort by the relative ratio descending with nulls last, and return the first 10 events.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0d34b6c962",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 7,
+  "chars_in": 52783,
+  "chars_out": 2383
+ }
+}

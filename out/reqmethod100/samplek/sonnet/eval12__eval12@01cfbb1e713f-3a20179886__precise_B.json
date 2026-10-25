@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH per_type AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), stats AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avg_cnt FROM per_type) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess FROM stats WHERE cnt > avg_cnt",
+  "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess FROM s WHERE cnt > avg_cnt",
+  "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avgcnt FROM c) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avgcnt) AS avg_excess FROM s WHERE cnt > avgcnt;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_type AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), stats AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avg_cnt FROM per_type) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess FROM stats WHERE cnt > avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "Only trader types that appear among the qualifying analyses are counted. Types with zero analyses are not included in the average count across trader types.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Traders whose tradekind is NULL are excluded. They are not a trader type.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average count is the unweighted mean of the per-type distinct-transaction counts. Shares are each count divided by the sum of the per-type counts. A transaction is counted under only one trader type, because each transaction has one trader.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess FROM s WHERE cnt > avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "Trader types are the distinct non-null tradekind values that have at least one qualifying analysis. Types with no qualifying analyses are not in the average, and rows with a NULL tradekind are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "An analysis qualifies only if its translink matches an existing transactionrecord and that record's trdref matches an existing trader. This is an inner join, which also rules out NULL links.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average count is the mean of the per-type counts, not the mean per transaction. The share is count divided by the sum of counts over all types, and the shares are not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avgcnt FROM c) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avgcnt) AS avg_excess FROM s WHERE cnt > avgcnt;",
+   "assumptions": [
+    {
+     "assumption": "Trader types are those that appear among the qualifying analyses (inner joins). Types with no qualifying analyses are not counted, so they do not lower the average count. Rows with a NULL tradekind are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The shares and the average count are computed as exact, unrounded decimals (the counts are multiplied by 1.0 to avoid integer division).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52902,
+  "chars_out": 3352
+ }
+}

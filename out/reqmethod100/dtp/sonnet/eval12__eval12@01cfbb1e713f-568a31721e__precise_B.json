@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Each line below is a separate interpretation",
+  "Patients are all distinct IDs in Laboratory with at least one row. Each patient's ratio is AVG(HGB)/AVG(HCT), with NULLs ignored independently in each column. The all-patient average is the unweighted mean of those ratios over patients with a computable ratio. Patients with a ratio strictly above it are kept, and PIC averages ignore NULLs",
+  "Same as 1, but the kept patients are those with ratio greater than or equal to the all-patient average",
+  "Same as 1, but each patient's AVG(HGB) and AVG(HCT) use only rows where both HGB and HCT are non-null",
+  "The all-patient average is the pooled ratio, total HGB over total HCT or AVG(HGB)/AVG(HCT) across all Laboratory rows. It is not the mean of per-patient ratios",
+  "Patients whose average PIC is NULL (no PIC recorded) are excluded from the comparison group entirely. This also removes them from the all-patient ratio average",
+  "Patients whose average PIC is NULL are still part of the all-patient ratio average and can be kept. They are ignored only when averaging the average-PIC values in the summary row",
+  "Patients whose average PIC is NULL are kept and their PIC is treated as 0 in the average of average-PIC values",
+  "Patients with NULL or zero average HCT (undefined ratio) are excluded from the all-patient average and from the output",
+  "\"All patients\" means every patient in the Patient table, including those with no Laboratory rows, which are excluded because they have no ratio",
+  "The \"average amount by which ratios exceed the all-patient average\" is the mean of (patient ratio \u2212 all-patient average) over kept patients. It equals the kept patients' average ratio minus the all-patient average",
+  "The \"average amount\" is a relative excess, the mean of (ratio \u2212 overall average) / overall average, as a proportion or percentage",
+  "The output is a single row with three columns: average of average PIC, average of ratios, and average excess",
+  "The average PIC for each patient is a mean over all of their Laboratory rows (each Date counts equally). It is not a mean of per-date or per-visit values with some other weighting",
+  "HGB and HCT averages are computed only over rows with non-null, valid positive values. Zero or placeholder values are treated as missing",
+  "Missing interpretations:",
+  "Patients with NULL average HGB are excluded from the all-patient average and from the output, because their ratio is undefined",
+  "The all-patient average is a weighted mean of per-patient ratios, weighted by each patient's number of Laboratory rows",
+  "Each patient's average PIC is computed over only the rows where PIC is non-null, and patients with no PIC are kept in the ratio comparison. This is a variant of the NULL-PIC handling in interpretations 5 and 6, and it fixes the filter used for the HGB and HCT averages",
+  "The ratio is computed as the average of per-row HGB/HCT values, not as AVG(HGB)/AVG(HCT)",
+  "The \"average amount by which ratios exceed the all-patient average\" is the mean absolute difference between each kept patient's ratio and the all-patient average. This differs from the signed mean only if kept patients can fall below the average, which is not expected under strict filtering",
+  "The summary row also returns a count of kept patients, in addition to the three requested values",
+  "If no patient is kept, the summary row returns NULL values or no row"
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT ID, AVG(HGB) * 1.0 / NULLIF(AVG(HCT), 0) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n),\nk AS (\n  SELECT ID\n  FROM r\n  WHERE ratio IS NOT NULL\n    AND ratio > (SELECT AVG(ratio) FROM r WHERE ratio IS NOT NULL)\n)\nSELECT AVG(PIC)\nFROM Laboratory\nWHERE ID IN (SELECT ID FROM k);\n",
+  "SELECT ID, AVG(HGB), AVG(HCT)\nFROM Laboratory\nWHERE HGB IS NOT NULL AND HCT IS NOT NULL\nGROUP BY ID;\n",
+  "SELECT AVG(HGB) / AVG(HCT) FROM Laboratory;\n",
+  "SELECT AVG(p.avg_pic * 1.0 / (SELECT AVG(PIC) FROM Laboratory WHERE PIC IS NOT NULL)) AS avg_ratio\nFROM (\n    SELECT ID, AVG(PIC) AS avg_pic\n    FROM Laboratory\n    GROUP BY ID\n    HAVING AVG(PIC) IS NOT NULL\n) AS p;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-568a31721e",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67761,
+  "chars_out": 5452
+ }
+}

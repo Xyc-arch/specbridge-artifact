@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1d3fc42a2c",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH proj_ratio AS (\n  SELECT p.arcregistry AS project_id,\n         p.fundflux AS funding_source,\n         SUM(s.boxx) / NULLIF(SUM(s.boxz), 0) AS ratio\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  GROUP BY p.arcregistry, p.fundflux\n),\nranked AS (\n  SELECT project_id,\n         funding_source,\n         ratio,\n         ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS excess\n  FROM proj_ratio\n)\nSELECT project_id, funding_source, ratio, excess\nFROM ranked\nORDER BY excess DESC NULLS LAST\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "Each project has one funding source (projects.arcregistry is the primary key), so grouping by project and fundflux gives one row per project. Spatial rows with no matching project are dropped by the inner join.",
+    "unresolved": false
+   },
+   {
+    "assumption": "SUM ignores NULL boxx and boxz values separately, as the request specifies. A project whose boxz total is zero or missing gets a NULL ratio (via NULLIF), and that NULL ratio sorts last.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Projects with a NULL fundflux form their own funding-source group. The PARTITION BY treats NULLs as one group, so their average is taken over those projects.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The ratio averages over a funding source skip projects whose ratio is NULL (AVG ignores NULLs). Ties in excess have no defined order.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Exclude projects with no funding source (NULL fundflux) entirely, so they are neither ranked nor used in any average.",
+    "sql": "WITH proj_ratio AS (\n  SELECT p.arcregistry AS project_id,\n         p.fundflux AS funding_source,\n         SUM(s.boxx) / NULLIF(SUM(s.boxz), 0) AS ratio\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  WHERE p.fundflux IS NOT NULL\n  GROUP BY p.arcregistry, p.fundflux\n),\nranked AS (\n  SELECT project_id,\n         funding_source,\n         ratio,\n         ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS excess\n  FROM proj_ratio\n)\nSELECT project_id, funding_source, ratio, excess\nFROM ranked\nORDER BY excess DESC NULLS LAST\nLIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 11.9
+}

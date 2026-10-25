@@ -1,0 +1,28 @@
+{
+ "interpretations": [
+  "Per-patient ratio = AVG(HGB) / AVG(HCT) over each patient's Laboratory rows, with NULLs ignored in each average. Patients are those in Laboratory only. The overall average ratio is the mean of the per-patient ratios, and only patients with a computable ratio count toward it. \"Above\" means strictly greater. \"How far above\" is the absolute difference (ratio minus average). The second average is the mean of the first-stage kept patients' ratios. The final row has AVG(ratio), AVG(first difference), AVG(second difference)",
+  "Same as above, but \"how far above\" is a relative or percentage difference ((ratio \u2212 average) / average) instead of an absolute difference",
+  "Same as the first, but the overall average ratio is pooled: the average of all HGB values across all Laboratory rows divided by the average of all HCT values, rather than the mean of per-patient ratios",
+  "Same as the first, but the second average is pooled: the average HGB over the kept patients' rows divided by their average HCT, rather than the mean of their ratios",
+  "Same as the first, but the overall average ratio is taken over every patient in the Patient table, including those with no laboratory data or no computable ratio, which contribute zero or NULL",
+  "Same as the first, but patients whose average HCT is zero or NULL, or whose average HGB is NULL, are excluded before any averaging. This differs if an undefined ratio would otherwise be treated as 0 or kept",
+  "Same as the first, but \"above\" is non-strict (\u2265) in one or both filters",
+  "Same as the first, but the final row's averages come from the second-stage patients' ratios alone, with the \"amount above\" columns computed against the overall average and the second average as fixed scalars (as in the first reading). Alternatively, the second difference is recomputed against a new average of the final group",
+  "Same as the first, but the per-patient averages weight each lab date equally (one row per patient-date), versus treating each non-null measurement separately when HGB and HCT are not both present on the same row (the average HGB and average HCT use different row sets)"
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT ID, AVG(HGB) * 1.0 / NULLIF(AVG(HCT), 0) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n),\nr_ok AS (\n  SELECT ID, ratio FROM r WHERE ratio IS NOT NULL\n),\navg1 AS (\n  SELECT AVG(ratio) AS a1 FROM r_ok\n),\ns1 AS (\n  SELECT r_ok.ID, r_ok.ratio, r_ok.ratio - avg1.a1 AS d1\n  FROM r_ok, avg1\n  WHERE r_ok.ratio > avg1.a1\n),\navg2 AS (\n  SELECT AVG(ratio) AS a2 FROM s1\n),\ns2 AS (\n  SELECT s1.ID, s1.ratio, s1.d1, ABS(s1.ratio - avg2.a2) AS d2\n  FROM s1, avg2\n  WHERE s1.ratio > avg2.a2\n)\nSELECT AVG(ratio), AVG(d1), AVG(d2)\nFROM s2;\n",
+  "SELECT AVG(HGB) / AVG(HCT) FROM Laboratory;\n",
+  "SELECT AVG(L.HGB) / AVG(L.HCT)\nFROM Laboratory AS L\nJOIN Patient AS P ON P.ID = L.ID\nWHERE /* first question's filter */;\n",
+  "SELECT ID, AVG(HGB * 1.0 / HCT) AS avg_ratio\nFROM Laboratory\nWHERE ID IN (\n    SELECT ID\n    FROM Laboratory\n    GROUP BY ID\n    HAVING AVG(HCT) IS NOT NULL AND AVG(HCT) <> 0 AND AVG(HGB) IS NOT NULL\n)\nGROUP BY ID;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ef4d2acbf1",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68408,
+  "chars_out": 3784
+ }
+}

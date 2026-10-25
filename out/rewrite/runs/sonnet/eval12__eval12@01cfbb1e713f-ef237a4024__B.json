@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ef237a4024",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "A project's rate is its total gbsize divided by its total spanmin.",
+ "b": {
+  "request": "For scans joined to projects (`scans.arcref` = `projects.arcregistry`), compute each project's rate (grouped by `scans.arcref` and `fundflux`) as SUM(`gbsize`) divided by SUM(`spanmin`), take the plain average of those per-project rates (each project counting once) as the benchmark, and return the 10 projects whose rate is strictly above it, showing project reference, funding source, rate and rate minus benchmark (unrounded), sorted by gap descending",
+  "sql": "WITH proj AS (SELECT s.arcref AS arcref, p.fundflux AS fundflux, SUM(s.gbsize) * 1.0 / NULLIF(SUM(s.spanmin), 0) AS rate FROM scans s JOIN projects p ON s.arcref = p.arcregistry GROUP BY s.arcref, p.fundflux), bench AS (SELECT AVG(rate) AS benchmark FROM proj WHERE rate IS NOT NULL) SELECT proj.arcref AS project_reference, proj.fundflux AS funding_source, proj.rate AS rate, proj.rate - bench.benchmark AS gap FROM proj CROSS JOIN bench WHERE proj.rate > bench.benchmark ORDER BY gap DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match each scan to its project by project ID, dropping scans with no matching project, and group by project reference (`scans.arcref`) and funding source (`fundflux`). Compute each group's size-per-minute rate as its total file size (`gbsize`) divided by its total scan duration (`spanmin`). Use the simple average of these group rates as a benchmark. For groups whose rate is strictly above the benchmark, list the project reference, funding source, rate, and how much the rate exceeds the benchmark. Sort by that excess from largest to smallest and show only the top 10. Don't round.",
+  "sql": "WITH g AS (SELECT s.arcref AS arcref, p.fundflux AS fundflux, SUM(s.gbsize) / NULLIF(SUM(s.spanmin), 0) AS rate FROM scans s JOIN projects p ON s.arcref = p.arcregistry GROUP BY s.arcref, p.fundflux), b AS (SELECT AVG(rate) AS bench FROM g) SELECT g.arcref, g.fundflux, g.rate, g.rate - b.bench AS excess FROM g CROSS JOIN b WHERE g.rate > b.bench ORDER BY excess DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Using only scans that match a project, what's each project's size-per-minute rate (`gbsize` per `spanmin`), grouped by project reference (`scans.arcref`) and funding source (`fundflux`)? Take the plain average of those project rates as a benchmark, with each project counting once. Show the 10 projects furthest above it, keeping only those strictly above, with project reference, funding source, rate and the gap above the benchmark, biggest gap first. Leave values unrounded. A project's rate is its total gbsize divided by its total spanmin.",
+  "sql": "WITH rates AS (SELECT s.arcref AS arcref, p.fundflux AS fundflux, SUM(s.gbsize) * 1.0 / NULLIF(SUM(s.spanmin), 0) AS rate FROM scans s JOIN projects p ON s.arcref = p.arcregistry GROUP BY s.arcref, p.fundflux), bench AS (SELECT AVG(rate) AS avg_rate FROM rates WHERE rate IS NOT NULL) SELECT r.arcref AS arcref, r.fundflux AS fundflux, r.rate AS rate, r.rate - b.avg_rate AS gap_above_benchmark FROM rates r CROSS JOIN bench b WHERE r.rate > b.avg_rate ORDER BY gap_above_benchmark DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using only scans that match a project, calculate each project's size-per-minute rate, defined as its total `gbsize` divided by its total `spanmin` (not an average of per-scan ratios), grouped by project reference (`scans.arcref`) and funding source (`fundflux`). Take the plain average of those project rates as a benchmark, with each project counting once. Show the 10 projects furthest above the benchmark, keeping only those strictly above it. For each, show the project reference, funding source, rate, and the gap above the benchmark, with the biggest gap first. Leave values unrounded.",
+  "sql": "WITH proj AS (SELECT s.arcref, p.fundflux, SUM(s.gbsize) * 1.0 / NULLIF(SUM(s.spanmin), 0) AS rate FROM scans s JOIN projects p ON p.arcregistry = s.arcref GROUP BY s.arcref, p.fundflux), bench AS (SELECT AVG(rate) AS b FROM proj) SELECT proj.arcref AS project_reference, proj.fundflux AS funding_source, proj.rate AS rate, proj.rate - bench.b AS gap_above_benchmark FROM proj CROSS JOIN bench WHERE proj.rate > bench.b ORDER BY gap_above_benchmark DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

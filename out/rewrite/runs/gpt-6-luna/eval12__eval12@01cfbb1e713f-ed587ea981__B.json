@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ed587ea981",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "The overall baseline price is the mean unit price over all individual products.",
+ "a": {
+  "request": "In `Products`, compute each `production_type_code`'s average `unit_price` (ignoring missing prices). Compute an overall baseline by averaging `unit_price` directly over all individual products (ignoring missing prices), so each product counts once and types with more products weigh more. Proceed only if the baseline exists. Keep the types whose average is above this baseline. Next, take the simple mean of the kept types' averages, and keep only the types whose average is also above that mean. Return one row with three values, each averaged over the remaining types: their type average price, how far their type average is above the overall baseline, and how far it is above the mean of the kept types.",
+  "sql": "WITH type_averages AS (\n    SELECT production_type_code, AVG(unit_price) AS type_avg_price\n    FROM Products\n    GROUP BY production_type_code\n),\nbaseline AS (\n    SELECT AVG(unit_price) AS overall_avg_price\n    FROM Products\n),\nabove_baseline AS (\n    SELECT t.production_type_code, t.type_avg_price, b.overall_avg_price\n    FROM type_averages t\n    CROSS JOIN baseline b\n    WHERE b.overall_avg_price IS NOT NULL\n      AND t.type_avg_price > b.overall_avg_price\n),\nkept_type_mean AS (\n    SELECT AVG(type_avg_price) AS mean_kept_type_avg\n    FROM above_baseline\n),\nremaining_types AS (\n    SELECT a.type_avg_price, a.overall_avg_price, m.mean_kept_type_avg\n    FROM above_baseline a\n    CROSS JOIN kept_type_mean m\n    WHERE m.mean_kept_type_avg IS NOT NULL\n      AND a.type_avg_price > m.mean_kept_type_avg\n)\nSELECT AVG(type_avg_price) AS avg_type_price,\n       AVG(type_avg_price - overall_avg_price) AS avg_above_overall_baseline,\n       AVG(type_avg_price - mean_kept_type_avg) AS avg_above_kept_type_mean\nFROM remaining_types;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "In `Products`, find each `production_type_code`'s average `unit_price` (ignoring missing prices) and keep the types whose average is above the overall average price, if that average exists. Next, take the simple mean of the kept types' averages, and keep only the types also above that mean. Return one row with three values, each averaged over the remaining types: their type average price, how far their type average is above the overall average price, and how far it is above the mean of the kept types. The overall baseline price is the mean unit price over all individual products.",
+  "sql": "WITH type_averages AS (\n  SELECT production_type_code, AVG(unit_price) AS type_avg_price\n  FROM Products\n  WHERE unit_price IS NOT NULL\n  GROUP BY production_type_code\n), overall_average AS (\n  SELECT AVG(unit_price) AS overall_avg_price\n  FROM Products\n  WHERE unit_price IS NOT NULL\n), above_overall AS (\n  SELECT ta.production_type_code, ta.type_avg_price, oa.overall_avg_price\n  FROM type_averages ta\n  CROSS JOIN overall_average oa\n  WHERE oa.overall_avg_price IS NOT NULL\n    AND ta.type_avg_price > oa.overall_avg_price\n), kept_mean AS (\n  SELECT AVG(type_avg_price) AS mean_kept_type_avg\n  FROM above_overall\n), remaining AS (\n  SELECT ao.type_avg_price, ao.overall_avg_price, km.mean_kept_type_avg\n  FROM above_overall ao\n  CROSS JOIN kept_mean km\n  WHERE km.mean_kept_type_avg IS NOT NULL\n    AND ao.type_avg_price > km.mean_kept_type_avg\n)\nSELECT AVG(type_avg_price) AS average_type_price,\n       AVG(type_avg_price - overall_avg_price) AS average_above_overall,\n       AVG(type_avg_price - mean_kept_type_avg) AS average_above_kept_types_mean\nFROM remaining;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group products by `production_type_code`, calculate each type\u2019s average `unit_price` using only non-null prices, and retain types whose average exceeds the mean `unit_price` across all products with non-null prices, provided that overall mean exists. Calculate the unweighted mean of those retained type averages, then retain only types whose average also exceeds that mean. Return one row with the unweighted mean of the remaining types\u2019 average prices, the unweighted mean of their differences from the overall mean, and the unweighted mean of their differences from the first retained types\u2019 mean",
+  "sql": "WITH type_averages AS (\n  SELECT production_type_code, AVG(unit_price) AS avg_price\n  FROM Products\n  WHERE unit_price IS NOT NULL\n  GROUP BY production_type_code\n),\noverall_mean AS (\n  SELECT AVG(unit_price) AS avg_price\n  FROM Products\n  WHERE unit_price IS NOT NULL\n),\nfirst_retained AS (\n  SELECT ta.production_type_code, ta.avg_price, om.avg_price AS overall_avg\n  FROM type_averages ta\n  CROSS JOIN overall_mean om\n  WHERE om.avg_price IS NOT NULL\n    AND ta.avg_price > om.avg_price\n),\nfirst_mean AS (\n  SELECT AVG(avg_price) AS avg_price\n  FROM first_retained\n),\nremaining AS (\n  SELECT fr.avg_price, fr.overall_avg, fm.avg_price AS first_mean_avg\n  FROM first_retained fr\n  CROSS JOIN first_mean fm\n  WHERE fr.avg_price > fm.avg_price\n)\nSELECT AVG(avg_price) AS mean_average_price,\n       AVG(avg_price - overall_avg) AS mean_difference_from_overall_mean,\n       AVG(avg_price - first_mean_avg) AS mean_difference_from_first_retained_mean\nFROM remaining;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "In `Products`, calculate each `production_type_code`\u2019s average `unit_price`, ignoring missing prices. Keep types whose average exceeds the overall mean unit price across all individual products, if that overall mean exists. Then calculate the simple mean of the kept types\u2019 averages and retain only types whose averages exceed that mean. Return one row with three values, each averaged across the remaining types: their average price, the amount by which it exceeds the overall mean price, and the amount by which it exceeds the mean of the initially kept types\u2019 averages.",
+  "sql": "WITH type_averages AS (\n    SELECT production_type_code, AVG(unit_price) AS average_price\n    FROM Products\n    WHERE unit_price IS NOT NULL\n    GROUP BY production_type_code\n), overall_mean AS (\n    SELECT AVG(unit_price) AS mean_price\n    FROM Products\n), initially_kept AS (\n    SELECT ta.production_type_code, ta.average_price, om.mean_price\n    FROM type_averages ta\n    CROSS JOIN overall_mean om\n    WHERE om.mean_price IS NOT NULL\n      AND ta.average_price > om.mean_price\n), initial_mean AS (\n    SELECT AVG(average_price) AS mean_initial_average\n    FROM initially_kept\n), remaining AS (\n    SELECT ik.average_price, ik.mean_price, im.mean_initial_average\n    FROM initially_kept ik\n    CROSS JOIN initial_mean im\n    WHERE im.mean_initial_average IS NOT NULL\n      AND ik.average_price > im.mean_initial_average\n)\nSELECT AVG(average_price) AS average_price,\n       AVG(average_price - mean_price) AS excess_overall_mean,\n       AVG(average_price - mean_initial_average) AS excess_over_initial_kept_mean\nFROM remaining;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "interpretations": [
+  "For each event type, average `spent / amount` over matched budget lines with nonzero `spent` and a defined ratio; report that average and its signed difference from the unweighted mean of the per-type averages",
+  "For each event type, average `spent / amount` over matched budget lines with nonzero `spent` and a defined ratio; report that average and its absolute distance from the unweighted mean of the per-type averages",
+  "For each event type, average `spent / amount` over matched budget lines with nonzero `spent` and a defined ratio; report that average and its percentage difference from the unweighted mean of the per-type averages"
+ ],
+ "queries": [
+  "WITH type_averages AS (\n    SELECT e.type,\n           AVG(b.spent * 1.0 / b.amount) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE b.spent <> 0\n      AND b.amount <> 0\n    GROUP BY e.type\n)\nSELECT type,\n       average_ratio,\n       average_ratio - AVG(average_ratio) OVER () AS signed_difference\nFROM type_averages",
+  "WITH type_averages AS (\n    SELECT e.type AS event_type,\n           AVG(b.spent * 1.0 / b.amount) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE b.spent <> 0\n      AND b.amount <> 0\n    GROUP BY e.type\n)\nSELECT event_type,\n       average_ratio,\n       ABS(average_ratio - (SELECT AVG(average_ratio) FROM type_averages)) AS distance_from_mean\nFROM type_averages",
+  "WITH type_averages AS (\n    SELECT e.type AS event_type,\n           AVG(b.spent * 1.0 / b.amount) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE b.spent <> 0\n      AND b.amount <> 0\n    GROUP BY e.type\n)\nSELECT event_type,\n       average_ratio,\n       100.0 * (average_ratio - overall.mean_ratio)\n             / NULLIF(overall.mean_ratio, 0) AS percentage_difference\nFROM type_averages\nCROSS JOIN (\n    SELECT AVG(average_ratio) AS mean_ratio\n    FROM type_averages\n) AS overall"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5d1920435b",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 5,
+  "chars_in": 38073,
+  "chars_out": 1993
+ }
+}

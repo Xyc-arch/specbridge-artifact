@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Statuses are grouped by `healtheval` after an inner join of scans to sites. Each status's rate is the average of per-scan `gbsize/spanmin`. The all-status average is the average of those per-status averages. The row returns the average rate of statuses above that, their average scan count, and the average excess over the all-status average.",
+  "Same as 1, but each status's rate is the ratio of summed `gbsize` to summed `spanmin`, not the average of per-scan ratios.",
+  "Same as 1, but the all-status average is the average of per-scan rates across all joined scans, not the average of per-status averages.",
+  "Same as 2, but the all-status average is the overall summed `gbsize` divided by summed `spanmin`.",
+  "\"Average count\" is the average number of joined scans per qualifying status, counting every joined scan, including those with a missing rate.",
+  "\"Average count\" is the average number of joined scans per qualifying status, counting only scans with a valid rate (non-null `gbsize` and `spanmin`).",
+  "\"Average count\" is the average of `scancount` (number of scans in a set) across the qualifying statuses' scans, not the number of scan rows.",
+  "\"Average count\" is the average of the per-status sum of `scancount`.",
+  "Scans with `spanmin` equal to zero are excluded from the rate (division by zero is treated as missing).",
+  "Scans with `spanmin` equal to zero are not specifically excluded.",
+  "Sites with a null `healtheval` form their own group and take part in the comparison.",
+  "Sites with a null `healtheval` are excluded.",
+  "\"Above the average across all statuses\" means strictly greater than.",
+  "\"Above the average across all statuses\" means greater than or equal to.",
+  "\"How far their rate exceeds the all-status average\" is the mean of (status rate \u2212 all-status average) over qualifying statuses. This equals the average rate minus the all-status average.",
+  "\"How far their rate exceeds\" is the mean of the per-status excess as an absolute difference, which is the same as 15 because all qualifying statuses exceed the average.",
+  "The excess is a percentage over the all-status average, not an absolute difference.",
+  "If the all-status average is missing, the query returns no qualifying statuses, so the row has null values or no row.",
+  "The \"average rate\" is an average of the status-level rates of the qualifying statuses (an unweighted mean of group means).",
+  "The \"average rate\" is the average of the per-scan rates over all scans in the qualifying statuses (a weighted mean).",
+  "\"Average count\" is the average number of distinct sites per qualifying status, not the number of scans.",
+  "Each status's rate is the average `gbsize` divided by the average `spanmin`, using only scans where both values are present, instead of the average of per-scan ratios.",
+  "The \"average rate\" is the ratio of summed `gbsize` to summed `spanmin` across all scans in the qualifying statuses (a pooled ratio), as the counterpart of 18 for the Interpretation 2 definition.",
+  "The excess is a ratio (qualifying average rate \u00f7 all-status average), not a difference."
+ ],
+ "queries": [
+  "WITH per_status AS (\n  SELECT s2.healtheval AS healtheval,\n         AVG(s.gbsize / s.spanmin) AS rate,\n         AVG(s.scancount) AS avg_scancount\n  FROM scans s\n  INNER JOIN sites s2 ON s.zoneref = s2.zoneregistry\n  GROUP BY s2.healtheval\n),\noverall AS (\n  SELECT AVG(rate) AS overall_rate FROM per_status\n)\nSELECT AVG(p.rate) AS avg_rate,\n       AVG(p.avg_scancount) AS avg_scancount,\n       AVG(p.rate - o.overall_rate) AS avg_excess\nFROM per_status p\nCROSS JOIN overall o\nWHERE p.rate > o.overall_rate;\n",
+  "SELECT s2.presstat, SUM(s1.gbsize) * 1.0 / SUM(s1.spanmin) AS rate\nFROM scans s1\nJOIN sites s2 ON s1.zoneref = s2.zoneregistry\nGROUP BY s2.presstat;\n",
+  "SELECT climtune, SUM(gbsize) * 1.0 / SUM(spanmin) AS avg_gb_per_min\nFROM scans\nGROUP BY climtune\nUNION ALL\nSELECT 'All', SUM(gbsize) * 1.0 / SUM(spanmin)\nFROM scans;\n",
+  "SELECT AVG(cnt) AS average_count\nFROM (\n  SELECT COUNT(*) AS cnt\n  FROM scans s\n  JOIN sites st ON s.zoneref = st.zoneregistry\n  WHERE s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL\n  GROUP BY st.entrystat\n);\n"
+ ],
+ "raw": [
+  "1. Statuses are grouped by `healtheval` after an inner join of scans to sites. Each status's rate is the average of per-scan `gbsize/spanmin`. The all-status average is the average of those per-status averages. The row returns the average rate of statuses above that, their average scan count, and the average excess over the all-status average.\n2. Same as 1, but each status's rate is the ratio of summed `gbsize` to summed `spanmin`, not the average of per-scan ratios.\n3. Same as 1, but the all-status average is the average of per-scan rates across all joined scans, not the average of per-status averages.\n4. Same as 2, but the all-status average is the overall summed `gbsize` divided by summed `spanmin`.\n5. \"Average count\" is the average number of joined scans per qualifying status, counting every joined scan, including those with a missing rate.\n6. \"Average count\" is the average number of joined scans per qualifying status, counting only scans with a valid rate (non-null `gbsize` and `spanmin`).\n7. \"Average count\" is the average of `scancount` (number of scans in a set) across the qualifying statuses' scans, not the number of scan rows.\n8. \"Average count\" is the average of the per-status sum of `scancount`.\n9. Scans with `spanmin` equal to zero are excluded from the rate (division by zero is treated as missing).\n10. Scans with `spanmin` equal to zero are not specifically excluded.\n11. Sites with a null `healtheval` form their own group and take part in the comparison.\n12. Sites with a null `healtheval` are excluded.\n13. \"Above the average across all statuses\" means strictly greater than.\n14. \"Above the average across all statuses\" means greater than or equal to.\n15. \"How far their rate exceeds the all-status average\" is the mean of (status rate \u2212 all-status average) over qualifying statuses. This equals the average rate minus the all-status average.\n16. \"How far their rate exceeds\" is the mean of the per-status excess as an absolute difference, which is the same as 15 because all qualifying statuses exceed the average.\n17. The excess is a percentage over the all-status average, not an absolute difference.\n18. If the all-status average is missing, the query returns no qualifying statuses, so the row has null values or no row.\n19. The \"average rate\" is an average of the status-level rates of the qualifying statuses (an unweighted mean of group means).\n20. The \"average rate\" is the average of the per-scan rates over all scans in the qualifying statuses (a weighted mean).",
+  "\"Average count\" is the average number of distinct sites per qualifying status, not the number of scans.\nEach status's rate is the average `gbsize` divided by the average `spanmin`, using only scans where both values are present, instead of the average of per-scan ratios.\nThe \"average rate\" is the ratio of summed `gbsize` to summed `spanmin` across all scans in the qualifying statuses (a pooled ratio), as the counterpart of 18 for the Interpretation 2 definition.\nThe excess is a ratio (qualifying average rate \u00f7 all-status average), not a difference."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327699,
+  "chars_out": 5357
+ }
+}

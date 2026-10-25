@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-31caaab8c7",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Cut the sorted list at the 10th row's value and keep every row tied with it.",
+ "a": {
+  "request": "For each branch district (`account.district_id`), count its accounts and work out its share of all accounts (its count divided by the total number of accounts). Show the district id, the account count, the share, and how far the share is above the average share across districts (share minus that average). Sort by that difference from highest to lowest and return the top 10, plus any other districts tied with the 10th. Don't round anything.",
+  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS account_count FROM account GROUP BY district_id), shares AS (SELECT district_id, account_count, CAST(account_count AS REAL) / (SELECT COUNT(*) FROM account) AS share FROM counts), diffs AS (SELECT district_id, account_count, share, share - AVG(share) OVER () AS share_diff FROM shares), ranked AS (SELECT district_id, account_count, share, share_diff, RANK() OVER (ORDER BY share_diff DESC) AS rnk FROM diffs) SELECT district_id, account_count, share, share_diff FROM ranked WHERE rnk <= 10 ORDER BY share_diff DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each branch district (`account.district_id`), count its accounts and work out its share of all accounts (its count divided by the total number of accounts). Show the district id, the account count, the share, and how far the share is above the average share across districts (share minus that average). Which are the top 10 districts by that difference, from highest to lowest? Don't round anything. Cut the sorted list at the 10th row's value and keep every row tied with it.",
+  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS account_count FROM account GROUP BY district_id), shares AS (SELECT district_id, account_count, CAST(account_count AS REAL) / (SELECT COUNT(*) FROM account) AS share FROM counts), diffs AS (SELECT district_id, account_count, share, share - AVG(share) OVER () AS diff FROM shares), ranked AS (SELECT district_id, account_count, share, diff, RANK() OVER (ORDER BY diff DESC) AS rnk FROM diffs) SELECT district_id, account_count, share, diff FROM ranked WHERE rnk <= 10 ORDER BY diff DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group `account` rows by `district_id` to get each district's count and share of all accounts, subtract the mean share across districts, sort the differences descending, and return every district whose difference is greater than or equal to the 10th-highest difference, keeping ties, with no rounding",
+  "sql": "WITH dist AS (SELECT district_id, COUNT(*) AS cnt FROM account GROUP BY district_id), tot AS (SELECT SUM(cnt) AS total FROM dist), shares AS (SELECT d.district_id, d.cnt, 1.0 * d.cnt / t.total AS share FROM dist d CROSS JOIN tot t), diffs AS (SELECT district_id, cnt, share, share - AVG(share) OVER () AS diff FROM shares), threshold AS (SELECT diff FROM diffs ORDER BY diff DESC LIMIT 1 OFFSET 9) SELECT df.district_id, df.cnt, df.share, df.diff FROM diffs df CROSS JOIN threshold th WHERE df.diff >= th.diff ORDER BY df.diff DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Cut the sorted list at the 10th-ranked district's difference value and keep every district whose difference equals that value, so that ties with the 10th row are included.",
+  "sql": "-- Assumes 'difference' means the 1996-minus-1995 unemployment rate change (A13 - A12); rows with NULL A12 are excluded.\nWITH d AS (\n  SELECT district_id, A13 - A12 AS diff\n  FROM district\n  WHERE A12 IS NOT NULL\n),\nt AS (\n  SELECT diff FROM d ORDER BY diff DESC LIMIT 1 OFFSET 9\n)\nSELECT d.district_id, d.diff\nFROM d\nWHERE d.diff >= (SELECT diff FROM t)\nORDER BY d.diff DESC;",
+  "executes": true,
+  "matches": []
+ }
+}

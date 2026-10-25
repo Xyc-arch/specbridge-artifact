@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-2f5c7dea6e",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Each throwing-hand group is counted by its distinct managers who won awards.",
+ "c": {
+  "request": "Tally manager award winners by throwing hand (`throws`, with missing as its own group; awards matched to players on `player_id`, unmatched ones dropped) and work out each hand's share of the overall tally. For the hands whose share is above the average share, give one row with their combined tally, their average share, and how far above the average share they sit on average. Unrounded. Each throwing-hand group is counted by its distinct managers who won awards.",
+  "sql": "WITH winner_managers AS (\n    SELECT DISTINCT ma.player_id\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n),\nhand_tallies AS (\n    SELECT COALESCE(p.throws, 'Missing') AS throwing_hand,\n           COUNT(DISTINCT wm.player_id) AS manager_count\n    FROM winner_managers AS wm\n    JOIN player AS p ON p.player_id = wm.player_id\n    GROUP BY COALESCE(p.throws, 'Missing')\n),\nshares AS (\n    SELECT throwing_hand,\n           manager_count,\n           1.0 * manager_count / SUM(manager_count) OVER () AS share\n    FROM hand_tallies\n),\naveraged AS (\n    SELECT *, AVG(share) OVER () AS average_share\n    FROM shares\n)\nSELECT SUM(manager_count) AS combined_tally,\n       AVG(share) AS average_share,\n       AVG(share - average_share) AS average_excess_share\nFROM averaged\nWHERE share > average_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match manager awards to players on `player_id`, dropping unmatched awards, and group by the player's throwing hand (`throws`), with a missing value as its own group. In each group, count the distinct managers (`player_id`) who won awards, so a manager who won three awards adds 1. Turn each count into a share of the total of the counts across all groups. Keep only the hands whose share is above the average share across hands. Return one row with the total of their counts, their average share, and the average amount by which their share exceeds that average share. No rounding.",
+  "sql": "WITH manager_counts AS (\n    SELECT p.throws, COUNT(DISTINCT ma.player_id) AS manager_count\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n    GROUP BY p.throws\n), shares AS (\n    SELECT throws, manager_count,\n           CAST(manager_count AS REAL) / SUM(manager_count) OVER () AS share\n    FROM manager_counts\n), avg_share AS (\n    SELECT AVG(share) AS value FROM shares\n)\nSELECT SUM(s.manager_count) AS total_count,\n       AVG(s.share) AS average_share,\n       AVG(s.share - a.value) AS average_excess\nFROM shares AS s\nCROSS JOIN avg_share AS a\nWHERE s.share > a.value;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Count each throwing-hand group\u2019s distinct managers who won awards, including missing `throws` as its own group and dropping unmatched awards; calculate each group\u2019s share of the overall distinct-manager tally, then return one row with the combined tally, average share, and average amount above the average share for groups whose share exceeds the average across all hand groups, without rounding",
+  "sql": "WITH awarded_managers AS (\n    SELECT DISTINCT ma.player_id\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n    WHERE ma.player_id IS NOT NULL\n), hand_counts AS (\n    SELECT p.throws, COUNT(DISTINCT am.player_id) AS manager_count\n    FROM awarded_managers AS am\n    JOIN player AS p ON p.player_id = am.player_id\n    GROUP BY p.throws\n), shares AS (\n    SELECT manager_count * 1.0 / SUM(manager_count) OVER () AS share\n    FROM hand_counts\n), stats AS (\n    SELECT SUM(manager_count) AS combined_tally,\n           AVG(share) AS average_share\n    FROM hand_counts\n    CROSS JOIN shares\n)\nSELECT combined_tally,\n       average_share,\n       (SELECT AVG(share - stats.average_share)\n        FROM shares\n        CROSS JOIN stats\n        WHERE share > stats.average_share) AS average_amount_above_average_share\nFROM stats;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Count distinct award-winning managers by throwing hand, treating missing throwing hands as their own group and dropping awards that cannot be matched to a player by `player_id`. Calculate each hand\u2019s share of the overall tally. For hands whose share is above the average share across hands, report one row with their combined tally, their average share, and their average amount above the average share. Leave values unrounded.",
+  "sql": "WITH manager_winners AS (\n    SELECT DISTINCT ma.player_id\n    FROM manager_award AS ma\n    INNER JOIN player AS p ON p.player_id = ma.player_id\n),\nhand_tallies AS (\n    SELECT p.throws, COUNT(DISTINCT mw.player_id) AS tally\n    FROM manager_winners AS mw\n    INNER JOIN player AS p ON p.player_id = mw.player_id\n    GROUP BY p.throws\n),\nhand_shares AS (\n    SELECT throws, tally, 1.0 * tally / SUM(tally) OVER () AS share\n    FROM hand_tallies\n),\nabove_average AS (\n    SELECT throws, tally, share, AVG(share) OVER () AS average_share\n    FROM hand_shares\n)\nSELECT SUM(tally) AS combined_tally,\n       AVG(share) AS average_share,\n       AVG(share - average_share) AS average_amount_above_average_share\nFROM above_average\nWHERE share > average_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

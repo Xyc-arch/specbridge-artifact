@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH q AS (SELECT order_id, CAST(NULLIF(TRIM(product_quantity), '') AS REAL) AS qty FROM Order_Items), base AS (SELECT AVG(qty) AS baseline FROM q), per_order AS (SELECT order_id, AVG(qty) AS avg_qty FROM q GROUP BY order_id) SELECT p.order_id, p.avg_qty AS order_avg_quantity, p.avg_qty - b.baseline AS diff_from_baseline FROM per_order p CROSS JOIN base b WHERE b.baseline IS NOT NULL ORDER BY (p.avg_qty - b.baseline) IS NULL, p.avg_qty - b.baseline DESC LIMIT 10",
+  "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), b AS (SELECT AVG(CAST(product_quantity AS REAL)) AS baseline FROM Order_Items) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - b.baseline AS diff_from_baseline FROM o CROSS JOIN b WHERE b.baseline IS NOT NULL ORDER BY (o.avg_qty - b.baseline) IS NULL, o.avg_qty - b.baseline DESC LIMIT 10;",
+  "WITH q AS (SELECT order_id, CAST(NULLIF(TRIM(product_quantity),'') AS REAL) AS qty FROM Order_Items), base AS (SELECT AVG(qty) AS b FROM q), per AS (SELECT order_id, AVG(qty) AS avg_qty FROM q GROUP BY order_id) SELECT per.order_id, per.avg_qty AS order_avg_quantity, per.avg_qty - base.b AS diff_from_baseline FROM per CROSS JOIN base WHERE base.b IS NOT NULL ORDER BY (per.avg_qty - base.b) IS NULL, (per.avg_qty - base.b) DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH q AS (SELECT order_id, CAST(NULLIF(TRIM(product_quantity), '') AS REAL) AS qty FROM Order_Items), base AS (SELECT AVG(qty) AS baseline FROM q), per_order AS (SELECT order_id, AVG(qty) AS avg_qty FROM q GROUP BY order_id) SELECT p.order_id, p.avg_qty AS order_avg_quantity, p.avg_qty - b.baseline AS diff_from_baseline FROM per_order p CROSS JOIN base b WHERE b.baseline IS NOT NULL ORDER BY (p.avg_qty - b.baseline) IS NULL, p.avg_qty - b.baseline DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to a number. Blank or whitespace-only strings count as missing, like NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the plain average over all non-missing order-item rows. If no row has a quantity, the baseline is NULL and the query returns no rows.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders whose items all have missing quantities are kept, with a NULL average and NULL difference. They sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the difference are not broken, so which tied orders make the top 10 is arbitrary.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), b AS (SELECT AVG(CAST(product_quantity AS REAL)) AS baseline FROM Order_Items) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - b.baseline AS diff_from_baseline FROM o CROSS JOIN b WHERE b.baseline IS NOT NULL ORDER BY (o.avg_qty - b.baseline) IS NULL, o.avg_qty - b.baseline DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to REAL for averaging. NULLs are ignored by AVG, and non-numeric text is not handled specially.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders whose items all have NULL quantity are still listed, with a NULL average and NULL difference, and sort last. Ties in the difference are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH q AS (SELECT order_id, CAST(NULLIF(TRIM(product_quantity),'') AS REAL) AS qty FROM Order_Items), base AS (SELECT AVG(qty) AS b FROM q), per AS (SELECT order_id, AVG(qty) AS avg_qty FROM q GROUP BY order_id) SELECT per.order_id, per.avg_qty AS order_avg_quantity, per.avg_qty - base.b AS diff_from_baseline FROM per CROSS JOIN base WHERE base.b IS NOT NULL ORDER BY (per.avg_qty - base.b) IS NULL, (per.avg_qty - base.b) DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to REAL. Empty or blank strings are treated as missing, like NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the plain average over all non-missing order-item rows. If it is NULL (no usable quantities), no rows are returned.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the difference are broken arbitrarily, because the request gives no tiebreaker.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c1b7822e6",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12390,
+  "chars_out": 3036
+ }
+}

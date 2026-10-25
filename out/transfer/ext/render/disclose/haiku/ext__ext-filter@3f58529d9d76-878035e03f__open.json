@@ -1,0 +1,58 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-878035e03f",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH qualifying AS (SELECT orderslink, rebtotal, rebrate / NULLIF(feerate, 0) AS ratio FROM fees WHERE rebrate >= 0.0005 AND orderslink IS NOT NULL), per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_rebtotal, AVG(ratio) AS avg_ratio FROM qualifying GROUP BY orderslink), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_order) SELECT p.orderslink, p.avg_rebtotal, p.avg_ratio, p.avg_ratio / NULLIF(o.mean_ratio, 0) AS relative_ratio FROM per_order p CROSS JOIN overall o ORDER BY relative_ratio DESC NULLS LAST LIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "\"Clears the 0.0005 threshold\" means rebrate >= 0.0005 (inclusive). The request does not settle whether the boundary is inclusive.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Fee rows with a NULL orderslink are excluded, since they cannot be attributed to an order.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A zero or NULL feerate makes the ratio NULL (via NULLIF), so it is ignored in the per-order average instead of raising a division-by-zero error.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The overall mean is the AVG of per-order average ratios, so each order counts equally. Orders whose average ratio is NULL are left out of that mean.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The relative ratio is NULL when the overall mean is NULL. The NULLIF also makes it NULL when the mean is exactly 0, to avoid division by zero; the request did not mention this case.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The database is PostgreSQL, since the request relies on NULLS LAST ordering.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"Clears the threshold\" means strictly above 0.0005 (exclusive), so rebrate > 0.0005.",
+    "sql": "WITH qualifying AS (SELECT orderslink, rebtotal, rebrate / NULLIF(feerate, 0) AS ratio FROM fees WHERE rebrate > 0.0005 AND orderslink IS NOT NULL), per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_rebtotal, AVG(ratio) AS avg_ratio FROM qualifying GROUP BY orderslink), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_order) SELECT p.orderslink, p.avg_rebtotal, p.avg_ratio, p.avg_ratio / NULLIF(o.mean_ratio, 0) AS relative_ratio FROM per_order p CROSS JOIN overall o ORDER BY relative_ratio DESC NULLS LAST LIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"Clears the threshold\" means strictly above 0.0005 (exclusive), so rebrate > 0.0005.",
+   "sql": "WITH qualifying AS (SELECT orderslink, rebtotal, rebrate / NULLIF(feerate, 0) AS ratio FROM fees WHERE rebrate > 0.0005 AND orderslink IS NOT NULL), per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_rebtotal, AVG(ratio) AS avg_ratio FROM qualifying GROUP BY orderslink), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_order) SELECT p.orderslink, p.avg_rebtotal, p.avg_ratio, p.avg_ratio / NULLIF(o.mean_ratio, 0) AS relative_ratio FROM per_order p CROSS JOIN overall o ORDER BY relative_ratio DESC NULLS LAST LIMIT 10;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 17.0,
+ "chars_out": 2247
+}

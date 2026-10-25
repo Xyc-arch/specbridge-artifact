@@ -1,0 +1,33 @@
+{
+ "interpretations": [
+  "Count distinct project IDs in `scanqc` for each `archstat`, including NULL as a separate status; divide each count by the sum of all status counts and return statuses above the mean share.",
+  "Count QC records for each `archstat`, allowing a project with multiple QC records to contribute multiple times; divide each count by the total QC record count and return statuses above the mean share.",
+  "Count each project once per archival status it has in `scanqc`, allowing a project to contribute to multiple statuses; divide each status count by the sum of those counts and return statuses above the mean share.",
+  "Count every project in `projects`, assigning projects with no QC record to the missing-status group; divide each status count by the sum of all status counts and return statuses above the mean share.",
+  "Treat both NULL and empty `archstat` values as the missing-status group when counting projects; divide each count by the sum of all status counts and return statuses above the mean share.",
+  "Count each distinct project once per archival status in `scanqc`, and include projects with no QC record in the missing-status group.",
+  "Count rows from a left join of `projects` to `scanqc`, so projects with no QC record contribute once to the missing-status group while multiple QC records contribute multiple times.",
+  "Include the missing-status group when calculating the average share even if its tally is zero."
+ ],
+ "queries": [
+  "WITH status_counts AS (\n  SELECT archstat, COUNT(DISTINCT arcref) AS project_count\n  FROM scanqc\n  GROUP BY archstat\n),\nstatus_shares AS (\n  SELECT archstat,\n         1.0 * project_count / SUM(project_count) OVER () AS share\n  FROM status_counts\n)\nSELECT archstat, share\nFROM status_shares\nWHERE share > (SELECT AVG(share) FROM status_shares)",
+  "WITH status_counts AS (\n  SELECT archstat, COUNT(*) AS qc_count\n  FROM scanqc\n  GROUP BY archstat\n),\nstatus_shares AS (\n  SELECT archstat,\n         qc_count,\n         1.0 * qc_count / (SELECT COUNT(*) FROM scanqc) AS share\n  FROM status_counts\n)\nSELECT archstat, qc_count, share\nFROM status_shares\nWHERE share > (SELECT AVG(share) FROM status_shares)",
+  "WITH project_statuses AS (\n    SELECT DISTINCT arcref, archstat\n    FROM scanqc\n    WHERE archstat IS NOT NULL\n),\nstatus_counts AS (\n    SELECT archstat, COUNT(*) AS project_count\n    FROM project_statuses\n    GROUP BY archstat\n),\nstatus_shares AS (\n    SELECT archstat,\n           1.0 * project_count / SUM(project_count) OVER () AS share\n    FROM status_counts\n)\nSELECT archstat, share\nFROM status_shares\nWHERE share > (SELECT AVG(share) FROM status_shares)",
+  "WITH status_counts AS (\n  SELECT COALESCE(q.ctrlstate, 'Missing') AS status,\n         COUNT(DISTINCT p.arcregistry) AS project_count\n  FROM projects AS p\n  LEFT JOIN scanqc AS q ON q.arcref = p.arcregistry\n  GROUP BY COALESCE(q.ctrlstate, 'Missing')\n),\nstatus_shares AS (\n  SELECT status,\n         project_count,\n         1.0 * project_count / SUM(project_count) OVER () AS share\n  FROM status_counts\n)\nSELECT status, project_count, share\nFROM status_shares\nWHERE share > (SELECT AVG(share) FROM status_shares)",
+  "WITH status_counts AS (\n  SELECT COALESCE(NULLIF(TRIM(archstat), ''), 'Missing') AS status,\n         COUNT(DISTINCT arcref) AS project_count\n  FROM scanqc\n  GROUP BY COALESCE(NULLIF(TRIM(archstat), ''), 'Missing')\n),\nstatus_shares AS (\n  SELECT status,\n         1.0 * project_count / SUM(project_count) OVER () AS share\n  FROM status_counts\n)\nSELECT status, share\nFROM status_shares\nWHERE share > (SELECT AVG(share) FROM status_shares)",
+  "SELECT COALESCE(q.archstat, 'Missing') AS archival_status,\n       COUNT(DISTINCT p.arcregistry) AS project_count\nFROM projects AS p\nLEFT JOIN scanqc AS q ON q.arcref = p.arcregistry\nGROUP BY COALESCE(q.archstat, 'Missing')"
+ ],
+ "raw": [
+  "Count distinct project IDs in `scanqc` for each `archstat`, including NULL as a separate status; divide each count by the sum of all status counts and return statuses above the mean share.\n\nCount QC records for each `archstat`, allowing a project with multiple QC records to contribute multiple times; divide each count by the total QC record count and return statuses above the mean share.\n\nCount each project once per archival status it has in `scanqc`, allowing a project to contribute to multiple statuses; divide each status count by the sum of those counts and return statuses above the mean share.\n\nCount every project in `projects`, assigning projects with no QC record to the missing-status group; divide each status count by the sum of all status counts and return statuses above the mean share.\n\nTreat both NULL and empty `archstat` values as the missing-status group when counting projects; divide each count by the sum of all status counts and return statuses above the mean share.",
+  "Count each distinct project once per archival status in `scanqc`, and include projects with no QC record in the missing-status group.\n\nCount rows from a left join of `projects` to `scanqc`, so projects with no QC record contribute once to the missing-status group while multiple QC records contribute multiple times.\n\nInclude the missing-status group when calculating the average share even if its tally is zero."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4cabfc6bd3",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 326202,
+  "chars_out": 3730
+ }
+}

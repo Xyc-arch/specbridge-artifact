@@ -1,0 +1,22 @@
+{
+ "readings": [
+  "Join scans to sites on scans.zoneref = sites.zoneregistry and drop unmatched scans. Group by sites.healtheval. For each status, compute the rate as the mean of the per-scan ratio gbsize/spanmin, using only scans where both values are non-null and spanmin is not 0. Also count, for each status, the matched scans that have a valid rate. Take the unweighted mean of the status rates as the all-status average. If it is null, return no statuses. Keep the statuses whose rate is strictly above that average. In one unrounded row, return (a) the mean of those statuses' rates, (b) the mean of those statuses' valid-rate scan counts, and (c) the mean of (status rate minus the all-status average) across those statuses.",
+  "Join scans to sites on scans.zoneref = sites.zoneregistry and drop unmatched scans. Group by sites.healtheval. For each status, compute the rate as the mean of the per-scan ratio gbsize/spanmin, using only scans where both values are non-null and spanmin is not 0. Also count, for each status, all matched scans, including those with a missing or invalid rate. Take the unweighted mean of the status rates as the all-status average. If it is null, return no statuses. Keep the statuses whose rate is strictly above that average. In one unrounded row, return (a) the mean of those statuses' rates, (b) the mean of those statuses' total matched-scan counts, and (c) the mean of (status rate minus the all-status average) across those statuses."
+ ],
+ "queries": [
+  "WITH scan_rates AS (\n  SELECT s.healtheval AS status,\n         sc.gbsize * 1.0 / sc.spanmin AS ratio\n  FROM scans sc\n  JOIN sites s ON sc.zoneref = s.zoneregistry\n  WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0\n),\nstatus_stats AS (\n  SELECT status, AVG(ratio) AS rate, COUNT(*) AS cnt\n  FROM scan_rates\n  GROUP BY status\n),\noverall AS (\n  SELECT AVG(rate) AS avg_rate FROM status_stats\n)\nSELECT AVG(ss.rate) AS mean_rate,\n       AVG(ss.cnt) AS mean_count,\n       AVG(ss.rate - o.avg_rate) AS mean_diff\nFROM status_stats ss, overall o\nWHERE o.avg_rate IS NOT NULL AND ss.rate > o.avg_rate;\n",
+  "WITH per_status AS (\n  SELECT s.healtheval AS status,\n         AVG(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0\n                  THEN sc.gbsize * 1.0 / sc.spanmin END) AS rate,\n         COUNT(*) AS cnt\n  FROM scans sc\n  JOIN sites s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\noverall AS (\n  SELECT AVG(rate) AS avg_rate FROM per_status\n)\nSELECT AVG(p.rate) AS mean_rate,\n       AVG(p.cnt) AS mean_count,\n       AVG(p.rate - o.avg_rate) AS mean_diff\nFROM per_status p\nCROSS JOIN overall o\nWHERE o.avg_rate IS NOT NULL\n  AND p.rate > o.avg_rate;\n"
+ ],
+ "raw": [
+  "{\"readings\":[\"Join scans to sites on scans.zoneref = sites.zoneregistry and drop unmatched scans. Group by sites.healtheval. For each status, compute the rate as the mean of the per-scan ratio gbsize/spanmin, using only scans where both values are non-null and spanmin is not 0. Also count, for each status, the matched scans that have a valid rate. Take the unweighted mean of the status rates as the all-status average. If it is null, return no statuses. Keep the statuses whose rate is strictly above that average. In one unrounded row, return (a) the mean of those statuses' rates, (b) the mean of those statuses' valid-rate scan counts, and (c) the mean of (status rate minus the all-status average) across those statuses.\",\"Join scans to sites on scans.zoneref = sites.zoneregistry and drop unmatched scans. Group by sites.healtheval. For each status, compute the rate as the mean of the per-scan ratio gbsize/spanmin, using only scans where both values are non-null and spanmin is not 0. Also count, for each status, all matched scans, including those with a missing or invalid rate. Take the unweighted mean of the status rates as the all-status average. If it is null, return no statuses. Keep the statuses whose rate is strictly above that average. In one unrounded row, return (a) the mean of those statuses' rates, (b) the mean of those statuses' total matched-scan counts, and (c) the mean of (status rate minus the all-status average) across those statuses.\"]}"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123207,
+  "chars_out": 2706
+ }
+}

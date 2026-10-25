@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f94f72633a",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "The trader type is taken from the trader who made the snapshot's transaction (`transactionrecord.trdref`).",
+ "c": {
+  "request": "For the sentiment snapshots in `sentimentandfundamentals` that match their transaction (`transref`), look at the snapshot's trader type (skipping anything without a match). For each transaction (`transref`) and trader type pair, average the analyst coverage count (`anlycount`), ignoring missing values, and keep the pairs above the overall mean of those pair averages, noting by how much. Then per trader type, give the trader type, the average analyst count of its kept pairs, their average margin over the overall mean, and that average analyst count relative to (divided by) the mean of it across trader types \u2014 unrounded. The trader type is taken from the trader who made the snapshot's transaction (`transactionrecord.trdref`).",
+  "sql": "WITH pair_averages AS (SELECT s.transref, t.tradekind, AVG(s.anlycount) AS avg_analyst_count FROM sentimentandfundamentals AS s JOIN transactionrecord AS tr ON tr.transreg = s.transref JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY s.transref, t.tradekind), overall AS (SELECT AVG(avg_analyst_count) AS mean_pair_average FROM pair_averages), type_averages AS (SELECT p.tradekind, AVG(p.avg_analyst_count) AS avg_analyst_count, AVG(p.avg_analyst_count - o.mean_pair_average) AS avg_margin_overall FROM pair_averages AS p CROSS JOIN overall AS o WHERE p.avg_analyst_count > o.mean_pair_average GROUP BY p.tradekind) SELECT tradekind, avg_analyst_count, avg_margin_overall, avg_analyst_count / NULLIF(AVG(avg_analyst_count) OVER (), 0) AS relative_avg_analyst_count FROM type_averages ORDER BY tradekind;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Take the sentiment snapshots in `sentimentandfundamentals` that match their transaction (`transref`), and attach the trader type of the trader who made that transaction (`transactionrecord.trdref`), dropping anything without a match. For each pair of transaction (`transref`) and trader type, average the analyst coverage count (`anlycount`), ignoring missing values. Keep the pairs whose average is above the overall mean of those pair averages, and note how far above it they are. Then for each trader type, return the trader type, the average analyst count of its kept pairs, their average amount above the overall mean, and that trader type's average analyst count divided by the mean of this figure across all trader types, without rounding.",
+  "sql": "WITH pair_averages AS (SELECT s.transref, t.tradekind AS trader_type, AVG(s.anlycount) AS avg_analyst_count FROM sentimentandfundamentals AS s JOIN transactionrecord AS tr ON tr.transreg = s.transref JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY s.transref, t.tradekind), overall_mean AS (SELECT AVG(avg_analyst_count) AS mean_pair_average FROM pair_averages), kept_pairs AS (SELECT p.trader_type, p.avg_analyst_count, p.avg_analyst_count - o.mean_pair_average AS amount_above_mean FROM pair_averages AS p CROSS JOIN overall_mean AS o WHERE p.avg_analyst_count > o.mean_pair_average), type_averages AS (SELECT trader_type, AVG(avg_analyst_count) AS avg_analyst_count, AVG(amount_above_mean) AS avg_amount_above_mean FROM kept_pairs GROUP BY trader_type) SELECT trader_type, avg_analyst_count, avg_amount_above_mean, avg_analyst_count / AVG(avg_analyst_count) OVER () AS relative_avg_analyst_count FROM type_averages",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Join each sentiment snapshot to its transaction on `sentimentandfundamentals.transref = transactionrecord.transreg`, then to the transaction\u2019s trader on `transactionrecord.trdref = trader.tradereg`; exclude unmatched rows. For each `transref` and `trader.tradekind` pair, average non-null `anlycount`. Keep pairs whose average exceeds the mean of all pair averages, and calculate each kept pair\u2019s margin above that mean. For each trader type, report its type, the mean pair average among its kept pairs, the mean margin among its kept pairs, and that mean pair average divided by the mean of these values across the reported trader types, without rounding",
+  "sql": "WITH pair_averages AS (SELECT s.transref, t.tradekind, AVG(s.anlycount) AS pair_average FROM sentimentandfundamentals AS s JOIN transactionrecord AS tr ON s.transref = tr.transreg JOIN trader AS t ON tr.trdref = t.tradereg GROUP BY s.transref, t.tradekind), overall_mean AS (SELECT AVG(pair_average) AS mean_pair_average FROM pair_averages), type_means AS (SELECT p.tradekind, AVG(p.pair_average) AS mean_pair_average, AVG(p.pair_average - o.mean_pair_average) AS mean_margin FROM pair_averages AS p CROSS JOIN overall_mean AS o WHERE p.pair_average > o.mean_pair_average GROUP BY p.tradekind) SELECT tradekind, mean_pair_average, mean_margin, mean_pair_average / NULLIF(AVG(mean_pair_average) OVER (), 0) AS relative_mean_pair_average FROM type_means",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each snapshot in `sentimentandfundamentals`, match its `transref` to a transaction and take the trader type from the trader referenced by that transaction\u2019s `transactionrecord.trdref`. Skip snapshots without a matching transaction or trader. For each `transref` and trader type pair, average `anlycount`, ignoring missing values. Keep pairs whose average exceeds the overall mean of the pair averages, and calculate each pair\u2019s margin above that mean. Then, for each trader type, report its average `anlycount` across kept pairs, its average margin, and its average `anlycount` divided by the mean of those averages across trader types. Return unrounded values.",
+  "sql": "WITH pair_averages AS (SELECT s.transref, t.tradekind AS trader_type, AVG(s.anlycount) AS avg_anlycount FROM sentimentandfundamentals AS s JOIN transactionrecord AS tr ON tr.transreg = s.transref JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY s.transref, t.tradekind), overall_mean AS (SELECT AVG(avg_anlycount) AS mean_pair_average FROM pair_averages), type_averages AS (SELECT p.trader_type, AVG(p.avg_anlycount) AS avg_anlycount, AVG(p.avg_anlycount - o.mean_pair_average) AS avg_margin FROM pair_averages AS p CROSS JOIN overall_mean AS o WHERE p.avg_anlycount > o.mean_pair_average GROUP BY p.trader_type) SELECT trader_type, avg_anlycount, avg_margin, avg_anlycount / AVG(avg_anlycount) OVER () AS relative_avg_anlycount FROM type_averages;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

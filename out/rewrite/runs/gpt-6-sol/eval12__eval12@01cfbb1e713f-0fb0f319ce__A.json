@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0fb0f319ce",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Rank invoices by how far their deviation from the overall average invoice unit price exceeds their country's average deviation, and return exactly 10 rows, cutting ties arbitrarily.",
+ "a": {
+  "request": "For each invoice, together with its customer's country, compute the average `UnitPrice` of its invoice lines. Take the overall average of these invoice averages, and for each invoice compute its deviation (invoice average minus overall average). Then, for each country, average these deviations over its invoices. For each invoice, show the invoice id, country, average unit price, deviation from the overall average, and that deviation minus its country's average deviation. Sort by this last value from highest to lowest (blanks last) and return exactly 10 rows, breaking any tie at the cutoff arbitrarily. Don't round.",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_unit_price, average_unit_price - AVG(average_unit_price) OVER () AS deviation FROM invoice_averages), country_deviations AS (SELECT InvoiceId, Country, average_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_from_country_average FROM deviations) SELECT InvoiceId, Country, average_unit_price, deviation, deviation_from_country_average FROM country_deviations ORDER BY CASE WHEN deviation_from_country_average IS NULL THEN 1 ELSE 0 END, deviation_from_country_average DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each invoice, average its InvoiceLine.UnitPrice values, then subtract the average of those invoice-level averages across all invoices to get its deviation; group invoices by Customer.Country to average those deviations, and rank invoices by their deviation minus their country\u2019s average deviation, descending with blanks last. Return exactly 10 rows, breaking ties arbitrarily, with InvoiceId, customer country, average line UnitPrice, deviation from the overall average, and deviation minus the country\u2019s average deviation, all unrounded",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_line_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_line_unit_price, average_line_unit_price - AVG(average_line_unit_price) OVER () AS deviation FROM invoice_averages), ranked_values AS (SELECT InvoiceId, Country, average_line_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_minus_country_average FROM deviations) SELECT InvoiceId, Country, average_line_unit_price, deviation, deviation_minus_country_average FROM ranked_values ORDER BY deviation_minus_country_average IS NULL, deviation_minus_country_average DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Work out each invoice's average line `UnitPrice` (with its customer's country) and how far that is from the average across all invoices. Which are the top 10 invoices whose deviation sits furthest above their country's average deviation? Show the invoice id, country, average unit price, deviation from the overall average, and the deviation minus the country's average deviation, sorted highest first (blanks last) and unrounded. Rank invoices by how far their deviation from the overall average invoice unit price exceeds their country's average deviation, and return exactly 10 rows, cutting ties arbitrarily.",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_unit_price, ABS(average_unit_price - (SELECT AVG(average_unit_price) FROM invoice_averages)) AS deviation_from_overall_average FROM invoice_averages), ranked AS (SELECT InvoiceId, Country, average_unit_price, deviation_from_overall_average, deviation_from_overall_average - AVG(deviation_from_overall_average) OVER (PARTITION BY Country) AS deviation_above_country_average FROM deviations) SELECT InvoiceId, Country, average_unit_price, deviation_from_overall_average, deviation_above_country_average FROM ranked ORDER BY deviation_above_country_average IS NULL, deviation_above_country_average DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each invoice, calculate the average line `UnitPrice`, its deviation from the average across all invoices, and that deviation minus the customer country\u2019s average deviation. Return exactly 10 invoices with the largest positive difference, breaking ties arbitrarily. Show the invoice ID, country, average unit price, deviation from the overall average, and difference from the country\u2019s average deviation. Sort highest first with blanks last, and leave values unrounded.",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_unit_price, average_unit_price - AVG(average_unit_price) OVER () AS deviation_from_overall FROM invoice_averages), results AS (SELECT InvoiceId, Country, average_unit_price, deviation_from_overall, deviation_from_overall - AVG(deviation_from_overall) OVER (PARTITION BY Country) AS difference_from_country FROM deviations) SELECT InvoiceId, Country, average_unit_price, deviation_from_overall, difference_from_country FROM results ORDER BY CASE WHEN difference_from_country IS NULL THEN 1 ELSE 0 END, difference_from_country DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

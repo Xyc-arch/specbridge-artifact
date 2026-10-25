@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bf298fafe5",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Compare each status's average leftover (amount \u2212 spent) with the unweighted mean of the per-status averages.",
+ "c": {
+  "request": "For each event status in the budget table, what's the average amount left over (amount budgeted minus amount spent, ignoring missing values), and how does it compare with the overall average? Show the status, its average, and its difference from the overall average, unrounded, and return nothing if there is no overall average to compare against. Compare each status's average leftover (amount \u2212 spent) with the unweighted mean of the per-status averages.",
+  "sql": "WITH status_averages AS (\n    SELECT event_status, AVG(amount - spent) AS average_leftover\n    FROM budget\n    WHERE amount IS NOT NULL AND spent IS NOT NULL\n    GROUP BY event_status\n), overall_average AS (\n    SELECT AVG(average_leftover) AS average_leftover\n    FROM status_averages\n)\nSELECT s.event_status AS status,\n       s.average_leftover,\n       s.average_leftover - o.average_leftover AS difference_from_overall_average\nFROM status_averages AS s\nCROSS JOIN overall_average AS o\nWHERE o.average_leftover IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each event status in the budget table (`budget.event_status`), what is the average of the amount budgeted minus the amount spent (`amount` \u2212 `spent`), ignoring rows where that difference is missing? How far is each status's average from the baseline you get by simply averaging those per-status averages, with each status counting equally? Return the status, its average, and its average minus that baseline, all unrounded. Return nothing if the baseline is missing.",
+  "sql": "WITH status_averages AS (\n    SELECT event_status, AVG(amount - spent) AS avg_difference\n    FROM budget\n    WHERE amount - spent IS NOT NULL\n    GROUP BY event_status\n),\nbaseline AS (\n    SELECT AVG(avg_difference) AS baseline_average\n    FROM status_averages\n)\nSELECT event_status AS status,\n       avg_difference AS average,\n       avg_difference - baseline_average AS difference_from_baseline\nFROM status_averages\nCROSS JOIN baseline\nWHERE baseline_average IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each distinct `budget.event_status`, calculate the average of `amount - spent` over rows where both values are non-null, then report that average and its difference from the unweighted mean of these per-status averages; return no rows if there is no overall average",
+  "sql": "WITH per_status AS (\n    SELECT event_status, AVG(amount - spent) AS avg_remaining\n    FROM budget\n    WHERE amount IS NOT NULL AND spent IS NOT NULL\n    GROUP BY event_status\n), overall AS (\n    SELECT AVG(avg_remaining) AS overall_avg\n    FROM per_status\n)\nSELECT p.event_status,\n       p.avg_remaining,\n       p.avg_remaining - o.overall_avg AS difference_from_overall_mean\nFROM per_status AS p\nCROSS JOIN overall AS o\nWHERE o.overall_avg IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each event status in the budget table, what is the average leftover amount (amount budgeted minus amount spent), ignoring missing values, and how does it compare with the unweighted mean of the per-status averages? Show each status, its average, and its difference from that mean, unrounded. Return nothing if there is no overall average to compare against.",
+  "sql": "WITH status_averages AS (\n    SELECT event_status, AVG(amount - spent) AS average_leftover\n    FROM budget\n    WHERE event_status IS NOT NULL\n      AND amount IS NOT NULL\n      AND spent IS NOT NULL\n    GROUP BY event_status\n), overall AS (\n    SELECT AVG(average_leftover) AS mean_of_status_averages\n    FROM status_averages\n)\nSELECT s.event_status,\n       s.average_leftover,\n       s.average_leftover - o.mean_of_status_averages AS difference_from_mean\nFROM status_averages AS s\nCROSS JOIN overall AS o;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

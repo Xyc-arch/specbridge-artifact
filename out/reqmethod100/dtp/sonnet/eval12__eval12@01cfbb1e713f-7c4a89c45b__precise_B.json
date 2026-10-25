@@ -1,0 +1,48 @@
+{
+ "interpretations": [
+  "Group by `rfistat` with NULL as its own group; the baseline is the average of `modindex` over all signals, with each signal counted once. Keep groups whose average is strictly above the baseline. For each, show the status, its average, the average minus the baseline, and the average minus the mean of the kept groups' averages. Values are unrounded.",
+  "Same as 1, but the baseline is the average of the per-status group averages, so each status counts once instead of each signal. This includes the NULL group if it has an average.",
+  "Same as 1, but the \"no status\" group also includes empty-string or whitespace `rfistat` values, not just NULL.",
+  "Same as 1, but \"no status\" also includes the placeholder value 'Unknown' (the documented category), merged with NULL into one group.",
+  "Same as 1, but 'Unknown' stays a separate group from the NULL group.",
+  "Same as 1, but the baseline average is taken only over signals with a non-null `modindex`. Signals with a null `modindex` don't count toward the baseline.",
+  "Same as 1, but the baseline divides the sum of `modindex` by the count of all signals, so null `modindex` values count as zero or as part of the denominator.",
+  "\"How far above the baseline\" is the absolute difference (group average \u2212 baseline), as in 1. The \"difference from the mean of kept averages\" is signed (group average \u2212 mean of kept).",
+  "\"How far above the baseline\" is the absolute difference. The \"difference from the mean of kept averages\" is the absolute value of (group average \u2212 mean of kept).",
+  "\"How far above the baseline\" is a percentage or ratio: (group average \u2212 baseline) / baseline.",
+  "\"How far it differs from the mean of the kept statuses' averages\" is a percentage or ratio relative to that mean.",
+  "The mean of the kept statuses' averages is the unweighted mean of the group averages, with each kept status counting once.",
+  "The mean of the kept statuses' averages is weighted by group size, which gives the average `modindex` over all signals in the kept groups.",
+  "\"Above\" is non-strict (\u2265 the baseline) instead of strictly greater.",
+  "Groups with no non-null `modindex` have a NULL average and are excluded, since the comparison to the baseline fails. Alternatively, they are shown with a NULL average.",
+  "Case or whitespace variants of `rfistat` (such as 'clean' and 'Clean') are treated as the same status, instead of exact-match grouping.",
+  "The baseline and groups use only signals joined to other tables (for example, those with a valid telescope), instead of every row in `signals`.",
+  "Missing interpretations:",
+  "The baseline is the average of `modindex` over distinct `modindex` values, not over signals.",
+  "The baseline is the median overall `modindex`, not the mean.",
+  "The mean of the kept statuses' averages includes the baseline status in some other form. It could also be the mean of the kept groups' raw `modindex` values, ignoring group boundaries.",
+  "\"How far above the baseline\" is the signed difference. This is the same as the absolute difference for kept groups, so it makes no distinction.",
+  "The baseline excludes the group being compared, as a leave-one-out average over all other signals.",
+  "The baseline is computed only over signals that have a non-null `rfistat`. Signals with no status are left out of the baseline but still form their own group.",
+  "Duplicate `signalregistry` rows are deduplicated before averaging, so \"each signal counting once\" is enforced by distinct `signalregistry`."
+ ],
+ "queries": [
+  "WITH base AS (\n  SELECT AVG(modindex) AS b FROM signals\n),\ngrp AS (\n  SELECT rfistat, AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY rfistat\n),\nkept AS (\n  SELECT rfistat, avg_mod\n  FROM grp, base\n  WHERE avg_mod > base.b\n)\nSELECT\n  k.rfistat AS rfistat,\n  k.avg_mod AS avg_modindex,\n  k.avg_mod - base.b AS diff_from_baseline,\n  k.avg_mod - (SELECT AVG(avg_mod) FROM kept) AS diff_from_kept_mean\nFROM kept k, base;\n",
+  "SELECT CASE WHEN rfistat IS NULL OR TRIM(rfistat) = '' THEN 'No Status' ELSE rfistat END AS rfistat,\n       COUNT(*) AS signal_count\nFROM signals\nGROUP BY CASE WHEN rfistat IS NULL OR TRIM(rfistat) = '' THEN 'No Status' ELSE rfistat END;\n",
+  "SELECT COALESCE(NULLIF(rfistat, 'Unknown'), 'No Status') AS rfistat, COUNT(*) AS signal_count\nFROM signals\nGROUP BY COALESCE(NULLIF(rfistat, 'Unknown'), 'No Status');\n",
+  "SELECT signalregistry FROM signals WHERE modindex > (SELECT AVG(modindex) FROM signals WHERE modindex IS NOT NULL);\n"
+ ],
+ "raw": [
+  "1. Group by `rfistat` with NULL as its own group; the baseline is the average of `modindex` over all signals, with each signal counted once. Keep groups whose average is strictly above the baseline. For each, show the status, its average, the average minus the baseline, and the average minus the mean of the kept groups' averages. Values are unrounded.\n2. Same as 1, but the baseline is the average of the per-status group averages, so each status counts once instead of each signal. This includes the NULL group if it has an average.\n3. Same as 1, but the \"no status\" group also includes empty-string or whitespace `rfistat` values, not just NULL.\n4. Same as 1, but \"no status\" also includes the placeholder value 'Unknown' (the documented category), merged with NULL into one group.\n5. Same as 1, but 'Unknown' stays a separate group from the NULL group.\n6. Same as 1, but the baseline average is taken only over signals with a non-null `modindex`. Signals with a null `modindex` don't count toward the baseline.\n7. Same as 1, but the baseline divides the sum of `modindex` by the count of all signals, so null `modindex` values count as zero or as part of the denominator.\n8. \"How far above the baseline\" is the absolute difference (group average \u2212 baseline), as in 1. The \"difference from the mean of kept averages\" is signed (group average \u2212 mean of kept).\n9. \"How far above the baseline\" is the absolute difference. The \"difference from the mean of kept averages\" is the absolute value of (group average \u2212 mean of kept).\n10. \"How far above the baseline\" is a percentage or ratio: (group average \u2212 baseline) / baseline.\n11. \"How far it differs from the mean of the kept statuses' averages\" is a percentage or ratio relative to that mean.\n12. The mean of the kept statuses' averages is the unweighted mean of the group averages, with each kept status counting once.\n13. The mean of the kept statuses' averages is weighted by group size, which gives the average `modindex` over all signals in the kept groups.\n14. \"Above\" is non-strict (\u2265 the baseline) instead of strictly greater.\n15. Groups with no non-null `modindex` have a NULL average and are excluded, since the comparison to the baseline fails. Alternatively, they are shown with a NULL average.\n16. Case or whitespace variants of `rfistat` (such as 'clean' and 'Clean') are treated as the same status, instead of exact-match grouping.\n17. The baseline and groups use only signals joined to other tables (for example, those with a valid telescope), instead of every row in `signals`.",
+  "Missing interpretations:\n\nThe baseline is the average of `modindex` over distinct `modindex` values, not over signals.\nThe baseline is the median overall `modindex`, not the mean.\nThe mean of the kept statuses' averages includes the baseline status in some other form. It could also be the mean of the kept groups' raw `modindex` values, ignoring group boundaries.\n\"How far above the baseline\" is the signed difference. This is the same as the absolute difference for kept groups, so it makes no distinction.\nThe baseline excludes the group being compared, as a leave-one-out average over all other signals.\nThe baseline is computed only over signals that have a non-null `rfistat`. Signals with no status are left out of the baseline but still form their own group.\nDuplicate `signalregistry` rows are deduplicated before averaging, so \"each signal counting once\" is enforced by distinct `signalregistry`."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 323897,
+  "chars_out": 5650
+ }
+}

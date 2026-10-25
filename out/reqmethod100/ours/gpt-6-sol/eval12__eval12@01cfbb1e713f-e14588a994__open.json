@@ -1,0 +1,21 @@
+{
+ "readings": [
+  "Join scanspatial to projects on scanspatial.arcref = projects.arcregistry, grouping missing projects.fundflux values together. For each funding source, calculate the average of boxy / boxz over rows where both values are present and boxz is nonzero. Define the source\u2019s size as its total number of joined scanspatial rows. Calculate the arithmetic mean of these sizes across funding sources. Return one row for sources whose size exceeds that mean, containing the arithmetic mean of their source-level average ratios, the sum of their sizes, and the arithmetic mean of their size minus the mean size. Do not round.",
+  "Join scanspatial to projects on scanspatial.arcref = projects.arcregistry, grouping missing projects.fundflux values together. For each funding source, calculate the average of boxy / boxz over rows where both values are present and boxz is nonzero. Define the source\u2019s size as the number of joined scanspatial rows eligible for that ratio calculation. Calculate the arithmetic mean of these sizes across funding sources. Return one row for sources whose size exceeds that mean, containing the arithmetic mean of their source-level average ratios, the sum of their sizes, and the arithmetic mean of their size minus the mean size. Do not round.",
+  "Join scanspatial to projects on scanspatial.arcref = projects.arcregistry, grouping missing projects.fundflux values together. For each funding source, calculate the average of boxy / boxz over rows where both values are present and boxz is nonzero. Define the source\u2019s size as the number of distinct projects represented by its joined scanspatial rows. Calculate the arithmetic mean of these sizes across funding sources. Return one row for sources whose size exceeds that mean, containing the arithmetic mean of their source-level average ratios, the sum of their sizes, and the arithmetic mean of their size minus the mean size. Do not round."
+ ],
+ "queries": [
+  "WITH source_stats AS (\n  SELECT\n    p.fundflux,\n    AVG(CASE\n      WHEN s.boxy IS NOT NULL AND s.boxz IS NOT NULL AND s.boxz <> 0\n      THEN 1.0 * s.boxy / s.boxz\n    END) AS avg_ratio,\n    COUNT(*) AS source_size\n  FROM scanspatial AS s\n  JOIN projects AS p ON s.arcref = p.arcregistry\n  GROUP BY p.fundflux\n),\nmean_size AS (\n  SELECT AVG(source_size) AS value\n  FROM source_stats\n)\nSELECT\n  AVG(ss.avg_ratio),\n  SUM(ss.source_size),\n  AVG(ss.source_size - ms.value)\nFROM source_stats AS ss\nCROSS JOIN mean_size AS ms\nWHERE ss.source_size > ms.value",
+  "WITH source_stats AS (\n    SELECT\n        p.fundflux,\n        AVG(s.boxy / s.boxz) AS avg_ratio,\n        COUNT(*) AS source_size\n    FROM scanspatial AS s\n    JOIN projects AS p ON s.arcref = p.arcregistry\n    WHERE s.boxy IS NOT NULL\n      AND s.boxz IS NOT NULL\n      AND s.boxz <> 0\n    GROUP BY p.fundflux\n),\nmean_size AS (\n    SELECT AVG(source_size) AS value\n    FROM source_stats\n)\nSELECT\n    AVG(ss.avg_ratio),\n    SUM(ss.source_size),\n    AVG(ss.source_size - ms.value)\nFROM source_stats AS ss\nCROSS JOIN mean_size AS ms\nWHERE ss.source_size > ms.value",
+  "WITH source_stats AS (\n    SELECT\n        p.fundflux,\n        AVG(CASE\n            WHEN s.boxy IS NOT NULL AND s.boxz IS NOT NULL AND s.boxz <> 0\n            THEN s.boxy / s.boxz\n        END) AS avg_ratio,\n        COUNT(DISTINCT p.arcregistry) AS source_size\n    FROM scanspatial AS s\n    JOIN projects AS p ON s.arcref = p.arcregistry\n    GROUP BY p.fundflux\n),\nmean_size AS (\n    SELECT AVG(source_size) AS value\n    FROM source_stats\n)\nSELECT\n    AVG(source_stats.avg_ratio),\n    SUM(source_stats.source_size),\n    AVG(source_stats.source_size - mean_size.value)\nFROM source_stats\nCROSS JOIN mean_size\nWHERE source_stats.source_size > mean_size.value"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e14588a994",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "ours",
+ "cost": {
+  "calls": 4,
+  "chars_in": 164063,
+  "chars_out": 3693
+ }
+}

@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Per-type averages use AVG(unit_price) grouped by production_type_code, ignoring NULL prices. The overall average is AVG(unit_price) over all products with a non-null price. Keep types whose average is strictly above the overall average. The mean of the kept types' averages is the simple mean of those per-type averages, not weighted by product count. Keep only the kept types whose average is strictly above that mean. Return one row with three values, each averaged over the remaining types:",
+  "AVG(type average price).",
+  "AVG(type average \u2212 overall average).",
+  "AVG(type average \u2212 mean of kept types' averages).",
+  "Same as 1, but the overall average is the mean of the per-type averages (an unweighted mean over types) instead of the average over all products.",
+  "Same as 1, but the comparisons use \">=\" instead of strict \">\" at either or both filtering steps.",
+  "Same as 1, but types whose products all have NULL prices (so their type average is NULL) are excluded before computing the mean of the kept types' averages. In 1 they drop out automatically, because NULL comparisons fail.",
+  "Same as 1, but \"if that average exists\" means returning no rows, or NULL values, when the overall average is NULL because there are no non-null prices.",
+  "Same as 1, but \"ignoring missing prices\" also excludes zero or empty-string prices, not just NULLs.",
+  "Same as 1, but production_type_code values that appear in Products without a matching row in Product_Categories are handled differently. For example, group over Product_Categories and include categories that have no products.",
+  "Same as 1, but the third value is read as the percentage or ratio by which the type average exceeds the overall average, or exceeds the kept-types mean, rather than the absolute difference.",
+  "Same as 1, but the second filter's \"mean of the kept types' averages\" is computed over all types, not only those kept in the first step.",
+  "Same as 1, but the three values are returned as separate rows, or only for a single remaining type, rather than as one row of averages.",
+  "Same as 1, but if no types remain after the filtering, the result is one row of NULLs. Otherwise it is an empty result.",
+  "Missing interpretations:",
+  "Same as 1, but the overall average is computed over all products including those with NULL prices, with NULL prices counted as 0 (so the denominator includes them).",
+  "Same as 1, but \"their type average price\" means the average of unit_price over the individual products of the remaining types (a product-weighted average), not the average of the per-type averages.",
+  "Same as 1, but the second filter's mean is computed over the types kept in step one, and the types are compared to it with the mean recomputed after the filter (iterated until stable).",
+  "Same as 1, but the third value is the difference between the type average and the mean of the kept types' averages taken as an absolute value (the distance in either direction).",
+  "Same as 1, but \"types\" are defined by Product_Categories.product_type_description rather than production_type_code, so codes sharing a description are merged.",
+  "Same as 1, but the overall average is the mean of the per-type averages over all types (including those that fail the first filter), and the second mean is over the first-step kept types."
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT p.production_type_code AS code, AVG(p.unit_price) AS avg_price, COUNT(*) AS cnt\n  FROM Products p\n  GROUP BY p.production_type_code\n  HAVING AVG(p.unit_price) IS NOT NULL\n),\nk AS (\n  SELECT * FROM t\n  WHERE avg_price > (SELECT AVG(unit_price) FROM Products WHERE unit_price IS NOT NULL)\n),\nr AS (\n  SELECT * FROM k\n  WHERE avg_price > (SELECT AVG(avg_price) FROM k)\n)\nSELECT AVG(r.avg_price), AVG(c.vat_rating), AVG(r.cnt)\nFROM r\nJOIN Product_Categories c ON c.production_type_code = r.code;\n",
+  "SELECT AVG(avg_price) FROM (SELECT AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code)",
+  "SELECT AVG(type_avg - (SELECT AVG(unit_price) FROM Products)) FROM (SELECT AVG(unit_price) AS type_avg FROM Products GROUP BY production_type_code);\n",
+  "WITH type_avg AS (\n  SELECT production_type_code, AVG(unit_price) AS avg_price\n  FROM Products\n  GROUP BY production_type_code\n)\nSELECT AVG(avg_price - (SELECT AVG(avg_price) FROM type_avg))\nFROM type_avg;\n",
+  "SELECT AVG(avg_price) FROM (SELECT AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code);\n"
+ ],
+ "raw": [
+  "1. Per-type averages use AVG(unit_price) grouped by production_type_code, ignoring NULL prices. The overall average is AVG(unit_price) over all products with a non-null price. Keep types whose average is strictly above the overall average. The mean of the kept types' averages is the simple mean of those per-type averages, not weighted by product count. Keep only the kept types whose average is strictly above that mean. Return one row with three values, each averaged over the remaining types:\n   - AVG(type average price).\n   - AVG(type average \u2212 overall average).\n   - AVG(type average \u2212 mean of kept types' averages).\n\n2. Same as 1, but the overall average is the mean of the per-type averages (an unweighted mean over types) instead of the average over all products.\n\n3. Same as 1, but the comparisons use \">=\" instead of strict \">\" at either or both filtering steps.\n\n4. Same as 1, but types whose products all have NULL prices (so their type average is NULL) are excluded before computing the mean of the kept types' averages. In 1 they drop out automatically, because NULL comparisons fail.\n\n5. Same as 1, but \"if that average exists\" means returning no rows, or NULL values, when the overall average is NULL because there are no non-null prices.\n\n6. Same as 1, but \"ignoring missing prices\" also excludes zero or empty-string prices, not just NULLs.\n\n7. Same as 1, but production_type_code values that appear in Products without a matching row in Product_Categories are handled differently. For example, group over Product_Categories and include categories that have no products.\n\n8. Same as 1, but the third value is read as the percentage or ratio by which the type average exceeds the overall average, or exceeds the kept-types mean, rather than the absolute difference.\n\n9. Same as 1, but the second filter's \"mean of the kept types' averages\" is computed over all types, not only those kept in the first step.\n\n10. Same as 1, but the three values are returned as separate rows, or only for a single remaining type, rather than as one row of averages.\n\n11. Same as 1, but if no types remain after the filtering, the result is one row of NULLs. Otherwise it is an empty result.",
+  "Missing interpretations:\n\nSame as 1, but the overall average is computed over all products including those with NULL prices, with NULL prices counted as 0 (so the denominator includes them).\nSame as 1, but \"their type average price\" means the average of unit_price over the individual products of the remaining types (a product-weighted average), not the average of the per-type averages.\nSame as 1, but the second filter's mean is computed over the types kept in step one, and the types are compared to it with the mean recomputed after the filter (iterated until stable).\nSame as 1, but the third value is the difference between the type average and the mean of the kept types' averages taken as an absolute value (the distance in either direction).\nSame as 1, but \"types\" are defined by Product_Categories.product_type_description rather than production_type_code, so codes sharing a description are merged.\nSame as 1, but the overall average is the mean of the per-type averages over all types (including those that fail the first filter), and the second mean is over the first-step kept types."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ed587ea981",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30651,
+  "chars_out": 5186
+ }
+}

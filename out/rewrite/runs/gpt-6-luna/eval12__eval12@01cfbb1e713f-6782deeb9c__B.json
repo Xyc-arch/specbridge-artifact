@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6782deeb9c",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "For each batting hand, count the distinct players with that hand who won at least one award. Compute each hand's share of all such players. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
+ "c": {
+  "request": "How do player award winners break down by batting hand (`bats`), counting awards matched to a known player and treating a blank or missing hand as its own group? For each hand, give the tally and its share of the overall total. Keep only the hands whose share is above the simple average share across hands, and show the hand, the tally, the share, and how much the share exceeds that average (no rounding). For each batting hand, count the distinct players with that hand who won at least one award. Compute each hand's share of all such players. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
+  "sql": "WITH winners AS (\n    SELECT DISTINCT aw.player_id, COALESCE(NULLIF(TRIM(p.bats), ''), '') AS hand\n    FROM player_award aw\n    JOIN player p ON p.player_id = aw.player_id\n), award_counts AS (\n    SELECT COALESCE(NULLIF(TRIM(p.bats), ''), '') AS hand, COUNT(*) AS tally\n    FROM player_award aw\n    JOIN player p ON p.player_id = aw.player_id\n    GROUP BY COALESCE(NULLIF(TRIM(p.bats), ''), '')\n), player_counts AS (\n    SELECT hand, COUNT(*) AS player_count\n    FROM winners\n    GROUP BY hand\n), award_shares AS (\n    SELECT hand, tally, 1.0 * tally / SUM(tally) OVER () AS share\n    FROM award_counts\n), player_shares AS (\n    SELECT hand, player_count, 1.0 * player_count / SUM(player_count) OVER () AS share\n    FROM player_counts\n), award_results AS (\n    SELECT 'award_tally' AS metric, hand, tally AS count, share,\n           share - AVG(share) OVER () AS excess_over_average\n    FROM award_shares\n), player_results AS (\n    SELECT 'distinct_players' AS metric, hand, player_count AS count, share,\n           share - AVG(share) OVER () AS excess_over_average\n    FROM player_shares\n)\nSELECT metric, hand, count, share, excess_over_average\nFROM (\n    SELECT * FROM award_results WHERE excess_over_average > 0\n    UNION ALL\n    SELECT * FROM player_results WHERE excess_over_average > 0\n) results\nORDER BY metric, hand;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Count distinct players matched to player records who won at least one award, grouped by batting hand with blank or missing hands in their own group; calculate each group\u2019s share of all such players and the simple average share across hands, then report only groups above that average with their hand, player count, share, and excess over the average, without rounding",
+  "sql": "WITH award_winners AS (\n    SELECT player_id FROM player_award\n    WHERE player_id IS NOT NULL\n    UNION\n    SELECT player_id FROM manager_award\n    WHERE player_id IS NOT NULL\n), grouped AS (\n    SELECT COALESCE(NULLIF(p.bats, ''), '') AS batting_hand,\n           COUNT(DISTINCT p.player_id) AS player_count\n    FROM award_winners aw\n    JOIN player p ON p.player_id = aw.player_id\n    GROUP BY COALESCE(NULLIF(p.bats, ''), '')\n), shares AS (\n    SELECT batting_hand,\n           player_count,\n           CAST(player_count AS REAL) / SUM(player_count) OVER () AS share\n    FROM grouped\n), averages AS (\n    SELECT AVG(share) AS average_share\n    FROM shares\n)\nSELECT s.batting_hand,\n       s.player_count,\n       s.share,\n       s.share - a.average_share AS excess_over_average\nFROM shares s\nCROSS JOIN averages a\nWHERE s.share > a.average_share;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Using player award records matched to their players by `player_id` (dropping awards with no matching player), group by the winner's batting hand (`bats`), with a blank or missing hand as its own group. For each hand, count the distinct award-winning players with that hand and work out that count's share of the total award-winning players across all hands. List only the hands whose share is above the simple average of the shares across hands. Show the batting hand, the player count, the share, and how far the share is above that average, with no rounding.",
+  "sql": "WITH winner_counts AS (\n    SELECT COALESCE(NULLIF(p.bats, ''), '') AS batting_hand,\n           COUNT(DISTINCT pa.player_id) AS player_count\n    FROM player_award AS pa\n    JOIN player AS p ON p.player_id = pa.player_id\n    GROUP BY COALESCE(NULLIF(p.bats, ''), '')\n), shares AS (\n    SELECT batting_hand,\n           player_count,\n           CAST(player_count AS REAL) / SUM(player_count) OVER () AS share\n    FROM winner_counts\n)\nSELECT batting_hand,\n       player_count,\n       share,\n       share - AVG(share) OVER () AS above_average\nFROM shares\nWHERE share > AVG(share) OVER ()",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For player award winners with a known player match, how many distinct players are there in each batting-hand (`bats`) group, treating blank or missing hands as their own group? For each hand, calculate its share of the total distinct players and keep only hands whose share is above the average share across hands. Report the hand, player count, share, and excess over the average, with no rounding.",
+  "sql": "WITH winner_players AS (\n    SELECT DISTINCT p.player_id, NULLIF(TRIM(p.bats), '') AS bats\n    FROM player_award AS pa\n    JOIN player AS p ON p.player_id = pa.player_id\n), hand_counts AS (\n    SELECT bats, COUNT(DISTINCT player_id) AS player_count\n    FROM winner_players\n    GROUP BY bats\n), shares AS (\n    SELECT bats, player_count,\n           CAST(player_count AS REAL) / SUM(player_count) OVER () AS share\n    FROM hand_counts\n)\nSELECT bats AS hand,\n       player_count,\n       share,\n       share - AVG(share) OVER () AS excess_over_average\nFROM shares\nWHERE share > AVG(share) OVER ();",
+  "executes": false,
+  "matches": []
+ }
+}

@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Budget lines are grouped by `link_to_budget` in the expense table. Keep the lines whose summed cost is above the average of those per-line totals. Return three values: the average of the kept lines' totals, the total number of expense rows across those lines, and the average amount by which their totals exceed the overall average",
+  "Same as 1, but \"average spend per budget line\" is the average of `budget.spent` across all budget rows, not the average of the summed expense costs. The summed expense cost per line is compared with that figure",
+  "Same as 1, but the average per-line total includes budget lines that have no expenses, counted as zero. This lowers the average",
+  "Same as 1, but the comparison uses `budget.spent` as each line's total instead of summing expense `cost`",
+  "Same as 1, but only approved expenses (`approved` = 'true') are summed and counted",
+  "Same as 1, but \"average spend per budget line\" is the total expense cost divided by the number of distinct budget lines that have expenses. This is the same number as in 1 and is only a different way of calculating it",
+  "Same as 1, but \"average spend per budget line\" is the average cost per individual expense, i.e. `AVG(cost)` over all expenses. Each line's summed total is compared with that per-expense average",
+  "\"How many expenses do they have altogether\" means the count of expense rows across the above-average budget lines",
+  "\"How many expenses do they have altogether\" means the count of distinct budget lines that qualify",
+  "\"How many expenses do they have altogether\" means the sum of the expense costs, i.e. the dollar total across the qualifying lines",
+  "\"On average by how much do they exceed that average\" means the mean of (line total \u2212 overall average) across the qualifying lines. This equals the qualifying lines' average total minus the overall average",
+  "\"On average by how much do they exceed that average\" means a percentage or ratio: the mean of (line total \u00f7 overall average) \u2212",
+  "\"On average by how much do they exceed that average\" means the average excess per expense, i.e. the total excess divided by the number of expenses",
+  "Three separate result values are returned in one row, or one row per qualifying budget line with per-line values and the aggregates repeated",
+  "\"Above\" means strictly greater than the average. A line equal to the average is excluded",
+  "\"Above\" means greater than or equal to the average, so lines equal to the average are included",
+  "Expenses with a NULL `link_to_budget` are grouped together as one line, or they are excluded",
+  "Missing interpretations:",
+  "\"Average spend per budget line\" means the average of `budget.amount` (the budgeted amount) across budget lines, not actual spend",
+  "Budget lines are those in the budget table (joined to expense), and the \"average spend per budget line\" is computed only over the budget lines that join to expenses, so expenses with a `link_to_budget` that has no matching budget row are excluded",
+  "Only budget lines linked to closed events (or with a particular `event_status`) are considered",
+  "The average spend per budget line is computed over all expenses grouped by `link_to_budget` and `link_to_member` (per member per budget line), rather than by budget line alone",
+  "\"How many expenses do they have altogether\" means the count of distinct expense descriptions or distinct expense IDs, which would differ from the row count only if there are duplicates",
+  "\"On average by how much do they exceed that average\" means the average of the absolute difference between each qualifying line's total and the overall average, which equals the signed mean difference since all qualifying lines are above the average",
+  "\"On average by how much do they exceed that average\" means the difference between the average total of the qualifying lines and the average total of all lines (a single aggregate difference that is the same as 11 but explicitly computed across the two groups)",
+  "The overall average used for comparison is the average of the totals computed with expenses for unapproved items excluded, while the count and averages of qualifying lines use all expenses"
+ ],
+ "queries": [
+  "WITH line_totals AS (\n    SELECT link_to_budget, SUM(cost) AS total_cost, COUNT(*) AS cnt\n    FROM expense\n    GROUP BY link_to_budget\n),\noverall AS (\n    SELECT AVG(total_cost) AS avg_total\n    FROM line_totals\n),\nkept AS (\n    SELECT l.link_to_budget, l.total_cost, l.cnt, o.avg_total\n    FROM line_totals l\n    CROSS JOIN overall o\n    WHERE l.total_cost > o.avg_total\n)\nSELECT AVG(total_cost) AS avg_kept_total,\n       SUM(cnt) AS total_expense_rows,\n       AVG(total_cost - avg_total) AS avg_excess\nFROM kept;\n",
+  "SELECT b.budget_id\nFROM budget b\nJOIN expense e ON e.link_to_budget = b.budget_id\nGROUP BY b.budget_id\nHAVING SUM(e.cost) > (SELECT AVG(spent) FROM budget);\n",
+  "SELECT AVG(line_total)\nFROM (\n    SELECT b.budget_id, COALESCE(SUM(e.cost), 0) AS line_total\n    FROM budget b\n    LEFT JOIN expense e ON e.link_to_budget = b.budget_id\n    GROUP BY b.budget_id\n);\n",
+  "SELECT SUM(cost), COUNT(*) FROM expense WHERE approved = 'true'",
+  "SELECT SUM(cost) * 1.0 / COUNT(DISTINCT link_to_budget) FROM expense"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-14054d8e5e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 61441,
+  "chars_out": 5554
+ }
+}

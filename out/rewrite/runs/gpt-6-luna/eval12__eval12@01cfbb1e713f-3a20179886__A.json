@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Count analysis records per trader type and compute each type's share of the total. For the types above the average count, report the summed count, the average share and the average excess over the average count.",
+ "a": {
+  "request": "Considering only advanced behaviour analyses whose linked transaction record and trader both exist, count for each trader type (`tradekind`) the number of analysis records (a transaction analysed twice counts twice), and that count's share of the total of these counts over all trader types. For the trader types whose count is strictly above the average count across trader types, give in one row the sum of their counts, the average of their shares, and the average amount by which their counts exceed that average count, without rounding.",
+  "sql": "WITH trader_type_counts AS (\n  SELECT\n    tr.tradekind,\n    COUNT(*) AS analysis_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind\n),\ntype_shares AS (\n  SELECT\n    tradekind,\n    analysis_count,\n    analysis_count::numeric / SUM(analysis_count) OVER () AS share\n  FROM trader_type_counts\n),\naverages AS (\n  SELECT AVG(analysis_count) AS avg_count\n  FROM trader_type_counts\n)\nSELECT\n  SUM(ts.analysis_count) AS sum_counts,\n  AVG(ts.share) AS average_share,\n  AVG(ts.analysis_count - av.avg_count) AS average_excess_count\nFROM type_shares AS ts\nCROSS JOIN averages AS av\nWHERE ts.analysis_count > av.avg_count;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Using the advanced behaviour data (only where the trade and its trader can be found), work out for each trader type how many analysed trade records it has and its share of the overall total. Then, for the trader types whose number is strictly above the average across trader types, give in one row their combined number, their average share, and on average how far above that average number they sit. Don't round. Count analysis records per trader type and compute each type's share of the total. For the types above the average count, report the summed count, the average share and the average excess over the average count.",
+  "sql": "WITH type_counts AS (\n  SELECT tr.tradekind, COUNT(*) AS analysed_count\n  FROM advancedbehavior ab\n  JOIN transactionrecord tx ON tx.transreg = ab.translink\n  JOIN trader tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind\n),\ntype_shares AS (\n  SELECT tradekind, analysed_count,\n         analysed_count::numeric / SUM(analysed_count) OVER () AS share\n  FROM type_counts\n),\nabove_average AS (\n  SELECT *, AVG(analysed_count) OVER () AS average_count\n  FROM type_shares\n)\nSELECT SUM(analysed_count) AS combined_count,\n       AVG(share) AS average_share,\n       AVG(analysed_count - average_count) AS average_excess_over_average_count\nFROM above_average\nWHERE analysed_count > average_count;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Count advancedbehavior records linked to an existing transaction and trader for each trader type, calculate each type\u2019s share of all such records, then among types with counts strictly above the unweighted average count across trader types, return the sum of their counts, the average of their shares, and the average amount by which their counts exceed the overall average count, without rounding",
+  "sql": "WITH type_counts AS (\n  SELECT tr.tradekind, COUNT(*) AS record_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind\n),\nshares AS (\n  SELECT tradekind, record_count,\n         record_count::numeric / SUM(record_count) OVER () AS record_share\n  FROM type_counts\n),\naverages AS (\n  SELECT AVG(record_count) AS overall_avg_count\n  FROM type_counts\n)\nSELECT SUM(s.record_count) AS sum_counts,\n       AVG(s.record_share) AS average_share,\n       AVG(s.record_count - a.overall_avg_count) AS average_excess_count\nFROM shares AS s\nCROSS JOIN averages AS a\nWHERE s.record_count > a.overall_avg_count;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the advanced behaviour data, and including only records where both the trade and its trader can be found, count analysed trade records for each trader type and calculate each type\u2019s share of the overall total. For trader types with counts strictly above the average across types, report their combined count, average share, and average amount above the average count. Do not round.",
+  "sql": "WITH type_counts AS (\n  SELECT\n    tr.tradekind AS trader_type,\n    COUNT(DISTINCT ab.translink) AS trade_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind\n),\ntype_shares AS (\n  SELECT\n    trader_type,\n    trade_count,\n    trade_count::numeric / SUM(trade_count) OVER () AS share_of_total\n  FROM type_counts\n),\naverages AS (\n  SELECT AVG(trade_count) AS avg_count\n  FROM type_counts\n)\nSELECT\n  SUM(ts.trade_count) AS combined_count,\n  AVG(ts.share_of_total) AS average_share,\n  AVG(ts.trade_count - a.avg_count) AS average_amount_above_average_count\nFROM type_shares AS ts\nCROSS JOIN averages AS a\nWHERE ts.trade_count > a.avg_count;",
+  "executes": false,
+  "matches": []
+ }
+}

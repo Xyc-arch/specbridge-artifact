@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-69dd47a5b6",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "Withdrawal (VYDAJ) amounts are negated before averaging, so the average is a signed net figure.",
+ "b": {
+  "request": "By region (`district.A3`), using only transactions whose account and district exist, compute for each account the average of signed transaction amounts (PRIJEM amounts positive, VYDAJ amounts negated, other types ignored) and the average balance after transaction over all its transactions, then take the simple average of both figures across the region's accounts, and list each region with these two averages plus the region's signed-amount average divided by the simple mean of all regions' signed-amount averages (no rows if that mean can't be computed)",
+  "sql": "WITH acc AS (SELECT d.A3 AS region, t.account_id, AVG(CASE t.type WHEN 'PRIJEM' THEN t.amount WHEN 'VYDAJ' THEN -t.amount END) AS avg_signed, AVG(t.balance) AS avg_bal FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id GROUP BY d.A3, t.account_id), reg AS (SELECT region, AVG(avg_signed) AS avg_signed_amount, AVG(avg_bal) AS avg_balance FROM acc GROUP BY region), m AS (SELECT AVG(avg_signed_amount) AS mean_signed FROM reg) SELECT reg.region, reg.avg_signed_amount, reg.avg_balance, reg.avg_signed_amount / m.mean_signed AS ratio_to_mean FROM reg CROSS JOIN m WHERE m.mean_signed IS NOT NULL ORDER BY reg.region",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "By region (`district.A3`), using only transactions whose account and district exist: for each account, find its average transaction amount over its credit and withdrawal transactions ('PRIJEM' and 'VYDAJ' only, other types ignored), and its average balance after transaction over all of its transactions. Then take the simple average of both figures across the region's accounts. List each region with these two averages, plus the region's amount average divided by the simple mean of all regions' amount averages (no rows if that mean can't be computed). Any order, no rounding. Withdrawal (VYDAJ) amounts are negated before averaging, so the average is a signed net figure.",
+  "sql": "WITH acc AS (SELECT d.A3 AS region, t.account_id, AVG(CASE WHEN t.type='PRIJEM' THEN t.amount WHEN t.type='VYDAJ' THEN -t.amount END) AS avg_amt, AVG(t.balance) AS avg_bal FROM trans t JOIN account a ON a.account_id=t.account_id JOIN district d ON d.district_id=a.district_id GROUP BY d.A3, t.account_id), reg AS (SELECT region, AVG(avg_amt) AS region_avg_amount, AVG(avg_bal) AS region_avg_balance FROM acc GROUP BY region), m AS (SELECT AVG(region_avg_amount) AS mean_amt FROM reg) SELECT reg.region, reg.region_avg_amount, reg.region_avg_balance, reg.region_avg_amount * 1.0 / m.mean_amt AS ratio_to_mean FROM reg CROSS JOIN m WHERE m.mean_amt IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Join transactions to their accounts and accounts to their districts, dropping anything unmatched. For each account and region (`district.A3`), compute two values: (a) the average transaction amount over credits and withdrawals only (`trans.type` 'PRIJEM' or 'VYDAJ'; other types ignored), with credits counted as positive and withdrawals as negative; and (b) the average balance after transaction (`trans.balance`) over all of the account's transactions. Then, for each region, take the plain average of these per-account values. Return each region with its average of the account amount averages, its average of the account balance averages, and the ratio of the first to the plain mean of that first value across all regions (return nothing if that overall mean is missing). No rounding, any order.",
+  "sql": "WITH acc AS (SELECT t.account_id, d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS amt_avg, AVG(t.balance) AS bal_avg FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id GROUP BY t.account_id, d.A3), reg AS (SELECT region, AVG(amt_avg) AS avg_amt, AVG(bal_avg) AS avg_bal FROM acc GROUP BY region), overall AS (SELECT AVG(avg_amt) AS mean_amt FROM reg) SELECT reg.region, reg.avg_amt, reg.avg_bal, reg.avg_amt / overall.mean_amt AS ratio FROM reg CROSS JOIN overall WHERE overall.mean_amt IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "By region (`district.A3`), using only transactions whose account and district exist: for each account, find its average transaction amount over its credit ('PRIJEM') and withdrawal ('VYDAJ') transactions only (ignoring other types), where withdrawal amounts are negated before averaging so the result is a signed net figure, and its average balance after transaction over all of its transactions. Then take the simple average of both figures across the region's accounts. List each region with these two averages, plus the region's amount average divided by the simple mean of all regions' amount averages (no rows if that mean can't be computed). Any order, no rounding.",
+  "sql": "WITH acc AS (SELECT d.A3 AS region, t.account_id, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_amt, AVG(t.balance) AS avg_bal FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id GROUP BY d.A3, t.account_id), reg AS (SELECT region, AVG(avg_amt) AS avg_amount, AVG(avg_bal) AS avg_balance FROM acc GROUP BY region) SELECT region, avg_amount, avg_balance, avg_amount / (SELECT AVG(avg_amount) FROM reg) AS ratio FROM reg WHERE (SELECT AVG(avg_amount) FROM reg) IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost > 20.99 GROUP BY rating) AS per_rating",
+  "SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 GROUP BY rating) AS per_rating",
+  "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost > 20.99 GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating",
+  "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating",
+  "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost > 20.99 AND length IS NOT NULL GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating",
+  "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 AND length IS NOT NULL GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost > 20.99 GROUP BY rating) AS per_rating",
+   "assumptions": [
+    {
+     "assumption": "'Costlier films' with threshold 20.99 means replacement_cost strictly greater than 20.99 (not >=).",
+     "unresolved": true
+    },
+    {
+     "assumption": "The final summary is an unweighted average of the per-rating averages (each rating counts equally), not an average over all films.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Missing values are ignored via SQL's default NULL handling in AVG; the per-rating ratio is the average of row-level rental_rate/replacement_cost, not total rental_rate divided by total replacement_cost.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Threshold is inclusive: replacement_cost >= 20.99 counts as costlier.",
+     "sql": "SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 GROUP BY rating) AS per_rating"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost > 20.99 GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating",
+   "assumptions": [
+    {
+     "assumption": "'Costlier films' means replacement_cost strictly greater than 20.99. Because the costs end in .99, this keeps only films costing 21.99 or more.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The final row is an unweighted average of the per-rating averages, with each rating counted once whatever its number of films. It is not a film-level average. AVG skips NULL lengths.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The threshold is inclusive: replacement_cost >= 20.99, so films costing exactly 20.99 are kept.",
+     "sql": "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost > 20.99 AND length IS NOT NULL GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating",
+   "assumptions": [
+    {
+     "assumption": "'Costlier films with threshold 20.99' means replacement_cost strictly greater than 20.99, so films at exactly 20.99 are excluded.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The final row is an unweighted average of the per-rating averages (one value per rating), not an average over all films.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Films with missing length are excluded from the length average, and their ratio is dropped as well. This is the 'ignoring missing values' reading, applied to both averages from the same film set. Missing length is not expected to be an issue.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The threshold is inclusive: replacement_cost >= 20.99.",
+     "sql": "WITH per_rating AS (SELECT rating, AVG(length) AS avg_length, AVG(rental_rate / replacement_cost) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 AND length IS NOT NULL GROUP BY rating) SELECT AVG(avg_length) AS avg_of_avg_length, AVG(avg_ratio) AS avg_of_avg_ratio FROM per_rating"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-15a3b1f80a",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42615,
+  "chars_out": 3680
+ }
+}

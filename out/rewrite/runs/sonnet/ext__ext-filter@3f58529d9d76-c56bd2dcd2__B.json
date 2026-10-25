@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-c56bd2dcd2",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Only transactions dated strictly after 1996-05-09 and strictly before 1998-01-06 are inside the range.",
+ "b": {
+  "request": "Per region (`district.A3`), for transactions linked to their account and the account's branch district with `trans.date` as text strictly after '1996-05-09' and strictly before '1998-01-06', return the region, the average of signed amounts (+`amount` for 'PRIJEM', \u2212`amount` for 'VYDAJ', other or missing types excluded from the average), the count of all the region's transactions in that period regardless of type, and the ratio of the region's average signed amount to the mean of the regional averages across all regions (no rows if that mean is missing), unrounded.",
+  "sql": "WITH r AS (SELECT d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_signed, COUNT(*) AS txn_count FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id WHERE CAST(t.date AS TEXT) > '1996-05-09' AND CAST(t.date AS TEXT) < '1998-01-06' GROUP BY d.A3) SELECT region, avg_signed, txn_count, avg_signed * 1.0 / (SELECT AVG(avg_signed) FROM r) AS ratio_to_mean FROM r WHERE (SELECT AVG(avg_signed) FROM r) IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "Per region (`district.A3`), for transactions linked to their account and the account's branch district with `trans.date` as text strictly after '1996-05-09' and strictly before '1998-01-06', return the region, the average of signed amounts (+`amount` for 'PRIJEM', \u2212`amount` for 'VYDAJ', other or missing types excluded from the average), the count of all the region's transactions in that period regardless of type, and the ratio of the region's average signed amount to the mean of the regional averages across all regions (no rows if that mean is missing), unrounded."
+ },
+ "a": {
+  "request": "For transactions dated strictly after 1996-05-09 and strictly before 1998-01-06, both dates excluded (comparing `trans.date` as text), link each transaction to its account and each account to its branch's district. Then give one row per region (`district.A3`) with four columns. First, the region. Second, the average signed transaction amount, where credits ('PRIJEM') count as +`amount`, withdrawals ('VYDAJ') count as \u2212`amount`, and transactions of any other or missing type are left out of the average. Third, the number of the region's transactions in that date range, counting every type. Fourth, the ratio of the region's average signed amount to the average of these regional averages across all regions; return no rows if that overall average is missing. Do not round anything.",
+  "sql": "WITH r AS (SELECT d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_signed, COUNT(*) AS txn_count FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id WHERE CAST(t.date AS TEXT) > '1996-05-09' AND CAST(t.date AS TEXT) < '1998-01-06' GROUP BY d.A3) SELECT region, avg_signed, txn_count, avg_signed * 1.0 / (SELECT AVG(avg_signed) FROM r) AS ratio FROM r WHERE (SELECT AVG(avg_signed) FROM r) IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For transactions between 1996-05-09 and 1998-01-06 (comparing `trans.date` as text), link each transaction to its account and each account to its branch's district. Then give one row per region (`district.A3`) with four columns. First, the region. Second, the average signed transaction amount, where credits ('PRIJEM') count as +`amount`, withdrawals ('VYDAJ') count as \u2212`amount`, and transactions of any other or missing type are left out of the average. Third, the number of the region's transactions in that period, counting every type. Fourth, the ratio of the region's average signed amount to the average of these regional averages across all regions; return no rows if that overall average is missing. Do not round anything. Only transactions dated strictly after 1996-05-09 and strictly before 1998-01-06 are inside the range.",
+  "sql": "WITH reg AS (SELECT d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_signed, COUNT(*) AS txn_count FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id WHERE t.date > '1996-05-09' AND t.date < '1998-01-06' GROUP BY d.A3), overall AS (SELECT AVG(avg_signed) AS overall_avg FROM reg) SELECT r.region, r.avg_signed, r.txn_count, r.avg_signed / o.overall_avg AS ratio_to_overall FROM reg r CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "d": {
+  "request": "For transactions with `trans.date` strictly after '1996-05-09' and strictly before '1998-01-06' (text comparison, both endpoints excluded), joined to account and then to the branch district, return one row per `district.A3` region with: the region; the average of signed `amount` (+`amount` for 'PRIJEM', \u2212`amount` for 'VYDAJ', other or missing types excluded from the average only); the count of all the region's transactions in that period of any type; and the region's average signed amount divided by the average of the regional averages across all regions (no rows if that overall average is NULL), with no rounding.",
+  "sql": "WITH r AS (SELECT d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_signed, COUNT(*) AS txn_count FROM trans t JOIN account a ON t.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE t.date > '1996-05-09' AND t.date < '1998-01-06' GROUP BY d.A3), o AS (SELECT AVG(avg_signed) AS overall FROM r) SELECT r.region, r.avg_signed AS avg_signed_amount, r.txn_count, r.avg_signed / o.overall AS ratio_to_overall_avg FROM r CROSS JOIN o WHERE o.overall IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

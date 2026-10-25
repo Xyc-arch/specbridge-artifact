@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4548f50304",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Clients are attributed, through their dispositions, to the branch district of each account they are linked to.",
+ "b": {
+  "request": "Clients are attributed to the district of each account they are linked to via disp (disp.client_id \u2192 disp.account_id \u2192 account.district_id), counting each client once per district, and the fraction of overall total uses the total distinct clients across all districts",
+  "sql": "WITH dc AS (SELECT DISTINCT a.district_id, d.client_id FROM disp d JOIN account a ON d.account_id = a.account_id), total AS (SELECT COUNT(DISTINCT client_id) AS total_clients FROM dc) SELECT dc.district_id, COUNT(*) AS client_count, CAST(COUNT(*) AS REAL) / total.total_clients AS fraction FROM dc CROSS JOIN total GROUP BY dc.district_id, total.total_clients ORDER BY dc.district_id;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Break the bank's clients down by district (`district_id`). For each district, show the id, its region (`A3`), the number of clients, that number as a fraction of its region's total, and that number as a fraction of the overall total. Give the 10 districts with the largest fraction of the overall total, largest first, unrounded. Clients are attributed, through their dispositions, to the branch district of each account they are linked to.",
+  "sql": "WITH dc AS (SELECT a.district_id, COUNT(DISTINCT d.client_id) AS clients FROM disp d JOIN account a ON a.account_id = d.account_id GROUP BY a.district_id), dr AS (SELECT dc.district_id, dis.A3 AS region, dc.clients FROM dc JOIN district dis ON dis.district_id = dc.district_id) SELECT district_id, region, clients, CAST(clients AS REAL) / SUM(clients) OVER (PARTITION BY region) AS region_fraction, CAST(clients AS REAL) / SUM(clients) OVER () AS overall_fraction FROM dr ORDER BY overall_fraction DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Count clients by the branch district of each account they are linked to (each `disp` record counted once, using `account.district_id`, matched to `district`). For each district, list its id, its region (`district.A3`), the client count, that count divided by its region's total, and that count divided by the overall total. Show the 10 districts with the largest share of the overall total, largest first, with no rounding.",
+  "sql": "WITH dc AS (SELECT a.district_id, COUNT(*) AS client_count FROM disp d JOIN account a ON a.account_id = d.account_id GROUP BY a.district_id), tot AS (SELECT SUM(client_count) AS overall_total FROM dc), rt AS (SELECT ds.A3 AS region, SUM(dc.client_count) AS region_total FROM dc JOIN district ds ON ds.district_id = dc.district_id GROUP BY ds.A3) SELECT dc.district_id, d.A3 AS region, dc.client_count, 1.0 * dc.client_count / rt.region_total AS region_share, 1.0 * dc.client_count / tot.overall_total AS overall_share FROM dc JOIN district d ON d.district_id = dc.district_id JOIN rt ON rt.region = d.A3 CROSS JOIN tot ORDER BY overall_share DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Break the bank's clients down by district, where each client is attributed through their dispositions to the branch district (`district_id`) of each account they are linked to. For each district, show the id, its region (`A3`), the number of clients, that number as a fraction of its region's total, and that number as a fraction of the overall total. Give the 10 districts with the largest fraction of the overall total, largest first, unrounded.",
+  "sql": "WITH links AS (SELECT DISTINCT d.client_id, a.district_id FROM disp d JOIN account a ON a.account_id = d.account_id), dist_counts AS (SELECT district_id, COUNT(DISTINCT client_id) AS client_cnt FROM links GROUP BY district_id), region_totals AS (SELECT dt.A3 AS region, COUNT(DISTINCT l.client_id) AS region_clients FROM links l JOIN district dt ON dt.district_id = l.district_id GROUP BY dt.A3), overall AS (SELECT COUNT(DISTINCT client_id) AS total_clients FROM links) SELECT dc.district_id, dt.A3 AS region, dc.client_cnt, CAST(dc.client_cnt AS REAL) / rt.region_clients AS region_fraction, CAST(dc.client_cnt AS REAL) / o.total_clients AS overall_fraction FROM dist_counts dc JOIN district dt ON dt.district_id = dc.district_id JOIN region_totals rt ON rt.region = dt.A3 CROSS JOIN overall o ORDER BY overall_fraction DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "An operator's number of scans is how many scan records they have.",
+ "b": {
+  "request": "For operators with non-null per-scan GB-per-minute values whose average GB per minute exceeds the unweighted average of those per-operator averages, return one row with their average number of scan records, their average GB per minute, and the average difference between each qualifying operator\u2019s GB-per-minute average and the unweighted average across all operators",
+  "sql": "WITH operator_averages AS (\n  SELECT\n    crewref,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_min\n  FROM scans\n  GROUP BY crewref\n  HAVING COUNT(gbsize / NULLIF(spanmin, 0)) > 0\n), qualifying_operators AS (\n  SELECT crewref, avg_gb_per_min\n  FROM operator_averages\n  WHERE avg_gb_per_min > (SELECT AVG(avg_gb_per_min) FROM operator_averages)\n), operator_scan_counts AS (\n  SELECT crewref, COUNT(*) AS scan_count\n  FROM scans\n  GROUP BY crewref\n)\nSELECT\n  AVG(osc.scan_count) AS average_scan_records,\n  AVG(qo.avg_gb_per_min) AS average_gb_per_min,\n  AVG(qo.avg_gb_per_min - (SELECT AVG(avg_gb_per_min) FROM operator_averages)) AS average_difference\nFROM qualifying_operators qo\nJOIN operator_scan_counts osc USING (crewref);",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each operator (`scans.crewref`), find their number of scans by counting their scan records, and find their average file size per minute, computed per scan as `gbsize` \u00f7 `spanmin`. Ignore missing values. Consider only operators whose average GB per minute is above the simple average of that figure across all operators. In a single row, give the average number of scans of those operators, their average GB per minute, and their average margin above the all-operator average, with no rounding.",
+  "sql": "WITH per_operator AS (\n  SELECT\n    crewref,\n    COUNT(*) AS scan_count,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_minute\n  FROM scans\n  WHERE gbsize IS NOT NULL\n    AND spanmin IS NOT NULL\n    AND spanmin <> 0\n  GROUP BY crewref\n),\nall_operator_average AS (\n  SELECT AVG(avg_gb_per_minute) AS avg_gb_per_minute\n  FROM per_operator\n),\nabove_average AS (\n  SELECT p.scan_count, p.avg_gb_per_minute, a.avg_gb_per_minute AS all_avg_gb_per_minute\n  FROM per_operator p\n  CROSS JOIN all_operator_average a\n  WHERE p.avg_gb_per_minute > a.avg_gb_per_minute\n)\nSELECT\n  AVG(scan_count) AS average_scan_count,\n  AVG(avg_gb_per_minute) AS average_gb_per_minute,\n  AVG(avg_gb_per_minute - all_avg_gb_per_minute) AS average_margin_above_all_operator_average\nFROM above_average;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Look at the operators (`scans.crewref`) whose average file size per minute, computed per scan as `gbsize` \u00f7 `spanmin` with missing values ignored, is above the simple average of that figure across all operators. In a single row, how many scans have these operators done on average, what is their average GB per minute, and by how much on average do they exceed the all-operator figure? Don't round. An operator's number of scans is how many scan records they have.",
+  "sql": "WITH operator_averages AS (\n  SELECT\n    crewref,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_minute,\n    COUNT(*) AS scan_count\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_average AS (\n  SELECT AVG(avg_gb_per_minute) AS avg_gb_per_minute\n  FROM operator_averages\n),\nabove_average_operators AS (\n  SELECT oa.scan_count, oa.avg_gb_per_minute, all_avg.avg_gb_per_minute AS overall_avg\n  FROM operator_averages oa\n  CROSS JOIN all_operator_average all_avg\n  WHERE oa.avg_gb_per_minute > all_avg.avg_gb_per_minute\n)\nSELECT\n  AVG(scan_count) AS avg_scans_per_operator,\n  AVG(avg_gb_per_minute) AS avg_gb_per_minute,\n  AVG(avg_gb_per_minute - overall_avg) AS avg_excess_gb_per_minute\nFROM above_average_operators;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Considering only operators whose average `gbsize \u00f7 spanmin` per scan (ignoring missing values) is above the simple average of that figure across all operators, return one row with: their average number of scan records, their average GB per minute, and how much that average exceeds the average across all operators. Do not round.",
+  "sql": "WITH operator_averages AS (\n  SELECT crewref, AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_minute\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0\n  GROUP BY crewref\n), above_average AS (\n  SELECT *\n  FROM operator_averages\n  WHERE avg_gb_per_minute > (SELECT AVG(avg_gb_per_minute) FROM operator_averages)\n), operator_scan_counts AS (\n  SELECT crewref, COUNT(*) AS scan_records\n  FROM scans\n  GROUP BY crewref\n)\nSELECT AVG(c.scan_records) AS average_scan_records,\n       AVG(a.avg_gb_per_minute) AS average_gb_per_minute,\n       AVG(a.avg_gb_per_minute) - (SELECT AVG(avg_gb_per_minute) FROM operator_averages) AS excess_over_all_operators\nFROM above_average a\nJOIN operator_scan_counts c ON c.crewref = a.crewref;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

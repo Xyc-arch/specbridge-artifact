@@ -1,0 +1,36 @@
+{
+ "interpretations": [
+  "Per-type average is computed over non-null `unit_price` values. Baseline is the average of `unit_price` across all non-null products. Keep types with average > baseline. Take the mean of the kept types' averages and keep types with average > that mean (strictly). Return one row: AVG(type average), AVG(type average \u2212 baseline), AVG(type average \u2212 kept-types mean), all over the remaining types.",
+  "Same as 1, but \"above\" is read as \u2265 (not strict) for one or both comparisons.",
+  "Same as 1, but types whose average is null (all prices missing) are excluded from the type list. Alternatively, they are kept as null rows, which don't affect the averages.",
+  "Same as 1, but the \"kept types' mean\" is a simple mean over the types kept after the baseline filter. Alternatively, it is recomputed over all types with a non-null average.",
+  "Same as 1, but the baseline is a product-weighted average. Alternatively, it is the mean of the type averages, which the question rules out.",
+  "Same as 1, but \"Proceed only if the baseline exists\" means that if there are no non-null prices, the query returns zero rows. Alternatively, it returns one row of NULLs.",
+  "Same as 1, but the three values are returned as separate columns in one row. Alternatively, they are returned as three rows or a single combined value.",
+  "Same as 1, but if no type survives both filters, the query returns one row of NULLs. Alternatively, it returns no rows.",
+  "Types are grouped by `production_type_code` in `Products` only. Alternatively, they are grouped by joining to `Product_Categories` and using the category description or including categories with no products.",
+  "Same as 1, but `unit_price` values of 0 are treated as missing. Alternatively, they are included as valid prices.",
+  "Same as 1, but products with a null or empty `production_type_code` are handled specially. Alternatively, they are excluded from type grouping but included in the baseline.",
+  "The second filter is applied relative to the mean of the first-stage kept types only, not recomputed after the second filtering. Alternatively, it is iterated until stable.",
+  "\"how far above\" read as a relative difference (percentage or ratio) instead of an absolute difference",
+  "Products with a non-null `parent_product_id` (child or variant products) treated differently from top-level products, for example excluded or deduplicated, instead of each product counting once"
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT production_type_code, AVG(unit_price) AS avg_p\n  FROM Products\n  WHERE unit_price IS NOT NULL\n  GROUP BY production_type_code\n),\nb AS (\n  SELECT AVG(unit_price) AS baseline FROM Products WHERE unit_price IS NOT NULL\n),\nk AS (\n  SELECT t.production_type_code, t.avg_p\n  FROM t, b\n  WHERE t.avg_p > b.baseline\n),\nm AS (\n  SELECT AVG(avg_p) AS kept_mean FROM k\n)\nSELECT AVG(k.avg_p) AS avg_type_average,\n       AVG(k.avg_p - b.baseline) AS avg_diff_baseline,\n       AVG(k.avg_p - m.kept_mean) AS avg_diff_kept_mean\nFROM k, b, m\nWHERE k.avg_p > m.kept_mean;\n",
+  "SELECT production_type_code, AVG(unit_price) FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL",
+  "SELECT production_type_code FROM Products GROUP BY production_type_code HAVING AVG(unit_price) > (SELECT AVG(unit_price) FROM Products)\n"
+ ],
+ "raw": [
+  "1. Per-type average is computed over non-null `unit_price` values. Baseline is the average of `unit_price` across all non-null products. Keep types with average > baseline. Take the mean of the kept types' averages and keep types with average > that mean (strictly). Return one row: AVG(type average), AVG(type average \u2212 baseline), AVG(type average \u2212 kept-types mean), all over the remaining types.\n2. Same as 1, but \"above\" is read as \u2265 (not strict) for one or both comparisons.\n3. Same as 1, but types whose average is null (all prices missing) are excluded from the type list. Alternatively, they are kept as null rows, which don't affect the averages.\n4. Same as 1, but the \"kept types' mean\" is a simple mean over the types kept after the baseline filter. Alternatively, it is recomputed over all types with a non-null average.\n5. Same as 1, but the baseline is a product-weighted average. Alternatively, it is the mean of the type averages, which the question rules out.\n6. Same as 1, but \"Proceed only if the baseline exists\" means that if there are no non-null prices, the query returns zero rows. Alternatively, it returns one row of NULLs.\n7. Same as 1, but the three values are returned as separate columns in one row. Alternatively, they are returned as three rows or a single combined value.\n8. Same as 1, but if no type survives both filters, the query returns one row of NULLs. Alternatively, it returns no rows.\n9. Types are grouped by `production_type_code` in `Products` only. Alternatively, they are grouped by joining to `Product_Categories` and using the category description or including categories with no products.\n10. Same as 1, but `unit_price` values of 0 are treated as missing. Alternatively, they are included as valid prices.\n11. Same as 1, but products with a null or empty `production_type_code` are handled specially. Alternatively, they are excluded from type grouping but included in the baseline.\n12. The second filter is applied relative to the mean of the first-stage kept types only, not recomputed after the second filtering. Alternatively, it is iterated until stable.",
+  "\"how far above\" read as a relative difference (percentage or ratio) instead of an absolute difference\nProducts with a non-null `parent_product_id` (child or variant products) treated differently from top-level products, for example excluded or deduplicated, instead of each product counting once"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ed587ea981",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31276,
+  "chars_out": 4103
+ }
+}

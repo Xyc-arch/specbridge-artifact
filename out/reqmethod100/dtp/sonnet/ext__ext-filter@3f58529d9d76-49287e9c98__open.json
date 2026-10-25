@@ -1,0 +1,48 @@
+{
+ "interpretations": [
+  "Average over all playlists in the Playlist table, counting empty playlists as 0 tracks. Rank by count divided by that average.",
+  "Average only over playlists that have at least one row in PlaylistTrack, so empty playlists are excluded from the average. Rank by count divided by that average.",
+  "Candidate playlists come only from PlaylistTrack (non-empty playlists). The average is over all playlists, including empty ones.",
+  "Candidate playlists come from the whole Playlist table, including empty ones with a count of 0 and a ratio of 0. Empty playlists would only show up if fewer than 10 non-empty playlists exist.",
+  "Track count means the number of PlaylistTrack rows per playlist. Because (PlaylistId, TrackId) is the primary key, this equals the number of distinct tracks.",
+  "The average is the mean of per-playlist counts. This equals total playlist-track rows divided by number of playlists. The ratio is count divided by that mean, with no rounding and no integer truncation.",
+  "\"Missing ratios\" are NULL ratios, for example when the average is 0 or NULL because there are no playlists or tracks. These sort last, after the descending non-NULL ratios.",
+  "\"Missing ratios\" could instead mean playlists with no tracks. They would be listed last with a NULL ratio instead of 0.",
+  "Ties at the 10th position are cut arbitrarily with LIMIT 10.",
+  "Ties at the 10th position are all included, so more than 10 rows may be returned.",
+  "\"Most tracks relative to the average\" means the highest count/average ratio. This gives the same order as the highest raw track count.",
+  "\"Relative to the average\" means the largest difference above the average (count minus average). The ratio is still displayed.",
+  "Output columns are playlist id, track count and ratio only.",
+  "Output also includes the playlist name alongside the id, count and ratio.",
+  "Track count is the number of tracks counted via a join of PlaylistTrack to Track. This excludes any PlaylistTrack rows with no matching track (not possible under the foreign key).",
+  "Track count means the number of distinct tracks, but the average is taken across tracks per playlist grouped by something else, such as distinct names.",
+  "Missing interpretations:",
+  "Track count is the number of distinct TrackId values per playlist, using COUNT(DISTINCT TrackId). This differs from counting rows only if the key were not unique.",
+  "The average is the total number of PlaylistTrack rows divided by the number of distinct playlists in PlaylistTrack. It is the same as excluding empty playlists, but computed as a ratio of totals rather than as an average of per-playlist counts.",
+  "The ratio is computed with integer division, so it is truncated. The question says \"unrounded\", so this reading is probably wrong.",
+  "The average is the number of tracks in the Track table divided by the number of playlists. Tracks are counted whether or not they are on any playlist.",
+  "The ratio is computed against the average of the top 10 playlists only, not the average across all playlists.",
+  "Ties are broken by PlaylistId, ascending or descending, so the 10 rows are deterministic."
+ ],
+ "queries": [
+  "SELECT p.Name,\n       COUNT(pt.TrackId) * 1.0 / (SELECT COUNT(*) * 1.0 / (SELECT COUNT(*) FROM Playlist) FROM PlaylistTrack) AS ratio\nFROM Playlist p\nLEFT JOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId\nGROUP BY p.PlaylistId\nORDER BY ratio DESC;\n",
+  "SELECT p.Name, CAST(COUNT(pt.TrackId) AS REAL) / (SELECT AVG(c) FROM (SELECT COUNT(*) AS c FROM PlaylistTrack GROUP BY PlaylistId)) AS ratio\nFROM Playlist p\nJOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId\nGROUP BY p.PlaylistId\nORDER BY ratio DESC;\n",
+  "SELECT p.Name\nFROM Playlist p\nJOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId\nGROUP BY p.PlaylistId\nHAVING COUNT(*) > (SELECT CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM Playlist) FROM PlaylistTrack);\n",
+  "SELECT p.Name, COUNT(pt.TrackId) AS TrackCount, COUNT(pt.TrackId) * 1.0 / (SELECT COUNT(*) FROM PlaylistTrack) AS Ratio\nFROM Playlist p\nLEFT JOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId\nGROUP BY p.PlaylistId, p.Name\nORDER BY TrackCount DESC\nLIMIT 10;\n",
+  "SELECT PlaylistId, COUNT(*) FROM PlaylistTrack GROUP BY PlaylistId;\n",
+  "SELECT p.PlaylistId, COUNT(pt.TrackId) * 1.0 / ((SELECT COUNT(*) FROM PlaylistTrack) * 1.0 / (SELECT COUNT(*) FROM Playlist)) AS ratio\nFROM Playlist p\nLEFT JOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId\nGROUP BY p.PlaylistId;\n"
+ ],
+ "raw": [
+  "1. Average over all playlists in the Playlist table, counting empty playlists as 0 tracks. Rank by count divided by that average.\n2. Average only over playlists that have at least one row in PlaylistTrack, so empty playlists are excluded from the average. Rank by count divided by that average.\n3. Candidate playlists come only from PlaylistTrack (non-empty playlists). The average is over all playlists, including empty ones.\n4. Candidate playlists come from the whole Playlist table, including empty ones with a count of 0 and a ratio of 0. Empty playlists would only show up if fewer than 10 non-empty playlists exist.\n5. Track count means the number of PlaylistTrack rows per playlist. Because (PlaylistId, TrackId) is the primary key, this equals the number of distinct tracks.\n6. The average is the mean of per-playlist counts. This equals total playlist-track rows divided by number of playlists. The ratio is count divided by that mean, with no rounding and no integer truncation.\n7. \"Missing ratios\" are NULL ratios, for example when the average is 0 or NULL because there are no playlists or tracks. These sort last, after the descending non-NULL ratios.\n8. \"Missing ratios\" could instead mean playlists with no tracks. They would be listed last with a NULL ratio instead of 0.\n9. Ties at the 10th position are cut arbitrarily with LIMIT 10.\n10. Ties at the 10th position are all included, so more than 10 rows may be returned.\n11. \"Most tracks relative to the average\" means the highest count/average ratio. This gives the same order as the highest raw track count.\n12. \"Relative to the average\" means the largest difference above the average (count minus average). The ratio is still displayed.\n13. Output columns are playlist id, track count and ratio only.\n14. Output also includes the playlist name alongside the id, count and ratio.\n15. Track count is the number of tracks counted via a join of PlaylistTrack to Track. This excludes any PlaylistTrack rows with no matching track (not possible under the foreign key).\n16. Track count means the number of distinct tracks, but the average is taken across tracks per playlist grouped by something else, such as distinct names.",
+  "Missing interpretations:\n\nTrack count is the number of distinct TrackId values per playlist, using COUNT(DISTINCT TrackId). This differs from counting rows only if the key were not unique.\nThe average is the total number of PlaylistTrack rows divided by the number of distinct playlists in PlaylistTrack. It is the same as excluding empty playlists, but computed as a ratio of totals rather than as an average of per-playlist counts.\nThe ratio is computed with integer division, so it is truncated. The question says \"unrounded\", so this reading is probably wrong.\nThe average is the number of tracks in the Track table divided by the number of playlists. Tracks are counted whether or not they are on any playlist.\nThe ratio is computed against the average of the top 10 playlists only, not the average across all playlists.\nTies are broken by PlaylistId, ascending or descending, so the 10 rows are deterministic."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-49287e9c98",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42501,
+  "chars_out": 5130
+ }
+}

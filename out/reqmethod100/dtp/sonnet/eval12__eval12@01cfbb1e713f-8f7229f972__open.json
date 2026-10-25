@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Ratio = AVG(rental_rate) / AVG(replacement_cost) per rating (ratio of the averages); the deviation is the rating's ratio minus the plain mean of the 5 ratings' ratios.",
+  "Ratio = AVG(rental_rate / replacement_cost) per rating (average of per-film ratios); the deviation is that value minus the plain mean of the 5 per-rating values.",
+  "Ratio = SUM(rental_rate) / SUM(replacement_cost) per rating, counting only films; the deviation is that value minus the plain mean of the 5 ratios.",
+  "Ratio = SUM(rental_rate) / SUM(replacement_cost) per rating, weighted by inventory copies (rental_rate and replacement_cost summed over inventory copies); the deviation is that value minus the plain mean of the 5 ratios.",
+  "Number of films = COUNT(*) of films per rating.",
+  "Number of films = COUNT(DISTINCT film_id) of films per rating that have inventory copies, so films without inventory are excluded.",
+  "Number of films = films with non-missing rental_rate and replacement_cost only.",
+  "The \"plain average of the ratios across all ratings\" is the unweighted mean of the 5 per-rating ratios, not weighted by film count.",
+  "The \"plain average of the ratios\" is the average of the per-film ratios across all films (a film-level overall average), rather than the mean of the 5 rating-level ratios.",
+  "Rental price means film.rental_rate (the listed rate), and replacement cost means film.replacement_cost.",
+  "Rental price means actual amounts paid (payment.amount) per rental, compared with replacement_cost, per rating via the inventory/rental/payment joins.",
+  "Ratio direction is rental price divided by replacement cost (rental_rate / replacement_cost), not the inverse.",
+  "Output is all values unrounded, with columns rating, ratio, film count, and difference from the average, one row per rating.",
+  "Rows with NULL ratings or missing values are excluded from the averages (NULL ratings form no group or form their own group).",
+  "Some interpretations are missing:",
+  "Ratio = AVG(rental_rate / replacement_cost) per rating, weighted by inventory copies (per-film ratios averaged over inventory-joined rows, so films with more copies count more); the deviation is that value minus the plain mean of the 5 ratios.",
+  "Ratio = AVG(rental_rate) / AVG(replacement_cost) per rating, with both averages taken over inventory-joined rows (copy-weighted); the deviation is that value minus the plain mean of the 5 ratios.",
+  "Number of films = COUNT(*) of inventory-joined rows per rating (number of copies rather than distinct films).",
+  "The \"plain average of the ratios\" is the overall ratio of averages across all films, AVG(rental_rate) / AVG(replacement_cost), not the mean of the rating-level ratios.",
+  "The \"plain average of the ratios\" is the mean of the 5 per-rating ratios, but computed from the same ratio form as the inventory-weighted variant (copy-weighted), so the film count and ratio use different populations."
+ ],
+ "queries": [
+  "SELECT rating,\n       AVG(rental_rate) / AVG(replacement_cost) AS ratio,\n       AVG(rental_rate) / AVG(replacement_cost) - (SELECT AVG(r) FROM (SELECT AVG(rental_rate) / AVG(replacement_cost) AS r FROM film GROUP BY rating)) AS deviation\nFROM film\nGROUP BY rating;\n",
+  "SELECT rating,\n       AVG(rental_rate / replacement_cost) AS ratio,\n       AVG(rental_rate / replacement_cost) - (SELECT AVG(r) FROM (SELECT AVG(rental_rate / replacement_cost) AS r FROM film GROUP BY rating)) AS deviation\nFROM film\nGROUP BY rating;\n",
+  "WITH r AS (\n  SELECT rating, SUM(rental_rate) / SUM(replacement_cost) AS ratio\n  FROM film\n  GROUP BY rating\n)\nSELECT rating, ratio - (SELECT AVG(ratio) FROM r) AS deviation\nFROM r;\n",
+  "WITH r AS (\n  SELECT f.rating, SUM(f.rental_rate) * 1.0 / SUM(f.replacement_cost) AS ratio\n  FROM inventory i\n  JOIN film f ON f.film_id = i.film_id\n  GROUP BY f.rating\n)\nSELECT rating, ratio, ratio - (SELECT AVG(ratio) FROM r) AS deviation\nFROM r;\n",
+  "SELECT rating, COUNT(*) FROM film GROUP BY rating",
+  "SELECT f.rating, COUNT(DISTINCT f.film_id) AS number_of_films\nFROM film f\nJOIN inventory i ON i.film_id = f.film_id\nGROUP BY f.rating"
+ ],
+ "raw": [
+  "1. Ratio = AVG(rental_rate) / AVG(replacement_cost) per rating (ratio of the averages); the deviation is the rating's ratio minus the plain mean of the 5 ratings' ratios.\n2. Ratio = AVG(rental_rate / replacement_cost) per rating (average of per-film ratios); the deviation is that value minus the plain mean of the 5 per-rating values.\n3. Ratio = SUM(rental_rate) / SUM(replacement_cost) per rating, counting only films; the deviation is that value minus the plain mean of the 5 ratios.\n4. Ratio = SUM(rental_rate) / SUM(replacement_cost) per rating, weighted by inventory copies (rental_rate and replacement_cost summed over inventory copies); the deviation is that value minus the plain mean of the 5 ratios.\n5. Number of films = COUNT(*) of films per rating.\n6. Number of films = COUNT(DISTINCT film_id) of films per rating that have inventory copies, so films without inventory are excluded.\n7. Number of films = films with non-missing rental_rate and replacement_cost only.\n8. The \"plain average of the ratios across all ratings\" is the unweighted mean of the 5 per-rating ratios, not weighted by film count.\n9. The \"plain average of the ratios\" is the average of the per-film ratios across all films (a film-level overall average), rather than the mean of the 5 rating-level ratios.\n10. Rental price means film.rental_rate (the listed rate), and replacement cost means film.replacement_cost.\n11. Rental price means actual amounts paid (payment.amount) per rental, compared with replacement_cost, per rating via the inventory/rental/payment joins.\n12. Ratio direction is rental price divided by replacement cost (rental_rate / replacement_cost), not the inverse.\n13. Output is all values unrounded, with columns rating, ratio, film count, and difference from the average, one row per rating.\n14. Rows with NULL ratings or missing values are excluded from the averages (NULL ratings form no group or form their own group).",
+  "Some interpretations are missing:\n\nRatio = AVG(rental_rate / replacement_cost) per rating, weighted by inventory copies (per-film ratios averaged over inventory-joined rows, so films with more copies count more); the deviation is that value minus the plain mean of the 5 ratios.\nRatio = AVG(rental_rate) / AVG(replacement_cost) per rating, with both averages taken over inventory-joined rows (copy-weighted); the deviation is that value minus the plain mean of the 5 ratios.\nNumber of films = COUNT(*) of inventory-joined rows per rating (number of copies rather than distinct films).\nThe \"plain average of the ratios\" is the overall ratio of averages across all films, AVG(rental_rate) / AVG(replacement_cost), not the mean of the rating-level ratios.\nThe \"plain average of the ratios\" is the mean of the 5 per-rating ratios, but computed from the same ratio form as the inventory-weighted variant (copy-weighted), so the film count and ratio use different populations."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-8f7229f972",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 111934,
+  "chars_out": 4066
+ }
+}

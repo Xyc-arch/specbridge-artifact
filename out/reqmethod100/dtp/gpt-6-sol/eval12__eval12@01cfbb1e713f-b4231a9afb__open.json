@@ -1,0 +1,32 @@
+{
+ "interpretations": [
+  "For each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; calculate the relative gap from the sums of its `derived_product_cost` and `derived_total_cost`.",
+  "For each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; calculate the relative gap from the averages of its `derived_product_cost` and `derived_total_cost`.",
+  "For each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; report the average of its line items\u2019 individual relative gaps.",
+  "For each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; calculate the relative gap from summed costs using only line items where both cost fields are present.",
+  "For each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; report each line item\u2019s relative gap alongside that invoice average, allowing multiple rows per invoice.",
+  "In each interpretation, retain averages strictly above the mean of the per-invoice averages, report the difference from that mean, sort by the difference descending with missing values last, return at most 10 rows, and leave values unrounded.",
+  "For each invoice, calculate the relative gap as the sum of line-item cost differences divided by the sum of nonmissing `derived_total_cost` values.",
+  "For each invoice, calculate the relative gap as the average of line-item cost differences divided by the average of nonmissing `derived_total_cost` values."
+ ],
+ "queries": [
+  "SELECT\n    invoice_number,\n    AVG(CAST(product_quantity AS REAL)) AS average_product_quantity,\n    (SUM(derived_total_cost) - SUM(derived_product_cost))\n        / NULLIF(SUM(derived_product_cost), 0) AS relative_gap\nFROM Invoice_Line_Items\nGROUP BY invoice_number",
+  "SELECT\n    invoice_number,\n    AVG(CAST(product_quantity AS REAL)) AS average_product_quantity,\n    (AVG(derived_total_cost) - AVG(derived_product_cost))\n        / NULLIF(AVG(derived_product_cost), 0) AS relative_cost_gap\nFROM Invoice_Line_Items\nGROUP BY invoice_number",
+  "WITH invoice_averages AS (\n    SELECT\n        invoice_number,\n        AVG(CAST(product_quantity AS REAL)) AS avg_quantity\n    FROM Invoice_Line_Items\n    GROUP BY invoice_number\n)\nSELECT\n    ili.invoice_number,\n    AVG(\n        ABS(CAST(ili.product_quantity AS REAL) - ia.avg_quantity)\n        / NULLIF(ia.avg_quantity, 0)\n    ) AS average_relative_gap\nFROM Invoice_Line_Items AS ili\nJOIN invoice_averages AS ia\n    ON ili.invoice_number = ia.invoice_number\nGROUP BY ili.invoice_number",
+  "SELECT\n    invoice_number,\n    AVG(CAST(product_quantity AS REAL)) AS average_product_quantity,\n    (\n        SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL\n                 THEN derived_total_cost END)\n        -\n        SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL\n                 THEN derived_product_cost END)\n    ) * 1.0\n    / NULLIF(\n        SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL\n                 THEN derived_product_cost END),\n        0\n    ) AS relative_cost_gap\nFROM Invoice_Line_Items\nGROUP BY invoice_number",
+  "WITH line_quantities AS (\n    SELECT\n        invoice_number,\n        CAST(product_quantity AS REAL) AS quantity,\n        AVG(CAST(product_quantity AS REAL)) OVER (\n            PARTITION BY invoice_number\n        ) AS average_quantity\n    FROM Invoice_Line_Items\n)\nSELECT\n    invoice_number,\n    average_quantity,\n    (quantity - average_quantity) / NULLIF(average_quantity, 0) AS relative_gap\nFROM line_quantities"
+ ],
+ "raw": [
+  "For each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; calculate the relative gap from the sums of its `derived_product_cost` and `derived_total_cost`.\n\nFor each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; calculate the relative gap from the averages of its `derived_product_cost` and `derived_total_cost`.\n\nFor each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; report the average of its line items\u2019 individual relative gaps.\n\nFor each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; calculate the relative gap from summed costs using only line items where both cost fields are present.\n\nFor each invoice represented in `Invoice_Line_Items`, calculate its average numeric `product_quantity`; report each line item\u2019s relative gap alongside that invoice average, allowing multiple rows per invoice.\n\nIn each interpretation, retain averages strictly above the mean of the per-invoice averages, report the difference from that mean, sort by the difference descending with missing values last, return at most 10 rows, and leave values unrounded.",
+  "For each invoice, calculate the relative gap as the sum of line-item cost differences divided by the sum of nonmissing `derived_total_cost` values.\n\nFor each invoice, calculate the relative gap as the average of line-item cost differences divided by the average of nonmissing `derived_total_cost` values."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b4231a9afb",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30296,
+  "chars_out": 3704
+ }
+}

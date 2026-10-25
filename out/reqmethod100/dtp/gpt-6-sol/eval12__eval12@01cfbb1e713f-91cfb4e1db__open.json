@@ -1,0 +1,32 @@
+{
+ "interpretations": [
+  "Use only snapshots with a matching transaction and trader. Average `optvolrt` within each (`transref`, `tradekind`) pair; define deviation as the absolute difference from the average across all matched snapshots. Keep pairs above their trader type\u2019s mean pair deviation, then average the qualifying pairs\u2019 ratios, deviations, and excess deviations by type.",
+  "Use the same matched pairs, but calculate the overall average from the pair averages, giving each pair equal weight.",
+  "Use the same matched pairs, but calculate the overall average from every sentiment snapshot, including snapshots that have no matching transaction or trader.",
+  "Use matched pairs and the matched-snapshot overall average, but define deviation as the signed difference: pair average minus overall average. Keep pairs whose signed deviation exceeds their type\u2019s mean signed deviation.",
+  "Use matched pairs and the pair-weighted overall average, with deviation defined as the signed difference from that average.",
+  "Use matched pairs, but define deviation as the percentage difference between the pair average and the overall average; compare those percentage deviations within each type.",
+  "Use matched pairs, but define deviation as the absolute percentage difference from the overall average; compare those percentage deviations within each type.",
+  "Calculate each trader type\u2019s average deviation across its underlying matched snapshots, so a pair with more snapshots has more weight in the threshold; report averages across qualifying pairs.",
+  "Select pairs using their average ratios and deviations, but calculate each trader type\u2019s final three averages across the underlying snapshots of qualifying pairs, giving pairs with more snapshots more weight.",
+  "Treat \u201cbeats the type\u2019s average deviation\u201d as having a smaller absolute deviation than that average; report how far below the threshold each qualifying pair falls before averaging by type.",
+  "Calculate the overall average by first averaging `optvolrt` within each trader type, then giving each trader type equal weight.",
+  "Define signed deviation as the overall average minus the pair average; keep pairs whose deviation exceeds their trader type\u2019s mean signed deviation."
+ ],
+ "queries": [
+  "WITH matched AS (\n    SELECT s.transref, t.tradekind, s.optvolrt\n    FROM sentimentandfundamentals AS s\n    JOIN transactionrecord AS r ON r.transreg = s.transref\n    JOIN trader AS t ON t.tradereg = r.trdref\n),\npair_ratios AS (\n    SELECT transref, tradekind, AVG(optvolrt) AS pair_ratio\n    FROM matched\n    GROUP BY transref, tradekind\n),\npair_deviations AS (\n    SELECT p.transref,\n           p.tradekind,\n           p.pair_ratio,\n           ABS(p.pair_ratio - g.overall_ratio) AS deviation\n    FROM pair_ratios AS p\n    CROSS JOIN (SELECT AVG(optvolrt) AS overall_ratio FROM matched) AS g\n),\ntype_means AS (\n    SELECT tradekind, AVG(deviation) AS mean_deviation\n    FROM pair_deviations\n    GROUP BY tradekind\n)\nSELECT p.tradekind,\n       AVG(p.pair_ratio) AS avg_ratio,\n       AVG(p.deviation) AS avg_deviation,\n       AVG(p.deviation - m.mean_deviation) AS avg_excess_deviation\nFROM pair_deviations AS p\nJOIN type_means AS m ON p.tradekind IS m.tradekind\nWHERE p.deviation > m.mean_deviation\nGROUP BY p.tradekind;\n"
+ ],
+ "raw": [
+  "1. Use only snapshots with a matching transaction and trader. Average `optvolrt` within each (`transref`, `tradekind`) pair; define deviation as the absolute difference from the average across all matched snapshots. Keep pairs above their trader type\u2019s mean pair deviation, then average the qualifying pairs\u2019 ratios, deviations, and excess deviations by type.\n2. Use the same matched pairs, but calculate the overall average from the pair averages, giving each pair equal weight.\n3. Use the same matched pairs, but calculate the overall average from every sentiment snapshot, including snapshots that have no matching transaction or trader.\n4. Use matched pairs and the matched-snapshot overall average, but define deviation as the signed difference: pair average minus overall average. Keep pairs whose signed deviation exceeds their type\u2019s mean signed deviation.\n5. Use matched pairs and the pair-weighted overall average, with deviation defined as the signed difference from that average.\n6. Use matched pairs, but define deviation as the percentage difference between the pair average and the overall average; compare those percentage deviations within each type.\n7. Use matched pairs, but define deviation as the absolute percentage difference from the overall average; compare those percentage deviations within each type.\n8. Calculate each trader type\u2019s average deviation across its underlying matched snapshots, so a pair with more snapshots has more weight in the threshold; report averages across qualifying pairs.\n9. Select pairs using their average ratios and deviations, but calculate each trader type\u2019s final three averages across the underlying snapshots of qualifying pairs, giving pairs with more snapshots more weight.\n10. Treat \u201cbeats the type\u2019s average deviation\u201d as having a smaller absolute deviation than that average; report how far below the threshold each qualifying pair falls before averaging by type.",
+  "Calculate the overall average by first averaging `optvolrt` within each trader type, then giving each trader type equal weight.\n\nDefine signed deviation as the overall average minus the pair average; keep pairs whose deviation exceeds their trader type\u2019s mean signed deviation."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-91cfb4e1db",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 139071,
+  "chars_out": 3758
+ }
+}

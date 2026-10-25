@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "WITH per_type AS (SELECT m.MediaTypeId, m.Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_average FROM per_type",
+  "WITH per_type AS (SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_average FROM per_type",
+  "WITH per AS (SELECT m.MediaTypeId, m.Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per) AS ratio_to_avg FROM per",
+  "WITH per AS (SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per) AS ratio_to_avg FROM per",
+  "WITH per_type AS (SELECT m.MediaTypeId, m.Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_avg FROM per_type",
+  "WITH per_type AS (SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_avg FROM per_type"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_type AS (SELECT m.MediaTypeId, m.Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_average FROM per_type",
+   "assumptions": [
+    {
+     "assumption": "The figure for each media type is the aggregate ratio SUM(Bytes)/SUM(Milliseconds) over its tracks, not an average of per-track ratios. Tracks with NULL Bytes are skipped in the numerator but still count in the denominator.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Only media types that have at least one track are included (inner join), and each is counted once in the simple average. Media types are grouped by id and name, so two ids that share a name would show as separate rows.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The figure for each media type is the average of the per-track Bytes/Milliseconds ratios, and the simple average is taken over those per-type averages.",
+     "sql": "WITH per_type AS (SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_average FROM per_type"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per AS (SELECT m.MediaTypeId, m.Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per) AS ratio_to_avg FROM per",
+   "assumptions": [
+    {
+     "assumption": "The figure per media type is a pooled ratio: total Bytes divided by total Milliseconds across its tracks (SUM/SUM), not an average of per-track ratios. Tracks with NULL Bytes are skipped in the numerator but still count in the denominator.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Media types are grouped by MediaTypeId (each shown with its Name), so each media type counts once in the average. Media types with no tracks are excluded because only tracks with a matching media type are used.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average is the simple (unweighted) mean of the per-media-type figures.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The figure per media type is the average of each track's Bytes/Milliseconds ratio, rather than a pooled ratio.",
+     "sql": "WITH per AS (SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per) AS ratio_to_avg FROM per"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_type AS (SELECT m.MediaTypeId, m.Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_avg FROM per_type",
+   "assumptions": [
+    {
+     "assumption": "The figure per media type is the aggregate ratio SUM(Bytes)/SUM(Milliseconds) over its tracks, not the average of per-track ratios.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Only media types that have at least one track appear (inner join), and each media type (by MediaTypeId) is counted once in the simple average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Tracks with NULL Bytes are ignored in the numerator by SUM, but their Milliseconds still count in the denominator.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The figure per media type is the average of per-track Bytes/Milliseconds ratios (tracks with NULL Bytes excluded), and the comparison is to the simple average of those per-type figures.",
+     "sql": "WITH per_type AS (SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, bytes_per_ms, bytes_per_ms / (SELECT AVG(bytes_per_ms) FROM per_type) AS ratio_to_avg FROM per_type"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5a20154d84",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16242,
+  "chars_out": 4228
+ }
+}

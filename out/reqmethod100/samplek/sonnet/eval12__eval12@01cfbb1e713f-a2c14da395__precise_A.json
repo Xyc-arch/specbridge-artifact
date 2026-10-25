@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH per_rating AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS daily FROM film GROUP BY rating), overall AS (SELECT AVG(daily) AS avg_daily FROM per_rating) SELECT AVG(p.avg_rc) AS avg_replacement_cost, AVG(p.daily) AS avg_daily_price, AVG(p.daily - o.avg_daily) AS avg_daily_excess FROM per_rating p CROSS JOIN overall o WHERE p.daily > o.avg_daily",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS avg_daily FROM film GROUP BY rating), x AS (SELECT r.*, AVG(avg_daily) OVER () AS overall_daily FROM r) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(avg_daily) AS avg_daily_price, AVG(avg_daily - overall_daily) AS avg_excess FROM x WHERE avg_daily > overall_daily",
+  "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS avg_daily FROM film GROUP BY rating), t AS (SELECT AVG(avg_daily) AS overall FROM r), k AS (SELECT r.*, t.overall FROM r CROSS JOIN t WHERE r.avg_daily > t.overall) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(avg_daily) AS avg_daily_price, AVG(avg_daily - overall) AS avg_excess FROM k"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS daily FROM film GROUP BY rating), overall AS (SELECT AVG(daily) AS avg_daily FROM per_rating) SELECT AVG(p.avg_rc) AS avg_replacement_cost, AVG(p.daily) AS avg_daily_price, AVG(p.daily - o.avg_daily) AS avg_daily_excess FROM per_rating p CROSS JOIN overall o WHERE p.daily > o.avg_daily",
+   "assumptions": [
+    {
+     "assumption": "The cross-rating average is the simple (unweighted) mean of the five ratings' average daily prices, as the request states, and the filter is strictly greater than that mean.",
+     "unresolved": false
+    },
+    {
+     "assumption": "All films are included (no filtering by inventory or rentals); rental_duration is never zero per the verified data (3 to 7).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS avg_daily FROM film GROUP BY rating), x AS (SELECT r.*, AVG(avg_daily) OVER () AS overall_daily FROM r) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(avg_daily) AS avg_daily_price, AVG(avg_daily - overall_daily) AS avg_excess FROM x WHERE avg_daily > overall_daily",
+   "assumptions": [
+    {
+     "assumption": "The cross-rating average is the simple (unweighted) mean of the per-rating average daily prices across all 5 ratings, computed before filtering.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Films with a NULL rating, if any, would form their own group; the verified data shows exactly 5 ratings, so this is not expected to matter.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH r AS (SELECT rating, AVG(replacement_cost) AS avg_rc, AVG(rental_rate * 1.0 / rental_duration) AS avg_daily FROM film GROUP BY rating), t AS (SELECT AVG(avg_daily) AS overall FROM r), k AS (SELECT r.*, t.overall FROM r CROSS JOIN t WHERE r.avg_daily > t.overall) SELECT AVG(avg_rc) AS avg_replacement_cost, AVG(avg_daily) AS avg_daily_price, AVG(avg_daily - overall) AS avg_excess FROM k",
+   "assumptions": [
+    {
+     "assumption": "Ratings with NULL rating are excluded or irrelevant since the data shows exactly 5 rating levels; the cross-rating average is the simple mean of the 5 ratings' average daily prices.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The ratings' average replacement costs are averaged with equal weight (simple average of per-rating averages, not film-weighted).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-a2c14da395",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 43089,
+  "chars_out": 2415
+ }
+}

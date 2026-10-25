@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Compute one ratio per lab test row (each ID/Date), treating each row as a patient entry.",
+  "Compute each patient's ratio as the mean of their per-test HGB/HCT ratios.",
+  "Compute each patient's ratio as their average HGB divided by their average HCT.",
+  "Use only each patient's most recent lab test to compute the ratio."
+ ],
+ "edited": [
+  "Work out each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio based on their lab tests. Keep the patients whose ratio is above the average across all patients, noting how far above they are. Then, within that group, keep those who are also above the group's own average, noting how far above that they are. Give one row with the averages, over these final patients, of the ratio, the amount above the overall average, and the amount above the group average, unrounded. Compute one ratio per lab test row (each ID/Date), treating each row as a patient entry.",
+  "Work out each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio based on their lab tests. Keep the patients whose ratio is above the average across all patients, noting how far above they are. Then, within that group, keep those who are also above the group's own average, noting how far above that they are. Give one row with the averages, over these final patients, of the ratio, the amount above the overall average, and the amount above the group average, unrounded. Compute each patient's ratio as the mean of their per-test HGB/HCT ratios.",
+  "Work out each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio based on their lab tests. Keep the patients whose ratio is above the average across all patients, noting how far above they are. Then, within that group, keep those who are also above the group's own average, noting how far above that they are. Give one row with the averages, over these final patients, of the ratio, the amount above the overall average, and the amount above the group average, unrounded. Compute each patient's ratio as their average HGB divided by their average HCT.",
+  "Work out each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio based on their lab tests. Keep the patients whose ratio is above the average across all patients, noting how far above they are. Then, within that group, keep those who are also above the group's own average, noting how far above that they are. Give one row with the averages, over these final patients, of the ratio, the amount above the overall average, and the amount above the group average, unrounded. Use only each patient's most recent lab test to compute the ratio."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT ID, Date, CAST(HGB AS REAL) / HCT AS ratio\n  FROM Laboratory\n  WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0\n),\noverall AS (\n  SELECT AVG(ratio) AS avg_all FROM r\n),\nabove AS (\n  SELECT r.ID, r.Date, r.ratio, r.ratio - o.avg_all AS diff_overall\n  FROM r, overall o\n  WHERE r.ratio > o.avg_all\n),\ngrp AS (\n  SELECT AVG(ratio) AS avg_grp FROM above\n),\nfinal AS (\n  SELECT a.ratio, a.diff_overall, a.ratio - g.avg_grp AS diff_group\n  FROM above a, grp g\n  WHERE a.ratio > g.avg_grp\n)\nSELECT AVG(ratio) AS avg_ratio,\n       AVG(diff_overall) AS avg_diff_overall,\n       AVG(diff_group) AS avg_diff_group\nFROM final;\n",
+  "WITH p AS (\n  SELECT ID, AVG(HGB / HCT) AS r\n  FROM Laboratory\n  WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0\n  GROUP BY ID\n),\noverall AS (\n  SELECT AVG(r) AS a FROM p\n),\ng1 AS (\n  SELECT p.ID, p.r, p.r - overall.a AS d1\n  FROM p, overall\n  WHERE p.r > overall.a\n),\ng1avg AS (\n  SELECT AVG(r) AS b FROM g1\n),\ng2 AS (\n  SELECT g1.ID, g1.r, g1.d1, g1.r - g1avg.b AS d2\n  FROM g1, g1avg\n  WHERE g1.r > g1avg.b\n)\nSELECT AVG(r) AS avg_ratio, AVG(d1) AS avg_above_overall, AVG(d2) AS avg_above_group\nFROM g2",
+  "WITH p AS (\n  SELECT ID, AVG(HGB) * 1.0 / NULLIF(AVG(HCT), 0) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n),\np2 AS (\n  SELECT ID, ratio FROM p WHERE ratio IS NOT NULL\n),\noverall AS (\n  SELECT AVG(ratio) AS avg_all FROM p2\n),\ng1 AS (\n  SELECT p2.ID, p2.ratio, p2.ratio - overall.avg_all AS above_overall\n  FROM p2, overall\n  WHERE p2.ratio > overall.avg_all\n),\ngrp AS (\n  SELECT AVG(ratio) AS avg_grp FROM g1\n),\ng2 AS (\n  SELECT g1.ID, g1.ratio, g1.above_overall, g1.ratio - grp.avg_grp AS above_group\n  FROM g1, grp\n  WHERE g1.ratio > grp.avg_grp\n)\nSELECT AVG(ratio) AS avg_ratio,\n       AVG(above_overall) AS avg_above_overall,\n       AVG(above_group) AS avg_above_group\nFROM g2;\n",
+  "WITH latest AS (\n    SELECT L.ID, L.HGB * 1.0 / L.HCT AS ratio\n    FROM Laboratory L\n    WHERE L.Date = (SELECT MAX(L2.Date) FROM Laboratory L2 WHERE L2.ID = L.ID)\n      AND L.HGB IS NOT NULL AND L.HCT IS NOT NULL AND L.HCT <> 0\n),\noverall AS (\n    SELECT AVG(ratio) AS avg_all FROM latest\n),\nabove_all AS (\n    SELECT l.ID, l.ratio, l.ratio - o.avg_all AS diff_overall\n    FROM latest l, overall o\n    WHERE l.ratio > o.avg_all\n),\ngrp AS (\n    SELECT AVG(ratio) AS avg_grp FROM above_all\n),\nfinal AS (\n    SELECT a.ID, a.ratio, a.diff_overall, a.ratio - g.avg_grp AS diff_group\n    FROM above_all a, grp g\n    WHERE a.ratio > g.avg_grp\n)\nSELECT AVG(ratio) AS avg_ratio,\n       AVG(diff_overall) AS avg_diff_overall,\n       AVG(diff_group) AS avg_diff_group\nFROM final;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ef4d2acbf1",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 105172,
+  "chars_out": 9272
+ }
+}

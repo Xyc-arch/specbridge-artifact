@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Field size is the number of driverStandings rows per race name, counting every row across all years that race ran. The overall average is the mean of these per-name counts, with each race name weighted equally. The output is the mean of the qualifying names' average points, the mean of their row counts, and the mean of (row count \u2212 overall average).",
+  "Field size is the number of distinct drivers with a standings row per race name, across all years. Everything else is as in interpretation 1.",
+  "Field size is the number of non-null points values per race name. This matches the set of rows used for the points average. Everything else is as in interpretation 1.",
+  "Field size is the average number of drivers per individual race (per raceId) within each race name, that is, the typical field in one edition. The overall average is the mean of these per-name averages across race names. The qualifying names are those above it.",
+  "Field size is the number of distinct races (raceIds) or editions that have standings, per race name. This is a count of how many times the race was held, not of drivers.",
+  "The overall average field size is the mean of per-name field sizes across all race names (each name weighted equally). Qualifying names are those strictly above it.",
+  "The overall average field size is the total number of standings rows divided by the number of race names. This equals interpretation 6 when field size is a row count.",
+  "The overall average field size is the average per standings row, or per race, across all races, not per race name. Names are compared against that.",
+  "\"Average of their average points\" is the unweighted mean of the per-name average points over the qualifying names.",
+  "\"Average of their average points\" is the pooled average points over all standings rows belonging to the qualifying names, weighted by row count.",
+  "\"How far above the overall average their field size is on average\" is the mean over qualifying names of (field size \u2212 overall average). This equals their average field size minus the overall average.",
+  "\"How far above\" is measured as a percentage or ratio above the overall average, not an absolute difference.",
+  "The result is one row with three columns: average points, average field size, and average excess over the overall average. Values are unrounded.",
+  "Standings rows with null points still count toward field size but are ignored in the points average. Rows with no matching race are excluded by an inner join.",
+  "The grouping by race name merges all years and circuits that share the same `races.name`. It does not separate them by raceId, year, or circuit.",
+  "Missing interpretations:",
+  "Field size is the number of distinct races (raceIds) per race name, with the points average and the qualifying threshold computed as in interpretation 1.",
+  "The overall average field size is the mean over all standings rows' race-name groups (the average of per-name counts) computed only among names with non-null points, so the threshold is based on a different set of names than the qualifying set.",
+  "The \"average of their average points\" is computed over all of the qualifying names' standings rows, but the \"average field size\" is weighted by row count rather than taken as an unweighted mean.",
+  "The \"how far above\" is the average of the qualifying names' field sizes minus the overall average, where the overall average is the pooled mean of field sizes across the qualifying names only, not across all names.",
+  "Field size is the maximum number of drivers in any single race (raceId) under each race name.",
+  "Race names with all-null points are excluded from the output entirely, so they affect neither the threshold nor the qualifying set."
+ ],
+ "queries": [
+  "WITH per AS (\n  SELECT r.name, COUNT(*) AS cnt, AVG(ds.points) AS ap\n  FROM driverStandings ds\n  JOIN races r ON ds.raceId = r.raceId\n  GROUP BY r.name\n), o AS (\n  SELECT AVG(cnt) AS a FROM per\n)\nSELECT AVG(per.ap), AVG(per.cnt), AVG(per.cnt - o.a)\nFROM per, o\nWHERE per.cnt > o.a;\n",
+  "SELECT r.name\nFROM races r\nJOIN driverStandings ds ON ds.raceId = r.raceId\nGROUP BY r.name\nORDER BY COUNT(DISTINCT ds.driverId) DESC\nLIMIT 1;\n",
+  "SELECT r.name, AVG(res.points) AS avg_points, COUNT(res.points) AS field_size\nFROM results res\nJOIN races r ON res.raceId = r.raceId\nGROUP BY r.name;\n",
+  "WITH per_race AS (\n  SELECT r.name, r.raceId, COUNT(DISTINCT res.driverId) AS c\n  FROM races r\n  JOIN results res ON res.raceId = r.raceId\n  GROUP BY r.name, r.raceId\n),\nper_name AS (\n  SELECT name, AVG(c) AS a\n  FROM per_race\n  GROUP BY name\n)\nSELECT name\nFROM per_name\nWHERE a > (SELECT AVG(a) FROM per_name);\n",
+  "SELECT r.name, COUNT(DISTINCT r.raceId) AS field_size\nFROM races r\nJOIN driverStandings ds ON ds.raceId = r.raceId\nGROUP BY r.name",
+  "WITH per_race AS (\n  SELECT r.name, r.raceId, COUNT(*) AS n\n  FROM races r\n  JOIN results res ON res.raceId = r.raceId\n  GROUP BY r.name, r.raceId\n),\nper_name AS (\n  SELECT name, AVG(n) AS field_size\n  FROM per_race\n  GROUP BY name\n)\nSELECT name\nFROM per_name\nWHERE field_size > (SELECT AVG(field_size) FROM per_name);\n"
+ ],
+ "raw": [
+  "1. Field size is the number of driverStandings rows per race name, counting every row across all years that race ran. The overall average is the mean of these per-name counts, with each race name weighted equally. The output is the mean of the qualifying names' average points, the mean of their row counts, and the mean of (row count \u2212 overall average).\n\n2. Field size is the number of distinct drivers with a standings row per race name, across all years. Everything else is as in interpretation 1.\n\n3. Field size is the number of non-null points values per race name. This matches the set of rows used for the points average. Everything else is as in interpretation 1.\n\n4. Field size is the average number of drivers per individual race (per raceId) within each race name, that is, the typical field in one edition. The overall average is the mean of these per-name averages across race names. The qualifying names are those above it.\n\n5. Field size is the number of distinct races (raceIds) or editions that have standings, per race name. This is a count of how many times the race was held, not of drivers.\n\n6. The overall average field size is the mean of per-name field sizes across all race names (each name weighted equally). Qualifying names are those strictly above it.\n\n7. The overall average field size is the total number of standings rows divided by the number of race names. This equals interpretation 6 when field size is a row count.\n\n8. The overall average field size is the average per standings row, or per race, across all races, not per race name. Names are compared against that.\n\n9. \"Average of their average points\" is the unweighted mean of the per-name average points over the qualifying names.\n\n10. \"Average of their average points\" is the pooled average points over all standings rows belonging to the qualifying names, weighted by row count.\n\n11. \"How far above the overall average their field size is on average\" is the mean over qualifying names of (field size \u2212 overall average). This equals their average field size minus the overall average.\n\n12. \"How far above\" is measured as a percentage or ratio above the overall average, not an absolute difference.\n\n13. The result is one row with three columns: average points, average field size, and average excess over the overall average. Values are unrounded.\n\n14. Standings rows with null points still count toward field size but are ignored in the points average. Rows with no matching race are excluded by an inner join.\n\n15. The grouping by race name merges all years and circuits that share the same `races.name`. It does not separate them by raceId, year, or circuit.",
+  "Missing interpretations:\n\nField size is the number of distinct races (raceIds) per race name, with the points average and the qualifying threshold computed as in interpretation 1.\nThe overall average field size is the mean over all standings rows' race-name groups (the average of per-name counts) computed only among names with non-null points, so the threshold is based on a different set of names than the qualifying set.\nThe \"average of their average points\" is computed over all of the qualifying names' standings rows, but the \"average field size\" is weighted by row count rather than taken as an unweighted mean.\nThe \"how far above\" is the average of the qualifying names' field sizes minus the overall average, where the overall average is the pooled mean of field sizes across the qualifying names only, not across all names.\nField size is the maximum number of drivers in any single race (raceId) under each race name.\nRace names with all-null points are excluded from the output entirely, so they affect neither the threshold nor the qualifying set."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-f27aed7e53",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 100882,
+  "chars_out": 5591
+ }
+}

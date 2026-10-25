@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Per time in force, count each distinct order with risk/margin data once and take its share of the overall order total.",
+ "b": {
+  "request": "For each time-in-force value, count distinct orders that have at least one matching risk/margin record, divide by the total number of distinct orders with matching risk/margin records, and report the unrounded difference between that share and the average share across time-in-force values",
+  "sql": "WITH eligible_orders AS (SELECT o.orderspivot, o.timespan FROM orders AS o WHERE EXISTS (SELECT 1 FROM riskandmargin AS r WHERE r.ordervault = o.recordvault)), shares AS (SELECT timespan, COUNT(DISTINCT orderspivot) * 1.0 / (SELECT COUNT(DISTINCT orderspivot) FROM eligible_orders) AS share FROM eligible_orders WHERE timespan IS NOT NULL GROUP BY timespan) SELECT timespan, share - AVG(share) OVER () AS share_difference FROM shares ORDER BY timespan;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Per time in force, count each distinct order with risk/margin data once and take its share of the overall order total.",
+  "sql": "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(DISTINCT o.recordvault) AS risk_margin_count FROM orders AS o JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share_of_total FROM counts) SELECT time_in_force, risk_margin_count, share_of_total, share_of_total - AVG(share_of_total) OVER () AS share_difference_from_average FROM shares ORDER BY time_in_force;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "For each time-in-force value (`orders.timespan`), looking at risk/margin records matched to their order (`riskandmargin.ordervault` = `orders.recordvault`; unmatched records dropped), show the time in force, the number of distinct orders with risk/margin records (an order with several records counts once), that number's share of the total across all time-in-force values, and how much the share differs from the average share across the time-in-force values. Don't round.",
+  "sql": "WITH order_counts AS (SELECT o.timespan, COUNT(DISTINCT o.orderspivot) AS order_count FROM orders AS o JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT timespan, order_count, order_count::numeric / SUM(order_count) OVER () AS share FROM order_counts) SELECT timespan, order_count, share, share - AVG(share) OVER () AS difference_from_average_share FROM shares ORDER BY timespan",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each time in force, join risk/margin records to orders on `riskandmargin.ordervault = orders.recordvault`, drop unmatched records, and count each distinct order with risk/margin data once. Show the time in force, its distinct order count, and that count\u2019s share of the total distinct matched orders, without rounding.",
+  "sql": "WITH matched_orders AS (SELECT DISTINCT o.orderspivot, o.timespan FROM orders AS o JOIN riskandmargin AS r ON r.ordervault = o.recordvault), counts AS (SELECT timespan, COUNT(*) AS distinct_order_count FROM matched_orders GROUP BY timespan) SELECT timespan, distinct_order_count, distinct_order_count::numeric / SUM(distinct_order_count) OVER () AS share_of_total FROM counts ORDER BY timespan;",
+  "executes": false,
+  "matches": []
+ }
+}

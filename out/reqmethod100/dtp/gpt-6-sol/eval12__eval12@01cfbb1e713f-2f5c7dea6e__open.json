@@ -1,0 +1,30 @@
+{
+ "interpretations": [
+  "Count each matched `manager_award` row as one win; group by `player.throws`, including NULL; select hands whose share exceeds the mean share across all hands; return the sum of their wins, their mean share, and their mean percentage-point excess over that overall mean.",
+  "Count distinct matched managers as winners; group by `player.throws`, including NULL; select hands whose share of distinct managers exceeds the mean share across all hands; return their combined manager count, mean share, and mean percentage-point excess.",
+  "Count distinct matched manager\u2013award combinations as wins, so repeated records for the same manager and award count once; group and calculate the three results as above.",
+  "Count distinct matched manager\u2013award\u2013year combinations as wins, so a manager can win the same award in different years; group and calculate the three results as above.",
+  "For any of those tally units, express \u201chow far above the average share\u201d as the mean relative excess over the overall mean share, rather than a percentage-point difference.",
+  "Count each distinct matched manager\u2013year combination once; group by throwing hand, including missing, and calculate the three results as described.",
+  "Count each distinct matched manager\u2013award\u2013year\u2013league combination once; group by throwing hand, including missing, and calculate the three results as described.",
+  "For any tally unit, treat both NULL and blank `throws` values as the same missing group."
+ ],
+ "queries": [
+  "WITH hand_wins AS (\n    SELECT p.throws AS hand, COUNT(*) AS wins\n    FROM manager_award AS ma\n    LEFT JOIN player AS p ON p.player_id = ma.player_id\n    GROUP BY p.throws\n),\nhand_shares AS (\n    SELECT hand, wins, 1.0 * wins / SUM(wins) OVER () AS share\n    FROM hand_wins\n),\noverall AS (\n    SELECT AVG(share) AS mean_share\n    FROM hand_shares\n)\nSELECT SUM(h.wins) AS wins,\n       AVG(h.share) AS mean_share,\n       AVG((h.share - o.mean_share) * 100) AS mean_percentage_point_excess\nFROM hand_shares AS h\nCROSS JOIN overall AS o\nWHERE h.share > o.mean_share",
+  "WITH winners_by_hand AS (\n    SELECT p.throws, COUNT(DISTINCT ma.player_id) AS manager_count\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n    GROUP BY p.throws\n),\nshares AS (\n    SELECT\n        throws,\n        manager_count,\n        1.0 * manager_count / SUM(manager_count) OVER () AS share\n    FROM winners_by_hand\n),\ncompared AS (\n    SELECT\n        manager_count,\n        share,\n        AVG(share) OVER () AS mean_share_all_hands\n    FROM shares\n)\nSELECT\n    SUM(manager_count) AS combined_manager_count,\n    AVG(share) AS mean_share,\n    AVG((share - mean_share_all_hands) * 100) AS mean_percentage_point_excess\nFROM compared\nWHERE share > mean_share_all_hands",
+  "SELECT throws, COUNT(*) AS manager_year_count\nFROM (\n    SELECT DISTINCT m.player_id, m.year, p.throws\n    FROM manager AS m\n    JOIN player AS p ON p.player_id = m.player_id\n)\nGROUP BY throws"
+ ],
+ "raw": [
+  "Count each matched `manager_award` row as one win; group by `player.throws`, including NULL; select hands whose share exceeds the mean share across all hands; return the sum of their wins, their mean share, and their mean percentage-point excess over that overall mean.\n\nCount distinct matched managers as winners; group by `player.throws`, including NULL; select hands whose share of distinct managers exceeds the mean share across all hands; return their combined manager count, mean share, and mean percentage-point excess.\n\nCount distinct matched manager\u2013award combinations as wins, so repeated records for the same manager and award count once; group and calculate the three results as above.\n\nCount distinct matched manager\u2013award\u2013year combinations as wins, so a manager can win the same award in different years; group and calculate the three results as above.\n\nFor any of those tally units, express \u201chow far above the average share\u201d as the mean relative excess over the overall mean share, rather than a percentage-point difference.",
+  "Count each distinct matched manager\u2013year combination once; group by throwing hand, including missing, and calculate the three results as described.\n\nCount each distinct matched manager\u2013award\u2013year\u2013league combination once; group by throwing hand, including missing, and calculate the three results as described.\n\nFor any tally unit, treat both NULL and blank `throws` values as the same missing group."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-2f5c7dea6e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 71758,
+  "chars_out": 3201
+ }
+}

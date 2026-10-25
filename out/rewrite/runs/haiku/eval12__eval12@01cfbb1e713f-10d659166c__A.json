@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-10d659166c",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Each gender's volume is its number of invoices. Every invoice counts, including several invoices on the same order.",
+ "a": {
+  "request": "Linking each invoice to its order and that order's customer (dropping invoices without a matching order or customer), count for each customer gender (`Customers.gender`) the number of invoices, counting every invoice even when an order has several. Work out each gender's share as its count divided by the total of the counts over all genders, and average these shares across the genders. Return only the genders whose share is above that average, showing the gender, the count, the share, and the share minus the average share, without rounding.",
+  "sql": "WITH gender_counts AS (SELECT c.gender AS gender, COUNT(i.invoice_number) AS invoice_count FROM Invoices i JOIN Orders o ON i.order_id = o.order_id JOIN Customers c ON o.customer_id = c.customer_id GROUP BY c.gender), shares AS (SELECT gender, invoice_count, invoice_count * 1.0 / SUM(invoice_count) OVER () AS share FROM gender_counts), avg_share AS (SELECT gender, invoice_count, share, AVG(share) OVER () AS avg_share FROM shares) SELECT gender, invoice_count, share, share - avg_share AS share_minus_avg FROM avg_share WHERE share > avg_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Going from invoices to their orders and on to the customers (skip anything that doesn't link up), how many invoiced orders does each customer gender (`Customers.gender`) have? Turn that into each gender's share of the overall total, and list the genders whose share is above the average share across genders: give the gender, the count, the share, and how far the share sits above the average. Don't round anything. Each gender's volume is its number of invoices. Every invoice counts, including several invoices on the same order.",
+  "sql": "WITH gender_counts AS (\n  SELECT c.gender AS gender, COUNT(i.invoice_number) AS cnt\n  FROM Invoices i\n  JOIN Orders o ON o.order_id = i.order_id\n  JOIN Customers c ON c.customer_id = o.customer_id\n  WHERE c.gender IS NOT NULL\n  GROUP BY c.gender\n),\ntotals AS (\n  SELECT SUM(cnt) AS total FROM gender_counts\n),\nshares AS (\n  SELECT g.gender, g.cnt, 1.0 * g.cnt / t.total AS share\n  FROM gender_counts g\n  CROSS JOIN totals t\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.gender, s.cnt AS count, s.share, s.share - a.avg_share AS above_average_by\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share\nORDER BY s.share DESC;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each `Customers.gender`, count every invoice reached via Invoices \u2192 Orders \u2192 Customers (inner joins, unlinked rows dropped, duplicate invoices per order all counted), compute each gender's share as its count divided by the total invoice count, average those shares across genders, and list each gender above that average with its count, unrounded share, and unrounded difference from the average",
+  "sql": "WITH gc AS (SELECT c.gender AS gender, COUNT(i.invoice_number) AS cnt FROM Invoices i INNER JOIN Orders o ON i.order_id = o.order_id INNER JOIN Customers c ON o.customer_id = c.customer_id GROUP BY c.gender), tot AS (SELECT SUM(cnt) AS total FROM gc), sh AS (SELECT gc.gender AS gender, gc.cnt AS cnt, CAST(gc.cnt AS REAL) / (SELECT total FROM tot) AS share FROM gc), avg_sh AS (SELECT AVG(share) AS avg_share FROM sh) SELECT sh.gender, sh.cnt, sh.share, sh.share - avg_sh.avg_share AS diff_from_avg FROM sh CROSS JOIN avg_sh WHERE sh.share > avg_sh.avg_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among invoiced orders that link to a customer (skipping any that don't link up), how many invoices does each customer gender (`Customers.gender`) have, counting every invoice including multiple invoices on the same order? For each gender, give its invoice count, its share of the overall invoice total, and how far that share sits above the average share across genders, and list only the genders whose share is above that average. Don't round anything.",
+  "sql": "WITH gender_counts AS (\n  SELECT c.gender AS gender, COUNT(i.invoice_number) AS invoice_count\n  FROM Invoices i\n  INNER JOIN Orders o ON o.order_id = i.order_id\n  INNER JOIN Customers c ON c.customer_id = o.customer_id\n  GROUP BY c.gender\n),\nshares AS (\n  SELECT gender, invoice_count,\n    CAST(invoice_count AS REAL) / SUM(invoice_count) OVER () AS share\n  FROM gender_counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.gender, s.invoice_count, s.share, s.share - a.avg_share AS above_average_by\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

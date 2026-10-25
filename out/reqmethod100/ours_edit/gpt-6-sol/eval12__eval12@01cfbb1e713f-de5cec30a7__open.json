@@ -1,0 +1,23 @@
+{
+ "clauses": [
+  "Treat each linked examination as one entry when calculating averages and ranking.",
+  "Average each patient's linked aCL IgM values first, then calculate averages and rank patients."
+ ],
+ "readings": [
+  "Linking examinations to patients by `ID` (dropping examinations with no matching patient), how far is patients' `aCL IgM` above or below the overall mean? Within each sex (exact text match, so a blank sex is its own group and a missing sex matches nothing), what is the average of those deviations? Show the top 10 entries whose deviation is above their sex's average deviation, ranked by how far above it they are, largest first (missing last): patient `ID`, `SEX`, `aCL IgM`, its deviation from the overall mean, and how far that deviation exceeds the sex's average deviation. All averages ignore missing values; don't round. Treat each linked examination as one entry when calculating averages and ranking.",
+  "Linking examinations to patients by `ID` (dropping examinations with no matching patient), how far is patients' `aCL IgM` above or below the overall mean? Within each sex (exact text match, so a blank sex is its own group and a missing sex matches nothing), what is the average of those deviations? Show the top 10 entries whose deviation is above their sex's average deviation, ranked by how far above it they are, largest first (missing last): patient `ID`, `SEX`, `aCL IgM`, its deviation from the overall mean, and how far that deviation exceeds the sex's average deviation. All averages ignore missing values; don't round. Average each patient's linked aCL IgM values first, then calculate averages and rank patients."
+ ],
+ "queries": [
+  "WITH linked AS (\n    SELECT p.ID, p.SEX, e.`aCL IgM`\n    FROM Examination AS e\n    JOIN Patient AS p ON p.ID = e.ID\n),\ndeviations AS (\n    SELECT ID, SEX, `aCL IgM`,\n           `aCL IgM` - (SELECT AVG(`aCL IgM`) FROM linked) AS deviation\n    FROM linked\n),\nsex_averages AS (\n    SELECT SEX, AVG(deviation) AS average_deviation\n    FROM deviations\n    WHERE SEX IS NOT NULL\n    GROUP BY SEX\n)\nSELECT d.ID, d.SEX, d.`aCL IgM`, d.deviation,\n       d.deviation - s.average_deviation AS excess_deviation\nFROM deviations AS d\nJOIN sex_averages AS s ON d.SEX = s.SEX\nWHERE d.deviation > s.average_deviation\nORDER BY excess_deviation DESC NULLS LAST\nLIMIT 10;\n",
+  "WITH patient_averages AS (\n    SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS acl_igm\n    FROM Examination AS e\n    JOIN Patient AS p ON p.ID = e.ID\n    GROUP BY p.ID, p.SEX\n),\ndeviations AS (\n    SELECT ID, SEX, acl_igm,\n           acl_igm - (SELECT AVG(acl_igm) FROM patient_averages) AS deviation\n    FROM patient_averages\n),\nsex_averages AS (\n    SELECT SEX, AVG(deviation) AS average_deviation\n    FROM deviations\n    WHERE SEX IS NOT NULL\n    GROUP BY SEX\n)\nSELECT d.ID, d.SEX, d.acl_igm AS `aCL IgM`,\n       d.deviation,\n       d.deviation - s.average_deviation AS excess_deviation\nFROM deviations AS d\nJOIN sex_averages AS s ON d.SEX = s.SEX\nWHERE d.deviation > s.average_deviation\nORDER BY excess_deviation DESC NULLS LAST\nLIMIT 10;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-de5cec30a7",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 3,
+  "chars_in": 26050,
+  "chars_out": 1601
+ }
+}

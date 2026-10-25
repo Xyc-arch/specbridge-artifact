@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "SELECT (SELECT AVG(m) FROM (SELECT AVG(product_price) AS m FROM Invoice_Line_Items GROUP BY invoice_number) t) AS avg_of_invoice_mean_price, (SELECT CAST(COUNT(*) AS REAL) FROM Invoice_Line_Items WHERE invoice_number IN (SELECT invoice_number FROM Invoices)) / (SELECT COUNT(*) FROM Invoices) AS avg_line_items_per_invoice",
+  "WITH per_invoice AS (SELECT i.invoice_number, AVG(l.product_price) AS mean_price, COUNT(l.order_item_id) AS item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number) SELECT AVG(mean_price) AS avg_of_invoice_mean_price, AVG(item_count * 1.0) AS avg_line_items_per_invoice FROM per_invoice",
+  "SELECT AVG(t.avg_price) AS avg_of_invoice_mean_price, AVG(t.item_count * 1.0) AS avg_line_items_per_invoice FROM (SELECT i.invoice_number, AVG(l.product_price) AS avg_price, COUNT(l.order_item_id) AS item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number) t"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT (SELECT AVG(m) FROM (SELECT AVG(product_price) AS m FROM Invoice_Line_Items GROUP BY invoice_number) t) AS avg_of_invoice_mean_price, (SELECT CAST(COUNT(*) AS REAL) FROM Invoice_Line_Items WHERE invoice_number IN (SELECT invoice_number FROM Invoices)) / (SELECT COUNT(*) FROM Invoices) AS avg_line_items_per_invoice",
+   "assumptions": [
+    {
+     "assumption": "Every line item counts toward the line-item average, including those with a NULL product_price. Only the price mean ignores NULLs.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Invoices with no line items add zero to the line-item average. They are excluded from the price average because they have no mean.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average of per-invoice means is unweighted: each invoice counts once, whatever its number of line items.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_invoice AS (SELECT i.invoice_number, AVG(l.product_price) AS mean_price, COUNT(l.order_item_id) AS item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number) SELECT AVG(mean_price) AS avg_of_invoice_mean_price, AVG(item_count * 1.0) AS avg_line_items_per_invoice FROM per_invoice",
+   "assumptions": [
+    {
+     "assumption": "Each row in Invoice_Line_Items counts as one line item (count of rows, not summing the VARCHAR product_quantity).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Invoices with only NULL prices have a NULL mean and are skipped for the first average (AVG ignores NULLs) but still count in the line-item average with their actual row count.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "SELECT AVG(t.avg_price) AS avg_of_invoice_mean_price, AVG(t.item_count * 1.0) AS avg_line_items_per_invoice FROM (SELECT i.invoice_number, AVG(l.product_price) AS avg_price, COUNT(l.order_item_id) AS item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number) t",
+   "assumptions": [
+    {
+     "assumption": "Each row in Invoice_Line_Items is one line item. Invoices with no rows count as 0 line items. Invoices whose prices are all NULL give a NULL mean, so the outer AVG skips them for the price average. They still count in the line-item average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-b98cf5f786",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11931,
+  "chars_out": 2262
+ }
+}

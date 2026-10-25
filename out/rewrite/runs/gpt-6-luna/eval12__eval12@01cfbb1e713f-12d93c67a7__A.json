@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Each time-in-force group's size is the number of joined fee-order records in it. Groups are compared to the average of these sizes, and the sizes are summed.",
+ "b": {
+  "request": "Group matching fee-order records by time in force, computing each group\u2019s average non-null `rebrate / feerate` ratio and record count; retain groups whose count is strictly greater than the average count across all groups, then return one row with the average of the retained groups\u2019 average ratios, the sum of their counts, and the average amount by which their counts exceed the across-group average. Do not round",
+  "sql": "WITH group_stats AS (\n  SELECT o.timespan,\n         AVG(f.rebrate / f.feerate) AS avg_ratio,\n         COUNT(*) AS record_count\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  WHERE f.rebrate IS NOT NULL\n    AND f.feerate IS NOT NULL\n  GROUP BY o.timespan\n),\naverages AS (\n  SELECT AVG(record_count) AS avg_count\n  FROM group_stats\n),\nretained AS (\n  SELECT g.avg_ratio, g.record_count, a.avg_count\n  FROM group_stats AS g\n  CROSS JOIN averages AS a\n  WHERE g.record_count > a.avg_count\n)\nSELECT AVG(avg_ratio) AS average_retained_group_ratio,\n       SUM(record_count) AS retained_record_count_sum,\n       AVG(record_count - avg_count) AS average_count_excess\nFROM retained;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Join fees to their orders (`fees.orderslink` = `orders.recordvault`; drop fees with no matching order) and group by time in force (`orders.timespan`). For each group, take the average of `rebrate` / `feerate` (ignoring missing values) and the number of joined fee records in the group. Keep only the groups whose fee-record count is strictly above the average of that count across all groups. Return one row with three values for those kept groups: the average of their average ratios, the sum of their fee-record counts, and the average amount by which their count exceeds the cross-group average count. Don't round anything.",
+  "sql": "WITH group_stats AS (\n  SELECT\n    o.timespan,\n    AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio,\n    COUNT(*) AS fee_record_count\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\nwith_average AS (\n  SELECT\n    avg_ratio,\n    fee_record_count,\n    AVG(fee_record_count) OVER () AS cross_group_avg_count\n  FROM group_stats\n)\nSELECT\n  AVG(avg_ratio) AS average_of_average_ratios,\n  SUM(fee_record_count) AS total_fee_record_count,\n  AVG(fee_record_count - cross_group_avg_count) AS average_excess_count\nFROM with_average\nWHERE fee_record_count > cross_group_avg_count;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Join fees to their orders (`fees.orderslink` = `orders.recordvault`; drop fees with no matching order) and group by time in force (`orders.timespan`). For each group, find the average `rebrate` / `feerate` ratio (ignoring missing values) and how many order matches it has. Keep only the groups whose match count is strictly above the average match count across all groups. For those groups, give me one row: the average of their average ratios, the total of their match counts, and the average amount by which their match count exceeds that cross-group average. No rounding. Each time-in-force group's size is the number of joined fee-order records in it. Groups are compared to the average of these sizes, and the sizes are summed.",
+  "sql": "WITH group_stats AS (\n  SELECT\n    o.timespan,\n    COUNT(*) AS match_count,\n    AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio\n  FROM fees AS f\n  INNER JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n), qualifying_groups AS (\n  SELECT *\n  FROM group_stats\n  WHERE match_count > (SELECT AVG(match_count) FROM group_stats)\n)\nSELECT\n  AVG(avg_ratio) AS average_of_average_ratios,\n  SUM(match_count) AS total_match_count,\n  AVG(match_count - (SELECT AVG(match_count) FROM group_stats)) AS average_excess_match_count\nFROM qualifying_groups;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using `fees.orderslink = orders.recordvault` to join fees to orders and dropping fees without a matching order, group the joined records by `orders.timespan`. For each group, calculate the average `rebrate / feerate` ratio, ignoring missing values, and the number of joined records. Keep groups whose record count is strictly greater than the average count across all groups. Return one row with the average of those groups\u2019 average ratios, the sum of their record counts, and the average amount by which their counts exceed the across-group average. Do not round.",
+  "sql": "WITH grouped AS (\n  SELECT o.timespan,\n         AVG(f.rebrate / f.feerate) AS avg_ratio,\n         COUNT(*) AS record_count\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n), scored AS (\n  SELECT avg_ratio,\n         record_count,\n         AVG(record_count) OVER () AS overall_avg_count\n  FROM grouped\n)\nSELECT AVG(avg_ratio) AS average_of_group_average_ratios,\n       SUM(record_count) AS sum_of_record_counts,\n       AVG(record_count - overall_avg_count) AS average_excess_count\nFROM scored\nWHERE record_count > overall_avg_count;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

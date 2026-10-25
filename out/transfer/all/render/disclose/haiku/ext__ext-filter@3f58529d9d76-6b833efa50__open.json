@@ -1,0 +1,56 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-6b833efa50",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH base AS (SELECT si.healtheval AS status, sc.scancount, sc.gbsize / sc.spanmin AS gb_per_min FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' AND si.healtheval IS NOT NULL AND sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0), status_stats AS (SELECT status, SUM(scancount) AS total_scancount, AVG(gb_per_min) AS avg_gb_per_min FROM base GROUP BY status) SELECT status, total_scancount, avg_gb_per_min, avg_gb_per_min - (SELECT AVG(avg_gb_per_min) FROM status_stats) AS gap_from_mean FROM status_stats WHERE (SELECT AVG(avg_gb_per_min) FROM status_stats) IS NOT NULL;",
+  "assumptions": [
+   {
+    "assumption": "chronotag is compared as text with inclusive BETWEEN bounds, so the match is lexicographic on the stored strings, which are assumed to use the same 'YYYY-MM-DD HH:MM:SS.ffffff' format as the bounds. The schema declares chronotag as text(6) while the documentation calls it a TIMESTAMP, so this format is not confirmed.",
+    "unresolved": true
+   },
+   {
+    "assumption": "'Link to a site' means an inner join from scans.zoneref to sites.zoneregistry, so scans with no matching site are dropped.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Rows with a NULL healtheval, gbsize, or spanmin are excluded. Rows with spanmin = 0 are also excluded to avoid division by zero, which the request does not mention.",
+    "unresolved": false
+   },
+   {
+    "assumption": "'Average GB per scan minute' is the mean of the per-row ratio gbsize / spanmin within each status, not total GB divided by total minutes.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The mean of status-level averages is the plain AVG over the status groups, unweighted. It is NULL when no status group has a computable average, and in that case the query returns no rows.",
+    "unresolved": false
+   },
+   {
+    "assumption": "total scancount is SUM(scancount), which ignores NULL scancount values.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Average GB per scan minute as total GB divided by total scan minutes within each status (a ratio of sums, not a mean of row ratios). The gap is still measured against the mean of those status-level ratios.",
+    "sql": "WITH base AS (SELECT si.healtheval AS status, sc.scancount, sc.gbsize, sc.spanmin FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' AND si.healtheval IS NOT NULL AND sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0), status_stats AS (SELECT status, SUM(scancount) AS total_scancount, SUM(gbsize) / SUM(spanmin) AS avg_gb_per_min FROM base GROUP BY status) SELECT status, total_scancount, avg_gb_per_min, avg_gb_per_min - (SELECT AVG(avg_gb_per_min) FROM status_stats) AS gap_from_mean FROM status_stats WHERE (SELECT AVG(avg_gb_per_min) FROM status_stats) IS NOT NULL;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "Average GB per scan minute as total GB divided by total scan minutes within each status (a ratio of sums, not a mean of row ratios). The gap is still measured against the mean of those status-level ratios.",
+   "sql": "WITH base AS (SELECT si.healtheval AS status, sc.scancount, sc.gbsize, sc.spanmin FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' AND si.healtheval IS NOT NULL AND sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0), status_stats AS (SELECT status, SUM(scancount) AS total_scancount, SUM(gbsize) / SUM(spanmin) AS avg_gb_per_min FROM base GROUP BY status) SELECT status, total_scancount, avg_gb_per_min, avg_gb_per_min - (SELECT AVG(avg_gb_per_min) FROM status_stats) AS gap_from_mean FROM status_stats WHERE (SELECT AVG(avg_gb_per_min) FROM status_stats) IS NOT NULL;",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 18.2,
+ "chars_out": 2909
+}

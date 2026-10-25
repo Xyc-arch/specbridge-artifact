@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-97769b0922",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "A product's figure is the total units ordered across its order lines.",
+ "c": {
+  "request": "Looking at the order items, work out each product's (`product_id`) share of total order volume and the plain average of those shares across products. For the products whose share is strictly above that average, give me one unrounded row: their combined order volume, their average share, and how far, on average, their share sits above the average share. A product's figure is the total units ordered across its order lines.",
+  "sql": "WITH product_volumes AS (\n    SELECT\n        product_id,\n        SUM(CAST(product_quantity AS DECIMAL(19,4))) AS order_volume\n    FROM Order_Items\n    GROUP BY product_id\n),\nproduct_shares AS (\n    SELECT\n        product_id,\n        order_volume,\n        order_volume / NULLIF(SUM(order_volume) OVER (), 0) AS share_of_total\n    FROM product_volumes\n),\naverage_share AS (\n    SELECT AVG(share_of_total) AS avg_share\n    FROM product_shares\n)\nSELECT\n    SUM(ps.order_volume) AS combined_order_volume,\n    AVG(ps.share_of_total) AS average_share,\n    AVG(ps.share_of_total - av.avg_share) AS average_excess_share\nFROM product_shares ps\nCROSS JOIN average_share av\nWHERE ps.share_of_total > av.avg_share;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each product (`product_id` on the order items), add up the units ordered (`product_quantity`, read as a whole number, ignoring missing values). Give each product a share: its units divided by the sum over all products. Then take the plain average of those shares across products. For the products whose share is strictly above that average, return a single unrounded row with: their combined units, their average share, and the average amount by which their share exceeds the overall average share.",
+  "sql": "WITH product_units AS (\n  SELECT\n    product_id,\n    SUM(CAST(product_quantity AS INTEGER)) AS units\n  FROM Order_Items\n  WHERE product_quantity IS NOT NULL\n  GROUP BY product_id\n),\nproduct_shares AS (\n  SELECT\n    product_id,\n    units,\n    1.0 * units / NULLIF(SUM(units) OVER (), 0) AS share\n  FROM product_units\n),\naveraged AS (\n  SELECT\n    units,\n    share,\n    AVG(share) OVER () AS average_share\n  FROM product_shares\n)\nSELECT\n  SUM(units) AS combined_units,\n  AVG(share) AS average_share,\n  AVG(share - average_share) AS average_excess_share\nFROM averaged\nWHERE share > average_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Calculate each product\u2019s share of total units ordered across all order lines, calculate the unweighted average of those shares across products, then return one unrounded row for products whose share is strictly above that average: their combined units ordered, their average share, and their average share\u2019s difference above the overall average share",
+  "sql": "WITH product_units AS (\n  SELECT p.product_id, COALESCE(SUM(CAST(oi.product_quantity AS DECIMAL(19,4))), 0) AS units_ordered\n  FROM Products p\n  LEFT JOIN Order_Items oi ON oi.product_id = p.product_id\n  GROUP BY p.product_id\n), product_shares AS (\n  SELECT product_id, units_ordered,\n         units_ordered / NULLIF(SUM(units_ordered) OVER (), 0) AS share\n  FROM product_units\n), overall_average AS (\n  SELECT AVG(share) AS average_share\n  FROM product_shares\n)\nSELECT SUM(ps.units_ordered) AS combined_units_ordered,\n       AVG(ps.share) AS average_share,\n       AVG(ps.share) - oa.average_share AS difference_above_overall_average_share\nFROM product_shares ps\nCROSS JOIN overall_average oa\nWHERE ps.share > oa.average_share\nGROUP BY oa.average_share;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the order items, calculate each product\u2019s share of total units ordered, where a product\u2019s units are summed across its order lines. Then calculate the plain average of those shares across all products. For products whose share is strictly above that average, return one unrounded row with their combined order volume, their average share, and their average amount above the overall average share.",
+  "sql": "WITH product_units AS (\n  SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(19,4))) AS units\n  FROM Order_Items\n  GROUP BY product_id\n), product_shares AS (\n  SELECT product_id, units,\n         units / SUM(units) OVER () AS share\n  FROM product_units\n), overall_average AS (\n  SELECT AVG(share) AS avg_share\n  FROM product_shares\n)\nSELECT SUM(ps.units) AS combined_order_volume,\n       AVG(ps.share) AS average_share,\n       AVG(ps.share - oa.avg_share) AS average_amount_above_average_share\nFROM product_shares ps\nCROSS JOIN overall_average oa\nWHERE ps.share > oa.avg_share;",
+  "executes": true,
+  "matches": []
+ }
+}

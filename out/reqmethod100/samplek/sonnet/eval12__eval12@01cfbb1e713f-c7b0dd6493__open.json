@@ -1,0 +1,102 @@
+{
+ "queries": [
+  "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM c), t AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts a ON a.account_id = c.account_id JOIN Customers cu ON cu.customer_id = a.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> ''), tt AS (SELECT town_city, SUM(cnt) AS town_cnt FROM t GROUP BY town_city) SELECT t.account_id, t.town_city, t.cnt AS num_transactions, t.cnt * 1.0 / tt.town_cnt AS share_of_town_transactions, t.cnt / avgc.avg_cnt AS ratio_to_average FROM t JOIN tt ON tt.town_city = t.town_city CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+  "WITH c AS (SELECT a.account_id, COUNT(f.transaction_id) AS cnt FROM Accounts a LEFT JOIN Financial_Transactions f ON f.account_id = a.account_id GROUP BY a.account_id), avgc AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM c), t AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts a ON a.account_id = c.account_id JOIN Customers cu ON cu.customer_id = a.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> ''), tt AS (SELECT town_city, SUM(cnt) AS town_cnt FROM t GROUP BY town_city) SELECT t.account_id, t.town_city, t.cnt AS num_transactions, t.cnt * 1.0 / tt.town_cnt AS share_of_town_transactions, t.cnt / avgc.avg_cnt AS ratio_to_average FROM t JOIN tt ON tt.town_city = t.town_city CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+  "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT AVG(cnt * 1.0) AS a FROM c), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS num_transactions, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+  "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT (SELECT COUNT(*) FROM Financial_Transactions) * 1.0 / (SELECT COUNT(*) FROM Accounts) AS a), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS num_transactions, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+  "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT AVG(cnt * 1.0) AS a FROM c), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS transaction_count, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+  "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT (SELECT COUNT(*) FROM Financial_Transactions WHERE account_id IN (SELECT account_id FROM Accounts)) * 1.0 / (SELECT COUNT(*) FROM Accounts) AS a), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS transaction_count, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM c), t AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts a ON a.account_id = c.account_id JOIN Customers cu ON cu.customer_id = a.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> ''), tt AS (SELECT town_city, SUM(cnt) AS town_cnt FROM t GROUP BY town_city) SELECT t.account_id, t.town_city, t.cnt AS num_transactions, t.cnt * 1.0 / tt.town_cnt AS share_of_town_transactions, t.cnt / avgc.avg_cnt AS ratio_to_average FROM t JOIN tt ON tt.town_city = t.town_city CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average count per account is taken over accounts that have at least one transaction, and over all such accounts before the missing-holder/no-town exclusion is applied.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A town's transactions are the sum of transactions of all accounts held by customers with that town_city value, grouped by town_city alone (not by state or country).",
+     "unresolved": false
+    },
+    {
+     "assumption": "A town_city that is NULL or blank counts as having no town. Accounts whose customer is missing are dropped by the inner join.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the ratio are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average count per account includes accounts with zero transactions, so it is the total transactions divided by all accounts.",
+     "sql": "WITH c AS (SELECT a.account_id, COUNT(f.transaction_id) AS cnt FROM Accounts a LEFT JOIN Financial_Transactions f ON f.account_id = a.account_id GROUP BY a.account_id), avgc AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM c), t AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts a ON a.account_id = c.account_id JOIN Customers cu ON cu.customer_id = a.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> ''), tt AS (SELECT town_city, SUM(cnt) AS town_cnt FROM t GROUP BY town_city) SELECT t.account_id, t.town_city, t.cnt AS num_transactions, t.cnt * 1.0 / tt.town_cnt AS share_of_town_transactions, t.cnt / avgc.avg_cnt AS ratio_to_average FROM t JOIN tt ON tt.town_city = t.town_city CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT AVG(cnt * 1.0) AS a FROM c), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS num_transactions, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average count per account is taken over accounts that have at least one transaction (the grouped counts), and is computed before excluding accounts with no customer or town.",
+     "unresolved": true
+    },
+    {
+     "assumption": "An account's share of its town is its count divided by the total transactions of all accounts (with a known customer and town) whose holder is in the same town_city value. The town is matched on town_city alone, not state or country.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A town_city that is NULL or empty or blank counts as having no town. Accounts whose customer_id has no matching customer are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the ratio are broken arbitrarily. Values are not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average count per account is taken over all accounts in Accounts, including those with zero transactions (total transactions divided by number of accounts).",
+     "sql": "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT (SELECT COUNT(*) FROM Financial_Transactions) * 1.0 / (SELECT COUNT(*) FROM Accounts) AS a), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS num_transactions, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT AVG(cnt * 1.0) AS a FROM c), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS transaction_count, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average count per account is taken over accounts that have at least one transaction (the 'counts by account'), computed before excluding accounts with no holder or no town.",
+     "unresolved": true
+    },
+    {
+     "assumption": "An account's share of its town's transactions is its count divided by the total transactions of all accounts held by customers in that town. Transactions of accounts excluded for missing holder or town are not in any town total.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A blank or whitespace-only town_city is treated as having no town.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in ratio are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average count per account is taken over all accounts in the Accounts table, so accounts with zero transactions count as 0 in the average.",
+     "sql": "WITH c AS (SELECT account_id, COUNT(*) AS cnt FROM Financial_Transactions GROUP BY account_id), avgc AS (SELECT (SELECT COUNT(*) FROM Financial_Transactions WHERE account_id IN (SELECT account_id FROM Accounts)) * 1.0 / (SELECT COUNT(*) FROM Accounts) AS a), j AS (SELECT c.account_id, cu.town_city, c.cnt FROM c JOIN Accounts ac ON ac.account_id = c.account_id JOIN Customers cu ON cu.customer_id = ac.customer_id WHERE cu.town_city IS NOT NULL AND TRIM(cu.town_city) <> '') SELECT j.account_id, j.town_city, j.cnt AS transaction_count, j.cnt * 1.0 / SUM(j.cnt) OVER (PARTITION BY j.town_city) AS share_of_town_transactions, j.cnt / avgc.a AS ratio_to_average FROM j CROSS JOIN avgc ORDER BY ratio_to_average DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12081,
+  "chars_out": 6794
+ }
+}

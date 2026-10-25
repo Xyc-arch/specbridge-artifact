@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-86ce9ada6a",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Each transaction is one unit, and its ownership is the average across the snapshots that point to it.",
+ "c": {
+  "request": "Link the sentiment data to transaction records on `transref` = `transreg`, dropping anything without a match and anything with no order type mix (`ordertypedist`), and look at institutional ownership (`instownpct`, ignoring missing values) against each transaction's order type mix. Take the cases whose ownership is strictly above the overall average ownership. In one unrounded row, give their average ownership, the average ratio of their ownership to the average ownership for their order type mix, and the average amount by which they exceed the overall average. Each transaction is one unit, and its ownership is the average across the snapshots that point to it.",
+  "sql": "WITH transaction_ownership AS (\n  SELECT\n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.instownpct) AS ownership\n  FROM transactionrecord AS tr\n  JOIN sentimentandfundamentals AS sf\n    ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL\n    AND sf.instownpct IS NOT NULL\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nwith_mix_averages AS (\n  SELECT\n    *,\n    AVG(ownership) OVER (PARTITION BY ordertypedist) AS mix_avg_ownership,\n    AVG(ownership) OVER () AS overall_avg_ownership\n  FROM transaction_ownership\n)\nSELECT\n  AVG(ownership) AS average_ownership,\n  AVG(ownership / mix_avg_ownership) AS average_ratio_to_mix_average,\n  AVG(ownership - overall_avg_ownership) AS average_excess_overall_average\nFROM with_mix_averages\nWHERE ownership > overall_avg_ownership;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each matched transaction record with a non-null `ordertypedist`, calculate ownership as the average non-null `instownpct` across its linked sentiment snapshots; compute the overall average ownership across transactions with such values, then among transactions strictly above that average, return in one unrounded row their average ownership, the average ratio of each transaction\u2019s ownership to the average ownership of transactions with the same `ordertypedist`, and their average ownership excess over the overall average",
+  "sql": "WITH transaction_ownership AS (\n  SELECT\n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.instownpct) AS ownership\n  FROM transactionrecord AS tr\n  JOIN sentimentandfundamentals AS sf\n    ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL\n  GROUP BY tr.transreg, tr.ordertypedist\n), overall AS (\n  SELECT AVG(ownership) AS avg_ownership\n  FROM transaction_ownership\n), by_order_type AS (\n  SELECT ordertypedist, AVG(ownership) AS avg_ownership\n  FROM transaction_ownership\n  GROUP BY ordertypedist\n)\nSELECT\n  AVG(t.ownership) AS average_ownership,\n  AVG(t.ownership / b.avg_ownership) AS average_ownership_ratio,\n  AVG(t.ownership - o.avg_ownership) AS average_ownership_excess\nFROM transaction_ownership AS t\nJOIN by_order_type AS b ON b.ordertypedist = t.ordertypedist\nCROSS JOIN overall AS o\nWHERE t.ownership > o.avg_ownership;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Link each sentiment snapshot to its transaction (`sentimentandfundamentals.transref` = `transactionrecord.transreg`), dropping snapshots without a match. Form one unit per transaction and order type mix (`ordertypedist`), whose ownership is the average institutional ownership (`instownpct`) over all of that transaction's snapshots (missing values ignored), and leave out units with no order type mix. For each order type mix, take the average ownership of its units as the mix baseline. Then take the overall average ownership across all units, and keep only units whose ownership is strictly above it. Return one unrounded row with: the average ownership of the kept units, the average of each kept unit's ownership divided by its mix baseline, and the average amount by which the kept units' ownership exceeds the overall average.",
+  "sql": "WITH transaction_units AS (\n  SELECT tr.transreg, tr.ordertypedist, AVG(sf.instownpct) AS ownership\n  FROM sentimentandfundamentals AS sf\n  JOIN transactionrecord AS tr ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL\n  GROUP BY tr.transreg, tr.ordertypedist\n), mix_baselines AS (\n  SELECT ordertypedist, AVG(ownership) AS baseline\n  FROM transaction_units\n  GROUP BY ordertypedist\n), overall AS (\n  SELECT AVG(ownership) AS avg_ownership\n  FROM transaction_units\n), kept_units AS (\n  SELECT u.ownership, b.baseline, o.avg_ownership\n  FROM transaction_units AS u\n  JOIN mix_baselines AS b ON u.ordertypedist = b.ordertypedist\n  CROSS JOIN overall AS o\n  WHERE u.ownership > o.avg_ownership\n)\nSELECT AVG(ownership) AS average_ownership,\n       AVG(ownership / baseline) AS average_mix_baseline_ratio,\n       AVG(ownership - avg_ownership) AS average_excess_overall\nFROM kept_units;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the linked sentiment and transaction records with matching `transref` and `transreg` values, excluding unmatched records and transactions without an `ordertypedist`, calculate each transaction\u2019s ownership as the average of its non-missing `instownpct` snapshots. Among transactions whose ownership is strictly above the overall average ownership, report in one unrounded row: their average ownership, their average ratio of ownership to the average ownership for their `ordertypedist`, and their average excess over the overall average ownership.",
+  "sql": "WITH transaction_ownership AS (\n  SELECT\n    t.transreg,\n    t.ordertypedist,\n    AVG(s.instownpct) AS ownership\n  FROM transactionrecord AS t\n  JOIN sentimentandfundamentals AS s\n    ON s.transref = t.transreg\n  WHERE t.ordertypedist IS NOT NULL\n    AND s.instownpct IS NOT NULL\n  GROUP BY t.transreg, t.ordertypedist\n),\nwith_benchmarks AS (\n  SELECT\n    transreg,\n    ownership,\n    AVG(ownership) OVER () AS overall_avg_ownership,\n    AVG(ownership) OVER (PARTITION BY ordertypedist) AS type_avg_ownership\n  FROM transaction_ownership\n)\nSELECT\n  AVG(ownership) AS average_ownership,\n  AVG(ownership / NULLIF(type_avg_ownership, 0)) AS average_ratio_to_type_average,\n  AVG(ownership - overall_avg_ownership) AS average_excess_overall_average\nFROM with_benchmarks\nWHERE ownership > overall_avg_ownership;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

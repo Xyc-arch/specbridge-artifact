@@ -1,0 +1,53 @@
+{
+ "interpretations": [
+  "Per-invoice ratio is SUM(derived_product_cost) / SUM(derived_total_cost) over the invoice's lines. The average ratio is the mean of these per-invoice ratios over all invoices. Line item count is all rows for the invoice.",
+  "Per-invoice ratio is the mean of line-level ratios (derived_product_cost / derived_total_cost). The average ratio is the mean of the per-invoice ratios. Line item count is all rows for the invoice.",
+  "Per-invoice ratio is SUM(derived_product_cost) / SUM(derived_total_cost). The average ratio is the mean of line-level ratios across all line items. Line item count is all rows.",
+  "Per-invoice ratio is SUM(derived_product_cost) / SUM(derived_total_cost). The average ratio is the global SUM(derived_product_cost) / SUM(derived_total_cost) across all invoices. Line item count is all rows.",
+  "Per-invoice ratio is the mean of line-level ratios. The average ratio is the mean of all line-level ratios across all line items (not per invoice).",
+  "Rows with a NULL in derived_product_cost or derived_total_cost are removed before computing sums, ratios, averages, and counts. Line item count includes only lines with both values present.",
+  "Sums skip NULLs independently in each column, so the numerator and denominator may cover different lines. Line item count is all rows, including those with NULL costs.",
+  "Line item count is COUNT(*) of rows per invoice, regardless of NULLs.",
+  "Line item count is COUNT of distinct order_item_id per invoice.",
+  "Line item count is COUNT of distinct product_id per invoice.",
+  "Line item count counts only lines with a non-null line-level ratio.",
+  "Line items with derived_total_cost = 0 are excluded or give a NULL ratio, so the division is not an error.",
+  "Invoices whose own ratio is NULL are kept, with a NULL relative figure sorted last. They are shown only if the overall average exists.",
+  "Invoices whose own ratio is NULL are dropped entirely, so only invoices with a computable ratio are shown.",
+  "\"Average exists\" means the overall average is non-NULL. If no valid ratio exists anywhere, the result is empty.",
+  "\"Relative figure\" is invoice ratio / average ratio. Sorted descending with NULLs last, limited to 10 rows.",
+  "Ties at the 10th row are cut arbitrarily, with no tie-breaker such as invoice number.",
+  "Ties at the 10th row are broken by invoice number ascending.",
+  "Ties at the 10th row are all included, so more than 10 rows may appear.",
+  "Output columns are invoice_number, ratio, line item count, and relative ratio. Values are unrounded and ratios use floating-point division.",
+  "Output columns are the same, but integer-typed costs might get integer division, so the ratio is cast to decimal first.",
+  "Only invoices that appear in Invoice_Line_Items are considered. Invoices from the Invoices table with no line items are excluded.",
+  "Invoices from the Invoices table with no line items are included, with a count of 0 and a NULL ratio.",
+  "Ratio of averages per invoice: AVG(derived_product_cost) / AVG(derived_total_cost), with NULLs skipped independently in each column",
+  "The overall average ratio is the mean of per-invoice ratios, but only over invoices with a non-NULL ratio, while the line item count still includes all rows",
+  "Invoices where SUM(derived_total_cost) = 0 get a NULL ratio (or are excluded) so the invoice-level division doesn't error, separate from the line-level zero case",
+  "Line item count is COUNT(derived_product_cost) only, which skips rows with a NULL product cost",
+  "Line item count is COUNT(derived_total_cost) only, which skips rows with a NULL total cost",
+  "The overall average is the line-count-weighted average of the per-invoice ratios",
+  "Ties in the relative figure are broken by line item count, not by invoice number"
+ ],
+ "queries": [
+  "WITH inv AS (\n  SELECT invoice_number,\n         COUNT(*) AS line_item_count,\n         SUM(derived_product_cost) * 1.0 / SUM(derived_total_cost) AS ratio\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n)\nSELECT invoice_number, line_item_count\nFROM inv\nWHERE ratio > (SELECT AVG(ratio) FROM inv);\n",
+  "SELECT AVG(invoice_ratio) AS average_ratio\nFROM (\n  SELECT invoice_number,\n         AVG(derived_product_cost * 1.0 / derived_total_cost) AS invoice_ratio\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n);\n",
+  "SELECT AVG(derived_product_cost * 1.0 / derived_total_cost), COUNT(*) FROM Invoice_Line_Items",
+  "SELECT SUM(derived_product_cost) * 1.0 / SUM(derived_total_cost) AS average_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items"
+ ],
+ "raw": [
+  "1. Per-invoice ratio is SUM(derived_product_cost) / SUM(derived_total_cost) over the invoice's lines. The average ratio is the mean of these per-invoice ratios over all invoices. Line item count is all rows for the invoice.\n2. Per-invoice ratio is the mean of line-level ratios (derived_product_cost / derived_total_cost). The average ratio is the mean of the per-invoice ratios. Line item count is all rows for the invoice.\n3. Per-invoice ratio is SUM(derived_product_cost) / SUM(derived_total_cost). The average ratio is the mean of line-level ratios across all line items. Line item count is all rows.\n4. Per-invoice ratio is SUM(derived_product_cost) / SUM(derived_total_cost). The average ratio is the global SUM(derived_product_cost) / SUM(derived_total_cost) across all invoices. Line item count is all rows.\n5. Per-invoice ratio is the mean of line-level ratios. The average ratio is the mean of all line-level ratios across all line items (not per invoice).\n6. Rows with a NULL in derived_product_cost or derived_total_cost are removed before computing sums, ratios, averages, and counts. Line item count includes only lines with both values present.\n7. Sums skip NULLs independently in each column, so the numerator and denominator may cover different lines. Line item count is all rows, including those with NULL costs.\n8. Line item count is COUNT(*) of rows per invoice, regardless of NULLs.\n9. Line item count is COUNT of distinct order_item_id per invoice.\n10. Line item count is COUNT of distinct product_id per invoice.\n11. Line item count counts only lines with a non-null line-level ratio.\n12. Line items with derived_total_cost = 0 are excluded or give a NULL ratio, so the division is not an error.\n13. Invoices whose own ratio is NULL are kept, with a NULL relative figure sorted last. They are shown only if the overall average exists.\n14. Invoices whose own ratio is NULL are dropped entirely, so only invoices with a computable ratio are shown.\n15. \"Average exists\" means the overall average is non-NULL. If no valid ratio exists anywhere, the result is empty.\n16. \"Relative figure\" is invoice ratio / average ratio. Sorted descending with NULLs last, limited to 10 rows.\n17. Ties at the 10th row are cut arbitrarily, with no tie-breaker such as invoice number.\n18. Ties at the 10th row are broken by invoice number ascending.\n19. Ties at the 10th row are all included, so more than 10 rows may appear.\n20. Output columns are invoice_number, ratio, line item count, and relative ratio. Values are unrounded and ratios use floating-point division.\n21. Output columns are the same, but integer-typed costs might get integer division, so the ratio is cast to decimal first.\n22. Only invoices that appear in Invoice_Line_Items are considered. Invoices from the Invoices table with no line items are excluded.\n23. Invoices from the Invoices table with no line items are included, with a count of 0 and a NULL ratio.",
+  "Ratio of averages per invoice: AVG(derived_product_cost) / AVG(derived_total_cost), with NULLs skipped independently in each column\nThe overall average ratio is the mean of per-invoice ratios, but only over invoices with a non-NULL ratio, while the line item count still includes all rows\nInvoices where SUM(derived_total_cost) = 0 get a NULL ratio (or are excluded) so the invoice-level division doesn't error, separate from the line-level zero case\nLine item count is COUNT(derived_product_cost) only, which skips rows with a NULL product cost\nLine item count is COUNT(derived_total_cost) only, which skips rows with a NULL total cost\nThe overall average is the line-count-weighted average of the per-invoice ratios\nTies in the relative figure are broken by line item count, not by invoice number"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd51f2bd3c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31588,
+  "chars_out": 5549
+ }
+}

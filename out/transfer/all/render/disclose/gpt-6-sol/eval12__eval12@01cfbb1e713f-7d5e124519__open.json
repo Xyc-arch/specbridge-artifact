@@ -1,0 +1,38 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH order_averages AS (SELECT o.orderspivot, oe.ordersmark, o.timespan, AVG(oe.fillcount) AS order_avg_fill FROM orderexecutions AS oe JOIN orders AS o ON oe.ordersmark = o.recordvault GROUP BY o.orderspivot, oe.ordersmark, o.timespan), ranked AS (SELECT ordersmark, timespan, order_avg_fill, AVG(order_avg_fill) OVER (PARTITION BY timespan) AS tif_avg_fill, RANK() OVER (PARTITION BY timespan ORDER BY order_avg_fill DESC NULLS LAST) AS fill_rank FROM order_averages) SELECT ordersmark, timespan, order_avg_fill, order_avg_fill - tif_avg_fill AS above_tif_avg_fill, fill_rank FROM ranked WHERE order_avg_fill > tif_avg_fill AND fill_rank <= 3",
+  "assumptions": [
+   {
+    "assumption": "The time-in-force average is the average of the per-order averages, so each matched order has equal weight.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The time-in-force average is taken across all matched execution fillcounts, so orders with more nonnull fills have more weight.",
+    "sql": "WITH matched AS (SELECT o.orderspivot, oe.ordersmark, o.timespan, oe.fillcount FROM orderexecutions AS oe JOIN orders AS o ON oe.ordersmark = o.recordvault), order_averages AS (SELECT orderspivot, ordersmark, timespan, AVG(fillcount) AS order_avg_fill FROM matched GROUP BY orderspivot, ordersmark, timespan), tif_averages AS (SELECT timespan, AVG(fillcount) AS tif_avg_fill FROM matched GROUP BY timespan), ranked AS (SELECT oa.ordersmark, oa.timespan, oa.order_avg_fill, ta.tif_avg_fill, RANK() OVER (PARTITION BY oa.timespan ORDER BY oa.order_avg_fill DESC NULLS LAST) AS fill_rank FROM order_averages AS oa JOIN tif_averages AS ta ON oa.timespan IS NOT DISTINCT FROM ta.timespan) SELECT ordersmark, timespan, order_avg_fill, order_avg_fill - tif_avg_fill AS above_tif_avg_fill, fill_rank FROM ranked WHERE order_avg_fill > tif_avg_fill AND fill_rank <= 3"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "The time-in-force average is taken across all matched execution fillcounts, so orders with more nonnull fills have more weight.",
+   "sql": "WITH matched AS (SELECT o.orderspivot, oe.ordersmark, o.timespan, oe.fillcount FROM orderexecutions AS oe JOIN orders AS o ON oe.ordersmark = o.recordvault), order_averages AS (SELECT orderspivot, ordersmark, timespan, AVG(fillcount) AS order_avg_fill FROM matched GROUP BY orderspivot, ordersmark, timespan), tif_averages AS (SELECT timespan, AVG(fillcount) AS tif_avg_fill FROM matched GROUP BY timespan), ranked AS (SELECT oa.ordersmark, oa.timespan, oa.order_avg_fill, ta.tif_avg_fill, RANK() OVER (PARTITION BY oa.timespan ORDER BY oa.order_avg_fill DESC NULLS LAST) AS fill_rank FROM order_averages AS oa JOIN tif_averages AS ta ON oa.timespan IS NOT DISTINCT FROM ta.timespan) SELECT ordersmark, timespan, order_avg_fill, order_avg_fill - tif_avg_fill AS above_tif_avg_fill, fill_rank FROM ranked WHERE order_avg_fill > tif_avg_fill AND fill_rank <= 3",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 26.7,
+ "chars_out": 1917
+}

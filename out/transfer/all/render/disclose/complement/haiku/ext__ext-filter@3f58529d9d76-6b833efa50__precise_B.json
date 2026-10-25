@@ -1,0 +1,43 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-6b833efa50",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH filtered AS (SELECT s.healtheval AS status, sc.scancount, sc.gbsize / NULLIF(sc.spanmin, 0) AS ratio FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE CAST(sc.chronotag AS TEXT) > '2024-06-06 11:53:59.684274' AND CAST(sc.chronotag AS TEXT) < '2024-11-03 19:51:13.516797' AND s.healtheval IS NOT NULL), per_status AS (SELECT status, SUM(scancount) AS total_scans, AVG(ratio) AS avg_ratio FROM filtered GROUP BY status), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_status) SELECT p.status, p.total_scans, p.avg_ratio, p.avg_ratio - o.mean_ratio AS deviation_from_mean FROM per_status p CROSS JOIN overall o WHERE o.mean_ratio IS NOT NULL;",
+  "assumptions": [
+   {
+    "assumption": "chronotag is compared as text by casting it to TEXT, so the bounds are matched lexically against 'YYYY-MM-DD HH:MM:SS[.ffffff]' strings, as the request specifies.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Scans whose site has a NULL healtheval are excluded, because they have no status to group under. The request does not say whether a missing status should form its own group.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The per-status average is the mean of the per-scan ratio gbsize / spanmin. Scans with NULL gbsize or spanmin, or spanmin = 0, are skipped in that average, but their scancount still counts toward the total.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The mean of the status-level averages is unweighted (each status counts once). If no status has a computable average, the query returns no rows.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Keep scans whose site has a missing health and safety status as their own group, so NULL healtheval appears as a status row alongside the others.",
+    "sql": "WITH filtered AS (SELECT s.healtheval AS status, sc.scancount, sc.gbsize / NULLIF(sc.spanmin, 0) AS ratio FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE CAST(sc.chronotag AS TEXT) > '2024-06-06 11:53:59.684274' AND CAST(sc.chronotag AS TEXT) < '2024-11-03 19:51:13.516797'), per_status AS (SELECT status, SUM(scancount) AS total_scans, AVG(ratio) AS avg_ratio FROM filtered GROUP BY status), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_status) SELECT p.status, p.total_scans, p.avg_ratio, p.avg_ratio - o.mean_ratio AS deviation_from_mean FROM per_status p CROSS JOIN overall o WHERE o.mean_ratio IS NOT NULL;"
+   },
+   {
+    "interpretation": "The average file size per scan minute for each status is a ratio of totals (sum of gbsize divided by sum of spanmin over valid rows), not the mean of per-scan ratios.",
+    "sql": "WITH filtered AS (SELECT s.healtheval AS status, sc.scancount, sc.gbsize, sc.spanmin FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE CAST(sc.chronotag AS TEXT) > '2024-06-06 11:53:59.684274' AND CAST(sc.chronotag AS TEXT) < '2024-11-03 19:51:13.516797' AND s.healtheval IS NOT NULL), per_status AS (SELECT status, SUM(scancount) AS total_scans, SUM(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0 THEN gbsize END) / SUM(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0 THEN spanmin END) AS avg_ratio FROM filtered GROUP BY status), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_status) SELECT p.status, p.total_scans, p.avg_ratio, p.avg_ratio - o.mean_ratio AS deviation_from_mean FROM per_status p CROSS JOIN overall o WHERE o.mean_ratio IS NOT NULL;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 19.8
+}

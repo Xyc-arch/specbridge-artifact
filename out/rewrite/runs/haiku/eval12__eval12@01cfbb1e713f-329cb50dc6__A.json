@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-329cb50dc6",
+ "model": "haiku",
+ "reading": "A",
+ "description": "An account's region is the region of the branch where the account is held.",
+ "c": {
+  "request": "For each account with standing orders, count its orders, grouping by account id (`order.account_id`) and the account's region (`district.A3`). Work out how far each account's order count is above or below the average count across all these account\u2013region rows. Then average those differences within each region, and keep only the accounts whose difference is greater than their region's average difference. Show the account id, region, number of orders, difference from the overall average, and how much that difference exceeds the region's average difference. Sort by that last value from highest to lowest, return only the top 10, and don't round anything. An account's region is the region of the branch where the account is held.",
+  "sql": "WITH acct_counts AS (SELECT o.account_id AS account_id, d.A3 AS region, COUNT(*) AS order_count FROM `order` o JOIN account a ON a.account_id = o.account_id JOIN district d ON d.district_id = a.district_id GROUP BY o.account_id, d.A3), overall AS (SELECT AVG(CAST(order_count AS REAL)) AS avg_count FROM acct_counts), diffs AS (SELECT c.account_id, c.region, c.order_count, c.order_count - ov.avg_count AS diff FROM acct_counts c CROSS JOIN overall ov), region_avg AS (SELECT region, AVG(diff) AS region_avg_diff FROM diffs GROUP BY region) SELECT df.account_id, df.region, df.order_count, df.diff, df.diff - ra.region_avg_diff AS excess FROM diffs df JOIN region_avg ra ON ra.region = df.region WHERE df.diff > ra.region_avg_diff ORDER BY excess DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each account with standing orders, count its orders, grouping by account id (`order.account_id`) and the region (`district.A3`) of the branch district where the account is held (`account.district_id`), not where its owner lives. Work out how far each account's order count is above or below the average count across all these account\u2013region rows. Then average those differences within each region, and keep only the accounts whose difference is greater than their region's average difference. Show the account id, region, number of orders, difference from the overall average, and how much that difference exceeds the region's average difference. Sort by that last value from highest to lowest, return only the top 10, and don't round anything.",
+  "sql": "WITH order_counts AS (SELECT o.account_id, d.A3 AS region, COUNT(*) AS order_count FROM `order` o JOIN account a ON a.account_id = o.account_id JOIN district d ON d.district_id = a.district_id GROUP BY o.account_id, d.A3), overall AS (SELECT AVG(order_count) AS overall_avg FROM order_counts), diffs AS (SELECT oc.account_id, oc.region, oc.order_count, oc.order_count - ov.overall_avg AS diff FROM order_counts oc CROSS JOIN overall ov), region_avg AS (SELECT region, AVG(diff) AS region_avg_diff FROM diffs GROUP BY region) SELECT df.account_id, df.region, df.order_count, df.diff, df.diff - ra.region_avg_diff AS excess_over_region_avg FROM diffs df JOIN region_avg ra ON ra.region = df.region WHERE df.diff > ra.region_avg_diff ORDER BY excess_over_region_avg DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each account with at least one row in `order`, count its orders grouped by (`order.account_id`, `district.A3` of the account's `district_id`), compute each row's count minus the mean count over all such account\u2013region rows, average those differences per region, keep rows whose difference exceeds their region's average difference, and return the top 10 by that excess (descending), showing account_id, region, order count, difference from overall average, and excess over region average, unrounded",
+  "sql": "WITH base AS (\n  SELECT o.account_id, d.A3 AS region, COUNT(*) AS order_count\n  FROM `order` o\n  JOIN account a ON a.account_id = o.account_id\n  JOIN district d ON d.district_id = a.district_id\n  GROUP BY o.account_id, d.A3\n),\noverall AS (\n  SELECT AVG(order_count) AS avg_count FROM base\n),\ndiffs AS (\n  SELECT b.account_id, b.region, b.order_count,\n         b.order_count - o.avg_count AS diff_from_avg\n  FROM base b CROSS JOIN overall o\n),\nregion_avg AS (\n  SELECT region, AVG(diff_from_avg) AS region_avg_diff\n  FROM diffs\n  GROUP BY region\n),\nscored AS (\n  SELECT d.account_id, d.region, d.order_count, d.diff_from_avg,\n         d.diff_from_avg - r.region_avg_diff AS excess\n  FROM diffs d\n  JOIN region_avg r ON d.region = r.region\n)\nSELECT account_id, region, order_count, diff_from_avg, excess\nFROM scored\nWHERE excess > 0\nORDER BY excess DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Rephrased as a standalone question:\n\nFor each account with standing orders, count its orders, grouping by account id (`order.account_id`) and the account's region, defined as the region of the branch where the account is held (`district.A3`). Work out how far each account's order count is above or below the average count across all these account\u2013region rows. Then average those differences within each region, and keep only the accounts whose difference is greater than their region's average difference. Show the account id, region, number of orders, difference from the overall average, and how much that difference exceeds the region's average difference. Sort by that last value from highest to lowest, return only the top 10, and don't round anything.",
+  "sql": "WITH acct_counts AS (SELECT o.account_id, d.A3 AS region, COUNT(*) AS order_count FROM `order` o JOIN account a ON a.account_id = o.account_id JOIN district d ON d.district_id = a.district_id GROUP BY o.account_id, d.A3), overall AS (SELECT AVG(order_count) AS overall_avg FROM acct_counts), diffs AS (SELECT c.account_id, c.region, c.order_count, c.order_count - o.overall_avg AS diff FROM acct_counts c CROSS JOIN overall o), region_avg AS (SELECT region, AVG(diff) AS region_avg_diff FROM diffs GROUP BY region) SELECT d.account_id, d.region, d.order_count, d.diff, d.diff - r.region_avg_diff AS excess_over_region_avg FROM diffs d JOIN region_avg r ON r.region = d.region WHERE d.diff > r.region_avg_diff ORDER BY excess_over_region_avg DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

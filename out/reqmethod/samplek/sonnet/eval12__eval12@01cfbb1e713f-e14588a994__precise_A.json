@@ -1,0 +1,84 @@
+{
+ "queries": [
+  "WITH g AS (SELECT p.fundflux, AVG(s.boxy * 1.0 / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS n FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(n * 1.0) AS m FROM g) SELECT AVG(g.avg_ratio) AS avg_of_kept_ratios, SUM(g.n) AS total_records, AVG(g.n - a.m) AS avg_excess_over_mean FROM g CROSS JOIN a WHERE g.n > a.m",
+  "WITH g AS (SELECT p.fundflux, AVG(s.boxy * 1.0 / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS n FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), t AS (SELECT fundflux, avg_ratio, n, AVG(n * 1.0) OVER () AS avg_n FROM g) SELECT AVG(avg_ratio) AS avg_ratio_of_kept_sources, SUM(n) AS total_spatial_records, AVG(n - avg_n) AS avg_excess_over_mean_count FROM t WHERE n > avg_n",
+  "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g), k AS (SELECT g.*, a.avg_cnt FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt) SELECT AVG(avg_ratio) AS avg_of_kept_ratios, SUM(cnt) AS total_record_count, AVG(cnt - avg_cnt) AS avg_excess_over_mean FROM k"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT p.fundflux, AVG(s.boxy * 1.0 / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS n FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(n * 1.0) AS m FROM g) SELECT AVG(g.avg_ratio) AS avg_of_kept_ratios, SUM(g.n) AS total_records, AVG(g.n - a.m) AS avg_excess_over_mean FROM g CROSS JOIN a WHERE g.n > a.m",
+   "assumptions": [
+    {
+     "assumption": "Spatial records are matched to projects with an inner join, so records without a matching project are excluded. A NULL fundflux forms its own group, because GROUP BY puts NULLs together.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The ratio boxy/boxz is computed per record. A record with a NULL boxy or boxz, or with boxz = 0, is ignored in the average through NULLIF. Each source's ratio is the mean of its record ratios.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The final ratio is the unweighted average of the kept sources' per-source average ratios. It is not a record-weighted average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The cross-source average count is taken over all funding groups, including the NULL group. The comparison is strict (>).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT p.fundflux, AVG(s.boxy * 1.0 / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS n FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), t AS (SELECT fundflux, avg_ratio, n, AVG(n * 1.0) OVER () AS avg_n FROM g) SELECT AVG(avg_ratio) AS avg_ratio_of_kept_sources, SUM(n) AS total_spatial_records, AVG(n - avg_n) AS avg_excess_over_mean_count FROM t WHERE n > avg_n",
+   "assumptions": [
+    {
+     "assumption": "Only spatial records with a matching project are counted (inner join). Records whose project does not exist are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL fundflux forms its own group, and it counts as one funding source when the cross-source average is computed.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Each source's ratio is the average of the per-record boxy/boxz ratios, not the ratio of sums. Records with a NULL boxy or boxz are ignored by AVG. A boxz of 0 is treated as missing (NULLIF) to avoid division by zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The cross-source average count is the unweighted mean of the per-source record counts. The final ratio is the unweighted mean of the kept sources' average ratios.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The number of spatial records is the count of all matched rows, including those with missing boxy or boxz.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g), k AS (SELECT g.*, a.avg_cnt FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt) SELECT AVG(avg_ratio) AS avg_of_kept_ratios, SUM(cnt) AS total_record_count, AVG(cnt - avg_cnt) AS avg_excess_over_mean FROM k",
+   "assumptions": [
+    {
+     "assumption": "Each funding source's ratio is the average of the per-record boxy/boxz values. Records with a missing boxy or boxz are skipped, and a boxz of 0 is treated as missing to avoid division by zero. The final ratio is the unweighted mean of the kept sources' ratios.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only spatial records that match a project (inner join) are counted. A NULL fundflux forms its own group, because GROUP BY treats NULLs as one group. The cross-source average count is the mean of the per-source counts over all groups, with no weighting.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The count of spatial records is the number of joined rows per source, including rows where the ratio is missing.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e14588a994",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123969,
+  "chars_out": 3931
+ }
+}

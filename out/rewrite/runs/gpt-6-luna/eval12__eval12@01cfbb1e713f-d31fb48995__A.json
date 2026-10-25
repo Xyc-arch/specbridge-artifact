@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-d31fb48995",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The overall baseline pulse rate is the average of the per-telescope average pulse rates, with each telescope weighted equally.",
+ "c": {
+  "request": "For each telescope in the signals table (`telescref`), work out its average pulse rate (`pulsepersec`), ignoring missing values, and keep the telescopes whose average is above the overall average pulse rate. Among those, keep only the ones whose average is also above the average of the kept telescopes' averages. In one row, give these final telescopes' mean average pulse rate, how far on average they sit above the overall average, and how far on average they sit above that second average. Don't round anything. The overall baseline pulse rate is the average of the per-telescope average pulse rates, with each telescope weighted equally.",
+  "sql": "WITH telescope_averages AS (\n  SELECT telescref, AVG(pulsepersec) AS avg_pulse_rate\n  FROM signals\n  GROUP BY telescref\n  HAVING AVG(pulsepersec) IS NOT NULL\n), overall_average AS (\n  SELECT AVG(avg_pulse_rate) AS avg_pulse_rate\n  FROM telescope_averages\n), above_overall AS (\n  SELECT ta.telescref, ta.avg_pulse_rate, oa.avg_pulse_rate AS overall_avg\n  FROM telescope_averages ta\n  CROSS JOIN overall_average oa\n  WHERE ta.avg_pulse_rate > oa.avg_pulse_rate\n), second_average AS (\n  SELECT AVG(avg_pulse_rate) AS avg_pulse_rate\n  FROM above_overall\n), final_telescopes AS (\n  SELECT ao.avg_pulse_rate, ao.overall_avg, sa.avg_pulse_rate AS second_avg\n  FROM above_overall ao\n  CROSS JOIN second_average sa\n  WHERE ao.avg_pulse_rate > sa.avg_pulse_rate\n)\nSELECT AVG(avg_pulse_rate) AS mean_average_pulse_rate,\n       AVG(avg_pulse_rate - overall_avg) AS average_above_overall_average,\n       AVG(avg_pulse_rate - second_avg) AS average_above_second_average\nFROM final_telescopes;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each telescope, calculate the mean of its nonmissing `signals.pulsepersec` values. Calculate the overall baseline as the unweighted mean of those per-telescope means. Keep telescopes whose mean exceeds that baseline, then calculate the unweighted mean of the kept telescopes\u2019 means and keep those whose mean exceeds this second average. Return one row containing the unweighted mean pulse rate of the final telescopes, their average difference above the overall baseline, and their average difference above the second average, without rounding",
+  "sql": "WITH telescope_means AS (\n  SELECT s.telescref, AVG(s.pulsepersec) AS mean_pulse_rate\n  FROM signals AS s\n  WHERE s.pulsepersec IS NOT NULL\n  GROUP BY s.telescref\n), baseline AS (\n  SELECT AVG(mean_pulse_rate) AS overall_baseline\n  FROM telescope_means\n), above_baseline AS (\n  SELECT tm.telescref, tm.mean_pulse_rate, b.overall_baseline\n  FROM telescope_means AS tm\n  CROSS JOIN baseline AS b\n  WHERE tm.mean_pulse_rate > b.overall_baseline\n), second_average AS (\n  SELECT AVG(mean_pulse_rate) AS second_average\n  FROM above_baseline\n), final_telescopes AS (\n  SELECT ab.mean_pulse_rate, ab.overall_baseline, sa.second_average\n  FROM above_baseline AS ab\n  CROSS JOIN second_average AS sa\n  WHERE ab.mean_pulse_rate > sa.second_average\n)\nSELECT\n  AVG(mean_pulse_rate) AS mean_pulse_rate,\n  AVG(mean_pulse_rate - overall_baseline) AS average_difference_above_overall_baseline,\n  AVG(mean_pulse_rate - second_average) AS average_difference_above_second_average\nFROM final_telescopes;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each telescope referenced in the signals table (`telescref`), compute its average pulse rate (`pulsepersec`), ignoring missing values. Set a first baseline equal to the simple average of these per-telescope averages, where every telescope counts once regardless of how many signals it has. Keep the telescopes whose average pulse rate is above this first baseline. Then set a second baseline equal to the average of the kept telescopes' average pulse rates, and keep only those telescopes whose average is also above it. In a single row, report for these final telescopes: the mean of their average pulse rates, the mean amount by which their average exceeds the first baseline, and the mean amount by which it exceeds the second baseline. Don't round anything.",
+  "sql": "WITH telescope_averages AS (\n  SELECT telescref, AVG(pulsepersec) AS avg_pulse_rate\n  FROM signals\n  GROUP BY telescref\n  HAVING COUNT(pulsepersec) > 0\n), first_baseline AS (\n  SELECT AVG(avg_pulse_rate) AS baseline\n  FROM telescope_averages\n), above_first AS (\n  SELECT ta.telescref, ta.avg_pulse_rate, fb.baseline AS first_baseline\n  FROM telescope_averages ta\n  CROSS JOIN first_baseline fb\n  WHERE ta.avg_pulse_rate > fb.baseline\n), second_baseline AS (\n  SELECT AVG(avg_pulse_rate) AS baseline\n  FROM above_first\n), final_telescopes AS (\n  SELECT af.avg_pulse_rate, af.first_baseline, sb.baseline AS second_baseline\n  FROM above_first af\n  CROSS JOIN second_baseline sb\n  WHERE af.avg_pulse_rate > sb.baseline\n)\nSELECT AVG(avg_pulse_rate) AS mean_average_pulse_rate,\n       AVG(avg_pulse_rate - first_baseline) AS mean_excess_over_first_baseline,\n       AVG(avg_pulse_rate - second_baseline) AS mean_excess_over_second_baseline\nFROM final_telescopes;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the `signals` table, calculate the mean of the per-telescope average pulse rates, weighting each telescope equally and ignoring missing values. Then report, in one row and without rounding, the final telescopes\u2019 mean average pulse rate, their average excess above this baseline, and their average excess above the mean average of the initially kept telescopes. To find the final telescopes, first keep telescopes whose average pulse rate is above the baseline, then keep only those whose average is above the average of the initially kept telescopes.",
+  "sql": "WITH telescope_averages AS (\n  SELECT telescref, AVG(pulsepersec) AS avg_pulse_rate\n  FROM signals\n  GROUP BY telescref\n  HAVING AVG(pulsepersec) IS NOT NULL\n), baseline AS (\n  SELECT AVG(avg_pulse_rate) AS mean_avg_pulse_rate\n  FROM telescope_averages\n), initially_kept AS (\n  SELECT ta.telescref, ta.avg_pulse_rate\n  FROM telescope_averages ta\n  CROSS JOIN baseline b\n  WHERE ta.avg_pulse_rate > b.mean_avg_pulse_rate\n), initial_mean AS (\n  SELECT AVG(avg_pulse_rate) AS mean_avg_pulse_rate\n  FROM initially_kept\n), final_kept AS (\n  SELECT ik.avg_pulse_rate\n  FROM initially_kept ik\n  CROSS JOIN initial_mean im\n  WHERE ik.avg_pulse_rate > im.mean_avg_pulse_rate\n)\nSELECT AVG(fk.avg_pulse_rate) AS final_telescopes_mean_average_pulse_rate,\n       AVG(fk.avg_pulse_rate) - b.mean_avg_pulse_rate AS average_excess_above_baseline,\n       AVG(fk.avg_pulse_rate) - im.mean_avg_pulse_rate AS average_excess_above_initially_kept_mean\nFROM final_kept fk\nCROSS JOIN baseline b\nCROSS JOIN initial_mean im;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

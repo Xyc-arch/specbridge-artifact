@@ -1,0 +1,76 @@
+{
+ "queries": [
+  "WITH g AS (SELECT t.ordertypedist, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), s AS (SELECT ordertypedist, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), b AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS baseline FROM s) SELECT ordertypedist, cnt AS distinct_transactions, share, share - baseline AS above_baseline FROM b WHERE share > baseline ORDER BY share DESC",
+  "WITH linked AS (SELECT t.ordertypedist AS ordertypedist, COUNT(DISTINCT t.transreg) AS txn_count FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, txn_count, txn_count * 1.0 / SUM(txn_count) OVER () AS share FROM linked), baseline AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM shares s) SELECT ordertypedist, txn_count, share, share - avg_share AS share_above_baseline FROM baseline WHERE share > avg_share ORDER BY share DESC",
+  "WITH linked AS (SELECT t.ordertypedist AS ordertypedist, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM linked), base AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS baseline FROM shares) SELECT ordertypedist, cnt AS transaction_count, share, share - baseline AS excess_over_baseline FROM base WHERE share > baseline ORDER BY share DESC"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT t.ordertypedist, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), s AS (SELECT ordertypedist, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), b AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS baseline FROM s) SELECT ordertypedist, cnt AS distinct_transactions, share, share - baseline AS above_baseline FROM b WHERE share > baseline ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "Share is expressed as a fraction (0-1), not a percentage, and the excess over baseline is in the same fraction units.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Records with a NULL ordertypedist form their own group, shown with a NULL mix value, and count as one of the mixes in the baseline average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The total across mixes is the sum of the per-mix distinct transaction counts. Each transaction has exactly one mix, so this equals the overall distinct transaction count.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH linked AS (SELECT t.ordertypedist AS ordertypedist, COUNT(DISTINCT t.transreg) AS txn_count FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, txn_count, txn_count * 1.0 / SUM(txn_count) OVER () AS share FROM linked), baseline AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM shares s) SELECT ordertypedist, txn_count, share, share - avg_share AS share_above_baseline FROM baseline WHERE share > avg_share ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "The total across all mixes is the sum of the per-mix distinct transaction counts. Each transaction has one ordertypedist, so this equals the number of distinct linked transactions. Shares therefore sum to 1.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Records with a NULL ordertypedist form their own group, which is included in the total and in the baseline average, and can be returned if its share is above the baseline.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the unweighted average of the per-mix shares. It equals 1 divided by the number of mixes, including the NULL group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The gap is the share minus the baseline, shown as a fraction (not a percentage) and unrounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH linked AS (SELECT t.ordertypedist AS ordertypedist, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM linked), base AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS baseline FROM shares) SELECT ordertypedist, cnt AS transaction_count, share, share - baseline AS excess_over_baseline FROM base WHERE share > baseline ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "Records with NULL ordertypedist form their own group (GROUP BY keeps NULLs as one group), and this group counts as a mix in the total and in the baseline average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The total across all mixes is the sum of per-mix distinct transaction counts. Since transreg is the primary key, each transaction has one mix, so this equals the number of distinct linked transactions.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the unweighted mean of the per-mix shares, which equals 1 divided by the number of mixes. The 'how far above' figure is share minus baseline, as an absolute difference in share and not a relative ratio.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 53061,
+  "chars_out": 3678
+ }
+}

@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH c AS (SELECT p.SEX AS sex, COUNT(DISTINCT e.ID) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM c) SELECT 'per_sex' AS row_type, sex, n, share, NULL AS avg_excess_over_mean FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n",
+  "WITH c AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM c) SELECT 'per_sex' AS row_type, sex, n, share, NULL AS avg_excess_over_mean FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n",
+  "WITH g AS (SELECT p.SEX AS sex, COUNT(DISTINCT e.ID) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / (SELECT SUM(n) FROM g) AS share, (SELECT AVG(n * 1.0) FROM g) AS avg_n FROM g) SELECT 'per_sex' AS row_type, COALESCE(sex, '(missing)') AS sex, n AS total_examined, share, NULL AS avg_excess_over_average FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n",
+  "WITH g AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / (SELECT SUM(n) FROM g) AS share, (SELECT AVG(n * 1.0) FROM g) AS avg_n FROM g) SELECT 'per_sex' AS row_type, COALESCE(sex, '(missing)') AS sex, n AS total_examined, share, NULL AS avg_excess_over_average FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n",
+  "WITH g AS (SELECT COALESCE(p.SEX, '(missing)') AS sex, COUNT(DISTINCT e.ID) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY COALESCE(p.SEX, '(missing)')), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM g) SELECT SUM(n) AS combined_total, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_above_average FROM s WHERE n > avg_n",
+  "WITH g AS (SELECT COALESCE(p.SEX, '(missing)') AS sex, COUNT(*) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY COALESCE(p.SEX, '(missing)')), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM g) SELECT SUM(n) AS combined_total, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_above_average FROM s WHERE n > avg_n"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT p.SEX AS sex, COUNT(DISTINCT e.ID) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM c) SELECT 'per_sex' AS row_type, sex, n, share, NULL AS avg_excess_over_mean FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n",
+   "assumptions": [
+    {
+     "assumption": "'How many were examined' means distinct patients (people) examined, not the number of examination records.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Examination rows with no matching Patient row fall into the NULL sex group. NULL and blank ('') sex stay as separate groups. The overall total is the sum of the per-sex counts, which equals the number of distinct examined patients.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The per-sex average is the mean of the per-sex counts across the groups present. The 'above average' summary row has the combined count in n, the mean share in share, and the mean of (count minus per-sex average) in avg_excess_over_mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count examination records (rows) per sex instead of distinct patients, with shares of the total number of examination records.",
+     "sql": "WITH c AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM c) SELECT 'per_sex' AS row_type, sex, n, share, NULL AS avg_excess_over_mean FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n"
+    }
+   ]
+  },
+  {
+   "sql": "WITH g AS (SELECT p.SEX AS sex, COUNT(DISTINCT e.ID) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / (SELECT SUM(n) FROM g) AS share, (SELECT AVG(n * 1.0) FROM g) AS avg_n FROM g) SELECT 'per_sex' AS row_type, COALESCE(sex, '(missing)') AS sex, n AS total_examined, share, NULL AS avg_excess_over_average FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n",
+   "assumptions": [
+    {
+     "assumption": "'How many were examined' counts distinct patients (people) with at least one examination, grouped by Patient.SEX via a left join. NULL sex is labelled '(missing)' and blank sex stays as its own group.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The per-sex average is the mean of the per-group counts, including the blank and missing groups. 'Above average' means a count strictly greater than that mean. The share is the group's count divided by the sum of all group counts. The excess is the count minus the per-sex average, in counts.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The per-sex rows and the single summary row are returned in one result set, distinguished by row_type.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count examination records (rows) per sex instead of distinct patients.",
+     "sql": "WITH g AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), s AS (SELECT sex, n, n * 1.0 / (SELECT SUM(n) FROM g) AS share, (SELECT AVG(n * 1.0) FROM g) AS avg_n FROM g) SELECT 'per_sex' AS row_type, COALESCE(sex, '(missing)') AS sex, n AS total_examined, share, NULL AS avg_excess_over_average FROM s UNION ALL SELECT 'above_average_summary', NULL, SUM(n), AVG(share), AVG(n - avg_n) FROM s WHERE n > avg_n"
+    }
+   ]
+  },
+  {
+   "sql": "WITH g AS (SELECT COALESCE(p.SEX, '(missing)') AS sex, COUNT(DISTINCT e.ID) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY COALESCE(p.SEX, '(missing)')), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM g) SELECT SUM(n) AS combined_total, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_above_average FROM s WHERE n > avg_n",
+   "assumptions": [
+    {
+     "assumption": "'How many were examined' means distinct patients with at least one examination, not the number of examination records.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Examinations are joined to Patient with a LEFT JOIN. NULL SEX (or no matching patient) is grouped as '(missing)', and an empty-string SEX stays its own separate group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The per-sex average is the mean of the group counts across all sex groups. The overall total is the sum of the group counts. 'How far above' is the count difference, not the share difference.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count examination records (rows) per sex instead of distinct patients.",
+     "sql": "WITH g AS (SELECT COALESCE(p.SEX, '(missing)') AS sex, COUNT(*) AS n FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY COALESCE(p.SEX, '(missing)')), s AS (SELECT sex, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n) OVER () AS avg_n FROM g) SELECT SUM(n) AS combined_total, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_above_average FROM s WHERE n > avg_n"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b6c13c0329",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 25674,
+  "chars_out": 5104
+ }
+}

@@ -1,0 +1,19 @@
+{
+ "interpretations": [
+  "For each invoice number appearing in `Invoice_Line_Items`, average nonmissing `derived_product_cost` values and separately average valid line ratios (`derived_total_cost / product_price`). Find the average of the invoice ratios, keep invoices above it, and return one row with the three averages over kept invoices: average line product cost, invoice ratio, and invoice ratio minus the overall average. Do not round",
+  "For each invoice number appearing in `Invoice_Line_Items`, exclude any line missing a value needed for either measure, then calculate both invoice measures from the remaining lines. Keep invoices whose ratio exceeds the average invoice ratio, and return the same three unrounded averages over those invoices"
+ ],
+ "queries": [
+  "WITH invoice_averages AS (\n    SELECT\n        invoice_number,\n        AVG(derived_product_cost) AS average_product_cost,\n        AVG(1.0 * derived_total_cost / NULLIF(product_price, 0)) AS invoice_ratio\n    FROM Invoice_Line_Items\n    GROUP BY invoice_number\n),\noverall_average AS (\n    SELECT AVG(invoice_ratio) AS average_invoice_ratio\n    FROM invoice_averages\n)\nSELECT\n    AVG(i.average_product_cost) AS average_product_cost,\n    AVG(i.invoice_ratio) AS average_invoice_ratio,\n    AVG(i.invoice_ratio - o.average_invoice_ratio) AS average_ratio_difference\nFROM invoice_averages AS i\nCROSS JOIN overall_average AS o\nWHERE i.invoice_ratio > o.average_invoice_ratio",
+  "WITH invoice_measures AS (\n    SELECT\n        invoice_number,\n        SUM(derived_product_cost) AS product_cost,\n        SUM(derived_vat_payable) AS vat_payable\n    FROM Invoice_Line_Items\n    WHERE derived_product_cost IS NOT NULL\n      AND derived_vat_payable IS NOT NULL\n    GROUP BY invoice_number\n),\ninvoice_ratios AS (\n    SELECT\n        product_cost,\n        vat_payable,\n        vat_payable * 1.0 / NULLIF(product_cost, 0) AS invoice_ratio\n    FROM invoice_measures\n)\nSELECT\n    AVG(product_cost),\n    AVG(vat_payable),\n    AVG(invoice_ratio)\nFROM invoice_ratios\nWHERE invoice_ratio > (SELECT AVG(invoice_ratio) FROM invoice_ratios)"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fbb044ab6b",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 4,
+  "chars_in": 16286,
+  "chars_out": 2074
+ }
+}

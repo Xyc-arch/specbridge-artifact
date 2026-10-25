@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "WITH oc AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), sh AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT COUNT(*) FROM Invoices) AS share FROM oc), av AS (SELECT AVG(share) AS avg_share FROM sh) SELECT SUM(sh.cnt) AS total_invoices, AVG(sh.share) AS average_share, AVG(sh.share - av.avg_share) AS average_excess_over_average_share FROM sh CROSS JOIN av WHERE sh.share > av.avg_share;",
+  "WITH oc AS (SELECT order_id, COUNT(*) AS cnt FROM Invoices GROUP BY order_id), sh AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT COUNT(*) FROM Invoices) AS share FROM oc), av AS (SELECT AVG(share) AS avg_share FROM sh) SELECT SUM(sh.cnt) AS total_invoices, AVG(sh.share) AS average_share, AVG(sh.share - av.avg_share) AS average_excess_over_average_share FROM sh CROSS JOIN av WHERE sh.share > av.avg_share;",
+  "WITH c AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT order_id, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_invoices, AVG(share) AS average_share, AVG(share - avg_share) AS average_excess_over_average_share FROM a WHERE share > avg_share;",
+  "WITH c AS (SELECT order_id, COUNT(*) AS cnt FROM Invoices GROUP BY order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT order_id, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_invoices, AVG(share) AS average_share, AVG(share - avg_share) AS average_excess_over_average_share FROM a WHERE share > avg_share;",
+  "WITH c AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_invoices, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+  "WITH c AS (SELECT order_id, COUNT(*) AS cnt FROM Invoices GROUP BY order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_invoices, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH oc AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), sh AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT COUNT(*) FROM Invoices) AS share FROM oc), av AS (SELECT AVG(share) AS avg_share FROM sh) SELECT SUM(sh.cnt) AS total_invoices, AVG(sh.share) AS average_share, AVG(sh.share - av.avg_share) AS average_excess_over_average_share FROM sh CROSS JOIN av WHERE sh.share > av.avg_share;",
+   "assumptions": [
+    {
+     "assumption": "\"Each order\" means every row in Orders, including orders with zero invoices (share 0). These orders are part of the average share, which equals 1 divided by the number of orders.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The total of all invoices is the row count of Invoices. Shares are computed as unrounded decimals.",
+     "unresolved": false
+    },
+    {
+     "assumption": "\"Average share\" is the mean of the per-order shares over all orders. The output's average share and average excess are taken over only the orders strictly above that mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Only orders that have at least one invoice are counted as orders. Orders with no invoices are excluded from the average share.",
+     "sql": "WITH oc AS (SELECT order_id, COUNT(*) AS cnt FROM Invoices GROUP BY order_id), sh AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT COUNT(*) FROM Invoices) AS share FROM oc), av AS (SELECT AVG(share) AS avg_share FROM sh) SELECT SUM(sh.cnt) AS total_invoices, AVG(sh.share) AS average_share, AVG(sh.share - av.avg_share) AS average_excess_over_average_share FROM sh CROSS JOIN av WHERE sh.share > av.avg_share;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT order_id, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_invoices, AVG(share) AS average_share, AVG(share - avg_share) AS average_excess_over_average_share FROM a WHERE share > avg_share;",
+   "assumptions": [
+    {
+     "assumption": "'Each order' means every row in Orders, including orders with zero invoices (share 0). These orders count in the average share, so the average equals 1 divided by the number of orders.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The total of all invoices is the sum of the per-order counts. Every invoice has a non-null order_id, so this equals the row count of Invoices.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The three output values are computed over only the orders whose share is strictly above the average share. The average share is taken over all orders, not just the qualifying ones.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Only orders that have at least one invoice are counted. Orders with no invoices are excluded, so the average share is 1 divided by the number of invoiced orders.",
+     "sql": "WITH c AS (SELECT order_id, COUNT(*) AS cnt FROM Invoices GROUP BY order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT order_id, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_invoices, AVG(share) AS average_share, AVG(share - avg_share) AS average_excess_over_average_share FROM a WHERE share > avg_share;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_invoices, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+   "assumptions": [
+    {
+     "assumption": "'Each order' means every row in Orders, including orders with no invoices (count 0). These zero-count orders are part of the average share, which is 1/number of orders.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The total number of invoices is the count of all rows in Invoices. The 'average share' is the plain average of the per-order shares across all orders. 'Total number of invoices' in the output is the sum of invoice counts over the above-average orders.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Only orders that have at least one invoice are considered. Orders with no invoices are excluded from the average.",
+     "sql": "WITH c AS (SELECT order_id, COUNT(*) AS cnt FROM Invoices GROUP BY order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_invoices, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69c4bd1cc2",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11748,
+  "chars_out": 4818
+ }
+}

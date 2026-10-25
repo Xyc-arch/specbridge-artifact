@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
+ "model": "haiku",
+ "reading": "B",
+ "description": "A funding source's area-to-volume figure is its summed area divided by its summed volume.",
+ "c": {
+  "request": "Using the spatial records (`scanspatial`) whose `arcref` matches a project's `arcregistry` and dropping any that don't match, look at each funding source (`projects.fundflux`). For each one, give the average relative difference between `boxy` and `boxx`, computed per record as (`boxy` \u2212 `boxx`) \u00f7 `boxx`, and give its area-to-volume ratio (`aream2` to `volm3`). Ignore missing values. Which funding sources have a ratio above the simple average of that ratio across all funding sources? Show the funding source, the average Y-vs-X difference, the ratio, and how far the ratio is above that average, with no rounding. A funding source's area-to-volume figure is its summed area divided by its summed volume.",
+  "sql": "WITH joined AS (\n  SELECT p.fundflux, s.boxx, s.boxy, s.aream2, s.volm3\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  WHERE p.fundflux IS NOT NULL\n),\nper_source AS (\n  SELECT fundflux,\n    AVG(CASE WHEN boxx IS NOT NULL AND boxy IS NOT NULL AND boxx <> 0 THEN (boxy - boxx) / boxx END) AS avg_xy_diff,\n    SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN aream2 END)\n      / NULLIF(SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN volm3 END), 0) AS area_vol_ratio\n  FROM joined\n  GROUP BY fundflux\n),\noverall AS (\n  SELECT AVG(area_vol_ratio) AS avg_ratio FROM per_source\n)\nSELECT ps.fundflux, ps.avg_xy_diff, ps.area_vol_ratio, ps.area_vol_ratio - o.avg_ratio AS above_avg_by\nFROM per_source ps\nCROSS JOIN overall o\nWHERE ps.area_vol_ratio > o.avg_ratio\nORDER BY above_avg_by DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each funding source (`projects.fundflux`), using the spatial records (`scanspatial`) whose `arcref` matches a project's `arcregistry` and dropping any that don't match, work out two numbers. The first is the average over the records of (`boxy` \u2212 `boxx`) \u00f7 `boxx`. The second is the area-to-volume ratio, taken as the records' total `aream2` divided by their total `volm3`. Ignore missing values. Then take the simple average of that area-to-volume figure across all funding sources. List only the funding sources whose figure is above that average. Show the funding source, the average Y-vs-X difference, the area-to-volume figure, and how far the figure is above the cross-source average, with no rounding.",
+  "sql": "WITH src AS (\n  SELECT p.fundflux,\n         AVG(((s.boxy - s.boxx) / NULLIF(s.boxx, 0))::double precision) AS avg_yx_diff,\n         SUM(s.aream2)::double precision / NULLIF(SUM(s.volm3)::double precision, 0) AS area_to_volume\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  WHERE p.fundflux IS NOT NULL\n  GROUP BY p.fundflux\n),\noverall AS (\n  SELECT AVG(area_to_volume) AS cross_avg\n  FROM src\n  WHERE area_to_volume IS NOT NULL\n)\nSELECT src.fundflux,\n       src.avg_yx_diff,\n       src.area_to_volume,\n       src.area_to_volume - overall.cross_avg AS above_cross_avg\nFROM src\nCROSS JOIN overall\nWHERE src.area_to_volume > overall.cross_avg\nORDER BY src.fundflux;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "For each funding source (`projects.fundflux`), inner-join `scanspatial` to `projects` on `arcref = arcregistry`, average the per-record `(boxy \u2212 boxx) / boxx` over non-null rows, compute `SUM(aream2) / SUM(volm3)`, and return the funding sources whose ratio exceeds the unweighted mean of those ratios across all funding sources, with the funding source, average difference, ratio, and ratio minus that mean, unrounded",
+  "sql": "WITH base AS (SELECT p.fundflux, (s.boxy - s.boxx) / NULLIF(s.boxx, 0) AS diff_ratio, s.aream2, s.volm3 FROM scanspatial s INNER JOIN projects p ON s.arcref = p.arcregistry), agg AS (SELECT fundflux, AVG(diff_ratio) AS avg_diff, SUM(aream2) / NULLIF(SUM(volm3), 0) AS ratio FROM base GROUP BY fundflux), overall AS (SELECT AVG(ratio) AS mean_ratio FROM agg) SELECT a.fundflux, a.avg_diff, a.ratio, a.ratio - o.mean_ratio AS ratio_minus_mean FROM agg a CROSS JOIN overall o WHERE a.ratio > o.mean_ratio;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the funding sources in `projects.fundflux`, which ones have an area-to-volume ratio (summed `aream2` \u00f7 summed `volm3`) above the average of that ratio across all funding sources? For each, show the funding source, its average relative difference between `boxy` and `boxx` (per record, (`boxy` \u2212 `boxx`) \u00f7 `boxx`), its ratio, and how far the ratio exceeds the average, unrounded. Use only `scanspatial` records whose `arcref` matches a project's `arcregistry`, and ignore missing values.",
+  "sql": "WITH base AS (SELECT p.fundflux, s.aream2, s.volm3, s.boxx, s.boxy FROM scanspatial s JOIN projects p ON s.arcref = p.arcregistry WHERE p.fundflux IS NOT NULL), ratios AS (SELECT fundflux, SUM(aream2)::double precision / SUM(volm3) AS ratio FROM base WHERE aream2 IS NOT NULL AND volm3 IS NOT NULL AND volm3 <> 0 GROUP BY fundflux), reldiff AS (SELECT fundflux, AVG((boxy - boxx)::double precision / boxx) AS avg_rel_diff FROM base WHERE boxx IS NOT NULL AND boxy IS NOT NULL AND boxx <> 0 GROUP BY fundflux), avg_ratio AS (SELECT AVG(ratio) AS avg_ratio FROM ratios) SELECT r.fundflux, d.avg_rel_diff, r.ratio, r.ratio - a.avg_ratio AS excess_over_avg FROM ratios r CROSS JOIN avg_ratio a LEFT JOIN reldiff d ON d.fundflux = r.fundflux WHERE r.ratio > a.avg_ratio;",
+  "executes": false,
+  "matches": []
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bc39324d95",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "Only products that have order items are included at the per-product level before averaging by type and then overall.",
+ "c": {
+  "request": "For each product, get the average `product_quantity` it was ordered in, how many order items it has, and its share of all order items. Average those three figures over the products in each product type (by type description), then give a single row with the average of each across all product types. Ignore missing values and don't round. Only products that have order items are included at the per-product level before averaging by type and then overall.",
+  "sql": "WITH per_product AS (SELECT p.product_id, p.production_type_code, AVG(CAST(oi.product_quantity AS REAL)) AS avg_qty, COUNT(*) AS item_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM Order_Items) AS share FROM Products p JOIN Order_Items oi ON oi.product_id = p.product_id GROUP BY p.product_id, p.production_type_code), per_type AS (SELECT pc.product_type_description, AVG(pp.avg_qty) AS type_avg_qty, AVG(pp.item_count) AS type_avg_count, AVG(pp.share) AS type_avg_share FROM per_product pp JOIN Product_Categories pc ON pc.production_type_code = pp.production_type_code GROUP BY pc.product_type_description) SELECT AVG(type_avg_qty) AS avg_quantity, AVG(type_avg_count) AS avg_order_item_count, AVG(type_avg_share) AS avg_share FROM per_type",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Considering only products that appear in at least one order item, for each product (with its category's product type description) work out the average `product_quantity` of its order items, the number of order items it has, and its share of all order items (its order-item count divided by the total of those counts over the included products). Then, for each product type description, average those three values over its products, and finally return one row with the average, across all product types, of each of the three per-type averages (average quantity, average order-item count, average share). Ignore missing values in every average and do not round.",
+  "sql": "WITH p AS (SELECT oi.product_id, pc.product_type_description AS d, AVG(CAST(oi.product_quantity AS REAL)) AS aq, COUNT(*) AS c FROM Order_Items oi JOIN Products pr ON pr.product_id = oi.product_id JOIN Product_Categories pc ON pc.production_type_code = pr.production_type_code GROUP BY oi.product_id, pc.product_type_description), t AS (SELECT SUM(c) AS total FROM p), s AS (SELECT p.d, AVG(p.aq) AS aq, AVG(p.c) AS ac, AVG(p.c * 1.0 / t.total) AS ash FROM p, t GROUP BY p.d) SELECT AVG(aq) AS avg_quantity, AVG(ac) AS avg_order_item_count, AVG(ash) AS avg_share FROM s",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Considering only products that appear in at least one order item, compute for each product its average numeric `product_quantity` across its order items, its count of order items, and its share of all order items (count divided by total order items); then average each of these three figures over the products within each product type (grouped by `product_type_description`), ignoring NULLs and without rounding, and finally return a single row averaging each of the three per-type averages across all product types",
+  "sql": "WITH total AS (SELECT COUNT(*) AS total_items FROM Order_Items), per_product AS (SELECT p.product_id, pc.product_type_description, AVG(CAST(oi.product_quantity AS REAL)) AS avg_qty, COUNT(*) AS item_count, CAST(COUNT(*) AS REAL) / (SELECT total_items FROM total) AS item_share FROM Order_Items oi JOIN Products p ON p.product_id = oi.product_id JOIN Product_Categories pc ON pc.production_type_code = p.production_type_code GROUP BY p.product_id, pc.product_type_description), per_type AS (SELECT product_type_description, AVG(avg_qty) AS type_avg_qty, AVG(item_count) AS type_avg_count, AVG(item_share) AS type_avg_share FROM per_product GROUP BY product_type_description) SELECT AVG(type_avg_qty) AS avg_of_avg_quantity, AVG(type_avg_count) AS avg_of_avg_item_count, AVG(type_avg_share) AS avg_of_avg_item_share FROM per_type",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each product that has at least one order item (excluding products with no order items), calculate the average `product_quantity` it was ordered in, the number of order items it has, and its share of all order items. Then, average those three figures over the products in each product type (grouped by type description). Finally, give a single row with the average of each of those three type-level figures across all product types. Ignore missing values and don't round.",
+  "sql": "WITH total AS (SELECT COUNT(*) AS t FROM Order_Items), per_product AS (SELECT p.product_id, pc.product_type_description AS type_desc, AVG(CAST(oi.product_quantity AS REAL)) AS avg_qty, COUNT(*) AS item_count, COUNT(*) * 1.0 / (SELECT t FROM total) AS share FROM Products p JOIN Order_Items oi ON oi.product_id = p.product_id JOIN Product_Categories pc ON pc.production_type_code = p.production_type_code GROUP BY p.product_id, pc.product_type_description), per_type AS (SELECT type_desc, AVG(avg_qty) AS type_avg_qty, AVG(item_count) AS type_avg_count, AVG(share) AS type_avg_share FROM per_product GROUP BY type_desc) SELECT AVG(type_avg_qty) AS avg_of_avg_quantity, AVG(type_avg_count) AS avg_of_item_count, AVG(type_avg_share) AS avg_of_share FROM per_type",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

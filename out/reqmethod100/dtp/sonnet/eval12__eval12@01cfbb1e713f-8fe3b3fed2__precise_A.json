@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Per-telescope average `modindex` is computed over non-null values only. The overall average is the mean of those per-telescope averages. Keep telescopes whose average is strictly above it. The ratio is the telescope's average divided by the mean of the averages of the kept telescopes only. Sort by ratio descending and return the top 10, unrounded.",
+  "Same as 1, but the overall average is the mean of the per-telescope averages across all telescopes that have at least one non-null `modindex`. A telescope with only null values is excluded from the overall average.",
+  "Same as 1, but telescopes with only null `modindex` values count in the overall average as 0 (or as null-averaged telescopes that are somehow included).",
+  "Same as 1, but \"above\" is read as greater than or equal to the overall average, so telescopes exactly at the average are kept.",
+  "Same as 1, but the telescope set comes from the `telescopes` table (`telescregistry`). This includes telescopes with no signals, which have a null average and so are excluded or ignored.",
+  "The \"overall average\" is read as the average of all signals' `modindex` values pooled together (weighted by signal count). This contradicts the stated definition but is a possible misreading.",
+  "Same as 1, but \"how far above\" is read as a percentage difference, ((avg \u2212 overall) / overall) \u00d7 100, not an absolute difference.",
+  "Same as 1, but the ratio is read as the telescope's average divided by the overall average of all telescopes, not the mean of the above-average subset.",
+  "Same as 1, but ties in the ratio are broken by `telescref` order (ascending or descending), or left arbitrary.",
+  "Same as 1, but \"top 10\" is read as including ties at the 10th position, so more than 10 rows may be returned.",
+  "Same as 1, but the output includes only the four named columns (telescope reference, average, difference above overall, ratio). It excludes the overall average and the above-average mean as extra columns.",
+  "Same as 1, but the output also includes the overall average and the above-average subset mean as constant columns on each row.",
+  "\"Without rounding\" is read as full floating-point precision in the output, with no ROUND applied, in every column.",
+  "Same as 1, but zero-valued `modindex` entries are treated as missing and ignored along with nulls.",
+  "Missing interpretations:",
+  "Same as 1, but the ratio and the difference are computed against the pooled (signal-weighted) overall average rather than the mean of per-telescope averages.",
+  "Same as 1, but telescopes with a null `telescref` are grouped as their own group, or excluded.",
+  "Same as 1, but the average is computed over distinct `modindex` values per telescope rather than all non-null rows.",
+  "Same as 1, but the final ordering is by ratio descending and the \"top 10\" is applied before computing the above-average subset mean, so the subset mean is based only on the 10 returned rows.",
+  "Same as 1, but if no telescopes are above the overall average (all equal), an empty result is returned."
+ ],
+ "queries": [
+  "WITH tavg AS (\n  SELECT telescref, AVG(modindex) AS avg_mod\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY telescref\n),\noverall AS (\n  SELECT AVG(avg_mod) AS overall_avg FROM tavg\n),\nkept AS (\n  SELECT telescref, avg_mod\n  FROM tavg, overall\n  WHERE avg_mod > overall_avg\n)\nSELECT telescref, avg_mod / (SELECT AVG(avg_mod) FROM kept) AS ratio\nFROM kept\nORDER BY ratio DESC\nLIMIT 10;\n",
+  "SELECT AVG(avg_mod) FROM (SELECT telescref, AVG(modindex) AS avg_mod FROM signals GROUP BY telescref HAVING COUNT(modindex) > 0)",
+  "SELECT AVG(COALESCE(avg_mod, 0)) AS overall_avg_modindex\nFROM (\n  SELECT t.telescregistry, AVG(s.modindex) AS avg_mod\n  FROM telescopes t\n  JOIN signals s ON s.telescref = t.telescregistry\n  GROUP BY t.telescregistry\n);\n",
+  "SELECT telescregistry FROM telescopes WHERE bandusagepct >= (SELECT AVG(bandusagepct) FROM telescopes);\n",
+  "SELECT t.telescregistry, AVG(s.sigstrdb) AS avg_sigstrdb\nFROM telescopes t\nLEFT JOIN signals s ON s.telescref = t.telescregistry\nGROUP BY t.telescregistry\nHAVING AVG(s.sigstrdb) IS NOT NULL;\n",
+  "SELECT AVG(modindex) FROM signals;\n"
+ ],
+ "raw": [
+  "1. Per-telescope average `modindex` is computed over non-null values only. The overall average is the mean of those per-telescope averages. Keep telescopes whose average is strictly above it. The ratio is the telescope's average divided by the mean of the averages of the kept telescopes only. Sort by ratio descending and return the top 10, unrounded.\n2. Same as 1, but the overall average is the mean of the per-telescope averages across all telescopes that have at least one non-null `modindex`. A telescope with only null values is excluded from the overall average.\n3. Same as 1, but telescopes with only null `modindex` values count in the overall average as 0 (or as null-averaged telescopes that are somehow included).\n4. Same as 1, but \"above\" is read as greater than or equal to the overall average, so telescopes exactly at the average are kept.\n5. Same as 1, but the telescope set comes from the `telescopes` table (`telescregistry`). This includes telescopes with no signals, which have a null average and so are excluded or ignored.\n6. The \"overall average\" is read as the average of all signals' `modindex` values pooled together (weighted by signal count). This contradicts the stated definition but is a possible misreading.\n7. Same as 1, but \"how far above\" is read as a percentage difference, ((avg \u2212 overall) / overall) \u00d7 100, not an absolute difference.\n8. Same as 1, but the ratio is read as the telescope's average divided by the overall average of all telescopes, not the mean of the above-average subset.\n9. Same as 1, but ties in the ratio are broken by `telescref` order (ascending or descending), or left arbitrary.\n10. Same as 1, but \"top 10\" is read as including ties at the 10th position, so more than 10 rows may be returned.\n11. Same as 1, but the output includes only the four named columns (telescope reference, average, difference above overall, ratio). It excludes the overall average and the above-average mean as extra columns.\n12. Same as 1, but the output also includes the overall average and the above-average subset mean as constant columns on each row.\n13. \"Without rounding\" is read as full floating-point precision in the output, with no ROUND applied, in every column.\n14. Same as 1, but zero-valued `modindex` entries are treated as missing and ignored along with nulls.",
+  "Missing interpretations:\n\nSame as 1, but the ratio and the difference are computed against the pooled (signal-weighted) overall average rather than the mean of per-telescope averages.\n\nSame as 1, but telescopes with a null `telescref` are grouped as their own group, or excluded.\n\nSame as 1, but the average is computed over distinct `modindex` values per telescope rather than all non-null rows.\n\nSame as 1, but the final ordering is by ratio descending and the \"top 10\" is applied before computing the above-average subset mean, so the subset mean is based only on the 10 returned rows.\n\nSame as 1, but if no telescopes are above the overall average (all equal), an empty result is returned."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-8fe3b3fed2",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 324087,
+  "chars_out": 4562
+ }
+}

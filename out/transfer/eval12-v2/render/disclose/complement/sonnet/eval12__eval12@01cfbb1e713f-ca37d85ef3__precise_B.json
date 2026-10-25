@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ca37d85ef3",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH maj AS (\n  SELECT m.major_id, m.department, COUNT(*) AS member_count,\n         CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM member) AS share\n  FROM member mem\n  JOIN major m ON mem.link_to_major = m.major_id\n  GROUP BY m.major_id, m.department\n),\ndept AS (\n  SELECT department, AVG(share) AS avg_share\n  FROM maj\n  GROUP BY department\n)\nSELECT maj.major_id, maj.department, maj.member_count, maj.share,\n       maj.share - dept.avg_share AS diff_above_avg\nFROM maj\nJOIN dept ON maj.department = dept.department\nWHERE maj.share > dept.avg_share\nORDER BY diff_above_avg DESC\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "The department average is taken only over majors that have at least one member (majors with zero members do not appear in the per-major shares).",
+    "unresolved": true
+   },
+   {
+    "assumption": "The total number of members is COUNT(*) over the member table, including members with no link_to_major or no matching major.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Department average includes all majors in the department, counting majors with no members as share 0.",
+    "sql": "WITH total AS (\n  SELECT COUNT(*) AS n FROM member\n),\nmaj AS (\n  SELECT m.major_id, m.department, COUNT(mem.member_id) AS member_count,\n         CAST(COUNT(mem.member_id) AS REAL) / (SELECT n FROM total) AS share\n  FROM major m\n  LEFT JOIN member mem ON mem.link_to_major = m.major_id\n  GROUP BY m.major_id, m.department\n),\ndept AS (\n  SELECT department, AVG(share) AS avg_share\n  FROM maj\n  GROUP BY department\n)\nSELECT maj.major_id, maj.department, maj.member_count, maj.share,\n       maj.share - dept.avg_share AS diff_above_avg\nFROM maj\nJOIN dept ON maj.department = dept.department\nWHERE maj.member_count > 0 AND maj.share > dept.avg_share\nORDER BY diff_above_avg DESC\nLIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 6.5
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d77e789e0",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "For each throwing hand, count distinct award-winning players. Then keep the hands whose share of the total is above the average share, and summarise them.",
+ "c": {
+  "request": "Using `player_award` matched to `player` (dropping awards with no matching player), tally the award winners by throwing hand (`player.throws`). Treat a blank or missing hand as its own group. Work out each hand's share of the total across all hands. Keep only the hands whose share is above the average share. For those hands, give a single row with three values: the total of their tallies, their average share, and the average amount by which their share exceeds the average share. Don't round anything. For each throwing hand, count distinct award-winning players. Then keep the hands whose share of the total is above the average share, and summarise them.",
+  "sql": "WITH tally AS (SELECT COALESCE(TRIM(p.throws), '') AS hand, COUNT(DISTINCT pa.player_id) AS cnt FROM player_award pa JOIN player p ON p.player_id = pa.player_id GROUP BY COALESCE(TRIM(p.throws), '')), shares AS (SELECT hand, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM tally), with_avg AS (SELECT hand, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT SUM(cnt) AS total_tally, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess FROM with_avg WHERE share > avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each throwing hand in `player.throws` (blank or missing as its own group), count the distinct award-winning players in `player_award` that match a `player`, then keep only the hands whose share of the total across all hands is above the average share, and return one row with the sum of their counts, their average share, and the average amount by which their share exceeds the average share, all unrounded",
+  "sql": "WITH g AS (SELECT COALESCE(NULLIF(TRIM(p.throws), ''), '') AS throws, COUNT(DISTINCT pa.player_id) AS cnt FROM player_award pa JOIN player p ON p.player_id = pa.player_id GROUP BY 1), s AS (SELECT throws, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), a AS (SELECT throws, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Matching each `player_award` record to its player in `player` (dropping awards with no matching player), count the distinct players who won awards for each throwing hand (`player.throws`), so a player with several awards counts only once. Treat a blank or missing hand as its own group. Work out each hand's share of the total count across all hands. Keep only the hands whose share is above the average share across hands. For those hands, give a single row with three values: the total of their counts, their average share, and the average amount by which their share exceeds the average share. Don't round anything.",
+  "sql": "WITH c AS (SELECT COALESCE(NULLIF(TRIM(p.throws),''),'') AS hand, COUNT(DISTINCT pa.player_id) AS cnt FROM player_award pa JOIN player p ON p.player_id = pa.player_id GROUP BY 1), s AS (SELECT hand, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_count, AVG(s.share) AS avg_share_of_kept, AVG(s.share - a.avg_share) AS avg_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using `player_award` matched to `player` (dropping awards with no matching player), count the distinct award-winning players for each throwing hand (`player.throws`), treating a blank or missing hand as its own group. Calculate each hand's share of the total across all hands, and keep only the hands whose share is above the average share. For those hands, give a single row with three values: the total of their counts, their average share, and the average amount by which their share exceeds the average share. Don't round anything.",
+  "sql": "WITH c AS (SELECT COALESCE(TRIM(p.throws), '') AS hand, COUNT(DISTINCT pa.player_id) AS cnt FROM player_award pa JOIN player p ON pa.player_id = p.player_id GROUP BY COALESCE(TRIM(p.throws), '')), s AS (SELECT hand, cnt, 1.0 * cnt / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess FROM s, a WHERE s.share > a.avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

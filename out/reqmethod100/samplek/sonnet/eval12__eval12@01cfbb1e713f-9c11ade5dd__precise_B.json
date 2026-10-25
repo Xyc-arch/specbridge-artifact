@@ -1,0 +1,64 @@
+{
+ "queries": [
+  "WITH t AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS v FROM t), k AS (SELECT t.a FROM t, m1 WHERE t.a > m1.v), m2 AS (SELECT AVG(a) AS v FROM k), r AS (SELECT k.a FROM k, m2 WHERE k.a > m2.v) SELECT AVG(a) AS avg_remaining, AVG(a - (SELECT v FROM m1)) AS avg_excess_over_first_mean, AVG(a - (SELECT v FROM m2)) AS avg_excess_over_second_mean FROM r;",
+  "WITH g AS (SELECT p.SEX AS sex, AVG(l.CPK * 1.0 / NULLIF(l.GPT, 0)) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK * 1.0 / NULLIF(l.GPT, 0) IS NOT NULL GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS v FROM g), k AS (SELECT g.sex, g.a FROM g, m1 WHERE g.a > m1.v), m2 AS (SELECT AVG(a) AS v FROM k), f AS (SELECT k.sex, k.a FROM k, m2 WHERE k.a > m2.v) SELECT AVG(f.a) AS avg_remaining, AVG(f.a - m1.v) AS avg_excess_over_first_mean, AVG(f.a - m2.v) AS avg_excess_over_second_mean FROM f, m1, m2",
+  "WITH g AS (SELECT p.SEX AS sex, AVG(CAST(l.CPK AS REAL) / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM g), k1 AS (SELECT g.sex, g.a FROM g, m1 WHERE g.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM k1), k2 AS (SELECT k1.sex, k1.a FROM k1, m2 WHERE k1.a > m2.m) SELECT AVG(k2.a) AS avg_of_remaining, AVG(k2.a - (SELECT m FROM m1)) AS avg_excess_over_first_mean, AVG(k2.a - (SELECT m FROM m2)) AS avg_excess_over_second_mean FROM k2;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH t AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS v FROM t), k AS (SELECT t.a FROM t, m1 WHERE t.a > m1.v), m2 AS (SELECT AVG(a) AS v FROM k), r AS (SELECT k.a FROM k, m2 WHERE k.a > m2.v) SELECT AVG(a) AS avg_remaining, AVG(a - (SELECT v FROM m1)) AS avg_excess_over_first_mean, AVG(a - (SELECT v FROM m2)) AS avg_excess_over_second_mean FROM r;",
+   "assumptions": [
+    {
+     "assumption": "A test with GPT = 0 has a missing (undefined) ratio and is ignored, as are tests with NULL CPK or GPT. The ratio is computed as real division, not integer division.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The second filter applies only to the kept groups, so it compares them with the mean of the kept groups' averages. The excesses are measured against the first mean and the second mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT p.SEX AS sex, AVG(l.CPK * 1.0 / NULLIF(l.GPT, 0)) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK * 1.0 / NULLIF(l.GPT, 0) IS NOT NULL GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS v FROM g), k AS (SELECT g.sex, g.a FROM g, m1 WHERE g.a > m1.v), m2 AS (SELECT AVG(a) AS v FROM k), f AS (SELECT k.sex, k.a FROM k, m2 WHERE k.a > m2.v) SELECT AVG(f.a) AS avg_remaining, AVG(f.a - m1.v) AS avg_excess_over_first_mean, AVG(f.a - m2.v) AS avg_excess_over_second_mean FROM f, m1, m2",
+   "assumptions": [
+    {
+     "assumption": "A test's ratio is missing when CPK or GPT is NULL, or when GPT is 0, because the division is undefined. Those tests are excluded. The ratio uses real-number division, not integer division.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Plain mean' of the group averages means an unweighted mean with one value per SEX group. It is not weighted by the number of tests.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If the second filter leaves no groups, for example when only one group survives the first filter, the result is a single row of NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT p.SEX AS sex, AVG(CAST(l.CPK AS REAL) / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM g), k1 AS (SELECT g.sex, g.a FROM g, m1 WHERE g.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM k1), k2 AS (SELECT k1.sex, k1.a FROM k1, m2 WHERE k1.a > m2.m) SELECT AVG(k2.a) AS avg_of_remaining, AVG(k2.a - (SELECT m FROM m1)) AS avg_excess_over_first_mean, AVG(k2.a - (SELECT m FROM m2)) AS avg_excess_over_second_mean FROM k2;",
+   "assumptions": [
+    {
+     "assumption": "Tests with NULL CPK or NULL GPT, or GPT = 0 (ratio undefined), are treated as having a missing ratio and excluded; the ratio is computed in floating point.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Each group's average is the mean over individual lab tests (not over patients), and the 'plain mean' of group averages is an unweighted mean across groups.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9c11ade5dd",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 26700,
+  "chars_out": 3186
+ }
+}

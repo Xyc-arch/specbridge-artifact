@@ -1,0 +1,31 @@
+{
+ "interpretations": [
+  "For each account appearing in `trans`, average its stored `amount` over `PRIJEM` and `VYDAJ` rows, count those rows, and divide by the mean such count among accounts appearing in `trans`",
+  "Use the same average and count, but divide by the mean count across every row in `account`, including accounts with zero qualifying transactions",
+  "For each account appearing in `trans`, average its stored `amount` over `PRIJEM` and `VYDAJ` rows, count all its `trans` rows, and divide by the mean total transaction count among accounts appearing in `trans`",
+  "Use the average and count in interpretation 3, but divide by the mean total transaction count across every row in `account`, including accounts with no transactions",
+  "Treat `VYBER` as a withdrawal; average stored `amount` and count across all three transaction types, then divide by the mean count among accounts appearing in `trans`",
+  "Use the average and count in interpretation 5, but divide by the mean count across every row in `account`, including accounts with no transactions",
+  "Treat `PRIJEM` amounts as positive and `VYDAJ` amounts as negative; average those signed amounts, count those rows, and divide by the mean such count among accounts appearing in `trans`",
+  "Use the signed average and count in interpretation 7, but divide by the mean count across every row in `account`, including accounts with zero qualifying transactions",
+  "Average signed `PRIJEM` and `VYDAJ` amounts, count all `trans` rows for each account, and divide by the mean total count among accounts appearing in `trans`",
+  "Use the signed average and count in interpretation 9, but divide by the mean total count across every row in `account`, including accounts with no transactions",
+  "Treat both `VYDAJ` and `VYBER` as negative; average signed amounts across all transaction types, count all rows, and divide by the mean count among accounts appearing in `trans`",
+  "Use the signed average and count in interpretation 11, but divide by the mean count across every row in `account`, including accounts with no transactions",
+  "In each interpretation, return the account ID, average, count, and unrounded ratio for the 10 highest ratios, breaking a tie at the cutoff arbitrarily"
+ ],
+ "queries": [
+  "WITH account_stats AS (\n    SELECT\n        account_id,\n        AVG(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN amount END) AS avg_amount,\n        COUNT(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN 1 END) AS row_count\n    FROM trans\n    GROUP BY account_id\n)\nSELECT\n    account_id,\n    avg_amount,\n    row_count,\n    row_count * 1.0 / (SELECT AVG(row_count) FROM account_stats) AS count_ratio\nFROM account_stats",
+  "WITH account_transactions AS (\n    SELECT\n        account_id,\n        AVG(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN amount END) AS average_amount,\n        COUNT(*) AS transaction_count\n    FROM trans\n    GROUP BY account_id\n)\nSELECT\n    account_id,\n    average_amount,\n    transaction_count,\n    transaction_count / (SELECT AVG(transaction_count) FROM account_transactions) AS count_to_mean_ratio\nFROM account_transactions",
+  "WITH type_totals AS (\n    SELECT type, AVG(amount) AS avg_amount, COUNT(*) AS transaction_count\n    FROM trans\n    WHERE type IN ('PRIJEM', 'VYDAJ', 'VYBER')\n    GROUP BY type\n),\naccount_counts AS (\n    SELECT COUNT(*) AS transaction_count\n    FROM trans\n    GROUP BY account_id\n)\nSELECT\n    (SELECT SUM(\n        CASE WHEN type = 'PRIJEM' THEN 1 ELSE -1 END\n        * avg_amount * transaction_count\n    ) FROM type_totals)\n    / (SELECT AVG(transaction_count) FROM account_counts) AS result"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3b551d13a2",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 63152,
+  "chars_out": 3902
+ }
+}

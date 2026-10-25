@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4eaf2fd5a4",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Per order status, average the filled quantity over all linked executions with a non-missing fill, counting zero fills as zero.",
+ "a": {
+  "request": "For each order status (`orders.orderflow`), using order executions linked to their order where `orderexecutions.ordersmark` matches `orders.recordvault` (executions with no matching order are left out), show the status, the average filled quantity (`fillcount`) across its executions \u2014 ignoring missing values but counting zero fills as zero \u2014, the number of executions, and that number as a fraction of the total number of executions across all statuses. Don't round anything.",
+  "sql": "SELECT o.orderflow, AVG(oe.fillcount) AS avg_filled_quantity, COUNT(oe.orderexecmark) AS execution_count, COUNT(oe.orderexecmark)::numeric / NULLIF(SUM(COUNT(oe.orderexecmark)) OVER (), 0) AS execution_fraction FROM orders AS o JOIN orderexecutions AS oe ON oe.ordersmark = o.recordvault GROUP BY o.orderflow;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "For each order status, looking at order executions matched to their order (`orderexecutions.ordersmark` = `orders.recordvault`; unmatched executions dropped), show the status, the average filled quantity (`fillcount`), the number of executions, and what fraction of all executions that number is. No rounding. Per order status, average the filled quantity over all linked executions with a non-missing fill, counting zero fills as zero.",
+  "sql": "WITH status_execution_counts AS (\n  SELECT\n    o.orderflow AS status,\n    COUNT(*) AS execution_count,\n    AVG(oe.fillcount) AS avg_filled_quantity\n  FROM orders AS o\n  JOIN orderexecutions AS oe\n    ON oe.ordersmark = o.recordvault\n  GROUP BY o.orderflow\n)\nSELECT\n  status,\n  avg_filled_quantity,\n  execution_count,\n  execution_count::numeric / SUM(execution_count) OVER () AS fraction_of_all_executions\nFROM status_execution_counts;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "For each order status, among executions matched to an order, show the status, average non-null `fillcount` (including zero), count of all matched executions, and that count as a fraction of all matched executions, without rounding",
+  "sql": "WITH matched_executions AS (\n  SELECT o.orderflow AS status, e.fillcount\n  FROM orders AS o\n  JOIN orderexecutions AS e ON e.ordersmark = o.recordvault\n), totals AS (\n  SELECT COUNT(*) AS total_count\n  FROM matched_executions\n)\nSELECT\n  m.status,\n  AVG(m.fillcount) AS average_fillcount,\n  COUNT(*) AS execution_count,\n  COUNT(*)::numeric / NULLIF(t.total_count, 0) AS fraction_of_matched_executions\nFROM matched_executions AS m\nCROSS JOIN totals AS t\nGROUP BY m.status, t.total_count;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each order status, what is the average filled quantity (`fillcount`) across linked executions with a non-missing fill, counting zero fills as zero?",
+  "sql": "SELECT o.orderflow AS order_status, AVG(oe.fillcount) AS average_filled_quantity\nFROM orders AS o\nJOIN orderexecutions AS oe ON oe.ordersmark = o.recordvault\nWHERE oe.fillcount IS NOT NULL\nGROUP BY o.orderflow;",
+  "executes": true,
+  "matches": []
+ }
+}

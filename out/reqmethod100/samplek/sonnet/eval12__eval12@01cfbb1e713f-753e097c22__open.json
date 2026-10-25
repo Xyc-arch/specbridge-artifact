@@ -1,0 +1,78 @@
+{
+ "queries": [
+  "WITH per_type AS (SELECT t.tradekind, COUNT(*) AS cnt FROM transactionrecord r INNER JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), stats AS (SELECT AVG(cnt::numeric) AS avg_cnt, SUM(cnt) AS total_cnt FROM per_type) SELECT p.tradekind, p.cnt AS type_count, p.cnt::numeric / s.total_cnt AS share_of_total, p.cnt - s.avg_cnt AS diff_from_avg FROM per_type p CROSS JOIN stats s WHERE s.avg_cnt IS NOT NULL AND p.cnt > s.avg_cnt ORDER BY p.cnt DESC",
+  "WITH per_type AS (SELECT t.tradekind, COUNT(*) AS type_count FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), stats AS (SELECT AVG(type_count * 1.0) AS avg_count, SUM(type_count) AS total_count FROM per_type) SELECT p.tradekind, p.type_count, (p.type_count * 1.0) / s.total_count AS share_of_total, p.type_count - s.avg_count AS diff_from_avg FROM per_type p CROSS JOIN stats s WHERE s.avg_count IS NOT NULL AND p.type_count > s.avg_count",
+  "WITH c AS (SELECT t.tradekind, COUNT(*) AS n FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT AVG(n::numeric) AS avg_n, SUM(n)::numeric AS tot FROM c) SELECT c.tradekind, c.n AS trader_type_count, c.n::numeric / s.tot AS share_of_total, c.n - s.avg_n AS diff_from_avg FROM c CROSS JOIN s WHERE c.n > s.avg_n",
+  "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT t.tradereg) AS n FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT AVG(n::numeric) AS avg_n, SUM(n)::numeric AS tot FROM c) SELECT c.tradekind, c.n AS trader_type_count, c.n::numeric / s.tot AS share_of_total, c.n - s.avg_n AS diff_from_avg FROM c CROSS JOIN s WHERE c.n > s.avg_n"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_type AS (SELECT t.tradekind, COUNT(*) AS cnt FROM transactionrecord r INNER JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), stats AS (SELECT AVG(cnt::numeric) AS avg_cnt, SUM(cnt) AS total_cnt FROM per_type) SELECT p.tradekind, p.cnt AS type_count, p.cnt::numeric / s.total_cnt AS share_of_total, p.cnt - s.avg_cnt AS diff_from_avg FROM per_type p CROSS JOIN stats s WHERE s.avg_cnt IS NOT NULL AND p.cnt > s.avg_cnt ORDER BY p.cnt DESC",
+   "assumptions": [
+    {
+     "assumption": "A type's size is the number of matched transaction records (rows) for traders of that type, not the number of distinct traders.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Traders with a NULL tradekind form one group, which GROUP BY produces and which counts in the average and the total.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The share and the difference are left as unrounded numerics. If there are no groups, the average is NULL and no rows are returned.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_type AS (SELECT t.tradekind, COUNT(*) AS type_count FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), stats AS (SELECT AVG(type_count * 1.0) AS avg_count, SUM(type_count) AS total_count FROM per_type) SELECT p.tradekind, p.type_count, (p.type_count * 1.0) / s.total_count AS share_of_total, p.type_count - s.avg_count AS diff_from_avg FROM per_type p CROSS JOIN stats s WHERE s.avg_count IS NOT NULL AND p.type_count > s.avg_count",
+   "assumptions": [
+    {
+     "assumption": "Size of a trader type is the number of matched transaction records (inner join on trdref = tradereg), not the number of distinct traders.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Traders with NULL tradekind form one group, which is included in the per-type counts, the average, and the total, and can be returned as a row.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average is the unweighted mean of the per-type counts. Counts are cast to decimal so nothing is truncated, and no rounding is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT t.tradekind, COUNT(*) AS n FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT AVG(n::numeric) AS avg_n, SUM(n)::numeric AS tot FROM c) SELECT c.tradekind, c.n AS trader_type_count, c.n::numeric / s.tot AS share_of_total, c.n - s.avg_n AS diff_from_avg FROM c CROSS JOIN s WHERE c.n > s.avg_n",
+   "assumptions": [
+    {
+     "assumption": "A type's size is the number of matched transaction records for traders of that type, since the request starts from transaction records joined to traders. It is not the number of distinct traders.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Traders with a NULL tradekind are grouped together as one group. That group counts toward the average and the total, and it appears in the output if it is above average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average is taken over the per-type counts, with one value per group. It is not the average per record. If there are no matched records, the query returns no rows.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Size of a type means the number of distinct traders of that type who have at least one matched transaction record.",
+     "sql": "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT t.tradereg) AS n FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT AVG(n::numeric) AS avg_n, SUM(n)::numeric AS tot FROM c) SELECT c.tradekind, c.n AS trader_type_count, c.n::numeric / s.tot AS share_of_total, c.n - s.avg_n AS diff_from_avg FROM c CROSS JOIN s WHERE c.n > s.avg_n"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-753e097c22",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52845,
+  "chars_out": 3837
+ }
+}

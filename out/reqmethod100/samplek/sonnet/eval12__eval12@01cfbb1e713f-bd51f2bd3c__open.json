@@ -1,0 +1,94 @@
+{
+ "queries": [
+  "WITH inv AS (SELECT invoice_number, SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_product_cost END) * 1.0 / NULLIF(SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_total_cost END), 0) AS cost_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;",
+  "WITH inv AS (SELECT invoice_number, AVG(derived_product_cost * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;",
+  "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, SUM(CASE WHEN derived_total_cost IS NOT NULL THEN derived_product_cost END) * 1.0 / NULLIF(SUM(CASE WHEN derived_product_cost IS NOT NULL THEN derived_total_cost END), 0) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) DESC LIMIT 10",
+  "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, AVG(derived_product_cost * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) DESC LIMIT 10",
+  "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_product_cost END) * 1.0 / NULLIF(SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_total_cost END), 0) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), av AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(av.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN av WHERE av.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(av.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(av.avg_ratio, 0) DESC LIMIT 10",
+  "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, AVG(derived_product_cost * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), av AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(av.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN av WHERE av.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(av.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(av.avg_ratio, 0) DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_product_cost END) * 1.0 / NULLIF(SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_total_cost END), 0) AS cost_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "An invoice's ratio is SUM(derived_product_cost) / SUM(derived_total_cost) over its line items, using only lines where both values are non-null. A zero total gives a NULL ratio.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average ratio across all invoices is the unweighted mean of the per-invoice ratios. Invoices with a NULL ratio are skipped.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The line item count is COUNT(*) of all the invoice's rows in Invoice_Line_Items, including rows with missing costs.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Rows with a NULL relative figure sort last. If the overall average is NULL or zero, no rows or NULL relative figures result.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Compute the ratio per line item, then average those line ratios within each invoice. The overall average is the mean of the per-invoice averages.",
+     "sql": "WITH inv AS (SELECT invoice_number, AVG(derived_product_cost * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, SUM(CASE WHEN derived_total_cost IS NOT NULL THEN derived_product_cost END) * 1.0 / NULLIF(SUM(CASE WHEN derived_product_cost IS NOT NULL THEN derived_total_cost END), 0) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "An invoice's ratio is SUM(derived_product_cost) / SUM(derived_total_cost) over its lines, counting only lines where both values are non-null. The overall average is the plain average of the per-invoice ratios, so each invoice has equal weight.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The line item count is the number of Invoice_Line_Items rows for the invoice, including rows with missing costs.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A zero total cost (or zero average) gives a NULL ratio instead of a division error. Invoices with a NULL relative figure sort last.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The invoice ratio is the average of the per-line ratios (derived_product_cost / derived_total_cost), instead of a ratio of sums.",
+     "sql": "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, AVG(derived_product_cost * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), avg_r AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN avg_r WHERE avg_r.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(avg_r.avg_ratio, 0) DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_product_cost END) * 1.0 / NULLIF(SUM(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL THEN derived_total_cost END), 0) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), av AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(av.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN av WHERE av.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(av.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(av.avg_ratio, 0) DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "An invoice's ratio is SUM(derived_product_cost) / SUM(derived_total_cost) over its line items, using only lines where both values are non-null. A zero total gives a missing ratio.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average ratio across all invoices is the simple average of the per-invoice ratios. Invoices with a missing ratio are ignored in that average but can still be listed, last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The line item count is the number of Invoice_Line_Items rows for the invoice, including rows with missing costs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The invoice's ratio is the average of the line-level ratios (product cost / total cost per line), not the ratio of sums.",
+     "sql": "WITH inv AS (SELECT invoice_number, COUNT(*) AS line_item_count, AVG(derived_product_cost * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), av AS (SELECT AVG(cost_ratio) AS avg_ratio FROM inv) SELECT inv.invoice_number, inv.cost_ratio, inv.line_item_count, inv.cost_ratio / NULLIF(av.avg_ratio, 0) AS relative_ratio FROM inv CROSS JOIN av WHERE av.avg_ratio IS NOT NULL ORDER BY (inv.cost_ratio / NULLIF(av.avg_ratio, 0)) IS NULL, inv.cost_ratio / NULLIF(av.avg_ratio, 0) DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd51f2bd3c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12180,
+  "chars_out": 6323
+ }
+}

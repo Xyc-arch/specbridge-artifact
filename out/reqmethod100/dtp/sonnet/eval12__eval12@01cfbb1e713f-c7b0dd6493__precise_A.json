@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Transaction count is per account, counted as all rows in Financial_Transactions for that account_id (including multiple rows sharing the same transaction_id).",
+  "Transaction count is per account, counted as distinct transaction_id values for that account.",
+  "The share is the account's transaction count divided by the sum of transaction counts of all qualifying accounts in the same town_city (town grouped by exact string value).",
+  "The share is expressed as a fraction between 0 and 1 (not a percentage \u00d7100).",
+  "The share is expressed as a percentage (\u00d7100).",
+  "Town grouping is case-sensitive and exact. Alternatively, town grouping ignores case and whitespace differences.",
+  "Town grouping uses town_city alone. Alternatively, it uses town_city together with state_county_province and country, so same-named towns in different states or countries are separated.",
+  "The average transaction count per account is the mean over all qualifying accounts (with at least one transaction, a customer on file, and a non-null town), computed globally across all towns.",
+  "The average transaction count per account is computed over accounts with at least one transaction before the holder and town filters are applied. Alternatively, it is computed over accounts that survive the filters.",
+  "The average is computed per town rather than globally (a less likely reading).",
+  "The ratio to the average is the account's transaction count divided by that average.",
+  "\"Drop accounts whose holder isn't on file or has no town\" is read as dropping a NULL town_city only. Alternatively, it also drops empty-string or whitespace-only town_city values.",
+  "\"Holder isn't on file\" means no matching Customers row exists for the account's customer_id. Because of the foreign key, this should be rare.",
+  "The output has five columns: account_id, town_city, transaction count, share of town total, ratio to average. Alternatively, it includes extra columns such as the account name or the customer.",
+  "The ranking is by ratio to average, descending. Ties in ratio are broken arbitrarily. Alternatively, ties are broken by account_id ascending, or by share.",
+  "The top 10 is a hard LIMIT 10 (ties at the cutoff are cut off arbitrarily). Alternatively, ties at 10th place are all included.",
+  "\"Unrounded\" means the share and ratio are full-precision floating-point values, not integer division and not rounded. The division must be real (non-integer) division.",
+  "\"Unrounded\" is read to mean that no rounding is applied to any column, including a ratio computed from an average that is itself unrounded.",
+  "Missing interpretations:",
+  "Transaction count is per account, counted as distinct non-null invoice_number values (only transactions tied to an invoice).",
+  "The \"total transactions of these accounts in the same town\" is the sum of per-account counts, with the share computed using the town total after the holder and town filters (not before).",
+  "Ties in the ranking are broken by transaction count or by town rather than by account_id or share.",
+  "The average transaction count per account is the total number of transactions divided by the number of qualifying accounts, which is the same as the mean of the per-account counts. Alternatively, it is the average over all accounts in the Accounts table, including those with no transactions.",
+  "The ratio to the average is expressed as a percentage (\u00d7100) instead of a plain multiple.",
+  "The output shows the town with trimmed or normalized text (for example, trimmed whitespace) instead of the raw `town_city` value.",
+  "Accounts are paired with the customer's town through Accounts.customer_id \u2192 Customers.customer_id. Alternatively, the customer is found through the invoice \u2192 order \u2192 customer chain of the transactions, which could differ from the account holder."
+ ],
+ "queries": [
+  "WITH account_counts AS (\n  SELECT a.account_id, c.town_city, COUNT(*) AS txn_count\n  FROM Accounts a\n  JOIN Customers c ON a.customer_id = c.customer_id\n  JOIN Financial_Transactions t ON t.account_id = a.account_id\n  GROUP BY a.account_id, c.town_city\n)\nSELECT account_id,\n       1.0 * txn_count / SUM(txn_count) OVER (PARTITION BY town_city) AS share\nFROM account_counts;\n",
+  "SELECT town_city, COUNT(*) FROM Customers GROUP BY town_city;\n"
+ ],
+ "raw": [
+  "1. Transaction count is per account, counted as all rows in Financial_Transactions for that account_id (including multiple rows sharing the same transaction_id).\n2. Transaction count is per account, counted as distinct transaction_id values for that account.\n3. The share is the account's transaction count divided by the sum of transaction counts of all qualifying accounts in the same town_city (town grouped by exact string value).\n4. The share is expressed as a fraction between 0 and 1 (not a percentage \u00d7100).\n5. The share is expressed as a percentage (\u00d7100).\n6. Town grouping is case-sensitive and exact. Alternatively, town grouping ignores case and whitespace differences.\n7. Town grouping uses town_city alone. Alternatively, it uses town_city together with state_county_province and country, so same-named towns in different states or countries are separated.\n8. The average transaction count per account is the mean over all qualifying accounts (with at least one transaction, a customer on file, and a non-null town), computed globally across all towns.\n9. The average transaction count per account is computed over accounts with at least one transaction before the holder and town filters are applied. Alternatively, it is computed over accounts that survive the filters.\n10. The average is computed per town rather than globally (a less likely reading).\n11. The ratio to the average is the account's transaction count divided by that average.\n12. \"Drop accounts whose holder isn't on file or has no town\" is read as dropping a NULL town_city only. Alternatively, it also drops empty-string or whitespace-only town_city values.\n13. \"Holder isn't on file\" means no matching Customers row exists for the account's customer_id. Because of the foreign key, this should be rare.\n14. The output has five columns: account_id, town_city, transaction count, share of town total, ratio to average. Alternatively, it includes extra columns such as the account name or the customer.\n15. The ranking is by ratio to average, descending. Ties in ratio are broken arbitrarily. Alternatively, ties are broken by account_id ascending, or by share.\n16. The top 10 is a hard LIMIT 10 (ties at the cutoff are cut off arbitrarily). Alternatively, ties at 10th place are all included.\n17. \"Unrounded\" means the share and ratio are full-precision floating-point values, not integer division and not rounded. The division must be real (non-integer) division.\n18. \"Unrounded\" is read to mean that no rounding is applied to any column, including a ratio computed from an average that is itself unrounded.",
+  "Missing interpretations:\n\nTransaction count is per account, counted as distinct non-null invoice_number values (only transactions tied to an invoice).\nThe \"total transactions of these accounts in the same town\" is the sum of per-account counts, with the share computed using the town total after the holder and town filters (not before).\nTies in the ranking are broken by transaction count or by town rather than by account_id or share.\nThe average transaction count per account is the total number of transactions divided by the number of qualifying accounts, which is the same as the mean of the per-account counts. Alternatively, it is the average over all accounts in the Accounts table, including those with no transactions.\nThe ratio to the average is expressed as a percentage (\u00d7100) instead of a plain multiple.\nThe output shows the town with trimmed or normalized text (for example, trimmed whitespace) instead of the raw `town_city` value.\nAccounts are paired with the customer's town through Accounts.customer_id \u2192 Customers.customer_id. Alternatively, the customer is found through the invoice \u2192 order \u2192 customer chain of the transactions, which could differ from the account holder."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31037,
+  "chars_out": 6083
+ }
+}

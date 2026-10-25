@@ -1,0 +1,20 @@
+{
+ "readings": [
+  "Link each sentiment snapshot to its transaction record (`transref` = `transreg`) and to that record's trader (`trdref` = `tradereg`), dropping snapshots without both matches. For each combination of transaction reference (`transref`) and trader type (`tradekind`), compute the average option volume ratio (`optvolrt`). Take as the baseline the plain average of these per-combination averages, with each combination counting equally. Each combination's deviation is its average minus the baseline (no rows if the baseline is missing). Within each trader type, average those deviations. Keep only the combinations whose deviation is above their trader type's average deviation, and give each one an excess: its deviation minus the type's average deviation. Combinations with no trader type get a deviation too but are dropped at this comparison. Finally, for each trader type, report the type, the average of the kept combinations' average option volume ratios, the average of their deviations, and the average of their excess. Averages ignore missing values. No rounding."
+ ],
+ "queries": [
+  "WITH combo AS (\n  SELECT s.transref AS transref, t.tradekind AS tradekind, AVG(s.optvolrt) AS avg_opt\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord r ON s.transref = r.transreg\n  JOIN trader t ON r.trdref = t.tradereg\n  GROUP BY s.transref, t.tradekind\n),\nbase AS (\n  SELECT AVG(avg_opt) AS baseline FROM combo\n),\ndev AS (\n  SELECT c.transref, c.tradekind, c.avg_opt, c.avg_opt - b.baseline AS deviation\n  FROM combo c\n  JOIN base b ON b.baseline IS NOT NULL\n),\ntypeavg AS (\n  SELECT tradekind, AVG(deviation) AS avg_dev\n  FROM dev\n  WHERE tradekind IS NOT NULL\n  GROUP BY tradekind\n),\nkept AS (\n  SELECT d.tradekind, d.avg_opt, d.deviation, d.deviation - ta.avg_dev AS excess\n  FROM dev d\n  JOIN typeavg ta ON d.tradekind = ta.tradekind\n  WHERE d.deviation > ta.avg_dev\n)\nSELECT tradekind, AVG(avg_opt), AVG(deviation), AVG(excess)\nFROM kept\nGROUP BY tradekind;\n"
+ ],
+ "raw": [
+  "{\"readings\": [\"Link each sentiment snapshot to its transaction record (`transref` = `transreg`) and to that record's trader (`trdref` = `tradereg`), dropping snapshots without both matches. For each combination of transaction reference (`transref`) and trader type (`tradekind`), compute the average option volume ratio (`optvolrt`). Take as the baseline the plain average of these per-combination averages, with each combination counting equally. Each combination's deviation is its average minus the baseline (no rows if the baseline is missing). Within each trader type, average those deviations. Keep only the combinations whose deviation is above their trader type's average deviation, and give each one an excess: its deviation minus the type's average deviation. Combinations with no trader type get a deviation too but are dropped at this comparison. Finally, for each trader type, report the type, the average of the kept combinations' average option volume ratios, the average of their deviations, and the average of their excess. Averages ignore missing values. No rounding.\"]}"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-91cfb4e1db",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 2,
+  "chars_in": 35889,
+  "chars_out": 1974
+ }
+}

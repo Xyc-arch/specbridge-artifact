@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-05bfdc3a55",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "The regional average amount is the plain average of the stored unsigned `amount` over all of the region's transactions.",
+ "c": {
+  "request": "Group transactions by the region (`A3`) of each account's branch. Some regions have an average transaction amount above the average across all regions. For just those regions, give one row with three values: their average transaction amount, their number of transactions (all types), and how far their average is above the cross-region average. Average each value over those regions, and don't round. The regional average amount is the plain average of the stored unsigned `amount` over all of the region's transactions.",
+  "sql": "WITH regional AS (SELECT d.A3 AS region, AVG(t.amount) AS avg_amount, COUNT(*) AS transaction_count FROM trans AS t JOIN account AS a ON t.account_id = a.account_id JOIN district AS d ON a.district_id = d.district_id GROUP BY d.A3), cross_region AS (SELECT AVG(avg_amount) AS avg_amount FROM regional) SELECT AVG(r.avg_amount) AS avg_transaction_amount, AVG(r.transaction_count) AS avg_transaction_count, AVG(r.avg_amount - c.avg_amount) AS avg_amount_above_cross_region FROM regional AS r CROSS JOIN cross_region AS c WHERE r.avg_amount > c.avg_amount",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Group transactions by the region (`district.A3`) of the account's branch district. For each region, compute its average transaction amount, using the stored `amount` as is for every transaction regardless of type. Also compute its number of transactions, counting all of them. Take the mean of the regional averages and keep the regions whose average is strictly above it. Report in one row: the mean of those regions' averages, the mean of their transaction counts, and the mean amount by which their average exceeds the cross-region mean, all unrounded.",
+  "sql": "WITH regional AS (SELECT d.A3 AS region, AVG(t.amount) AS avg_amount, COUNT(*) AS transaction_count FROM trans AS t JOIN account AS a ON a.account_id = t.account_id JOIN district AS d ON d.district_id = a.district_id GROUP BY d.A3), baseline AS (SELECT AVG(avg_amount) AS cross_region_mean FROM regional) SELECT AVG(r.avg_amount) AS mean_regional_average, AVG(r.transaction_count) AS mean_transaction_count, AVG(r.avg_amount - b.cross_region_mean) AS mean_excess_amount FROM regional AS r CROSS JOIN baseline AS b WHERE r.avg_amount > b.cross_region_mean;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each account branch region (`district.A3`), calculate the plain average of stored unsigned `trans.amount` and the count of all its transactions. Compute the unweighted mean of those regional averages, keep regions whose average exceeds it, then return one row containing the unweighted mean of their regional averages, the mean of their transaction counts, and the mean amount by which their regional averages exceed the cross-region mean, without rounding",
+  "sql": "WITH regional_stats AS (SELECT d.A3 AS region, AVG(t.amount) AS regional_avg, COUNT(*) AS transaction_count FROM trans AS t JOIN account AS a ON a.account_id = t.account_id JOIN district AS d ON d.district_id = a.district_id GROUP BY d.A3), cross_region AS (SELECT AVG(regional_avg) AS mean_regional_avg FROM regional_stats) SELECT AVG(r.regional_avg) AS mean_above_average_regional_amount, AVG(r.transaction_count) AS mean_transaction_count, AVG(r.regional_avg - c.mean_regional_avg) AS mean_excess_amount FROM regional_stats AS r CROSS JOIN cross_region AS c WHERE r.regional_avg > c.mean_regional_avg;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Group transactions by the region (`A3`) of each account\u2019s branch. Calculate each region\u2019s average transaction amount as the plain average of the stored unsigned `amount` across all its transactions. For regions whose average exceeds the average of all regional averages, return one row with three unrounded values: the average of their regional average amounts, the average of their transaction counts (all types), and the average amount by which their regional averages exceed the cross-region average.",
+  "sql": "WITH regional_stats AS (SELECT d.A3 AS region, AVG(t.amount) AS avg_amount, COUNT(*) AS transaction_count FROM trans AS t JOIN account AS a ON a.account_id = t.account_id JOIN district AS d ON d.district_id = a.district_id GROUP BY d.A3), cross_region AS (SELECT AVG(avg_amount) AS avg_regional_amount FROM regional_stats) SELECT AVG(r.avg_amount) AS avg_regional_amount, AVG(r.transaction_count) AS avg_transaction_count, AVG(r.avg_amount - c.avg_regional_amount) AS avg_excess_amount FROM regional_stats AS r CROSS JOIN cross_region AS c WHERE r.avg_amount > c.avg_regional_amount;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

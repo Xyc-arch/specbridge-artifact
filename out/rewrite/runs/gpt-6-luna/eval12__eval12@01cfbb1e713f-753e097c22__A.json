@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-753e097c22",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Each trader type's size is the number of transaction records belonging to traders of that type.",
+ "a": {
+  "request": "Match each transaction record to its trader (`trdref` = `tradereg`, exact text match) and drop records with no matching trader. Then, for each trader type (`tradekind`), count the transaction records. Count every record, so a trader with five records adds five. Traders with no type form their own group. Which trader types have a count strictly above the plain average of the per-type counts? For each one, show the trader type, its count, that count divided by the total of all the per-type counts, and the count minus the average. Don't round anything, and return nothing if the average is missing.",
+  "sql": "WITH counts AS (\n  SELECT tr.tradekind, COUNT(*) AS transaction_count\n  FROM transactionrecord AS r\n  JOIN trader AS tr ON r.trdref = tr.tradereg\n  GROUP BY tr.tradekind\n), summary AS (\n  SELECT tradekind,\n         transaction_count,\n         SUM(transaction_count) OVER () AS total_count,\n         AVG(transaction_count) OVER () AS average_count\n  FROM counts\n)\nSELECT tradekind,\n       transaction_count,\n       transaction_count::numeric / total_count AS proportion_of_total,\n       transaction_count - average_count AS difference_from_average\nFROM summary\nWHERE transaction_count > average_count;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Using the transaction records matched to their traders (`trdref` = `tradereg`, exact text match, dropping records with no matching trader), how big is each trader type (`tradekind`) in this data? Traders with no type form their own group. Which trader types have a count strictly above the plain average of the per-type counts? For each one, show the trader type, its count, that count divided by the total of all the per-type counts, and the count minus the average. Don't round anything, and return nothing if the average is missing. Each trader type's size is the number of transaction records belonging to traders of that type.",
+  "sql": "WITH per_type AS (\n  SELECT tr.tradekind, COUNT(*) AS transaction_count\n  FROM transactionrecord AS trr\n  JOIN trader AS tr ON trr.trdref = tr.tradereg\n  GROUP BY tr.tradekind\n), stats AS (\n  SELECT tradekind, transaction_count,\n         SUM(transaction_count) OVER () AS total_count,\n         AVG(transaction_count) OVER () AS average_count\n  FROM per_type\n)\nSELECT tradekind, transaction_count,\n       transaction_count::numeric / NULLIF(total_count, 0) AS proportion_of_total,\n       transaction_count - average_count AS count_minus_average\nFROM stats\nWHERE average_count IS NOT NULL\n  AND transaction_count > average_count;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Count transaction records matched to a trader by exact `transactionrecord.trdref = trader.tradereg`, excluding records with no matching trader, and group them by `trader.tradekind`, treating NULL types as one group. Compute the plain average of these per-type counts, and return only types whose count is strictly above that average, showing the type, count, count divided by the sum of all per-type counts, and count minus the average without rounding; return no rows if the average is missing",
+  "sql": "WITH type_counts AS (\n  SELECT t.tradekind, COUNT(*) AS record_count\n  FROM transactionrecord AS tr\n  JOIN trader AS t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n), stats AS (\n  SELECT AVG(record_count) AS avg_count, SUM(record_count) AS total_count\n  FROM type_counts\n)\nSELECT tc.tradekind, tc.record_count,\n       tc.record_count::numeric / s.total_count AS count_share,\n       tc.record_count - s.avg_count AS above_average\nFROM type_counts AS tc\nCROSS JOIN stats AS s\nWHERE tc.record_count > s.avg_count;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each trader type, count the transaction records belonging to traders of that type. Treat traders with no type as their own group. Which types have counts strictly above the plain average of the per-type counts? Show each qualifying type, its count, that count divided by the total of all per-type counts, and the count minus the average. Don\u2019t round anything, and return nothing if the average is missing.",
+  "sql": "WITH type_counts AS (\n  SELECT t.tradekind, COUNT(tr.transreg) AS transaction_count\n  FROM trader AS t\n  LEFT JOIN transactionrecord AS tr\n    ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n), stats AS (\n  SELECT\n    AVG(transaction_count) AS avg_count,\n    SUM(transaction_count) AS total_count\n  FROM type_counts\n)\nSELECT\n  tc.tradekind,\n  tc.transaction_count,\n  tc.transaction_count::numeric / NULLIF(s.total_count, 0) AS share_of_total,\n  tc.transaction_count - s.avg_count AS above_average\nFROM type_counts AS tc\nCROSS JOIN stats AS s\nWHERE s.avg_count IS NOT NULL\n  AND tc.transaction_count > s.avg_count;",
+  "executes": false,
+  "matches": []
+ }
+}

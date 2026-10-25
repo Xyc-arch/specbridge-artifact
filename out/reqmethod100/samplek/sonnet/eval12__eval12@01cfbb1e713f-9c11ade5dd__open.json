@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH s AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM s), A AS (SELECT s.* FROM s, m1 WHERE s.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM A), B AS (SELECT A.* FROM A, m2 WHERE A.a > m2.m) SELECT AVG(a) AS avg_ratio, AVG(a - (SELECT m FROM m1)) AS avg_above_first_mean, AVG(a - (SELECT m FROM m2)) AS avg_above_second_mean FROM B",
+  "WITH s AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM s), s1 AS (SELECT s.SEX, s.a FROM s, m1 WHERE s.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM s1), s2 AS (SELECT s1.SEX, s1.a FROM s1, m2 WHERE s1.a > m2.m) SELECT AVG(s2.a) AS avg_ratio, AVG(s2.a - m1.m) AS avg_above_first_mean, AVG(s2.a - m2.m) AS avg_above_second_mean FROM s2, m1, m2",
+  "WITH s AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.CPK * 1.0 / l.GPT IS NOT NULL GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM s), A AS (SELECT s.SEX, s.a FROM s, m1 WHERE s.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM A), B AS (SELECT A.a FROM A, m2 WHERE A.a > m2.m) SELECT AVG(B.a) AS avg_ratio, AVG(B.a - m1.m) AS avg_above_first_mean, AVG(B.a - m2.m) AS avg_above_second_mean FROM B, m1, m2"
+ ],
+ "responses": [
+  {
+   "sql": "WITH s AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM s), A AS (SELECT s.* FROM s, m1 WHERE s.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM A), B AS (SELECT A.* FROM A, m2 WHERE A.a > m2.m) SELECT AVG(a) AS avg_ratio, AVG(a - (SELECT m FROM m1)) AS avg_above_first_mean, AVG(a - (SELECT m FROM m2)) AS avg_above_second_mean FROM B",
+   "assumptions": [
+    {
+     "assumption": "The ratio is CPK divided by GPT, computed per lab row. Rows with a NULL CPK or GPT, or a GPT of 0 (division by zero), count as a missing ratio and are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The first mean is the unweighted mean of the per-sex averages. The second mean is the unweighted mean of the averages of the sexes that passed the first filter, which is what 'their own mean' is taken to mean.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The sex groups are used as stored, including any NULL or empty SEX value. If fewer than two sexes pass the first filter, no sex is strictly above the second mean, so the result row contains NULLs.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH s AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM s), s1 AS (SELECT s.SEX, s.a FROM s, m1 WHERE s.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM s1), s2 AS (SELECT s1.SEX, s1.a FROM s1, m2 WHERE s1.a > m2.m) SELECT AVG(s2.a) AS avg_ratio, AVG(s2.a - m1.m) AS avg_above_first_mean, AVG(s2.a - m2.m) AS avg_above_second_mean FROM s2, m1, m2",
+   "assumptions": [
+    {
+     "assumption": "The ratio is CPK/GPT per lab row, with floating-point division. Rows with a NULL CPK or GPT, or with GPT = 0, are excluded because the ratio is missing or undefined.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The first mean is the plain average of the per-sex average ratios. 'Their own mean' is the average of the per-sex averages among the sexes that passed the first filter. The result is empty if only one sex passes the first filter, since none can exceed their own mean.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL SEX value, if present, is treated as its own group. Only sexes that appear in Patient and have at least one valid ratio take part.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH s AS (SELECT p.SEX, AVG(l.CPK * 1.0 / l.GPT) AS a FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.CPK * 1.0 / l.GPT IS NOT NULL GROUP BY p.SEX), m1 AS (SELECT AVG(a) AS m FROM s), A AS (SELECT s.SEX, s.a FROM s, m1 WHERE s.a > m1.m), m2 AS (SELECT AVG(a) AS m FROM A), B AS (SELECT A.a FROM A, m2 WHERE A.a > m2.m) SELECT AVG(B.a) AS avg_ratio, AVG(B.a - m1.m) AS avg_above_first_mean, AVG(B.a - m2.m) AS avg_above_second_mean FROM B, m1, m2",
+   "assumptions": [
+    {
+     "assumption": "The first mean is the unweighted mean of the per-sex average ratios. The second mean is the unweighted mean of the per-sex averages among the sexes that passed the first filter, which is how I read 'their own mean'.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Tests with GPT = 0 or NULL, or CPK NULL, have a NULL ratio (SQLite returns NULL for division by zero) and are ignored. Each remaining test is weighted equally within its sex.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL SEX value, if any exists, is treated as its own group. If only one sex passes the first filter, nothing is above its own mean and the result row is NULL.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9c11ade5dd",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 25905,
+  "chars_out": 3614
+ }
+}

@@ -1,0 +1,26 @@
+{
+ "clauses": [
+  "Compute the overall average over all telescope rows, then compare each station's telescope average against it.",
+  "Compute the overall average as the mean of the per-station averages, so each station counts equally.",
+  "Weight by signals: join telescopes to signals, and average each station's and the overall usage per signal rather than per telescope."
+ ],
+ "readings": [
+  "Which observatory stations (`observstation`) have an average telescope bandwidth usage (`bandusagepct`) above the overall average bandwidth usage? Ignore missing values. For each one, show the station, its average bandwidth usage, and how much it exceeds the overall average. Return the top 10 by that margin, largest first, without rounding. Compute the overall average over all telescope rows, then compare each station's telescope average against it.",
+  "Which observatory stations (`observstation`) have an average telescope bandwidth usage (`bandusagepct`) above the overall average bandwidth usage? Ignore missing values. For each one, show the station, its average bandwidth usage, and how much it exceeds the overall average. Return the top 10 by that margin, largest first, without rounding. Compute the overall average as the mean of the per-station averages, so each station counts equally.",
+  "Which observatory stations (`observstation`) have an average telescope bandwidth usage (`bandusagepct`) above the overall average bandwidth usage? Ignore missing values. For each one, show the station, its average bandwidth usage, and how much it exceeds the overall average. Return the top 10 by that margin, largest first, without rounding. Weight by signals: join telescopes to signals, and average each station's and the overall usage per signal rather than per telescope."
+ ],
+ "queries": [
+  "SELECT observstation,\n       AVG(bandusagepct) AS avg_bandusagepct,\n       AVG(bandusagepct) - (SELECT AVG(bandusagepct) FROM telescopes WHERE bandusagepct IS NOT NULL) AS margin\nFROM telescopes\nWHERE bandusagepct IS NOT NULL\nGROUP BY observstation\nHAVING AVG(bandusagepct) > (SELECT AVG(bandusagepct) FROM telescopes WHERE bandusagepct IS NOT NULL)\nORDER BY margin DESC\nLIMIT 10;\n",
+  "WITH station_avg AS (\n  SELECT observstation, AVG(bandusagepct) AS avg_usage\n  FROM telescopes\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation\n),\noverall AS (\n  SELECT AVG(avg_usage) AS overall_avg FROM station_avg\n)\nSELECT s.observstation,\n       s.avg_usage,\n       s.avg_usage - o.overall_avg AS margin\nFROM station_avg s, overall o\nWHERE s.avg_usage > o.overall_avg\nORDER BY margin DESC\nLIMIT 10;\n",
+  "WITH per_signal AS (\n  SELECT t.observstation AS observstation, t.bandusagepct AS bandusagepct\n  FROM telescopes t\n  JOIN signals s ON s.telescref = t.telescregistry\n  WHERE t.bandusagepct IS NOT NULL\n),\noverall AS (\n  SELECT AVG(bandusagepct) AS overall_avg FROM per_signal\n)\nSELECT p.observstation,\n       AVG(p.bandusagepct) AS avg_bandusagepct,\n       AVG(p.bandusagepct) - o.overall_avg AS margin_over_overall\nFROM per_signal p\nCROSS JOIN overall o\nGROUP BY p.observstation, o.overall_avg\nHAVING AVG(p.bandusagepct) > o.overall_avg\nORDER BY margin_over_overall DESC\nLIMIT 10;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e7b2c8e815",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 4,
+  "chars_in": 161398,
+  "chars_out": 1771
+ }
+}

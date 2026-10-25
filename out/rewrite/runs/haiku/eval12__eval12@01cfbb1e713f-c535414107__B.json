@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c535414107",
+ "model": "haiku",
+ "reading": "B",
+ "description": "A blank sex means unknown, so those patients are dropped before grouping and before the mean is computed.",
+ "a": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), first average each patient's (`ID`, `SEX`) `ALB` and their per-test ratio of `UN` to `T-BIL`. Then, for each sex (leaving out patients whose `SEX` is blank or missing), average those patient-level figures. Which sexes have an average `ALB` above the mean of the sex-level `ALB` averages? Show the sex, its average `ALB`, its average `UN`/`T-BIL` ratio, and how far its `ALB` average is above that mean. Averages ignore missing values (including ratios that can't be computed); don't round.",
+  "sql": "WITH patient_stats AS (\n  SELECT p.ID, p.SEX,\n         AVG(l.ALB) AS avg_alb,\n         AVG(CASE WHEN l.`T-BIL` <> 0 THEN l.UN * 1.0 / l.`T-BIL` END) AS avg_ratio\n  FROM Laboratory l\n  JOIN Patient p ON p.ID = l.ID\n  WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> ''\n  GROUP BY p.ID, p.SEX\n),\nsex_stats AS (\n  SELECT SEX, AVG(avg_alb) AS sex_alb, AVG(avg_ratio) AS sex_ratio\n  FROM patient_stats\n  GROUP BY SEX\n),\nmean_alb AS (\n  SELECT AVG(sex_alb) AS m FROM sex_stats\n)\nSELECT s.SEX AS sex,\n       s.sex_alb AS avg_alb,\n       s.sex_ratio AS avg_un_tbil_ratio,\n       s.sex_alb - m.m AS diff_from_mean\nFROM sex_stats s, mean_alb m\nWHERE s.sex_alb > m.m;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Among patients with a recorded sex (blank-sex patients dropped before grouping), joining Laboratory to Patient on ID and dropping unmatched lab rows, average ALB per patient, then average those per sex, and average the per-test UN/T-BIL ratios per patient before averaging to sex level, then return each sex whose sex-level ALB average exceeds the mean of the sex-level ALB averages, with that ALB average, its UN/T-BIL average, and the unrounded difference from the mean",
+  "sql": "WITH patient_stats AS (SELECT p.SEX AS sex, l.ID AS id, AVG(l.ALB) AS alb_avg, AVG(l.UN * 1.0 / l.`T-BIL`) AS un_tbil_avg FROM Laboratory l INNER JOIN Patient p ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> '' GROUP BY p.SEX, l.ID), sex_stats AS (SELECT sex, AVG(alb_avg) AS alb_avg, AVG(un_tbil_avg) AS un_tbil_avg FROM patient_stats GROUP BY sex), overall AS (SELECT AVG(alb_avg) AS mean_alb FROM sex_stats) SELECT s.sex, s.alb_avg, s.un_tbil_avg, s.alb_avg - o.mean_alb AS diff_from_mean FROM sex_stats s CROSS JOIN overall o WHERE s.alb_avg > o.mean_alb;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), first average each patient's (`ID`, `SEX`) `ALB` and their per-test ratio of `UN` to `T-BIL`. Then average those patient-level figures for each sex. Which sexes have an average `ALB` above the mean of the sex-level `ALB` averages? Show the sex, its average `ALB`, its average `UN`/`T-BIL` ratio, and how far its `ALB` average is above that mean. Averages ignore missing values (including ratios that can't be computed); don't round. A blank sex means unknown, so those patients are dropped before grouping and before the mean is computed.",
+  "sql": "WITH patient_level AS (SELECT p.ID, p.SEX, AVG(l.ALB) AS avg_alb, AVG(CASE WHEN l.`T-BIL` <> 0 THEN 1.0 * l.UN / l.`T-BIL` END) AS avg_ratio FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> '' GROUP BY p.ID, p.SEX), sex_level AS (SELECT SEX, AVG(avg_alb) AS avg_alb, AVG(avg_ratio) AS avg_ratio FROM patient_level GROUP BY SEX), mean_alb AS (SELECT AVG(avg_alb) AS m FROM sex_level) SELECT s.SEX, s.avg_alb AS avg_alb, s.avg_ratio AS avg_un_tbil_ratio, s.avg_alb - m.m AS alb_diff_above_mean FROM sex_level s CROSS JOIN mean_alb m WHERE s.avg_alb > m.m;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Rewrite the follow-up so it stands alone, drawing on the earlier task:\n\nLinking lab records to patients by `ID` (dropping unmatched lab records), first average each patient's (`ID`, `SEX`) `ALB` and their per-test ratio of `UN` to `T-BIL`, then average those patient-level figures for each sex, ignoring missing values (including ratios that can't be computed) and without rounding. Drop patients whose `SEX` is blank (unknown) before grouping and before computing the mean. Which sexes have an average `ALB` above the mean of the sex-level `ALB` averages, and for each such sex, what is its average `ALB`, its average `UN`/`T-BIL` ratio, and how far its `ALB` average is above that mean?",
+  "sql": "WITH joined AS (\n  SELECT p.ID, p.SEX, l.ALB,\n         CASE WHEN l.`T-BIL` <> 0 THEN l.UN / l.`T-BIL` END AS ratio\n  FROM Laboratory l\n  JOIN Patient p ON p.ID = l.ID\n  WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> ''\n),\npatient_level AS (\n  SELECT ID, SEX, AVG(ALB) AS avg_alb, AVG(ratio) AS avg_ratio\n  FROM joined\n  GROUP BY ID, SEX\n),\nsex_level AS (\n  SELECT SEX, AVG(avg_alb) AS sex_alb, AVG(avg_ratio) AS sex_ratio\n  FROM patient_level\n  GROUP BY SEX\n),\noverall AS (\n  SELECT AVG(sex_alb) AS mean_alb FROM sex_level\n)\nSELECT s.SEX,\n       s.sex_alb AS avg_alb,\n       s.sex_ratio AS avg_un_tbil_ratio,\n       s.sex_alb - o.mean_alb AS diff_above_mean\nFROM sex_level s\nCROSS JOIN overall o\nWHERE s.sex_alb > o.mean_alb;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

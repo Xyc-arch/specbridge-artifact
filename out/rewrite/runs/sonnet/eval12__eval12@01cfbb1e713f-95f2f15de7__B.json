@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-95f2f15de7",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Divide each status's total gbsize by its total spanmin.",
+ "c": {
+  "request": "For scans matched to their site (skip any whose site code isn't in `sites`), break things down by the site's health and safety status (`healtheval`). For each status, show the total number of scans (`scancount`) and the GB per minute of scanning, based on `gbsize` and `spanmin`, ignoring missing values. Only include statuses whose GB per minute is strictly above the average of that figure across statuses (none if that average is missing). Show the status, the total scans, the GB per minute, and how much it exceeds that average. No rounding. Divide each status's total gbsize by its total spanmin.",
+  "sql": "WITH s AS (SELECT si.healtheval AS status, SUM(sc.scancount) AS total_scans, CAST(SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize END) AS REAL) / NULLIF(SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.spanmin END), 0) AS gb_per_min FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), a AS (SELECT AVG(gb_per_min) AS avg_gpm FROM s) SELECT s.status, s.total_scans, s.gb_per_min, s.gb_per_min - a.avg_gpm AS excess_over_average FROM s CROSS JOIN a WHERE s.gb_per_min > a.avg_gpm",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For scans joined to their site (excluding scans whose site code is not in `sites`), group by the site's `healtheval` status and compute each status's total `scancount` and GB per minute as SUM(`gbsize`) divided by SUM(`spanmin`) over non-missing values, then keep only statuses whose GB per minute is strictly greater than the average of that GB-per-minute figure across statuses (none if the average is missing), showing the status, total scans, GB per minute, and the unrounded amount by which it exceeds that average",
+  "sql": "WITH g AS (SELECT s.healtheval AS status, SUM(sc.scancount) AS total_scans, CAST(SUM(sc.gbsize) AS REAL) / NULLIF(SUM(sc.spanmin), 0) AS gb_per_min FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), a AS (SELECT AVG(gb_per_min) AS avg_gpm FROM g) SELECT g.status, g.total_scans, g.gb_per_min, g.gb_per_min - a.avg_gpm AS excess_over_average FROM g CROSS JOIN a WHERE a.avg_gpm IS NOT NULL AND g.gb_per_min > a.avg_gpm",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match each scan in `scans` to its site in `sites` on site code (`zoneref` = `zoneregistry`), leaving out scans whose site code isn't found. Group by the site's health and safety status (`healtheval`). For each status, compute the total of `scancount` and a GB-per-minute rate obtained by adding up all the status's `gbsize` and dividing that by the sum of all its `spanmin` (a ratio of totals, not an average of per-scan ratios). Missing values are ignored in sums and averages. Compute the average of that rate across all statuses and keep only the statuses whose rate is strictly above it (none if that average is missing). List the status, the total scan count, the rate, and the rate minus that average. No rounding.",
+  "sql": "WITH g AS (SELECT s.healtheval AS healtheval, SUM(c.scancount) AS total_scancount, SUM(c.gbsize) * 1.0 / NULLIF(SUM(c.spanmin), 0) AS rate FROM scans c JOIN sites s ON c.zoneref = s.zoneregistry GROUP BY s.healtheval), a AS (SELECT AVG(rate) AS avg_rate FROM g) SELECT g.healtheval, g.total_scancount, g.rate, g.rate - a.avg_rate AS rate_minus_avg FROM g CROSS JOIN a WHERE g.rate > a.avg_rate",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For scans matched to their site (skip any whose site code isn't in `sites`), group by the site's health and safety status (`healtheval`). For each status, show the total number of scans (`scancount`) and the GB per minute of scanning, calculated by dividing the status's total `gbsize` by its total `spanmin` (ignoring missing values). Only include statuses whose GB per minute is strictly above the average of that figure across statuses (none if that average is missing). Show the status, the total scans, the GB per minute, and how much it exceeds that average. No rounding.",
+  "sql": "WITH g AS (SELECT si.healtheval AS status, SUM(s.scancount) AS total_scans, SUM(s.gbsize) * 1.0 / NULLIF(SUM(s.spanmin), 0) AS gb_per_min FROM scans s JOIN sites si ON s.zoneref = si.zoneregistry GROUP BY si.healtheval), a AS (SELECT AVG(gb_per_min) AS avg_gpm FROM g) SELECT g.status, g.total_scans, g.gb_per_min, g.gb_per_min - a.avg_gpm AS excess_over_average FROM g CROSS JOIN a WHERE g.gb_per_min > a.avg_gpm",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

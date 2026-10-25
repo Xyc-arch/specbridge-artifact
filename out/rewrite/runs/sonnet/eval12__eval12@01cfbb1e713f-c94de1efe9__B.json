@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "For each patient, divide their average HGB by their average HCT.",
+ "c": {
+  "request": "Match laboratory records to patients on `ID` (lab records with no matching patient are dropped) and group by patient ID and sex. For each patient, find their average white blood cell count (`WBC`) and their average hemoglobin-to-hematocrit ratio (`HGB`/`HCT`), ignoring missing values. Keep only patients whose ratio is greater than the mean of that ratio across all patients (missing values ignored). Show the patient ID, sex, average WBC, the ratio, and the ratio minus that mean. Sort by that gap, largest first with missing values last, return only the first 10 rows, and don't round anything. For each patient, divide their average HGB by their average HCT.",
+  "sql": "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB) / AVG(L.HCT) AS ratio FROM Laboratory L JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX) SELECT ID, SEX, avg_wbc, ratio, ratio - (SELECT AVG(ratio) FROM p) AS gap FROM p WHERE ratio > (SELECT AVG(ratio) FROM p) ORDER BY gap DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match each laboratory record to its patient on `ID` (lab records with no matching patient are dropped) and group by patient ID and sex. For each patient, compute the average white blood cell count (`WBC`) and the hemoglobin-to-hematocrit ratio computed as their average `HGB` divided by their average `HCT`, ignoring missing values. Then take the mean of that ratio across all patients, ignoring missing values, and list the patients whose ratio is greater than that mean. Show patient ID, sex, average WBC, the ratio, and the ratio minus the overall mean. Sort by that difference from largest to smallest (missing values last), return only the first 10 rows, and do not round any values.",
+  "sql": "WITH per AS (SELECT l.ID AS ID, p.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB) * 1.0 / AVG(l.HCT) AS ratio FROM Laboratory l JOIN Patient p ON l.ID = p.ID GROUP BY l.ID, p.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM per) SELECT per.ID, per.SEX, per.avg_wbc, per.ratio, per.ratio - m.mean_ratio AS diff FROM per, m WHERE per.ratio > m.mean_ratio ORDER BY diff DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each patient (grouped by ID and sex), divide the patient's average HGB by the patient's average HCT (average of HGB over average of HCT, not the average of per-row HGB/HCT ratios), keep patients whose ratio exceeds the mean of that ratio across all patients, and show ID, sex, average WBC, the ratio, and the ratio minus that mean, sorted by the gap descending (NULLs last), top 10, unrounded",
+  "sql": "WITH p AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB) * 1.0 / AVG(l.HCT) AS ratio FROM Patient p JOIN Laboratory l ON l.ID = p.ID GROUP BY p.ID, p.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM p) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - m.mean_ratio AS gap FROM p, m WHERE p.ratio > m.mean_ratio ORDER BY gap DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match laboratory records to patients on `ID` (dropping lab records with no matching patient) and group by patient ID and sex. For each patient, calculate their average white blood cell count (`WBC`) and their ratio as their average `HGB` divided by their average `HCT`, ignoring missing values. Keep only patients whose ratio is greater than the mean of that ratio across all patients (ignoring missing values). Show the patient ID, sex, average WBC, the ratio, and the ratio minus that mean. Sort by that gap, largest first with missing values last, return only the first 10 rows, and don't round anything.",
+  "sql": "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB) * 1.0 / AVG(L.HCT) AS ratio FROM Laboratory L JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM p) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - m.mean_ratio AS gap FROM p CROSS JOIN m WHERE p.ratio > m.mean_ratio ORDER BY (p.ratio - m.mean_ratio) IS NULL, gap DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

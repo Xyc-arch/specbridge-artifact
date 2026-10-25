@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4a2d376afa",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "The overall HGB average is taken over every lab record directly, so patients with more tests weigh more.",
+ "b": {
+  "request": "For each patient whose mean non-null Laboratory.HGB exceeds the mean non-null HGB across all laboratory records, return the patient ID, their HGB mean, its difference from the overall record-level mean, and its difference from the mean of the qualifying patients\u2019 HGB means; show the 10 highest by the last difference, unrounded",
+  "sql": "WITH overall AS (SELECT AVG(HGB) AS mean_hgb FROM Laboratory), patient_means AS (SELECT ID, AVG(HGB) AS mean_hgb FROM Laboratory GROUP BY ID), qualifying AS (SELECT p.ID, p.mean_hgb FROM patient_means AS p CROSS JOIN overall AS o WHERE p.mean_hgb > o.mean_hgb) SELECT q.ID, q.mean_hgb AS hgb_mean, q.mean_hgb - o.mean_hgb AS difference_from_overall, q.mean_hgb - (SELECT AVG(mean_hgb) FROM qualifying) AS difference_from_qualifying_mean FROM qualifying AS q CROSS JOIN overall AS o ORDER BY difference_from_qualifying_mean DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each patient ID in the Laboratory table, compute their average hemoglobin (`HGB`) over their lab records, ignoring missing values. Define the overall average as the mean `HGB` over all individual lab records pooled together, so each test counts once and patients with more tests weigh more. Keep the patients whose average is above that overall average. For each kept patient, list the ID, their average HGB, how far it is above the overall average, and their average minus the mean of the kept patients' averages. Sort by that last value from highest to lowest and show the top 10, unrounded.",
+  "sql": "WITH patient_averages AS (SELECT ID, AVG(HGB) AS average_hgb FROM Laboratory GROUP BY ID), overall AS (SELECT AVG(HGB) AS overall_average_hgb FROM Laboratory), kept AS (SELECT p.ID, p.average_hgb, p.average_hgb - o.overall_average_hgb AS above_overall_average FROM patient_averages AS p CROSS JOIN overall AS o WHERE p.average_hgb > o.overall_average_hgb) SELECT ID, average_hgb, above_overall_average, average_hgb - (SELECT AVG(average_hgb) FROM kept) AS difference_from_kept_average FROM kept ORDER BY difference_from_kept_average DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Among patients whose average hemoglobin (`HGB`) across their lab records (ignoring missing values) is above the overall average hemoglobin, list the patient ID, their average HGB, how far it is above the overall average, and their average minus the average of these above-average patients' averages. Show the top 10 by that last value, highest first, unrounded. The overall HGB average is taken over every lab record directly, so patients with more tests weigh more.",
+  "sql": "WITH overall AS (SELECT AVG(HGB) AS avg_hgb FROM Laboratory), patient_averages AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory GROUP BY ID), above_average AS (SELECT p.ID, p.avg_hgb FROM patient_averages AS p CROSS JOIN overall AS o WHERE p.avg_hgb > o.avg_hgb) SELECT a.ID, a.avg_hgb AS patient_avg_hgb, a.avg_hgb - o.avg_hgb AS above_overall_avg, a.avg_hgb - (SELECT AVG(avg_hgb) FROM above_average) AS above_average_patients_avg FROM above_average AS a CROSS JOIN overall AS o ORDER BY above_average_patients_avg DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among patients whose average hemoglobin (`HGB`) across their lab records, ignoring missing values, exceeds the overall HGB average calculated directly from all non-missing lab records (so patients with more tests have more weight), list each patient\u2019s ID, average HGB, amount above the overall average, and average HGB minus the average of the above-average patients\u2019 averages. Show the top 10 by the last value, highest first, with unrounded results.",
+  "sql": "WITH overall AS (SELECT AVG(HGB) AS overall_avg FROM Laboratory WHERE HGB IS NOT NULL), patient_averages AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), above_average AS (SELECT p.ID, p.avg_hgb, o.overall_avg FROM patient_averages p CROSS JOIN overall o WHERE p.avg_hgb > o.overall_avg), above_average_mean AS (SELECT AVG(avg_hgb) AS mean_avg_hgb FROM above_average) SELECT a.ID, a.avg_hgb, a.avg_hgb - a.overall_avg AS amount_above_overall, a.avg_hgb - m.mean_avg_hgb AS amount_above_above_average_mean FROM above_average a CROSS JOIN above_average_mean m ORDER BY amount_above_above_average_mean DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

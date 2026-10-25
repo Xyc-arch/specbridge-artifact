@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-43cd7485bf",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Compare each channel's average fee rate to the simple mean of all channel averages.",
+ "b": {
+  "request": "Using the unweighted mean of per-channel average feerates, filter to channels whose average exceeds it, and return one unrounded row with those channels' mean average feerate and their average excess over the overall mean",
+  "sql": "WITH chan AS (SELECT o.exchspot AS channel, AVG(f.feerate) AS avg_rate FROM fees f JOIN orders o ON o.recordvault = f.orderslink WHERE f.feerate IS NOT NULL GROUP BY o.exchspot), overall AS (SELECT AVG(avg_rate) AS mean_rate FROM chan) SELECT AVG(c.avg_rate) AS mean_avg_feerate, AVG(c.avg_rate - o.mean_rate) AS avg_excess FROM chan c CROSS JOIN overall o WHERE c.avg_rate > o.mean_rate;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Looking at fees linked to orders (`fees.orderslink` = `orders.recordvault`), compute each order channel's (`orders.orderbase`) average fee rate (`feerate`, ignoring missing values), and use the simple mean of those channel averages as the benchmark. For the channels whose average is strictly above that benchmark, return a single row with the mean of their average fee rates and the mean of how far each one exceeds the benchmark, unrounded.",
+  "sql": "WITH channel_avg AS (SELECT o.orderbase, AVG(f.feerate) AS avg_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL GROUP BY o.orderbase), benchmark AS (SELECT AVG(avg_rate) AS bench FROM channel_avg) SELECT AVG(c.avg_rate) AS mean_above_channel_avg_rate, AVG(c.avg_rate - b.bench) AS mean_excess_over_benchmark FROM channel_avg c CROSS JOIN benchmark b WHERE c.avg_rate > b.bench;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For fees tied to orders (`fees.orderslink` = `orders.recordvault`), which order channels (`orders.orderbase`) have an above-average fee rate (`feerate`, ignoring missing values)? Give me one row: those channels' mean average fee rate and, on average, how far above average they are, unrounded. Compare each channel's average fee rate to the simple mean of all channel averages.",
+  "sql": "WITH channel_avg AS (\n  SELECT o.orderbase, AVG(f.feerate) AS avg_rate\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL\n  GROUP BY o.orderbase\n),\noverall AS (\n  SELECT AVG(avg_rate) AS overall_mean FROM channel_avg\n),\nabove AS (\n  SELECT c.orderbase, c.avg_rate, c.avg_rate - g.overall_mean AS excess\n  FROM channel_avg c\n  CROSS JOIN overall g\n  WHERE c.avg_rate > g.overall_mean\n)\nSELECT AVG(avg_rate) AS mean_above_channel_avg_feerate,\n       AVG(excess) AS avg_excess_above_mean\nFROM above;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Compare each order channel's average fee rate (for fees linked to orders, ignoring missing feerate values) to the simple mean of all channel averages.",
+  "sql": "WITH channel_avg AS (SELECT o.exchspot AS channel, AVG(f.feerate) AS avg_feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL GROUP BY o.exchspot) SELECT channel, avg_feerate, AVG(avg_feerate) OVER () AS mean_of_channel_avgs, avg_feerate - AVG(avg_feerate) OVER () AS diff_from_mean FROM channel_avg ORDER BY channel;",
+  "executes": true,
+  "matches": []
+ }
+}

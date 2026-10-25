@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6ec8137fd3",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The customer's town is found via invoice line \u2192 order item \u2192 order \u2192 customer.",
+ "a": {
+  "request": "Link each invoice line item to its order through its order item (`Order_Items.order_id`), and from the order to the customer's town or city. First, for each order item id and town, average the line `product_price` and the ratio `derived_product_cost` / `derived_total_cost`, ignoring missing values. Then, for each town, average those per-item averages. Show the towns whose average cost ratio is above the average of that ratio across all towns, with the town, its average price, its average ratio, and how much its ratio exceeds the cross-town average. No rounding.",
+  "sql": "WITH per_item AS (\n  SELECT\n    o.customer_id,\n    oli.order_item_id,\n    AVG(oli.product_price) AS avg_item_price,\n    AVG(CAST(oli.derived_product_cost AS REAL) / NULLIF(oli.derived_total_cost, 0)) AS avg_item_cost_ratio\n  FROM Invoice_Line_Items AS oli\n  JOIN Order_Items AS oi ON oi.order_item_id = oli.order_item_id\n  JOIN Orders AS o ON o.order_id = oi.order_id\n  GROUP BY o.customer_id, oli.order_item_id\n), per_town AS (\n  SELECT\n    c.town_city,\n    AVG(pi.avg_item_price) AS average_price,\n    AVG(pi.avg_item_cost_ratio) AS average_cost_ratio\n  FROM per_item AS pi\n  JOIN Customers AS c ON c.customer_id = pi.customer_id\n  GROUP BY c.town_city\n), town_baseline AS (\n  SELECT AVG(average_cost_ratio) AS cross_town_average_ratio\n  FROM per_town\n)\nSELECT\n  pt.town_city AS town,\n  pt.average_price,\n  pt.average_cost_ratio,\n  pt.average_cost_ratio - tb.cross_town_average_ratio AS ratio_excess\nFROM per_town AS pt\nCROSS JOIN town_baseline AS tb\nWHERE pt.average_cost_ratio > tb.cross_town_average_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Using the town or city of the customer who placed the order behind each invoice line item: first, for each order item id and town, average the line `product_price` and the ratio `derived_product_cost` / `derived_total_cost`, ignoring missing values; then average those per town. Which towns have an average cost ratio above the average across all towns? Show the town, its average price, its average ratio, and how far its ratio is above the cross-town average, without rounding. The customer's town is found via invoice line \u2192 order item \u2192 order \u2192 customer.",
+  "sql": "WITH item_town_averages AS (\n    SELECT\n        oi.order_item_id,\n        c.town_city,\n        AVG(ili.product_price) AS avg_product_price,\n        AVG(ili.derived_product_cost / NULLIF(ili.derived_total_cost, 0)) AS avg_cost_ratio\n    FROM Invoice_Line_Items AS ili\n    JOIN Order_Items AS oi ON oi.order_item_id = ili.order_item_id\n    JOIN Orders AS o ON o.order_id = oi.order_id\n    JOIN Customers AS c ON c.customer_id = o.customer_id\n    GROUP BY oi.order_item_id, c.town_city\n), town_averages AS (\n    SELECT\n        town_city,\n        AVG(avg_product_price) AS avg_price,\n        AVG(avg_cost_ratio) AS avg_ratio\n    FROM item_town_averages\n    GROUP BY town_city\n), cross_town_average AS (\n    SELECT AVG(avg_ratio) AS avg_ratio\n    FROM town_averages\n)\nSELECT\n    t.town_city,\n    t.avg_price,\n    t.avg_ratio,\n    t.avg_ratio - x.avg_ratio AS ratio_above_cross_town_average\nFROM town_averages AS t\nCROSS JOIN cross_town_average AS x\nWHERE t.avg_ratio > x.avg_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Compute average `product_price` and `derived_product_cost / derived_total_cost` for each `(order_item_id, customer town)` across invoice line items, ignoring missing values; then average those per town. Return towns whose average ratio exceeds the unweighted average of the town averages, with town, average price, average ratio, and the difference from that cross-town average, without rounding",
+  "sql": "WITH item_town AS (\n    SELECT\n        ili.order_item_id,\n        c.town_city AS town,\n        AVG(ili.product_price) AS avg_price,\n        AVG(1.0 * ili.derived_product_cost / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio\n    FROM Invoice_Line_Items AS ili\n    JOIN Invoices AS i ON i.invoice_number = ili.invoice_number\n    JOIN Orders AS o ON o.order_id = i.order_id\n    JOIN Customers AS c ON c.customer_id = o.customer_id\n    GROUP BY ili.order_item_id, c.town_city\n), town_averages AS (\n    SELECT\n        town,\n        AVG(avg_price) AS average_price,\n        AVG(avg_ratio) AS average_ratio\n    FROM item_town\n    GROUP BY town\n), cross_town AS (\n    SELECT AVG(average_ratio) AS cross_town_average_ratio\n    FROM town_averages\n)\nSELECT\n    ta.town,\n    ta.average_price,\n    ta.average_ratio,\n    ta.average_ratio - ct.cross_town_average_ratio AS difference_from_cross_town_average\nFROM town_averages AS ta\nCROSS JOIN cross_town AS ct\nWHERE ta.average_ratio > ct.cross_town_average_ratio;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the customer town associated with each invoice line item through the invoice line \u2192 order item \u2192 order \u2192 customer relationship, calculate for each order item and town the average `product_price` and the average ratio `derived_product_cost / derived_total_cost`, ignoring missing values. Then average those values by town. Which towns have an average cost ratio above the average across all towns? Show each town\u2019s average price, average cost ratio, and the difference between its ratio and the cross-town average, without rounding.",
+  "sql": "WITH order_item_town_averages AS (\n  SELECT\n    c.town_city,\n    oli.order_item_id,\n    AVG(ili.product_price) AS average_price,\n    AVG(ili.derived_product_cost / NULLIF(ili.derived_total_cost, 0)) AS average_cost_ratio\n  FROM Invoice_Line_Items AS ili\n  JOIN Order_Items AS oli\n    ON ili.order_item_id = oli.order_item_id\n  JOIN Orders AS o\n    ON oli.order_id = o.order_id\n  JOIN Customers AS c\n    ON o.customer_id = c.customer_id\n  GROUP BY c.town_city, oli.order_item_id\n), town_averages AS (\n  SELECT\n    town_city,\n    AVG(average_price) AS average_price,\n    AVG(average_cost_ratio) AS average_cost_ratio\n  FROM order_item_town_averages\n  GROUP BY town_city\n), overall_average AS (\n  SELECT AVG(average_cost_ratio) AS average_cost_ratio\n  FROM town_averages\n)\nSELECT\n  t.town_city,\n  t.average_price,\n  t.average_cost_ratio,\n  t.average_cost_ratio - a.average_cost_ratio AS difference_from_cross_town_average\nFROM town_averages AS t\nCROSS JOIN overall_average AS a\nWHERE t.average_cost_ratio > a.average_cost_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

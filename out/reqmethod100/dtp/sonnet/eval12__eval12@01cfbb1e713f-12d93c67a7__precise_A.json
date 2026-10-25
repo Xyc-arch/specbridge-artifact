@@ -1,0 +1,58 @@
+{
+ "interpretations": [
+  "Average of rebrate/feerate is computed per row first, then averaged within each group (average of ratios). Rows with null rebrate, null feerate, or a zero feerate are skipped or excluded.",
+  "Average of rebrate/feerate is computed as the ratio of the group's average rebrate to its average feerate, rather than the average of row-level ratios.",
+  "Average of rebrate/feerate is computed as the ratio of the group's summed rebrate to its summed feerate.",
+  "Rows with a zero feerate are excluded, so division by zero doesn't occur. Alternatively, they yield null or an error, or they are treated as missing.",
+  "Fee-record count is the count of all joined fee rows in the group, including rows where rebrate or feerate is null.",
+  "Fee-record count is the count of only the rows contributing a non-null ratio.",
+  "Fee-record count is the count of distinct fee records (feesnode). Alternatively, it is the count of distinct orders.",
+  "Groups with a null timespan are included as their own group.",
+  "Groups with a null timespan are excluded.",
+  "The cross-group average count is the simple mean of the per-group counts over all groups, including groups that are later dropped. This is the intended reading.",
+  "The cross-group average count is the total fee records divided by the number of timespan values defined in the enum, including enum values with no fees.",
+  "The cross-group average count is computed only over groups with a non-null ratio.",
+  "\"Strictly above\" means count > average, with ties excluded.",
+  "The first output value is the average across kept groups of each group's average ratio, with each group weighted equally.",
+  "The first output value is the overall average ratio across all fee rows in the kept groups, weighted by rows.",
+  "The second output value is the sum of the kept groups' fee-record counts.",
+  "The third output value is the average over kept groups of (group count \u2212 cross-group average count).",
+  "The third output value is the average count of kept groups minus the cross-group average count. This is numerically the same as the previous reading.",
+  "The output is a single row with three columns, and if no group qualifies, the values are null.",
+  "The output is a single row with three columns, and if no group qualifies, the sum is 0 or no row is returned.",
+  "Values are returned unrounded, at full floating-point or decimal precision. Casting to numeric or integer division behavior could change the precision.",
+  "The join is an inner join on fees.orderslink = orders.recordvault. Fees whose order is missing are dropped. Duplicate recordvault values in orders could multiply fee rows.",
+  "Missing interpretations:",
+  "Groups are formed on timespan values that exist among the joined fee rows only. Enum values with no joined fees produce no group, so they don't affect the cross-group average.",
+  "The cross-group average count is computed after the join, over the groups that have at least one joined fee record. It is not computed before dropping unmatched fees.",
+  "Fee-record count is the count of fee rows with a non-null rebrate, or the count of rows with a non-null feerate. This is a count of one column only, not both.",
+  "Rows with a zero feerate are kept in the count but excluded from the ratio average. The count still includes them.",
+  "Rows with a zero feerate are treated as null (as with NULLIF) and are kept in the count.",
+  "A group whose rows all have a null or zero ratio has a null average ratio. It still counts as a group for the cross-group average and can be kept. It is then ignored by the average of average ratios.",
+  "The average of average ratios is taken only over kept groups with a non-null average ratio. This is the standard SQL AVG behavior.",
+  "Integer division is applied to the sum of kept counts or the cross-group average, so the average count is truncated. This is excluded by \"don't round anything\".",
+  "The third output value is the average of the kept groups' counts minus the cross-group average count, where the cross-group average is computed over all groups. It is not recomputed over kept groups only.",
+  "The third output value uses the absolute difference, which is the same as the plain difference because all kept groups are above the average.",
+  "The cross-group average count is a weighted mean (total rows divided by total rows), or is computed over fee rows rather than groups."
+ ],
+ "queries": [
+  "SELECT feerange, AVG(rebrate / feerate) FROM fees WHERE rebrate IS NOT NULL AND feerate IS NOT NULL AND feerate <> 0 GROUP BY feerange",
+  "SELECT feerange, AVG(rebrate) / AVG(feerate) AS avg_rebrate_feerate_ratio FROM fees GROUP BY feerange",
+  "SELECT feerange, SUM(rebrate) / SUM(feerate) AS avg_rebrate_feerate_ratio\nFROM fees\nGROUP BY feerange;\n",
+  "SELECT rebrate / feerate AS rebate_to_fee_ratio FROM fees WHERE feerate <> 0;\n",
+  "SELECT COUNT(*) AS fee_record_count\nFROM fees f\nJOIN orders o ON f.orderslink = o.recordvault\nWHERE f.feetotal * 1.0 / NULLIF(o.notionsum, 0) IS NOT NULL;\n"
+ ],
+ "raw": [
+  "1. Average of rebrate/feerate is computed per row first, then averaged within each group (average of ratios). Rows with null rebrate, null feerate, or a zero feerate are skipped or excluded.\n2. Average of rebrate/feerate is computed as the ratio of the group's average rebrate to its average feerate, rather than the average of row-level ratios.\n3. Average of rebrate/feerate is computed as the ratio of the group's summed rebrate to its summed feerate.\n4. Rows with a zero feerate are excluded, so division by zero doesn't occur. Alternatively, they yield null or an error, or they are treated as missing.\n5. Fee-record count is the count of all joined fee rows in the group, including rows where rebrate or feerate is null.\n6. Fee-record count is the count of only the rows contributing a non-null ratio.\n7. Fee-record count is the count of distinct fee records (feesnode). Alternatively, it is the count of distinct orders.\n8. Groups with a null timespan are included as their own group.\n9. Groups with a null timespan are excluded.\n10. The cross-group average count is the simple mean of the per-group counts over all groups, including groups that are later dropped. This is the intended reading.\n11. The cross-group average count is the total fee records divided by the number of timespan values defined in the enum, including enum values with no fees.\n12. The cross-group average count is computed only over groups with a non-null ratio.\n13. \"Strictly above\" means count > average, with ties excluded.\n14. The first output value is the average across kept groups of each group's average ratio, with each group weighted equally.\n15. The first output value is the overall average ratio across all fee rows in the kept groups, weighted by rows.\n16. The second output value is the sum of the kept groups' fee-record counts.\n17. The third output value is the average over kept groups of (group count \u2212 cross-group average count).\n18. The third output value is the average count of kept groups minus the cross-group average count. This is numerically the same as the previous reading.\n19. The output is a single row with three columns, and if no group qualifies, the values are null.\n20. The output is a single row with three columns, and if no group qualifies, the sum is 0 or no row is returned.\n21. Values are returned unrounded, at full floating-point or decimal precision. Casting to numeric or integer division behavior could change the precision.\n22. The join is an inner join on fees.orderslink = orders.recordvault. Fees whose order is missing are dropped. Duplicate recordvault values in orders could multiply fee rows.",
+  "Missing interpretations:\n\nGroups are formed on timespan values that exist among the joined fee rows only. Enum values with no joined fees produce no group, so they don't affect the cross-group average.\nThe cross-group average count is computed after the join, over the groups that have at least one joined fee record. It is not computed before dropping unmatched fees.\nFee-record count is the count of fee rows with a non-null rebrate, or the count of rows with a non-null feerate. This is a count of one column only, not both.\nRows with a zero feerate are kept in the count but excluded from the ratio average. The count still includes them.\nRows with a zero feerate are treated as null (as with NULLIF) and are kept in the count.\nA group whose rows all have a null or zero ratio has a null average ratio. It still counts as a group for the cross-group average and can be kept. It is then ignored by the average of average ratios.\nThe average of average ratios is taken only over kept groups with a non-null average ratio. This is the standard SQL AVG behavior.\nInteger division is applied to the sum of kept counts or the cross-group average, so the average count is truncated. This is excluded by \"don't round anything\".\nThe third output value is the average of the kept groups' counts minus the cross-group average count, where the cross-group average is computed over all groups. It is not recomputed over kept groups only.\nThe third output value uses the absolute difference, which is the same as the plain difference because all kept groups are above the average.\nThe cross-group average count is a weighted mean (total rows divided by total rows), or is computed over fee rows rather than groups."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107946,
+  "chars_out": 5847
+ }
+}

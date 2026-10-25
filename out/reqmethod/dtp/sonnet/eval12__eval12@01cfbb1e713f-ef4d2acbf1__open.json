@@ -1,0 +1,60 @@
+{
+ "interpretations": [
+  "Per-test-record ratio: each Laboratory row (HGB/HCT) is treated as a unit. The overall average is the mean of all row ratios, the group is the rows above it, the group average is the mean of the group's row ratios, and the final rows are those above the group average.",
+  "Per-patient ratio from the average of each patient's row ratios: the overall average is the mean of the per-patient values across all patients.",
+  "Per-patient ratio as average HGB divided by average HCT across the patient's tests: the overall average is the mean of these per-patient ratios.",
+  "Per-patient ratio from the patient's most recent lab test only.",
+  "Per-patient ratio from the patient's earliest lab test only.",
+  "Per-patient ratio from the patient's maximum ratio across tests.",
+  "Per-patient ratio from the patient's minimum ratio across tests.",
+  "The \"average across all patients\" is the mean of the per-patient ratios.",
+  "The \"average across all patients\" is the mean of all individual test-row ratios, pooled.",
+  "The \"average across all patients\" is the total HGB divided by the total HCT over all tests.",
+  "\"Amount above\" is the absolute difference (ratio minus overall average).",
+  "\"Amount above\" is a relative or percentage difference (ratio divided by overall average, minus 1, or times 100).",
+  "\"Amount above\" is the ratio divided by the overall average (a multiple).",
+  "\"Group average\" is the mean ratio of the patients who were above the overall average.",
+  "\"Group average\" is the mean of the above-overall-average group, including the \"amount above\" values rather than just the ratios.",
+  "\"Above\" is strict (>) at both filtering steps.",
+  "\"Above\" is inclusive (>=) at one or both filtering steps.",
+  "The final result is a single row with three columns: avg ratio, avg amount above overall average, and avg amount above group average, over the final patients.",
+  "Final averages are computed over distinct patients, one value per patient.",
+  "Final averages are computed over test rows that meet both conditions, so patients with more tests count more.",
+  "Rows with NULL HGB or HCT are excluded from the calculation.",
+  "Rows with HCT equal to 0 are excluded to avoid division by zero.",
+  "Patients with no laboratory records are excluded from the overall average.",
+  "Patients with no laboratory records are included in the overall average with a NULL or zero ratio.",
+  "Integer division is avoided so the ratio is a real number, and no rounding is applied to any output.",
+  "The \"amount above the group average\" is measured against the group average computed before the second filtering, not recomputed after.",
+  "The \"amount above the group average\" is measured against an average that includes only patients retained after the second filter.",
+  "The ratio is HGB divided by HCT, not the reverse.",
+  "Not all are covered. These interpretations are missing:",
+  "A patient qualifies at a filtering step if any one of their test rows has a ratio above the relevant average, and the final averages are then taken over that patient's qualifying rows only.",
+  "A patient qualifies at a filtering step only if all of their test rows are above the relevant average.",
+  "Ratios are computed at the test-row level for the filtering steps, but the final averages are taken per patient (each patient's rows averaged first, then averaged across patients).",
+  "The overall average is computed at the patient level, but the filtering and final averaging are done at the test-row level.",
+  "The final \"average ratio\" is computed as total HGB divided by total HCT over the final patients or rows, rather than as the mean of the individual ratios.",
+  "The Laboratory table is joined to the Patient table (or to Examination), restricting the data to patients present in that table, and any row duplication from the join affects the averages.",
+  "The overall average is restricted to the most recent lab test per patient, and the final averages are also computed on those tests only."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT ID, Date, HGB * 1.0 / HCT AS ratio\n  FROM Laboratory\n  WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0\n),\ng AS (\n  SELECT ID, Date, ratio\n  FROM r\n  WHERE ratio > (SELECT AVG(ratio) FROM r)\n)\nSELECT ID, Date\nFROM g\nWHERE ratio > (SELECT AVG(ratio) FROM g);\n",
+  "SELECT AVG(patient_ratio) FROM (SELECT ID, AVG(CAST(UN AS REAL) / CRE) AS patient_ratio FROM Laboratory WHERE UN IS NOT NULL AND CRE IS NOT NULL AND CRE <> 0 GROUP BY ID);\n",
+  "SELECT AVG(ratio) FROM (SELECT AVG(HGB) / AVG(HCT) AS ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL GROUP BY ID)",
+  "SELECT L.ID, CAST(L.numerator AS REAL) / L.denominator\nFROM Laboratory AS L\nWHERE L.Date = (SELECT MAX(Date) FROM Laboratory WHERE ID = L.ID)\n",
+  "SELECT ID, MAX(`aCL IgG` * 1.0 / NULLIF(`aCL IgM`, 0)) AS max_ratio\nFROM Examination\nGROUP BY ID;\n"
+ ],
+ "raw": [
+  "Per-test-record ratio: each Laboratory row (HGB/HCT) is treated as a unit. The overall average is the mean of all row ratios, the group is the rows above it, the group average is the mean of the group's row ratios, and the final rows are those above the group average.\nPer-patient ratio from the average of each patient's row ratios: the overall average is the mean of the per-patient values across all patients.\nPer-patient ratio as average HGB divided by average HCT across the patient's tests: the overall average is the mean of these per-patient ratios.\nPer-patient ratio from the patient's most recent lab test only.\nPer-patient ratio from the patient's earliest lab test only.\nPer-patient ratio from the patient's maximum ratio across tests.\nPer-patient ratio from the patient's minimum ratio across tests.\nThe \"average across all patients\" is the mean of the per-patient ratios.\nThe \"average across all patients\" is the mean of all individual test-row ratios, pooled.\nThe \"average across all patients\" is the total HGB divided by the total HCT over all tests.\n\"Amount above\" is the absolute difference (ratio minus overall average).\n\"Amount above\" is a relative or percentage difference (ratio divided by overall average, minus 1, or times 100).\n\"Amount above\" is the ratio divided by the overall average (a multiple).\n\"Group average\" is the mean ratio of the patients who were above the overall average.\n\"Group average\" is the mean of the above-overall-average group, including the \"amount above\" values rather than just the ratios.\n\"Above\" is strict (>) at both filtering steps.\n\"Above\" is inclusive (>=) at one or both filtering steps.\nThe final result is a single row with three columns: avg ratio, avg amount above overall average, and avg amount above group average, over the final patients.\nFinal averages are computed over distinct patients, one value per patient.\nFinal averages are computed over test rows that meet both conditions, so patients with more tests count more.\nRows with NULL HGB or HCT are excluded from the calculation.\nRows with HCT equal to 0 are excluded to avoid division by zero.\nPatients with no laboratory records are excluded from the overall average.\nPatients with no laboratory records are included in the overall average with a NULL or zero ratio.\nInteger division is avoided so the ratio is a real number, and no rounding is applied to any output.\nThe \"amount above the group average\" is measured against the group average computed before the second filtering, not recomputed after.\nThe \"amount above the group average\" is measured against an average that includes only patients retained after the second filter.\nThe ratio is HGB divided by HCT, not the reverse.",
+  "Not all are covered. These interpretations are missing:\n\nA patient qualifies at a filtering step if any one of their test rows has a ratio above the relevant average, and the final averages are then taken over that patient's qualifying rows only.\nA patient qualifies at a filtering step only if all of their test rows are above the relevant average.\nRatios are computed at the test-row level for the filtering steps, but the final averages are taken per patient (each patient's rows averaged first, then averaged across patients).\nThe overall average is computed at the patient level, but the filtering and final averaging are done at the test-row level.\nThe final \"average ratio\" is computed as total HGB divided by total HCT over the final patients or rows, rather than as the mean of the individual ratios.\nThe Laboratory table is joined to the Patient table (or to Examination), restricting the data to patients present in that table, and any row duplication from the join affects the averages.\nThe overall average is restricted to the most recent lab test per patient, and the final averages are also computed on those tests only."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ef4d2acbf1",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68110,
+  "chars_out": 5371
+ }
+}

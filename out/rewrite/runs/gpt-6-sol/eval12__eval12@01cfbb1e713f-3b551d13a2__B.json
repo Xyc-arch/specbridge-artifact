@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-3b551d13a2",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "The average transaction amount is the average of a signed amount: positive for credits (PRIJEM) and negative for withdrawals (VYDAJ and VYBER). This gives the average net flow per transaction.",
+ "a": {
+  "request": "For every account that appears in `trans`, give the account id (`account_id`), the average of its transactions' signed `amount`, taking `amount` as positive when `type` is 'PRIJEM' (credit) and as negative for every other `type` (the withdrawals 'VYDAJ' and 'VYBER'), its number of transactions, and that number divided by the average number of transactions per account (averaged over all accounts in `trans`). Sort by that ratio from highest to lowest and keep exactly the first 10 rows, breaking any tie at the 10th place arbitrarily; do not round anything.",
+  "sql": "WITH account_stats AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount ELSE -amount END) AS avg_signed_amount, COUNT(*) AS transaction_count FROM trans GROUP BY account_id) SELECT account_id, avg_signed_amount, transaction_count, transaction_count / (SELECT AVG(transaction_count) FROM account_stats) AS transaction_count_ratio FROM account_stats ORDER BY transaction_count_ratio DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For every account in `trans`, show the account id, its average transaction `amount` across its credits and withdrawals, how many transactions it has, and that count divided by the average number of transactions per account over all accounts. Rank by that ratio, highest first, and keep only the first 10 rows (break any tie at the cut arbitrarily); don't round. The average transaction amount is the average of a signed amount: positive for credits (PRIJEM) and negative for withdrawals (VYDAJ and VYBER). This gives the average net flow per transaction.",
+  "sql": "WITH account_stats AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type IN ('VYDAJ', 'VYBER') THEN -amount END) AS avg_transaction_amount, COUNT(*) AS transaction_count FROM trans GROUP BY account_id) SELECT account_id, avg_transaction_amount, transaction_count, transaction_count * 1.0 / (SELECT AVG(transaction_count) FROM account_stats) AS transaction_count_ratio FROM account_stats ORDER BY transaction_count_ratio DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each account appearing in `trans`, return its account ID, average signed transaction amount (positive for `PRIJEM`, negative for `VYDAJ` and `VYBER`), transaction count, and that count divided by the average transaction count per account appearing in `trans`; sort by the ratio descending and return the first 10 rows, breaking a tie at the cutoff arbitrarily, without rounding",
+  "sql": "WITH account_stats AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type IN ('VYDAJ', 'VYBER') THEN -amount END) AS average_signed_amount, COUNT(*) AS transaction_count FROM trans GROUP BY account_id) SELECT account_id, average_signed_amount, transaction_count, transaction_count * 1.0 / (SELECT AVG(transaction_count) FROM account_stats) AS count_ratio FROM account_stats ORDER BY count_ratio DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For every account in `trans`, show the account ID, its average signed transaction amount (positive for credits marked `PRIJEM`, negative for withdrawals marked `VYDAJ` or `VYBER`), its transaction count, and that count divided by the average number of transactions per account across all accounts. Rank by the ratio in descending order and return the first 10 rows, breaking ties at the cutoff arbitrarily. Do not round.",
+  "sql": "WITH transaction_stats AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type IN ('VYDAJ', 'VYBER') THEN -amount END) AS avg_signed_amount, COUNT(*) AS transaction_count FROM trans GROUP BY account_id), account_average AS (SELECT AVG(CAST(COALESCE(ts.transaction_count, 0) AS REAL)) AS avg_transaction_count FROM account AS a LEFT JOIN transaction_stats AS ts ON ts.account_id = a.account_id) SELECT ts.account_id, ts.avg_signed_amount, ts.transaction_count, ts.transaction_count / aa.avg_transaction_count AS count_ratio FROM transaction_stats AS ts CROSS JOIN account_average AS aa ORDER BY count_ratio DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

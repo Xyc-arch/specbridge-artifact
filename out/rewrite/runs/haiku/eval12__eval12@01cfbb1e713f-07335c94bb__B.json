@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-07335c94bb",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Divide each album's total Bytes by its total Milliseconds to get the album rate. This makes longer tracks count for more.",
+ "b": {
+  "request": "For each album (NULL-AlbumId tracks grouped as one), compute album rate as SUM(Bytes)/SUM(Milliseconds) over tracks with non-NULL Bytes, average those album rates across all albums to get the mean, then return one row for albums whose rate exceeds that mean: AVG(album rate), AVG(track count per album), and AVG(album rate \u2212 mean) with no rounding",
+  "sql": "WITH album_stats AS (SELECT AlbumId, CAST(SUM(CASE WHEN Bytes IS NOT NULL THEN Bytes END) AS REAL) / NULLIF(SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END), 0) AS album_rate, COUNT(*) AS track_count FROM Track GROUP BY AlbumId), mean_rate AS (SELECT AVG(album_rate) AS mean_rate FROM album_stats) SELECT AVG(s.album_rate) AS avg_album_rate, AVG(s.track_count) AS avg_track_count, AVG(s.album_rate - m.mean_rate) AS avg_rate_diff FROM album_stats s CROSS JOIN mean_rate m WHERE s.album_rate > m.mean_rate;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each album (tracks with no album id count as one group), work out its rate as the album's total `Bytes` divided by its total `Milliseconds`, ignoring missing sizes, along with how many tracks it has. Then take the mean of these album rates over all albums. Looking only at albums whose rate is above that mean, give me a single row with the average of their rates, the average of their track counts, and the average amount by which their rates exceed the mean. Don't round anything.",
+  "sql": "WITH album_stats AS (SELECT AlbumId, CAST(SUM(Bytes) AS REAL) / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) AS rate, COUNT(*) AS track_count FROM Track GROUP BY AlbumId), mean_rate AS (SELECT AVG(rate) AS m FROM album_stats WHERE rate IS NOT NULL) SELECT AVG(s.rate) AS avg_rate, AVG(s.track_count) AS avg_track_count, AVG(s.rate - m.m) AS avg_excess_over_mean FROM album_stats s CROSS JOIN mean_rate m WHERE s.rate > m.m;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each album (tracks with no album id count as one group), what's its bytes-per-millisecond rate (from `Bytes` and `Milliseconds`, ignoring missing sizes) and how many tracks does it have? Take the mean of those album rates across all albums. For the albums that come in above that mean, give me one row with their average rate, their average track count, and how far above the mean their rates are on average. No rounding. Divide each album's total Bytes by its total Milliseconds to get the album rate. This makes longer tracks count for more.",
+  "sql": "WITH album_stats AS (SELECT AlbumId, SUM(CASE WHEN Bytes IS NOT NULL THEN Bytes END) * 1.0 / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) AS rate, COUNT(*) AS track_count FROM Track GROUP BY AlbumId), mean_rate AS (SELECT AVG(rate) AS m FROM album_stats) SELECT AVG(s.rate) AS avg_rate, AVG(s.track_count) AS avg_track_count, AVG(s.rate - m.m) AS avg_above_mean FROM album_stats s CROSS JOIN mean_rate m WHERE s.rate > m.m;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each album (tracks with no album ID count as one group), compute the album rate as its total `Bytes` divided by its total `Milliseconds`, ignoring tracks with missing sizes, and count its tracks. Take the mean of those album rates across all albums. For the albums whose rate is above that mean, return one row with their average album rate, their average track count, and the average amount by which their rates exceed the mean. Do not round.",
+  "sql": "WITH album_stats AS (SELECT AlbumId, SUM(Bytes) * 1.0 / SUM(Milliseconds) AS rate, COUNT(*) AS track_count FROM Track WHERE Bytes IS NOT NULL GROUP BY AlbumId), mean_rate AS (SELECT AVG(rate) AS m FROM album_stats) SELECT AVG(a.rate) AS avg_rate, AVG(a.track_count) AS avg_track_count, AVG(a.rate - m.m) AS avg_excess_rate FROM album_stats a CROSS JOIN mean_rate m WHERE a.rate > m.m;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-afa4a85bda",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Count the distinct projects with spatial records under each funding source, then compute shares and keep the sources whose count is above average.",
+ "a": {
+  "request": "Match each spatial record in `scanspatial` to its project in `projects`, dropping records with no matching project. For each funding source (`fundflux`), count the distinct projects that have spatial records. Work out each source's share as its count divided by the total of the counts across all funding sources. Keep only the funding sources whose count is above the average count across sources. Show the funding source, the count, the share, and how much the count exceeds the average count. No rounding.",
+  "sql": "WITH proj AS (SELECT p.fundflux, COUNT(DISTINCT p.arcregistry) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), tot AS (SELECT cnt, fundflux, SUM(cnt) OVER () AS total_cnt, AVG(cnt) OVER () AS avg_cnt FROM proj) SELECT fundflux, cnt AS project_count, CAST(cnt AS REAL) / total_cnt AS share, cnt - avg_cnt AS excess_over_average FROM tot WHERE cnt > avg_cnt",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each funding source (`fundflux`) in `projects`, count the distinct projects that have at least one `scanspatial` record (ignoring spatial records whose `arcref` isn't in `projects`), then compute each source's share of the total count across all sources, keep only the sources whose count is above the average count per source, and show the source, the count, the share, and the count minus that average, with no rounding",
+  "sql": "WITH c AS (SELECT p.fundflux AS fundflux, COUNT(DISTINCT p.arcregistry) AS cnt FROM projects p JOIN scanspatial s ON s.arcref = p.arcregistry GROUP BY p.fundflux) SELECT fundflux, cnt AS project_count, cnt * 1.0 / SUM(cnt) OVER () AS share, cnt - AVG(cnt * 1.0) OVER () AS diff_from_avg FROM c WHERE cnt > (SELECT AVG(cnt * 1.0) FROM c)",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Using spatial data matched to projects (ignore any whose project isn't in `projects`), how much spatial survey coverage does each funding source (`fundflux`) have? Give each source's count and its share of the total across all sources. Only include funding sources whose count is above the average across sources. Show the source, the count, the share, and how far the count is above that average. No rounding. Count the distinct projects with spatial records under each funding source, then compute shares and keep the sources whose count is above average.",
+  "sql": "WITH src AS (SELECT p.fundflux AS fundflux, COUNT(DISTINCT p.arcregistry) AS cnt FROM projects p WHERE EXISTS (SELECT 1 FROM scanspatial s WHERE s.arcref = p.arcregistry) GROUP BY p.fundflux), stats AS (SELECT fundflux, cnt, SUM(cnt) OVER () AS total, AVG(cnt) OVER () AS avg_cnt FROM src) SELECT fundflux, cnt AS project_count, cnt * 1.0 / total AS share_of_total, cnt - avg_cnt AS above_average FROM stats WHERE cnt > avg_cnt",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using spatial data matched to projects (ignoring any spatial records whose project isn't in `projects`), count the distinct projects with spatial records under each funding source (`fundflux`). Then compute each source's share of the total count across all sources, and keep only the sources whose count is above the average count across sources. Show the source, the count, the share, and how far the count is above that average, with no rounding.",
+  "sql": "WITH c AS (SELECT p.fundflux AS source, COUNT(DISTINCT p.arcregistry) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), t AS (SELECT c.*, SUM(cnt) OVER () AS total, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT source, cnt AS project_count, cnt * 1.0 / total AS share, cnt - avg_cnt AS above_average FROM t WHERE cnt > avg_cnt",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

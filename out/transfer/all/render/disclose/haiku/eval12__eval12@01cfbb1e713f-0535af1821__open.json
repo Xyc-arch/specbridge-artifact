@@ -1,0 +1,44 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0535af1821",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH grouped_data AS (\n  SELECT \n    ili.order_item_id,\n    p.product_color,\n    AVG(CAST(ili.product_quantity AS DECIMAL(19,4))) AS avg_quantity,\n    AVG(\n      CASE \n        WHEN ili.derived_product_cost IS NOT NULL \n          AND ili.derived_total_cost IS NOT NULL \n          AND ili.derived_total_cost != 0\n        THEN (ili.derived_product_cost - ili.derived_total_cost) / ili.derived_total_cost\n      END\n    ) AS avg_cost_ratio\n  FROM Invoice_Line_Items ili\n  INNER JOIN Products p ON ili.product_id = p.product_id\n  WHERE ili.order_item_id IS NOT NULL\n  GROUP BY ili.order_item_id, p.product_color\n),\nranked_data AS (\n  SELECT \n    order_item_id,\n    product_color,\n    avg_quantity,\n    avg_cost_ratio,\n    RANK() OVER (PARTITION BY product_color ORDER BY avg_quantity DESC NULLS LAST) AS rank\n  FROM grouped_data\n)\nSELECT \n  order_item_id,\n  product_color,\n  avg_quantity,\n  avg_cost_ratio,\n  rank\nFROM ranked_data\nWHERE rank <= 3;",
+  "assumptions": [
+   {
+    "assumption": "product_quantity (VARCHAR(50) in schema) contains numeric values that can be cast to DECIMAL for averaging",
+    "unresolved": true
+   },
+   {
+    "assumption": "derived_total_cost = 0 should be excluded from the cost ratio calculation to avoid division by zero",
+    "unresolved": false
+   },
+   {
+    "assumption": "NULLS LAST syntax is supported by the target database (standard SQL; available in MySQL 8.0+, PostgreSQL, etc.)",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If the database does not support NULLS LAST, substitute the window function ORDER BY clause with: ORDER BY CASE WHEN avg_quantity IS NULL THEN 1 ELSE 0 END, avg_quantity DESC",
+    "sql": "...RANK() OVER (PARTITION BY product_color ORDER BY CASE WHEN avg_quantity IS NULL THEN 1 ELSE 0 END, avg_quantity DESC) AS rank..."
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "If the database does not support NULLS LAST, substitute the window function ORDER BY clause with: ORDER BY CASE WHEN avg_quantity IS NULL THEN 1 ELSE 0 END, avg_quantity DESC",
+   "sql": "...RANK() OVER (PARTITION BY product_color ORDER BY CASE WHEN avg_quantity IS NULL THEN 1 ELSE 0 END, avg_quantity DESC) AS rank...",
+   "executes": false,
+   "matches": []
+  }
+ ],
+ "seconds": 35.9,
+ "chars_out": 1914
+}

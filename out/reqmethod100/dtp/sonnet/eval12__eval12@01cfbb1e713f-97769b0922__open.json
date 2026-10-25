@@ -1,0 +1,56 @@
+{
+ "interpretations": [
+  "Order volume is the sum of `product_quantity` (cast to a number) per `product_id` in Order_Items. Share is that sum divided by the total quantity across all order items. The average share is taken over products that appear in Order_Items. The output is the summed quantity, the average share and the average excess over the mean share, for products strictly above the mean.",
+  "Order volume is the count of Order_Items rows per `product_id`. Share is that count divided by the total number of order item rows. Everything else is as in interpretation 1.",
+  "Order volume is the count of distinct orders (`order_id`) containing each product. Share is that count divided by the total number of distinct orders. Everything else is as in interpretation 1.",
+  "Order volume is the count of distinct orders per product. Share is that count divided by the sum of per-product distinct-order counts. Everything else is as in interpretation 1.",
+  "The average of shares is taken over all products in the Products table, so products never ordered count with a share of 0. Volume is the summed quantity. The mean is therefore total share divided by the number of products.",
+  "Same as interpretation 5, but volume is the order item row count.",
+  "Same as interpretation 5, but volume is the distinct order count.",
+  "\"Combined order volume\" is the sum of the above-average products' raw volume (quantity sum, row count or distinct orders, depending on the interpretation above).",
+  "\"Combined order volume\" is the sum of the above-average products' shares, i.e. their combined fraction of total volume.",
+  "\"Average share\" is the plain mean of the above-average products' shares, as fractions between 0 and 1.",
+  "\"Average share\" is the same mean expressed as a percentage.",
+  "\"How far, on average, their share sits above the average share\" is the mean of (product share \u2212 overall average share) over the above-average products.",
+  "The same quantity as in interpretation 12, expressed in percentage points.",
+  "The same quantity as in interpretation 12, expressed as a relative excess: the mean of (share \u00f7 overall average share \u2212 1), or the mean of shares divided by the overall average.",
+  "Rows with NULL or non-numeric `product_quantity` are excluded from the quantity sum and the total.",
+  "Rows with NULL or non-numeric `product_quantity` are treated as 0 or 1 and kept in the counts.",
+  "Share is computed over Invoice_Line_Items instead of Order_Items, using invoiced `product_quantity` per product.",
+  "A product is identified by `product_id` alone. Products sharing a `product_name` or `parent_product_id` are not merged.",
+  "Products are rolled up to their `parent_product_id`, and shares are computed per parent product.",
+  "The output is a single row with three unrounded columns, in the order combined volume, average share, average excess.",
+  "Missing interpretations:",
+  "The average share is taken over products that appear in Order_Items, but \"share\" is computed with the total taken over all products in Products (or only over products that were ordered), and the two are not equivalent when the denominator comes from a different set than the averaged products.",
+  "\"Average excess\" is the mean of the above-average products' shares minus the overall average share (equivalent to interpretation 12 numerically, but computed as avg(share) \u2212 mean).",
+  "\"Average excess\" is the absolute value of the difference (all above-average anyway, so identical), or the sum of excesses rather than the mean.",
+  "Volume is the sum of `product_quantity` weighted by unit_price (order value rather than quantity).",
+  "Order volume is the sum of `product_quantity` from Invoice_Line_Items, counting only products on invoiced orders, with the total taken over invoiced items only.",
+  "Products with a share equal to the average are included (non-strict comparison).",
+  "Quantity is parsed as an integer (truncating decimals) rather than as a decimal number.",
+  "\"Combined order volume\" is reported as the total across the above-average products, but as a percentage of total volume.",
+  "Integer division is used for the share (truncated to 0), which would make the shares degenerate.",
+  "Order volume counts Order_Items joined to Orders, excluding orphaned items with no matching order.",
+  "Order volume counts only orders that have been invoiced (Orders joined to Invoices)."
+ ],
+ "queries": [
+  "WITH vol AS (\n  SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS qty\n  FROM Order_Items\n  GROUP BY product_id\n),\ntot AS (\n  SELECT SUM(qty) AS total FROM vol\n),\nsh AS (\n  SELECT v.product_id, v.qty, v.qty / t.total AS share\n  FROM vol v, tot t\n),\nm AS (\n  SELECT AVG(share) AS mean_share FROM sh\n)\nSELECT SUM(sh.qty) AS summed_quantity,\n       AVG(sh.share) AS average_share,\n       AVG(sh.share - m.mean_share) AS average_excess\nFROM sh, m\nWHERE sh.share > m.mean_share;\n",
+  "SELECT product_id, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM Order_Items) AS share\nFROM Order_Items\nGROUP BY product_id;\n",
+  "SELECT oi.product_id,\n       COUNT(DISTINCT oi.order_id) AS order_volume,\n       CAST(COUNT(DISTINCT oi.order_id) AS REAL) / (SELECT COUNT(DISTINCT order_id) FROM Orders) AS share\nFROM Order_Items oi\nGROUP BY oi.product_id;\n",
+  "SELECT p.product_name,\n       COUNT(DISTINCT oi.order_id) * 1.0 / (SELECT SUM(c) FROM (SELECT COUNT(DISTINCT order_id) AS c FROM Order_Items GROUP BY product_id)) AS share\nFROM Order_Items oi\nJOIN Products p ON oi.product_id = p.product_id\nGROUP BY p.product_id, p.product_name;\n",
+  "SELECT SUM(share) * 1.0 / (SELECT COUNT(*) FROM Products) AS average_share\nFROM (\n  SELECT SUM(CAST(oi.product_quantity AS REAL)) / (SELECT SUM(CAST(product_quantity AS REAL)) FROM Order_Items) AS share\n  FROM Order_Items oi\n  JOIN Products p ON p.product_id = oi.product_id\n  GROUP BY oi.product_id\n);\n"
+ ],
+ "raw": [
+  "1. Order volume is the sum of `product_quantity` (cast to a number) per `product_id` in Order_Items. Share is that sum divided by the total quantity across all order items. The average share is taken over products that appear in Order_Items. The output is the summed quantity, the average share and the average excess over the mean share, for products strictly above the mean.\n2. Order volume is the count of Order_Items rows per `product_id`. Share is that count divided by the total number of order item rows. Everything else is as in interpretation 1.\n3. Order volume is the count of distinct orders (`order_id`) containing each product. Share is that count divided by the total number of distinct orders. Everything else is as in interpretation 1.\n4. Order volume is the count of distinct orders per product. Share is that count divided by the sum of per-product distinct-order counts. Everything else is as in interpretation 1.\n5. The average of shares is taken over all products in the Products table, so products never ordered count with a share of 0. Volume is the summed quantity. The mean is therefore total share divided by the number of products.\n6. Same as interpretation 5, but volume is the order item row count.\n7. Same as interpretation 5, but volume is the distinct order count.\n8. \"Combined order volume\" is the sum of the above-average products' raw volume (quantity sum, row count or distinct orders, depending on the interpretation above).\n9. \"Combined order volume\" is the sum of the above-average products' shares, i.e. their combined fraction of total volume.\n10. \"Average share\" is the plain mean of the above-average products' shares, as fractions between 0 and 1.\n11. \"Average share\" is the same mean expressed as a percentage.\n12. \"How far, on average, their share sits above the average share\" is the mean of (product share \u2212 overall average share) over the above-average products.\n13. The same quantity as in interpretation 12, expressed in percentage points.\n14. The same quantity as in interpretation 12, expressed as a relative excess: the mean of (share \u00f7 overall average share \u2212 1), or the mean of shares divided by the overall average.\n15. Rows with NULL or non-numeric `product_quantity` are excluded from the quantity sum and the total.\n16. Rows with NULL or non-numeric `product_quantity` are treated as 0 or 1 and kept in the counts.\n17. Share is computed over Invoice_Line_Items instead of Order_Items, using invoiced `product_quantity` per product.\n18. A product is identified by `product_id` alone. Products sharing a `product_name` or `parent_product_id` are not merged.\n19. Products are rolled up to their `parent_product_id`, and shares are computed per parent product.\n20. The output is a single row with three unrounded columns, in the order combined volume, average share, average excess.",
+  "Missing interpretations:\n\nThe average share is taken over products that appear in Order_Items, but \"share\" is computed with the total taken over all products in Products (or only over products that were ordered), and the two are not equivalent when the denominator comes from a different set than the averaged products.\n\"Average excess\" is the mean of the above-average products' shares minus the overall average share (equivalent to interpretation 12 numerically, but computed as avg(share) \u2212 mean).\n\"Average excess\" is the absolute value of the difference (all above-average anyway, so identical), or the sum of excesses rather than the mean.\nVolume is the sum of `product_quantity` weighted by unit_price (order value rather than quantity).\nOrder volume is the sum of `product_quantity` from Invoice_Line_Items, counting only products on invoiced orders, with the total taken over invoiced items only.\nProducts with a share equal to the average are included (non-strict comparison).\nQuantity is parsed as an integer (truncating decimals) rather than as a decimal number.\n\"Combined order volume\" is reported as the total across the above-average products, but as a percentage of total volume.\nInteger division is used for the share (truncated to 0), which would make the shares degenerate.\nOrder volume counts Order_Items joined to Orders, excluding orphaned items with no matching order.\nOrder volume counts only orders that have been invoiced (Orders joined to Invoices)."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-97769b0922",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31344,
+  "chars_out": 6778
+ }
+}

@@ -1,0 +1,44 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-85d668ec5d",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH race_avg_wins AS (\n  SELECT \n    r.raceId,\n    c.country,\n    AVG(ds.wins) as race_avg_wins\n  FROM races r\n  JOIN circuits c ON r.circuitId = c.circuitId\n  JOIN driverStandings ds ON r.raceId = ds.raceId\n  WHERE c.country IS NOT NULL\n  GROUP BY r.raceId, c.country\n),\ncountry_avg_wins AS (\n  SELECT \n    country,\n    AVG(race_avg_wins) as country_avg\n  FROM race_avg_wins\n  GROUP BY country\n),\noverall_avg AS (\n  SELECT AVG(country_avg) as overall_avg\n  FROM country_avg_wins\n),\nabove_overall_cte AS (\n  SELECT \n    c.country,\n    c.country_avg,\n    oa.overall_avg\n  FROM country_avg_wins c\n  CROSS JOIN overall_avg oa\n  WHERE c.country_avg > oa.overall_avg\n),\nabove_group_cte AS (\n  SELECT AVG(country_avg) as above_group_avg\n  FROM above_overall_cte\n)\nSELECT \n  ao.country,\n  ao.country_avg,\n  ao.country_avg - ao.overall_avg as above_overall,\n  ao.country_avg - ag.above_group_avg as above_group\nFROM above_overall_cte ao\nCROSS JOIN above_group_cte ag\nWHERE ao.country_avg > ag.above_group_avg\nORDER BY ao.country_avg DESC;",
+  "assumptions": [
+   {
+    "assumption": "\"drivers' wins in the standings\" refers to driverStandings.wins (a season-to-date running count per the VERIFIED section), not wins recorded in individual races (results table)",
+    "unresolved": false
+   },
+   {
+    "assumption": "We include all drivers appearing in driverStandings for each race; averaging over these records at the race level gives equal weight to each race regardless of number of drivers competing",
+    "unresolved": false
+   },
+   {
+    "assumption": "Races with NULL circuit country are excluded from analysis",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"drivers' wins\" could mean the count of drivers who finished 1st (position='1') in each race. Then average those win counts per race, then average per country.",
+    "sql": "WITH race_winners AS (\n  SELECT \n    r.raceId,\n    c.country,\n    COUNT(CASE WHEN res.position = '1' THEN 1 END) as race_win_count\n  FROM races r\n  JOIN circuits c ON r.circuitId = c.circuitId\n  LEFT JOIN results res ON r.raceId = res.raceId AND res.position = '1'\n  WHERE c.country IS NOT NULL\n  GROUP BY r.raceId, c.country\n),\ncountry_avg_winners AS (\n  SELECT \n    country,\n    AVG(race_win_count) as country_avg\n  FROM race_winners\n  GROUP BY country\n),\noverall_avg AS (\n  SELECT AVG(country_avg) as overall_avg\n  FROM country_avg_winners\n),\nabove_overall_cte AS (\n  SELECT c.country, c.country_avg, oa.overall_avg\n  FROM country_avg_winners c\n  CROSS JOIN overall_avg oa\n  WHERE c.country_avg > oa.overall_avg\n),\nabove_group_cte AS (\n  SELECT AVG(country_avg) as above_group_avg FROM above_overall_cte\n)\nSELECT \n  ao.country, ao.country_avg,\n  ao.country_avg - ao.overall_avg as above_overall,\n  ao.country_avg - ag.above_group_avg as above_group\nFROM above_overall_cte ao\nCROSS JOIN above_group_cte ag\nWHERE ao.country_avg > ag.above_group_avg\nORDER BY ao.country_avg DESC;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"drivers' wins\" could mean the count of drivers who finished 1st (position='1') in each race. Then average those win counts per race, then average per country.",
+   "sql": "WITH race_winners AS (\n  SELECT \n    r.raceId,\n    c.country,\n    COUNT(CASE WHEN res.position = '1' THEN 1 END) as race_win_count\n  FROM races r\n  JOIN circuits c ON r.circuitId = c.circuitId\n  LEFT JOIN results res ON r.raceId = res.raceId AND res.position = '1'\n  WHERE c.country IS NOT NULL\n  GROUP BY r.raceId, c.country\n),\ncountry_avg_winners AS (\n  SELECT \n    country,\n    AVG(race_win_count) as country_avg\n  FROM race_winners\n  GROUP BY country\n),\noverall_avg AS (\n  SELECT AVG(country_avg) as overall_avg\n  FROM country_avg_winners\n),\nabove_overall_cte AS (\n  SELECT c.country, c.country_avg, oa.overall_avg\n  FROM country_avg_winners c\n  CROSS JOIN overall_avg oa\n  WHERE c.country_avg > oa.overall_avg\n),\nabove_group_cte AS (\n  SELECT AVG(country_avg) as above_group_avg FROM above_overall_cte\n)\nSELECT \n  ao.country, ao.country_avg,\n  ao.country_avg - ao.overall_avg as above_overall,\n  ao.country_avg - ag.above_group_avg as above_group\nFROM above_overall_cte ao\nCROSS JOIN above_group_cte ag\nWHERE ao.country_avg > ag.above_group_avg\nORDER BY ao.country_avg DESC;",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 64.2,
+ "chars_out": 3095
+}

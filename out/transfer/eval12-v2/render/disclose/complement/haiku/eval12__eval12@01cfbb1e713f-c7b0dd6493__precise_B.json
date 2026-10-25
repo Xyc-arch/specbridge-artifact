@@ -1,0 +1,47 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH qualified AS (SELECT a.account_id, c.town_city AS town FROM Accounts a JOIN Customers c ON c.customer_id = a.customer_id WHERE c.town_city IS NOT NULL AND TRIM(c.town_city) <> ''), counts AS (SELECT q.account_id, q.town, COUNT(ft.transaction_id) AS tx_count FROM qualified q LEFT JOIN Financial_Transactions ft ON ft.account_id = q.account_id GROUP BY q.account_id, q.town), town_totals AS (SELECT town, SUM(tx_count) AS town_total FROM counts GROUP BY town), avg_count AS (SELECT AVG(tx_count) AS avg_tx FROM counts) SELECT c.account_id, c.town, c.tx_count, 1.0 * c.tx_count / t.town_total AS share_of_town, 1.0 * c.tx_count / a.avg_tx AS ratio_to_average FROM counts c JOIN town_totals t ON t.town = c.town CROSS JOIN avg_count a ORDER BY ratio_to_average DESC, c.account_id LIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "The database is SQLite, as the INTEGER PRIMARY KEY and DATETIME types suggest; the SQL uses only standard constructs plus SQLite-compatible division and CTEs.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A transaction is any row in Financial_Transactions for the account, regardless of transaction_type, transaction_date, or amount; the request does not say to filter by type or date.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Town is matched exactly as stored in town_city, so differences in case or surrounding spaces count as different towns.",
+    "unresolved": true
+   },
+   {
+    "assumption": "A blank or whitespace-only town_city counts as 'no town' and the account is dropped, as the request specifies for missing towns.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The average is the unweighted mean of per-account transaction counts over all retained accounts, including zero-count accounts, as the request states.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Ties in ratio_to_average are broken by account_id ascending so the top-10 output is deterministic.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Treat towns that differ only in letter case or surrounding spaces (for example 'Austin' and ' austin ') as the same town, by normalizing town_city before grouping.",
+    "sql": "WITH qualified AS (SELECT a.account_id, LOWER(TRIM(c.town_city)) AS town FROM Accounts a JOIN Customers c ON c.customer_id = a.customer_id WHERE c.town_city IS NOT NULL AND TRIM(c.town_city) <> ''), counts AS (SELECT q.account_id, q.town, COUNT(ft.transaction_id) AS tx_count FROM qualified q LEFT JOIN Financial_Transactions ft ON ft.account_id = q.account_id GROUP BY q.account_id, q.town), town_totals AS (SELECT town, SUM(tx_count) AS town_total FROM counts GROUP BY town), avg_count AS (SELECT AVG(tx_count) AS avg_tx FROM counts) SELECT c.account_id, c.town, c.tx_count, 1.0 * c.tx_count / t.town_total AS share_of_town, 1.0 * c.tx_count / a.avg_tx AS ratio_to_average FROM counts c JOIN town_totals t ON t.town = c.town CROSS JOIN avg_count a ORDER BY ratio_to_average DESC, c.account_id LIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 14.6
+}

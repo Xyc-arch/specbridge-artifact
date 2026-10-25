@@ -1,0 +1,23 @@
+{
+ "clauses": [
+  "Use the absolute distance between each kept equipment average and the kept-equipment mean.",
+  "Use each kept equipment average minus the kept-equipment mean."
+ ],
+ "readings": [
+  "For each piece of equipment (`scanenvironment.equipref`), average its relative humidity (`humepct`), ignoring missing readings. Keep only equipment whose average is above the average of all equipment averages. For these, show the equipment reference, its average humidity, how much that exceeds the all-equipment average, and how far it is from the mean humidity of just the kept equipment. Return nothing if either reference average is missing. Sort by that last difference from highest to lowest with missing values last, and return exactly 10 rows, dropping any extra rows tied at 10th place arbitrarily. Use the absolute distance between each kept equipment average and the kept-equipment mean.",
+  "For each piece of equipment (`scanenvironment.equipref`), average its relative humidity (`humepct`), ignoring missing readings. Keep only equipment whose average is above the average of all equipment averages. For these, show the equipment reference, its average humidity, how much that exceeds the all-equipment average, and how far it is from the mean humidity of just the kept equipment. Return nothing if either reference average is missing. Sort by that last difference from highest to lowest with missing values last, and return exactly 10 rows, dropping any extra rows tied at 10th place arbitrarily. Use each kept equipment average minus the kept-equipment mean."
+ ],
+ "queries": [
+  "WITH equipment_averages AS (\n    SELECT equipref, AVG(humepct) AS avg_humidity\n    FROM scanenvironment\n    GROUP BY equipref\n),\noverall_average AS (\n    SELECT AVG(avg_humidity) AS avg_humidity\n    FROM equipment_averages\n),\nkept_equipment AS (\n    SELECT e.equipref, e.avg_humidity, o.avg_humidity AS overall_humidity\n    FROM equipment_averages AS e\n    CROSS JOIN overall_average AS o\n    WHERE e.avg_humidity > o.avg_humidity\n),\nkept_average AS (\n    SELECT AVG(avg_humidity) AS avg_humidity\n    FROM kept_equipment\n)\nSELECT\n    k.equipref,\n    k.avg_humidity,\n    k.avg_humidity - k.overall_humidity AS excess_humidity,\n    ABS(k.avg_humidity - a.avg_humidity) AS distance_from_kept_mean\nFROM kept_equipment AS k\nCROSS JOIN kept_average AS a\nWHERE k.overall_humidity IS NOT NULL\n  AND a.avg_humidity IS NOT NULL\nORDER BY distance_from_kept_mean DESC NULLS LAST\nLIMIT 10",
+  "WITH equipment_averages AS (\n    SELECT equipref, AVG(humepct) AS avg_humidity\n    FROM scanenvironment\n    GROUP BY equipref\n),\nall_equipment AS (\n    SELECT AVG(avg_humidity) AS overall_avg\n    FROM equipment_averages\n),\nkept AS (\n    SELECT e.equipref, e.avg_humidity, a.overall_avg\n    FROM equipment_averages AS e\n    CROSS JOIN all_equipment AS a\n    WHERE e.avg_humidity > a.overall_avg\n),\nkept_mean AS (\n    SELECT AVG(avg_humidity) AS mean_humidity\n    FROM kept\n)\nSELECT\n    k.equipref,\n    k.avg_humidity,\n    k.avg_humidity - k.overall_avg AS above_overall_avg,\n    k.avg_humidity - m.mean_humidity AS difference_from_kept_mean\nFROM kept AS k\nCROSS JOIN kept_mean AS m\nWHERE k.overall_avg IS NOT NULL\n  AND m.mean_humidity IS NOT NULL\nORDER BY difference_from_kept_mean DESC NULLS LAST\nLIMIT 10"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123305,
+  "chars_out": 1854
+ }
+}

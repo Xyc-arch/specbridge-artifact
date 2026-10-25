@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9c11ade5dd",
+ "model": "haiku",
+ "reading": "A",
+ "description": "A blank ('') SEX value is a sex group of its own. Its average ratio counts in the first mean and can survive the cutoffs.",
+ "a": {
+  "request": "Join each lab test to its patient and compute the CPK \u00f7 GPT ratio per test, ignoring tests where the ratio is missing. Average the ratio separately for every distinct `SEX` value. Patients whose `SEX` is an empty string '' form a group of their own and are kept, and so do patients with a missing sex. Take the plain mean of all these group averages, blank group included, and keep the groups whose average is above it. Then take the mean of the kept groups' averages and keep the groups above that second mean. Return one unrounded row with: the average of the remaining groups' ratio averages, the average amount by which they exceed the first mean, and the average amount by which they exceed the second mean.",
+  "sql": "WITH ratios AS (SELECT p.SEX AS sex, CAST(l.CPK AS REAL) / NULLIF(l.GPT, 0) AS ratio FROM Laboratory l JOIN Patient p ON p.ID = l.ID), valid AS (SELECT sex, ratio FROM ratios WHERE ratio IS NOT NULL), group_avgs AS (SELECT sex, AVG(ratio) AS g_avg FROM valid GROUP BY sex), m1 AS (SELECT AVG(g_avg) AS mean1 FROM group_avgs), kept1 AS (SELECT g.sex, g.g_avg FROM group_avgs g, m1 WHERE g.g_avg > m1.mean1), m2 AS (SELECT AVG(g_avg) AS mean2 FROM kept1), kept2 AS (SELECT k.g_avg, m1.mean1, m2.mean2 FROM kept1 k, m1, m2 WHERE k.g_avg > m2.mean2) SELECT AVG(g_avg) AS avg_of_remaining_group_averages, AVG(g_avg - mean1) AS avg_excess_over_mean1, AVG(g_avg - mean2) AS avg_excess_over_mean2 FROM kept2;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Join Laboratory to Patient on ID, compute each test's CPK/GPT ratio (skipping rows where either value is NULL or GPT is 0), and average per SEX, treating '' as its own group. Take the mean M1 of those group averages and keep the groups whose average exceeds M1, the blank group included. Take the mean M2 of the kept group averages and keep those above M2. Return one unrounded row: the mean of the final groups' averages, the mean of (average \u2212 M1) across them, and the mean of (average \u2212 M2) across them",
+  "sql": "WITH ratios AS (SELECT P.SEX AS sex, CAST(L.CPK AS REAL) / L.GPT AS r FROM Laboratory L JOIN Patient P ON L.ID = P.ID WHERE L.CPK IS NOT NULL AND L.GPT IS NOT NULL AND L.GPT <> 0), grp AS (SELECT sex, AVG(r) AS avg_r FROM ratios GROUP BY sex), m1 AS (SELECT AVG(avg_r) AS v FROM grp), kept1 AS (SELECT grp.avg_r FROM grp, m1 WHERE grp.avg_r > m1.v), m2 AS (SELECT AVG(avg_r) AS v FROM kept1), kept2 AS (SELECT kept1.avg_r, m1.v AS m1v, m2.v AS m2v FROM kept1, m1, m2 WHERE kept1.avg_r > m2.v) SELECT AVG(avg_r) AS final_avg, AVG(avg_r - m1v) AS avg_minus_m1, AVG(avg_r - m2v) AS avg_minus_m2 FROM kept2;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Matching lab tests to patients, average the CPK-to-GPT ratio for each `SEX` value, ignoring tests where the ratio is missing. Keep the sexes whose average is above the mean of those averages, then among them keep the ones above their own mean. In one unrounded row, give the average ratio of the sexes left, how far above the first mean they are on average, and how far above the second mean they are on average. A blank ('') SEX value is a sex group of its own. Its average ratio counts in the first mean and can survive the cutoffs.",
+  "sql": "WITH ratios AS (\n  SELECT p.SEX AS sex, l.CPK * 1.0 / l.GPT AS ratio\n  FROM Laboratory l\n  JOIN Patient p ON p.ID = l.ID\n  WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0\n),\nsex_avg AS (\n  SELECT sex, AVG(ratio) AS avg_ratio\n  FROM ratios\n  GROUP BY sex\n),\nm1 AS (\n  SELECT AVG(avg_ratio) AS mean1 FROM sex_avg\n),\ns1 AS (\n  SELECT sa.sex, sa.avg_ratio\n  FROM sex_avg sa, m1\n  WHERE sa.avg_ratio > m1.mean1\n),\nm2 AS (\n  SELECT AVG(avg_ratio) AS mean2 FROM s1\n),\ns2 AS (\n  SELECT s1.sex, s1.avg_ratio\n  FROM s1, m2\n  WHERE s1.avg_ratio > m2.mean2\n)\nSELECT\n  AVG(s2.avg_ratio) AS avg_ratio,\n  AVG(s2.avg_ratio - m1.mean1) AS above_mean1,\n  AVG(s2.avg_ratio - m2.mean2) AS above_mean2\nFROM s2, m1, m2;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "In the lab-test-to-patient matching, average the CPK-to-GPT ratio for each `SEX` value, treating blank (`''`) SEX values as their own group and ignoring tests where the ratio is missing. Keep the sex groups whose average is above the mean of all group averages (blank group included), then among those keep the groups whose average is above their own mean. In one unrounded row, report the average ratio of the remaining groups, how far above the first mean they are on average, and how far above the second mean they are on average.",
+  "sql": "WITH ratios AS (\n  SELECT COALESCE(p.SEX, '') AS sex, CAST(l.CPK AS REAL) / l.GPT AS ratio\n  FROM Laboratory l\n  JOIN Patient p ON l.ID = p.ID\n  WHERE l.GPT <> 0\n),\ng AS (\n  SELECT sex, AVG(ratio) AS avg_ratio\n  FROM ratios\n  WHERE ratio IS NOT NULL\n  GROUP BY sex\n),\nm1 AS (\n  SELECT AVG(avg_ratio) AS mean1 FROM g\n),\nk1 AS (\n  SELECT g.sex, g.avg_ratio\n  FROM g, m1\n  WHERE g.avg_ratio > m1.mean1\n),\nm2 AS (\n  SELECT AVG(avg_ratio) AS mean2 FROM k1\n),\nk2 AS (\n  SELECT k1.avg_ratio\n  FROM k1, m2\n  WHERE k1.avg_ratio > m2.mean2\n)\nSELECT\n  AVG(k2.avg_ratio) AS avg_ratio_remaining,\n  AVG(k2.avg_ratio) - (SELECT mean1 FROM m1) AS gap_above_first_mean,\n  AVG(k2.avg_ratio) - (SELECT mean2 FROM m2) AS gap_above_second_mean\nFROM k2;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-de9929d7a2",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Examinations with no recorded pattern are treated as their own pattern group.",
+ "b": {
+  "request": "Using Examination rows only, group by `ANA Pattern` with NULL patterns as their own group, average `aCL IgG` per group ignoring NULL values, take the unweighted mean of those group averages as the cross-pattern average, keep groups whose average exceeds it, and report each group's average, its excess over the cross-pattern average, and its difference from the mean of the above-average group averages",
+  "sql": "WITH group_avgs AS (\n  SELECT `ANA Pattern` AS pattern, AVG(`aCL IgG`) AS avg_igg\n  FROM Examination\n  GROUP BY `ANA Pattern`\n),\noverall AS (\n  SELECT AVG(avg_igg) AS cross_avg FROM group_avgs\n),\nabove AS (\n  SELECT g.pattern, g.avg_igg\n  FROM group_avgs g, overall o\n  WHERE g.avg_igg > o.cross_avg\n),\nabove_mean AS (\n  SELECT AVG(avg_igg) AS above_avg FROM above\n)\nSELECT a.pattern,\n       a.avg_igg AS group_avg,\n       a.avg_igg - o.cross_avg AS excess_over_cross_avg,\n       a.avg_igg - m.above_avg AS diff_from_above_mean\nFROM above a, overall o, above_mean m\nORDER BY group_avg DESC;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Group the examinations by `ANA Pattern`, treating examinations with no recorded pattern as a group of their own, and compute each group's average `aCL IgG` (ignoring missing values). Keep the patterns whose average is above the mean of all the group averages (each group counted once). For each, show the pattern, its average aCL IgG, how far it is above that mean, and how far it is from the mean of the kept patterns' averages.",
+  "sql": "WITH grouped AS (SELECT NULLIF(TRIM(`ANA Pattern`), '') AS pattern, AVG(`aCL IgG`) AS avg_igg FROM Examination GROUP BY NULLIF(TRIM(`ANA Pattern`), '')), overall AS (SELECT AVG(avg_igg) AS overall_mean FROM grouped), kept AS (SELECT g.pattern, g.avg_igg FROM grouped g, overall o WHERE g.avg_igg > o.overall_mean), kept_mean AS (SELECT AVG(avg_igg) AS kept_mean FROM kept) SELECT k.pattern, k.avg_igg AS avg_acl_igg, k.avg_igg - o.overall_mean AS above_overall_mean, ABS(k.avg_igg - km.kept_mean) AS distance_from_kept_mean FROM kept k, overall o, kept_mean km ORDER BY k.avg_igg DESC;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Which ANA patterns (`ANA Pattern`) have an average `aCL IgG` (ignoring missing values) above the average of all the pattern averages? For each, show the pattern, its average aCL IgG, how far it is above that cross-pattern average, and how far it is from the average of these above-average patterns' averages. Examinations with no recorded pattern are treated as their own pattern group.",
+  "sql": "WITH pattern_stats AS (SELECT COALESCE(NULLIF(TRIM(`ANA Pattern`), ''), '(none)') AS pattern, AVG(`aCL IgG`) AS avg_igg FROM Examination GROUP BY COALESCE(NULLIF(TRIM(`ANA Pattern`), ''), '(none)') HAVING AVG(`aCL IgG`) IS NOT NULL), overall AS (SELECT AVG(avg_igg) AS overall_avg FROM pattern_stats), above AS (SELECT p.pattern, p.avg_igg FROM pattern_stats p CROSS JOIN overall o WHERE p.avg_igg > o.overall_avg), above_avg AS (SELECT AVG(avg_igg) AS above_avg_of_avgs FROM above) SELECT a.pattern AS `ANA Pattern`, a.avg_igg AS avg_acl_igg, a.avg_igg - o.overall_avg AS above_overall_avg, ABS(a.avg_igg - b.above_avg_of_avgs) AS distance_from_above_avg FROM above a CROSS JOIN overall o CROSS JOIN above_avg b ORDER BY a.avg_igg DESC",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the ANA patterns with an average aCL IgG above the average of all pattern averages (ignoring missing values), show each pattern, its average aCL IgG, how far it sits above that cross-pattern average, and how far it is from the average of those above-average patterns' averages. Treat examinations with no recorded pattern as their own separate group.",
+  "sql": "WITH pattern_stats AS (\n  SELECT COALESCE(NULLIF(TRIM(`ANA Pattern`), ''), 'No Pattern') AS pattern,\n         AVG(`aCL IgG`) AS avg_igg\n  FROM Examination\n  GROUP BY pattern\n  HAVING AVG(`aCL IgG`) IS NOT NULL\n),\noverall AS (\n  SELECT AVG(avg_igg) AS overall_avg FROM pattern_stats\n),\nabove AS (\n  SELECT p.pattern, p.avg_igg\n  FROM pattern_stats p, overall o\n  WHERE p.avg_igg > o.overall_avg\n),\nabove_avg AS (\n  SELECT AVG(avg_igg) AS above_mean FROM above\n)\nSELECT a.pattern,\n       a.avg_igg AS avg_acl_igg,\n       a.avg_igg - o.overall_avg AS diff_from_overall_avg,\n       ABS(a.avg_igg - aa.above_mean) AS diff_from_above_group_avg\nFROM above a, overall o, above_avg aa\nORDER BY a.avg_igg DESC;",
+  "executes": true,
+  "matches": []
+ }
+}

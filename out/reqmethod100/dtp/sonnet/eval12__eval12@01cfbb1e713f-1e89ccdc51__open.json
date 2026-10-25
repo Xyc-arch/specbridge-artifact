@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Aggregate `results.points` by `races.name` (summing across all years and rounds). Select the names whose sum is above the mean of those per-name sums. Return one row with the sum of those names' totals, the average `results.laps` across their result rows (laps cast to numeric), and the average of (name total \u2212 mean total) across those names.",
+  "Same as 1, but \"average laps completed\" is the average of each qualifying race name's per-name average laps (an average of averages), not an average over all result rows.",
+  "Same as 1, but \"average laps completed\" is the average of each qualifying race name's total laps summed across its results, not an average per result row.",
+  "Same as 1, but \"average laps completed\" is computed over only finishing results (non-null `time`, or finished status), not all result rows.",
+  "Same as 1, but the average total is taken only over race names that have results, so names with no results are excluded from the mean. Under this reading, the mean excludes races with no `results` rows.",
+  "Same as 1, but the average total includes race names with no results as zero totals, which lowers the mean.",
+  "Aggregate per `raceId` (each individual race instance) rather than per name, then group by name. Totals are per race name but the mean is taken over individual race instances, and names whose total exceeds that per-race average are selected.",
+  "Same as 1, but \"combined total points\" is the sum of the qualifying names' totals, and \"average amount by which totals exceed the average\" is the combined total minus (count \u00d7 mean), divided by count. This equals reading 1 numerically, but is computed on the combined set.",
+  "Same as 1, but \"average amount by which their totals exceed the average total\" is the average excess of each qualifying name's total over the mean, expressed as a percentage or ratio of the mean rather than an absolute points difference.",
+  "Same as 1, but the output is a single row for the qualifying names as a group, with the average excess computed relative to the average total among only the qualifying names (rather than among all names), which would give zero.",
+  "Same as 1, but `laps` treated as text, so averaging uses a numeric cast and any non-numeric or null values are ignored or counted as zero.",
+  "Same as 1, but with per-name totals computed with an inner join between races and results, so only races with results contribute, and `points` nulls are treated as zero versus ignored.",
+  "Some interpretations are missing:",
+  "Same as 1, but \"average laps completed\" is averaged per race instance (`raceId`) first, for example each race's average or maximum laps, and then averaged across the qualifying races, not across all result rows.",
+  "Same as 1, but \"average laps completed\" counts only results with non-null or non-zero laps, so rows with missing laps are excluded from the denominator.",
+  "Same as 1, but the \"average total\" is the average of `results.points` per result row (or per race instance) across all data, not the mean of the per-name sums. Names are then selected by comparing their totals against that figure.",
+  "Same as 1, but the selection uses \"at or above\" the average (`>=`) instead of strictly above.",
+  "Same as 1, but the average excess is computed over all race names, with names at or below the mean contributing zero (or negative) excess. The divisor is then the total number of names, not only the qualifying ones."
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT ra.name, SUM(r.points) AS total\n  FROM results r JOIN races ra ON r.raceId = ra.raceId\n  GROUP BY ra.name\n),\nm AS (SELECT AVG(total) AS mean FROM t),\nsel AS (SELECT t.name, t.total, m.mean FROM t, m WHERE t.total > m.mean)\nSELECT\n  (SELECT SUM(total) FROM sel),\n  (SELECT AVG(CAST(r.laps AS REAL)) FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name IN (SELECT name FROM sel)),\n  (SELECT AVG(total - mean) FROM sel);\n",
+  "SELECT AVG(avg_laps)\nFROM (\n  SELECT AVG(CAST(r.laps AS REAL)) AS avg_laps\n  FROM results r\n  JOIN races ra ON r.raceId = ra.raceId\n  WHERE ra.raceId IN (SELECT raceId FROM qualifying)\n  GROUP BY ra.name\n);\n",
+  "SELECT AVG(total_laps) FROM (SELECT r.name, SUM(res.laps) AS total_laps FROM races r JOIN results res ON res.raceId = r.raceId WHERE r.raceId IN (SELECT raceId FROM qualifying) GROUP BY r.name);\n",
+  "SELECT AVG(total) FROM (\n  SELECT r.name, COUNT(*) AS total\n  FROM races r\n  JOIN results s ON s.raceId = r.raceId\n  GROUP BY r.name\n);\n",
+  "SELECT AVG(total) FROM (SELECT r.name, COALESCE(SUM(res.points), 0) AS total FROM races r LEFT JOIN results res ON r.raceId = res.raceId GROUP BY r.name);\n"
+ ],
+ "raw": [
+  "1. Aggregate `results.points` by `races.name` (summing across all years and rounds). Select the names whose sum is above the mean of those per-name sums. Return one row with the sum of those names' totals, the average `results.laps` across their result rows (laps cast to numeric), and the average of (name total \u2212 mean total) across those names.\n2. Same as 1, but \"average laps completed\" is the average of each qualifying race name's per-name average laps (an average of averages), not an average over all result rows.\n3. Same as 1, but \"average laps completed\" is the average of each qualifying race name's total laps summed across its results, not an average per result row.\n4. Same as 1, but \"average laps completed\" is computed over only finishing results (non-null `time`, or finished status), not all result rows.\n5. Same as 1, but the average total is taken only over race names that have results, so names with no results are excluded from the mean. Under this reading, the mean excludes races with no `results` rows.\n6. Same as 1, but the average total includes race names with no results as zero totals, which lowers the mean.\n7. Aggregate per `raceId` (each individual race instance) rather than per name, then group by name. Totals are per race name but the mean is taken over individual race instances, and names whose total exceeds that per-race average are selected.\n8. Same as 1, but \"combined total points\" is the sum of the qualifying names' totals, and \"average amount by which totals exceed the average\" is the combined total minus (count \u00d7 mean), divided by count. This equals reading 1 numerically, but is computed on the combined set.\n9. Same as 1, but \"average amount by which their totals exceed the average total\" is the average excess of each qualifying name's total over the mean, expressed as a percentage or ratio of the mean rather than an absolute points difference.\n10. Same as 1, but the output is a single row for the qualifying names as a group, with the average excess computed relative to the average total among only the qualifying names (rather than among all names), which would give zero.\n11. Same as 1, but `laps` treated as text, so averaging uses a numeric cast and any non-numeric or null values are ignored or counted as zero.\n12. Same as 1, but with per-name totals computed with an inner join between races and results, so only races with results contribute, and `points` nulls are treated as zero versus ignored.",
+  "Some interpretations are missing:\n\nSame as 1, but \"average laps completed\" is averaged per race instance (`raceId`) first, for example each race's average or maximum laps, and then averaged across the qualifying races, not across all result rows.\nSame as 1, but \"average laps completed\" counts only results with non-null or non-zero laps, so rows with missing laps are excluded from the denominator.\nSame as 1, but the \"average total\" is the average of `results.points` per result row (or per race instance) across all data, not the mean of the per-name sums. Names are then selected by comparing their totals against that figure.\nSame as 1, but the selection uses \"at or above\" the average (`>=`) instead of strictly above.\nSame as 1, but the average excess is computed over all race names, with names at or below the mean contributing zero (or negative) excess. The divisor is then the total number of names, not only the qualifying ones."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 100183,
+  "chars_out": 5662
+ }
+}

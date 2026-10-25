@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio, COUNT(*) AS film_count FROM film WHERE rental_duration > 5 GROUP BY rating), benchmark AS (SELECT AVG(avg_ratio) AS bench FROM per_rating) SELECT p.rating, p.avg_ratio, p.film_count, p.avg_ratio / b.bench AS ratio_to_benchmark FROM per_rating p CROSS JOIN benchmark b WHERE b.bench IS NOT NULL",
+  "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio, COUNT(*) AS film_count FROM film WHERE rental_duration > 5 GROUP BY rating), bench AS (SELECT AVG(avg_ratio) AS benchmark FROM per_rating) SELECT p.rating, p.avg_ratio, p.film_count, p.avg_ratio / b.benchmark AS ratio_to_benchmark FROM per_rating p CROSS JOIN bench b WHERE b.benchmark IS NOT NULL",
+  "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio, COUNT(*) AS film_count FROM film WHERE rental_duration > 5 GROUP BY rating), bench AS (SELECT AVG(avg_ratio) AS benchmark FROM per_rating) SELECT p.rating, p.avg_ratio, p.film_count, p.avg_ratio / b.benchmark AS ratio_to_benchmark FROM per_rating p CROSS JOIN bench b WHERE b.benchmark IS NOT NULL AND b.benchmark <> 0"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio, COUNT(*) AS film_count FROM film WHERE rental_duration > 5 GROUP BY rating), benchmark AS (SELECT AVG(avg_ratio) AS bench FROM per_rating) SELECT p.rating, p.avg_ratio, p.film_count, p.avg_ratio / b.bench AS ratio_to_benchmark FROM per_rating p CROSS JOIN benchmark b WHERE b.bench IS NOT NULL",
+   "assumptions": [
+    {
+     "assumption": "Benchmark is the unweighted mean of the per-rating averages, computed only over ratings present among films with rental_duration > 5 (the filter applies before the benchmark is computed).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Number of films is the count of all films in each rating group satisfying the filter (COUNT(*)), including any whose rental_rate/rental_duration is NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Rows with NULL rating, if any, form their own group and are included in the output and in the benchmark.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio, COUNT(*) AS film_count FROM film WHERE rental_duration > 5 GROUP BY rating), bench AS (SELECT AVG(avg_ratio) AS benchmark FROM per_rating) SELECT p.rating, p.avg_ratio, p.film_count, p.avg_ratio / b.benchmark AS ratio_to_benchmark FROM per_rating p CROSS JOIN bench b WHERE b.benchmark IS NOT NULL",
+   "assumptions": [
+    {
+     "assumption": "The benchmark is the unweighted mean of per-rating averages computed only over the filtered films (rental_duration > 5), i.e. over the ratings present in the filtered set, not over all films in the table.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The number of films counts all films in each rating group after the filter (COUNT(*)), including any with a NULL rating value forming its own group if present.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio, COUNT(*) AS film_count FROM film WHERE rental_duration > 5 GROUP BY rating), bench AS (SELECT AVG(avg_ratio) AS benchmark FROM per_rating) SELECT p.rating, p.avg_ratio, p.film_count, p.avg_ratio / b.benchmark AS ratio_to_benchmark FROM per_rating p CROSS JOIN bench b WHERE b.benchmark IS NOT NULL AND b.benchmark <> 0",
+   "assumptions": [
+    {
+     "assumption": "The benchmark is computed over the per-rating averages of the filtered films only (rental_duration > 5), not over all films; 'all ratings' means all rating groups present in the filtered set.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Film count is the number of films in each rating group after the rental_duration > 5 filter (COUNT(*)).",
+     "unresolved": false
+    },
+    {
+     "assumption": "A zero benchmark is also excluded to avoid division by zero; it cannot occur in practice since rental_rate is at least 0.99.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-0170ade8cb",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42951,
+  "chars_out": 2862
+ }
+}

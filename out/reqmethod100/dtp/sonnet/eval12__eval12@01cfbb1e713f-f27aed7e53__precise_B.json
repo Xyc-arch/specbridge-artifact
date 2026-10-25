@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Join driverStandings to races on raceId (inner join), group by races.name, and compute AVG(points) and COUNT(DISTINCT driverId) per name. Then compute the average of these counts across all names. Keep names whose count is strictly greater than that average. Return AVG of avg points, AVG of counts, and AVG of (count \u2212 overall average count).",
+  "Same as 1, but the \"average of that count across all race names\" is the average over race names in the joined result, which is the same set as those with standings. Race names without standings are excluded.",
+  "Same as 1, but the overall average count is the average of the per-name distinct-driver counts, each name weighted equally. It is not the average over all standings rows or over all races.",
+  "Same as 1, but the per-name average points is the simple average over all standings rows for that name. That means all years and rounds, with each driver-race row weighted equally. NULL points are ignored.",
+  "Same as 1, but the per-name average points is first averaged within each race or year and then averaged across them.",
+  "Same as 1, but the final average of average points is weighted by the number of standings rows or by the driver count. It is not a simple average across race names.",
+  "Same as 1, but the third value is the average of the differences (count \u2212 overall average count) over the retained names. This equals the average retained count minus the overall average count.",
+  "Same as 1, but the third value is the average absolute difference. Since only names above the average are kept, this is the same as interpretation 7.",
+  "Same as 1, but \"distinct drivers with standings under that name\" counts distinct driverId across all years for that race name. It is not counted per race or per season.",
+  "Same as 1, but the count is the number of distinct drivers per individual race (raceId), not per race name.",
+  "Same as 1, but race names are compared case-insensitively or after trimming, so variants of the same Grand Prix name are merged.",
+  "Same as 1, but standings rows with NULL points are excluded from the distinct driver count as well as from the average.",
+  "Same as 1, but standings rows with NULL points still count toward the distinct driver count. Only the average ignores them.",
+  "Same as 1, but a single row of three columns is returned. If no race name exceeds the average, the row is NULL or empty.",
+  "Same as 1, but the output values are unrounded floating-point numbers.",
+  "Missing interpretations:",
+  "Same as 1, but the third value is the average of (count \u2212 overall average count) taken over all race names, not only the retained ones.",
+  "Same as 1, but the \"average of that count\" used as the threshold is taken after filtering out race names with NULL or empty names.",
+  "Same as 1, but the comparison \"strictly above\" is replaced with \"at or above\" the average count.",
+  "Same as 1, but the average of average points is computed over the unrounded per-name averages, and the count is cast to integer before averaging (integer division truncating the overall average).",
+  "Same as 1, but the join to races is a left join, so standings whose raceId has no matching race are grouped under a NULL name."
+ ],
+ "queries": [
+  "WITH per_name AS (\n  SELECT r.name, AVG(ds.points) AS avg_points, COUNT(DISTINCT ds.driverId) AS cnt\n  FROM driverStandings ds\n  JOIN races r ON ds.raceId = r.raceId\n  GROUP BY r.name\n),\noverall AS (\n  SELECT AVG(cnt) AS avg_cnt FROM per_name\n)\nSELECT AVG(p.avg_points), AVG(p.cnt), AVG(p.cnt - o.avg_cnt)\nFROM per_name p, overall o\nWHERE p.cnt > o.avg_cnt;\n",
+  "SELECT name, race_count, AVG(race_count) OVER () AS avg_race_count\nFROM (\n  SELECT r.name AS name, COUNT(DISTINCT r.raceId) AS race_count\n  FROM races r\n  JOIN driverStandings ds ON ds.raceId = r.raceId\n  GROUP BY r.name\n);\n",
+  "SELECT AVG(c) FROM (SELECT COUNT(DISTINCT ds.driverId) AS c FROM driverStandings ds JOIN races r ON ds.raceId = r.raceId GROUP BY r.name);\n",
+  "SELECT d.forename, d.surname, AVG(ds.points) AS avg_points\nFROM driverStandings ds\nJOIN drivers d ON ds.driverId = d.driverId\nWHERE ds.points IS NOT NULL\nGROUP BY d.forename, d.surname;\n",
+  "SELECT forename, surname, AVG(race_avg) AS avg_points\nFROM (\n  SELECT d.forename, d.surname, r.raceId, AVG(r.points) AS race_avg\n  FROM results r\n  JOIN drivers d ON r.driverId = d.driverId\n  GROUP BY d.driverId, d.forename, d.surname, r.raceId\n)\nGROUP BY forename, surname;\n",
+  "SELECT SUM(ds.points) * 1.0 / COUNT(*) AS weighted_avg_points\nFROM driverStandings ds\nJOIN races r ON ds.raceId = r.raceId;\n"
+ ],
+ "raw": [
+  "1. Join driverStandings to races on raceId (inner join), group by races.name, and compute AVG(points) and COUNT(DISTINCT driverId) per name. Then compute the average of these counts across all names. Keep names whose count is strictly greater than that average. Return AVG of avg points, AVG of counts, and AVG of (count \u2212 overall average count).\n2. Same as 1, but the \"average of that count across all race names\" is the average over race names in the joined result, which is the same set as those with standings. Race names without standings are excluded.\n3. Same as 1, but the overall average count is the average of the per-name distinct-driver counts, each name weighted equally. It is not the average over all standings rows or over all races.\n4. Same as 1, but the per-name average points is the simple average over all standings rows for that name. That means all years and rounds, with each driver-race row weighted equally. NULL points are ignored.\n5. Same as 1, but the per-name average points is first averaged within each race or year and then averaged across them.\n6. Same as 1, but the final average of average points is weighted by the number of standings rows or by the driver count. It is not a simple average across race names.\n7. Same as 1, but the third value is the average of the differences (count \u2212 overall average count) over the retained names. This equals the average retained count minus the overall average count.\n8. Same as 1, but the third value is the average absolute difference. Since only names above the average are kept, this is the same as interpretation 7.\n9. Same as 1, but \"distinct drivers with standings under that name\" counts distinct driverId across all years for that race name. It is not counted per race or per season.\n10. Same as 1, but the count is the number of distinct drivers per individual race (raceId), not per race name.\n11. Same as 1, but race names are compared case-insensitively or after trimming, so variants of the same Grand Prix name are merged.\n12. Same as 1, but standings rows with NULL points are excluded from the distinct driver count as well as from the average.\n13. Same as 1, but standings rows with NULL points still count toward the distinct driver count. Only the average ignores them.\n14. Same as 1, but a single row of three columns is returned. If no race name exceeds the average, the row is NULL or empty.\n15. Same as 1, but the output values are unrounded floating-point numbers.",
+  "Missing interpretations:\n\nSame as 1, but the third value is the average of (count \u2212 overall average count) taken over all race names, not only the retained ones.\nSame as 1, but the \"average of that count\" used as the threshold is taken after filtering out race names with NULL or empty names.\nSame as 1, but the comparison \"strictly above\" is replaced with \"at or above\" the average count.\nSame as 1, but the average of average points is computed over the unrounded per-name averages, and the count is cast to integer before averaging (integer division truncating the overall average).\nSame as 1, but the join to races is a left join, so standings whose raceId has no matching race are grouped under a NULL name."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-f27aed7e53",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 100880,
+  "chars_out": 5764
+ }
+}

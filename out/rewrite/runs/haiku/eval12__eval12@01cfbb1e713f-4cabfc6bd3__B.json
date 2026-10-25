@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4cabfc6bd3",
+ "model": "haiku",
+ "reading": "B",
+ "description": "For each archival status, count the distinct projects with QC records of that status. Each share is that count divided by the sum of these counts. Return the statuses whose share is above the average share, with the status, count, share and share minus average.",
+ "a": {
+  "request": "For each archival status (`archstat`) in the QC data, with a missing status treated as its own group, count the distinct projects (`arcref`) that have QC records with that status. Work out each status's share as that count divided by the sum of the counts over all statuses. Return only the statuses whose share is above the average share across statuses. Show the status, the count, the share, and how far the share is above the average share, with no rounding.",
+  "sql": "WITH status_counts AS (\n  SELECT archstat, COUNT(DISTINCT arcref) AS project_count\n  FROM scanqc\n  GROUP BY archstat\n),\nshares AS (\n  SELECT archstat, project_count,\n         CAST(project_count AS DOUBLE PRECISION) / SUM(project_count) OVER () AS share\n  FROM status_counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.archstat AS status,\n       s.project_count AS count,\n       s.share AS share,\n       s.share - a.avg_share AS above_average\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "In the QC data, tally the projects under each archival status (`archstat`), with a missing status treated as its own group. Work out each status's share as its tally divided by the sum of the tallies over all statuses. Return only the statuses whose share is above the average share across statuses. Show the status, the tally, the share, and how far the share is above the average share, with no rounding. For each archival status, count the distinct projects with QC records of that status. Each share is that count divided by the sum of these counts. Return the statuses whose share is above the average share, with the status, count, share and share minus average.",
+  "sql": "WITH grp AS (SELECT COALESCE(archstat, '(missing)') AS status, COUNT(DISTINCT arcref) AS cnt FROM scanqc GROUP BY COALESCE(archstat, '(missing)')), tot AS (SELECT SUM(cnt) AS total FROM grp), shares AS (SELECT g.status, g.cnt, 1.0 * g.cnt / t.total AS share FROM grp g CROSS JOIN tot t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.status, s.cnt AS count, s.share, s.share - a.avg_share AS share_minus_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each `archstat` value (with NULL as its own group), count the distinct `arcref` projects that have `scanqc` records with that status; share = count / sum of counts across statuses; return statuses where share > average share, showing status, count, share, and share minus average share, unrounded",
+  "sql": "WITH status_counts AS (SELECT archstat, COUNT(DISTINCT arcref) AS cnt FROM scanqc GROUP BY archstat), shares AS (SELECT archstat, cnt, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM status_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.archstat AS status, s.cnt AS count, s.share AS share, s.share - a.avg_share AS share_minus_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "In the QC data, for each archival status (`archstat`), count the distinct projects that have QC records with that status, treating a missing status as its own group. Each status's share is its count divided by the sum of the counts across all statuses. Return only the statuses whose share is above the average share across statuses, showing the status, count, share, and share minus the average share, with no rounding.",
+  "sql": "WITH status_counts AS (SELECT archstat, COUNT(DISTINCT arcref) AS cnt FROM scanqc GROUP BY archstat), totals AS (SELECT SUM(cnt) AS total FROM status_counts), shares AS (SELECT s.archstat, s.cnt, s.cnt * 1.0 / t.total AS share FROM status_counts s CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT sh.archstat AS status, sh.cnt AS count, sh.share AS share, sh.share - a.avg_share AS share_minus_avg FROM shares sh CROSS JOIN avg_share a WHERE sh.share > a.avg_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

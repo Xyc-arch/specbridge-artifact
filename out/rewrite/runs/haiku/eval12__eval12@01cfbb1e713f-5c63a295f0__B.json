@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-5c63a295f0",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Order circuits by their share of all races and return every circuit whose share is at least the 10th-highest, including all circuits tied with the 10th one.",
+ "a": {
+  "request": "For each circuit (`races.circuitId`), give the average `round` of its races, its number of races, and its share of all races (its count divided by the total number of races across all circuits), sorted by share from highest to lowest, and return the top 10 by share, also including any circuits tied with the 10th one.",
+  "sql": "WITH circuit_counts AS (SELECT \"circuitId\", COUNT(*) AS num_races, AVG(\"round\") AS avg_round FROM \"races\" GROUP BY \"circuitId\"), ranked AS (SELECT \"circuitId\", avg_round, num_races, num_races * 1.0 / SUM(num_races) OVER () AS share, RANK() OVER (ORDER BY num_races DESC) AS rnk FROM circuit_counts) SELECT \"circuitId\", avg_round, num_races, share FROM ranked WHERE rnk <= 10 ORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Return every circuit whose share of all races (its race count divided by the total number of races across all circuits, ordered descending) is at least the 10th-highest share, including all circuits tied with the 10th, showing circuitId, the average round of its races, its race count, and its share",
+  "sql": "WITH counts AS (SELECT circuitId, COUNT(*) AS race_count, AVG(round) AS avg_round FROM races GROUP BY circuitId), total AS (SELECT SUM(race_count) AS total_races FROM counts), shares AS (SELECT c.circuitId, c.avg_round, c.race_count, CAST(c.race_count AS REAL) / t.total_races AS share FROM counts c CROSS JOIN total t), threshold AS (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) SELECT circuitId, avg_round, race_count, share FROM shares WHERE share >= (SELECT share FROM threshold) ORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "What are the 10 circuits with the largest share of all races? For each, show the circuit Id (`races.circuitId`), the average `round` of its races, its number of races, and its share (its count divided by the total number of races across all circuits), largest share first. Order circuits by their share of all races and return every circuit whose share is at least the 10th-highest, including all circuits tied with the 10th one.",
+  "sql": "WITH totals AS (SELECT COUNT(*) AS total_races FROM races), counts AS (SELECT circuitId, AVG(round) AS avg_round, COUNT(*) AS num_races, CAST(COUNT(*) AS REAL) / (SELECT total_races FROM totals) AS share FROM races GROUP BY circuitId) SELECT circuitId, avg_round, num_races, share FROM counts WHERE share >= (SELECT share FROM counts ORDER BY share DESC LIMIT 1 OFFSET 9) ORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Order the circuits by their share of all races (count divided by total races across all circuits), and return every circuit whose share is greater than or equal to the share of the 10th-ranked circuit, including any circuits tied with it.",
+  "sql": "WITH counts AS (SELECT circuitId, COUNT(*) AS cnt FROM races GROUP BY circuitId), total AS (SELECT SUM(cnt) AS t FROM counts), shares AS (SELECT circuitId, cnt, cnt * 1.0 / (SELECT t FROM total) AS share FROM counts), threshold AS (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) SELECT c.circuitId, c.name, s.cnt, s.share FROM shares s JOIN circuits c ON c.circuitId = s.circuitId WHERE s.share >= (SELECT share FROM threshold) ORDER BY s.share DESC, c.circuitId;",
+  "executes": true,
+  "matches": []
+ }
+}

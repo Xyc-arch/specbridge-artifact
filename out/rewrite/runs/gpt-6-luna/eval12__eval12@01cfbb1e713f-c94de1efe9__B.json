@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "For each patient, divide their average HGB by their average HCT.",
+ "a": {
+  "request": "Match each laboratory record to its patient on `ID` (lab records with no matching patient are dropped) and group by patient ID and sex. For each patient, compute the average white blood cell count (`WBC`) and the hemoglobin-to-hematocrit ratio computed as their average `HGB` divided by their average `HCT`, ignoring missing values. Then take the mean of that ratio across all patients, ignoring missing values, and list the patients whose ratio is greater than that mean. Show patient ID, sex, average WBC, the ratio, and the ratio minus the overall mean. Sort by that difference from largest to smallest (missing values last), return only the first 10 rows, and do not round any values.",
+  "sql": "WITH patient_stats AS (\n    SELECT\n        p.ID,\n        p.SEX,\n        AVG(l.WBC) AS avg_wbc,\n        AVG(l.HGB) / AVG(l.HCT) AS hgb_hct_ratio\n    FROM Patient AS p\n    JOIN Laboratory AS l ON l.ID = p.ID\n    GROUP BY p.ID, p.SEX\n),\nwith_mean AS (\n    SELECT\n        ID,\n        SEX,\n        avg_wbc,\n        hgb_hct_ratio,\n        AVG(hgb_hct_ratio) OVER () AS overall_mean_ratio\n    FROM patient_stats\n)\nSELECT\n    ID AS patient_id,\n    SEX AS sex,\n    avg_wbc,\n    hgb_hct_ratio,\n    hgb_hct_ratio - overall_mean_ratio AS ratio_minus_overall_mean\nFROM with_mean\nWHERE hgb_hct_ratio > overall_mean_ratio\nORDER BY ratio_minus_overall_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Match laboratory records to patients on `ID`, dropping records without a matching patient, and group by patient ID and sex. For each patient, calculate their average WBC and the ratio of their average HGB to their average HCT, ignoring missing values. Keep patients whose ratio exceeds the mean of that ratio across all patients with a nonmissing ratio. Show patient ID, sex, average WBC, the ratio, and its difference from the mean; sort by the difference descending, with missing values last, and return the first 10 rows without rounding",
+  "sql": "WITH patient_averages AS (\n    SELECT p.ID AS patient_id,\n           p.SEX AS sex,\n           AVG(l.WBC) AS average_wbc,\n           AVG(l.HGB) / AVG(l.HCT) AS hgb_hct_ratio\n    FROM Laboratory AS l\n    INNER JOIN Patient AS p ON l.ID = p.ID\n    GROUP BY p.ID, p.SEX\n),\nwith_mean AS (\n    SELECT patient_id,\n           sex,\n           average_wbc,\n           hgb_hct_ratio,\n           AVG(hgb_hct_ratio) OVER () AS mean_ratio\n    FROM patient_averages\n)\nSELECT patient_id,\n       sex,\n       average_wbc,\n       hgb_hct_ratio,\n       hgb_hct_ratio - mean_ratio AS difference_from_mean\nFROM with_mean\nWHERE hgb_hct_ratio > mean_ratio\nORDER BY difference_from_mean DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Match laboratory records to patients on `ID` (lab records with no matching patient are dropped) and group by patient ID and sex. For each patient, find their average white blood cell count (`WBC`) and their average hemoglobin-to-hematocrit ratio (`HGB`/`HCT`), ignoring missing values. Keep only patients whose ratio is greater than the mean of that ratio across all patients (missing values ignored). Show the patient ID, sex, average WBC, the ratio, and the ratio minus that mean. Sort by that gap, largest first with missing values last, return only the first 10 rows, and don't round anything. For each patient, divide their average HGB by their average HCT.",
+  "sql": "WITH patient_averages AS (\n    SELECT\n        p.ID,\n        p.SEX,\n        AVG(l.WBC) AS avg_wbc,\n        AVG(l.HGB) / AVG(l.HCT) AS ratio\n    FROM Patient AS p\n    JOIN Laboratory AS l ON l.ID = p.ID\n    GROUP BY p.ID, p.SEX\n),\nratio_mean AS (\n    SELECT AVG(ratio) AS mean_ratio\n    FROM patient_averages\n)\nSELECT\n    pa.ID,\n    pa.SEX,\n    pa.avg_wbc,\n    pa.ratio,\n    pa.ratio - rm.mean_ratio AS ratio_gap\nFROM patient_averages AS pa\nCROSS JOIN ratio_mean AS rm\nWHERE pa.ratio > rm.mean_ratio\nORDER BY ratio_gap DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each patient, calculate the ratio of their average hemoglobin (HGB) to their average hematocrit (HCT).",
+  "sql": "SELECT ID, AVG(HGB) / AVG(HCT) AS ratio FROM Laboratory GROUP BY ID;",
+  "executes": true,
+  "matches": []
+ }
+}

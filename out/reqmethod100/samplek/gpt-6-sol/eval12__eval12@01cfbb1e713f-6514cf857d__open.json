@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), totals AS (SELECT sex, test_records, AVG(test_records) OVER () AS average_per_sex, SUM(test_records) OVER () AS total_records FROM counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_per_sex AS above_average FROM totals WHERE test_records > average_per_sex",
+  "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), totals AS (SELECT sex, test_records, AVG(test_records) OVER () AS average_per_sex, SUM(test_records) OVER () AS total_records FROM counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_per_sex AS above_average FROM totals WHERE test_records > average_per_sex",
+  "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), metrics AS (SELECT sex, test_records, test_records * 1.0 / SUM(test_records) OVER () AS share_of_total, test_records - AVG(test_records) OVER () AS above_average FROM sex_counts) SELECT sex, test_records, share_of_total, above_average FROM metrics WHERE above_average > 0",
+  "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), metrics AS (SELECT sex, test_records, test_records * 1.0 / SUM(test_records) OVER () AS share_of_total, test_records - AVG(test_records) OVER () AS above_average FROM sex_counts) SELECT sex, test_records, share_of_total, above_average FROM metrics WHERE above_average > 0",
+  "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), totals AS (SELECT sex, test_records, SUM(test_records) OVER () AS total_records, AVG(test_records) OVER () AS average_records FROM sex_counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_records AS above_average FROM totals WHERE test_records > average_records",
+  "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), totals AS (SELECT sex, test_records, SUM(test_records) OVER () AS total_records, AVG(test_records) OVER () AS average_records FROM sex_counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_records AS above_average FROM totals WHERE test_records > average_records"
+ ],
+ "responses": [
+  {
+   "sql": "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), totals AS (SELECT sex, test_records, AVG(test_records) OVER () AS average_per_sex, SUM(test_records) OVER () AS total_records FROM counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_per_sex AS above_average FROM totals WHERE test_records > average_per_sex",
+   "assumptions": [
+    {
+     "assumption": "Patients with NULL sex are excluded from the breakdown, average, and total.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Treat NULL sex as a separate unknown-sex group.",
+     "sql": "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), totals AS (SELECT sex, test_records, AVG(test_records) OVER () AS average_per_sex, SUM(test_records) OVER () AS total_records FROM counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_per_sex AS above_average FROM totals WHERE test_records > average_per_sex"
+    }
+   ]
+  },
+  {
+   "sql": "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), metrics AS (SELECT sex, test_records, test_records * 1.0 / SUM(test_records) OVER () AS share_of_total, test_records - AVG(test_records) OVER () AS above_average FROM sex_counts) SELECT sex, test_records, share_of_total, above_average FROM metrics WHERE above_average > 0",
+   "assumptions": [
+    {
+     "assumption": "Patients with NULL sex form one unknown-sex group, included in the average and total.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include only patients whose sex is recorded.",
+     "sql": "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), metrics AS (SELECT sex, test_records, test_records * 1.0 / SUM(test_records) OVER () AS share_of_total, test_records - AVG(test_records) OVER () AS above_average FROM sex_counts) SELECT sex, test_records, share_of_total, above_average FROM metrics WHERE above_average > 0"
+    }
+   ]
+  },
+  {
+   "sql": "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), totals AS (SELECT sex, test_records, SUM(test_records) OVER () AS total_records, AVG(test_records) OVER () AS average_records FROM sex_counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_records AS above_average FROM totals WHERE test_records > average_records",
+   "assumptions": [
+    {
+     "assumption": "A NULL sex is included as its own group when calculating the average and total.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Exclude records whose matched patient has no recorded sex; calculate the average and share using only records with a known sex.",
+     "sql": "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(*) AS test_records FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), totals AS (SELECT sex, test_records, SUM(test_records) OVER () AS total_records, AVG(test_records) OVER () AS average_records FROM sex_counts) SELECT sex, test_records, 1.0 * test_records / total_records AS share_of_total, test_records - average_records AS above_average FROM totals WHERE test_records > average_records"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6514cf857d",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 25494,
+  "chars_out": 3696
+ }
+}

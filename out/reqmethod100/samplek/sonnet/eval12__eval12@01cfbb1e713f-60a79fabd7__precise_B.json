@@ -1,0 +1,88 @@
+{
+ "queries": [
+  "WITH s AS (SELECT si.healtheval AS h, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT sc.zoneref) AS n FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), a AS (SELECT AVG(rate) AS avg_rate FROM s) SELECT AVG(s.rate) AS avg_rate_of_kept, AVG(s.n * 1.0) AS avg_distinct_sites, AVG(s.rate - a.avg_rate) AS avg_excess FROM s CROSS JOIN a WHERE s.rate > a.avg_rate",
+  "WITH s AS (SELECT si.healtheval AS h, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT CASE WHEN sc.gbsize IS NOT NULL AND NULLIF(sc.spanmin, 0) IS NOT NULL THEN sc.zoneref END) AS n FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), a AS (SELECT AVG(rate) AS avg_rate FROM s) SELECT AVG(s.rate) AS avg_rate_of_kept, AVG(s.n * 1.0) AS avg_distinct_sites, AVG(s.rate - a.avg_rate) AS avg_excess FROM s CROSS JOIN a WHERE s.rate > a.avg_rate",
+  "WITH s AS (SELECT si.healtheval AS h, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS r, COUNT(DISTINCT sc.zoneref) AS n FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), o AS (SELECT AVG(r) AS a FROM s) SELECT AVG(s.r) AS avg_rate, AVG(s.n * 1.0) AS avg_distinct_sites, AVG(s.r - o.a) AS avg_excess FROM s CROSS JOIN o WHERE s.r > o.a",
+  "WITH per AS (SELECT s.healtheval, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT s.zoneregistry) AS n_sites FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), ov AS (SELECT AVG(rate) AS overall FROM per) SELECT AVG(per.rate) AS avg_rate, AVG(per.n_sites * 1.0) AS avg_distinct_sites, AVG(per.rate - ov.overall) AS avg_excess FROM per CROSS JOIN ov WHERE per.rate > ov.overall",
+  "WITH per AS (SELECT s.healtheval, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT s.zoneregistry) AS n_sites FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), ov AS (SELECT AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS overall FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry) SELECT AVG(per.rate) AS avg_rate, AVG(per.n_sites * 1.0) AS avg_distinct_sites, AVG(per.rate - ov.overall) AS avg_excess FROM per CROSS JOIN ov WHERE per.rate > ov.overall"
+ ],
+ "responses": [
+  {
+   "sql": "WITH s AS (SELECT si.healtheval AS h, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT sc.zoneref) AS n FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), a AS (SELECT AVG(rate) AS avg_rate FROM s) SELECT AVG(s.rate) AS avg_rate_of_kept, AVG(s.n * 1.0) AS avg_distinct_sites, AVG(s.rate - a.avg_rate) AS avg_excess FROM s CROSS JOIN a WHERE s.rate > a.avg_rate",
+   "assumptions": [
+    {
+     "assumption": "The all-status average rate is the unweighted mean of the per-status rates, not a pooled average over all scans.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A scan's rate is gbsize/spanmin. Scans with a null gbsize or a null or zero spanmin are left out of the rate. A zero spanmin is treated as missing to avoid division by zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The distinct-site count for a status covers all matched scans in that status, including scans whose rate is missing.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Sites with a null healtheval form their own group and take part in the all-status average, as long as their rate is not null.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count distinct sites only among scans that have a valid rate, so scans with missing gbsize or spanmin are excluded from the site count too.",
+     "sql": "WITH s AS (SELECT si.healtheval AS h, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT CASE WHEN sc.gbsize IS NOT NULL AND NULLIF(sc.spanmin, 0) IS NOT NULL THEN sc.zoneref END) AS n FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), a AS (SELECT AVG(rate) AS avg_rate FROM s) SELECT AVG(s.rate) AS avg_rate_of_kept, AVG(s.n * 1.0) AS avg_distinct_sites, AVG(s.rate - a.avg_rate) AS avg_excess FROM s CROSS JOIN a WHERE s.rate > a.avg_rate"
+    }
+   ]
+  },
+  {
+   "sql": "WITH s AS (SELECT si.healtheval AS h, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS r, COUNT(DISTINCT sc.zoneref) AS n FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry GROUP BY si.healtheval), o AS (SELECT AVG(r) AS a FROM s) SELECT AVG(s.r) AS avg_rate, AVG(s.n * 1.0) AS avg_distinct_sites, AVG(s.r - o.a) AS avg_excess FROM s CROSS JOIN o WHERE s.r > o.a",
+   "assumptions": [
+    {
+     "assumption": "The all-status average rate is the unweighted mean of the per-status average rates. It is not a pooled average over all scans.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A scan with spanmin = 0 is treated as having a missing rate, to avoid division by zero. Scans with null gbsize or spanmin are ignored in the rate. Statuses whose rate is null never pass the filter.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL healtheval, if present, forms its own status group. It is included in the all-status average.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per AS (SELECT s.healtheval, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT s.zoneregistry) AS n_sites FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), ov AS (SELECT AVG(rate) AS overall FROM per) SELECT AVG(per.rate) AS avg_rate, AVG(per.n_sites * 1.0) AS avg_distinct_sites, AVG(per.rate - ov.overall) AS avg_excess FROM per CROSS JOIN ov WHERE per.rate > ov.overall",
+   "assumptions": [
+    {
+     "assumption": "The all-status average is the unweighted mean of the per-status average rates (each status counts once), not the mean over all scans.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A spanmin of 0 is treated as a missing rate (NULLIF) to avoid division by zero. Rows with null gbsize or spanmin are ignored in the rate.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Distinct sites per status counts every matched scan's site, including scans whose rate is missing. A NULL healtheval forms its own group and counts as a status.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The all-status average is the pooled average rate over all matched scans, rather than the mean of the per-status rates.",
+     "sql": "WITH per AS (SELECT s.healtheval, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate, COUNT(DISTINCT s.zoneregistry) AS n_sites FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), ov AS (SELECT AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS overall FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry) SELECT AVG(per.rate) AS avg_rate, AVG(per.n_sites * 1.0) AS avg_distinct_sites, AVG(per.rate - ov.overall) AS avg_excess FROM per CROSS JOIN ov WHERE per.rate > ov.overall"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123804,
+  "chars_out": 4412
+ }
+}

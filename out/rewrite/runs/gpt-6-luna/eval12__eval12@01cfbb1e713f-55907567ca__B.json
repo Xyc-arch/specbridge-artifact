@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-55907567ca",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Each observatory's share of all telescopes is a percentage: 100 \u00d7 count \u00f7 total.",
+ "b": {
+  "request": "For each distinct `observstation` in `telescopes`, calculate its share as 100 \u00d7 its telescope count \u00f7 the total number of telescopes. Select observatories whose share is strictly above the average share across all distinct observatories, then return one summary row with their combined telescope count, their average share, and the average difference between each selected observatory\u2019s share and the overall average share, without rounding",
+  "sql": "WITH station_shares AS (\n  SELECT observstation,\n         COUNT(*) AS telescope_count,\n         100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share_pct\n  FROM telescopes\n  GROUP BY observstation\n), selected AS (\n  SELECT telescope_count, share_pct,\n         AVG(share_pct) OVER () AS overall_avg_share\n  FROM station_shares\n  WHERE share_pct > (SELECT AVG(share_pct) FROM station_shares)\n)\nSELECT COALESCE(SUM(telescope_count), 0) AS combined_telescope_count,\n       AVG(share_pct) AS average_share,\n       AVG(share_pct - overall_avg_share) AS average_difference\nFROM selected;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Count the telescopes at each observatory (`observstation` in the telescopes table), and express each observatory's share of all telescopes as a percentage between 0 and 100 (100 \u00d7 its count \u00f7 the total across all observatories). Considering only the observatories whose share is above the average share across all observatories, give a single summary row with: the total number of telescopes they have, their average share, and the average amount by which their share exceeds the average share. Don't round.",
+  "sql": "WITH observatory_shares AS (\n  SELECT\n    observstation,\n    COUNT(*) AS telescope_count,\n    100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share_pct\n  FROM telescopes\n  GROUP BY observstation\n), above_average AS (\n  SELECT *, AVG(share_pct) OVER () AS average_share_pct\n  FROM observatory_shares\n)\nSELECT\n  SUM(telescope_count) AS total_telescope_count,\n  AVG(share_pct) AS average_share_pct,\n  AVG(share_pct - average_share_pct) AS average_excess_share_pct\nFROM above_average\nWHERE share_pct > average_share_pct;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each observatory (`observstation` in the telescopes table), work out its share of all telescopes. Taking just the observatories whose share is above the average share across all observatories, give a single summary row with: their combined number of telescopes, their average share, and the average amount by which their share exceeds the average share. Don't round. Each observatory's share of all telescopes is a percentage: 100 \u00d7 count \u00f7 total.",
+  "sql": "WITH observatory_shares AS (\n  SELECT\n    observstation,\n    100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share\n  FROM telescopes\n  GROUP BY observstation\n),\naverage_share AS (\n  SELECT AVG(share) AS avg_share\n  FROM observatory_shares\n)\nSELECT\n  COUNT(*) AS combined_number_of_telescopes,\n  AVG(os.share) AS average_share,\n  AVG(os.share - a.avg_share) AS average_excess_over_average_share\nFROM observatory_shares AS os\nCROSS JOIN average_share AS a\nWHERE os.share > a.avg_share;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each observatory (`observstation` in the telescopes table), calculate its share of all telescopes as 100 \u00d7 its telescope count \u00f7 the total telescope count. Consider only observatories whose share is above the average share across all observatories, and return one summary row with their combined telescope count, their average share, and the average amount by which their shares exceed the overall average share. Do not round.",
+  "sql": "WITH observatory_shares AS (\n  SELECT observstation, COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS share_pct\n  FROM telescopes\n  GROUP BY observstation\n), above_average AS (\n  SELECT observstation, share_pct\n  FROM observatory_shares\n  WHERE share_pct > (SELECT AVG(share_pct) FROM observatory_shares)\n)\nSELECT COUNT(t.telescregistry) AS combined_telescope_count,\n       AVG(a.share_pct) AS average_share,\n       AVG(a.share_pct - (SELECT AVG(share_pct) FROM observatory_shares)) AS average_excess_share\nFROM above_average a\nJOIN telescopes t ON t.observstation = a.observstation",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,74 @@
+{
+ "queries": [
+  "WITH per_type AS (SELECT mt.MediaTypeId, mt.Name AS MediaTypeName, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bytes_per_ms FROM Track t JOIN MediaType mt ON mt.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY mt.MediaTypeId, mt.Name) SELECT MediaTypeName, avg_bytes_per_ms, avg_bytes_per_ms - (SELECT AVG(avg_bytes_per_ms) FROM per_type) AS diff_from_overall_avg FROM per_type WHERE avg_bytes_per_ms > (SELECT AVG(avg_bytes_per_ms) FROM per_type)",
+  "WITH per_type AS (SELECT m.MediaTypeId, m.Name AS MediaTypeName, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY m.MediaTypeId, m.Name), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM per_type) SELECT p.MediaTypeName, p.avg_bytes_per_ms, p.avg_bytes_per_ms - o.overall_avg AS diff_above_overall FROM per_type p CROSS JOIN overall o WHERE p.avg_bytes_per_ms > o.overall_avg ORDER BY p.avg_bytes_per_ms DESC",
+  "WITH per_type AS (SELECT m.Name AS MediaType, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bpms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY m.MediaTypeId, m.Name) SELECT MediaType, avg_bpms, avg_bpms - (SELECT AVG(avg_bpms) FROM per_type) AS diff_from_overall FROM per_type WHERE avg_bpms > (SELECT AVG(avg_bpms) FROM per_type)",
+  "WITH per_type AS (SELECT m.Name AS MediaType, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS avg_bpms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY m.MediaTypeId, m.Name) SELECT MediaType, avg_bpms, avg_bpms - (SELECT AVG(avg_bpms) FROM per_type) AS diff_from_overall FROM per_type WHERE avg_bpms > (SELECT AVG(avg_bpms) FROM per_type)"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_type AS (SELECT mt.MediaTypeId, mt.Name AS MediaTypeName, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bytes_per_ms FROM Track t JOIN MediaType mt ON mt.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY mt.MediaTypeId, mt.Name) SELECT MediaTypeName, avg_bytes_per_ms, avg_bytes_per_ms - (SELECT AVG(avg_bytes_per_ms) FROM per_type) AS diff_from_overall_avg FROM per_type WHERE avg_bytes_per_ms > (SELECT AVG(avg_bytes_per_ms) FROM per_type)",
+   "assumptions": [
+    {
+     "assumption": "Tracks with Milliseconds = 0 are not a concern (Milliseconds is a required duration; no zero-handling added). Bytes is cast to REAL to avoid integer division. Media types with no tracks above the threshold are excluded from the overall average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Media types are grouped by MediaTypeId and name (names are assumed unique in practice).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_type AS (SELECT m.MediaTypeId, m.Name AS MediaTypeName, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bytes_per_ms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY m.MediaTypeId, m.Name), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM per_type) SELECT p.MediaTypeName, p.avg_bytes_per_ms, p.avg_bytes_per_ms - o.overall_avg AS diff_above_overall FROM per_type p CROSS JOIN overall o WHERE p.avg_bytes_per_ms > o.overall_avg ORDER BY p.avg_bytes_per_ms DESC",
+   "assumptions": [
+    {
+     "assumption": "Each media type's average is the mean of the per-track ratio Bytes/Milliseconds (not total bytes divided by total milliseconds), computed with real (non-integer) division.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the simple unweighted mean of the per-media-type averages, taken only over media types that have at least one track with Bytes > 10323804.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Tracks with NULL Bytes are excluded by the size filter; Milliseconds is NOT NULL and assumed non-zero.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_type AS (SELECT m.Name AS MediaType, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bpms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY m.MediaTypeId, m.Name) SELECT MediaType, avg_bpms, avg_bpms - (SELECT AVG(avg_bpms) FROM per_type) AS diff_from_overall FROM per_type WHERE avg_bpms > (SELECT AVG(avg_bpms) FROM per_type)",
+   "assumptions": [
+    {
+     "assumption": "Per-media-type average is the mean of the per-track ratio Bytes/Milliseconds (not total bytes / total milliseconds), using real (non-integer) division.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the simple unweighted mean of the per-media-type averages, only over media types that have at least one track above the size threshold.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Media types are grouped by MediaTypeId (names are assumed unique in practice).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Per-media-type average computed as ratio of sums (total Bytes / total Milliseconds) instead of mean of per-track ratios.",
+     "sql": "WITH per_type AS (SELECT m.Name AS MediaType, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS avg_bpms FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId WHERE t.Bytes > 10323804 GROUP BY m.MediaTypeId, m.Name) SELECT MediaType, avg_bpms, avg_bpms - (SELECT AVG(avg_bpms) FROM per_type) AS diff_from_overall FROM per_type WHERE avg_bpms > (SELECT AVG(avg_bpms) FROM per_type)"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-ecf2814a02",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16740,
+  "chars_out": 3522
+ }
+}

@@ -1,0 +1,30 @@
+{
+ "interpretations": [
+  "For each non-null trader type represented in qualifying analyses, count distinct linked transactions and compute its fraction of the total; aggregate the types whose counts exceed the average across those represented types.",
+  "Treat a null `tradekind` as its own group alongside the trader types represented in qualifying analyses; include that group in the total, the average, and the final aggregation if it qualifies.",
+  "Include every non-null trader type present in `trader`, assigning zero to types with no qualifying analyses; compute the total and average across those types before aggregating types above the average.",
+  "Include every non-null value in the documented `tradekind` enum, assigning zero where there are no qualifying analyses; compute the total and average across all four types before aggregating types above the average.",
+  "Include every trader type present in `trader`, treating null as its own group and assigning zero to groups with no qualifying analyses; compute the total and average across those groups before aggregating groups above the average.",
+  "Under any of these group definitions, express each type\u2019s share as a percentage of the total rather than a fraction.",
+  "Include all four documented `tradekind` enum values, assigning zero where there are no qualifying analyses, and include NULL as an additional group when present in `trader`. Include that group in the total, average, and final aggregation if it qualifies."
+ ],
+ "queries": [
+  "WITH type_counts AS (\n    SELECT t.tradekind,\n           COUNT(DISTINCT a.translink) AS transaction_count\n    FROM advancedbehavior AS a\n    JOIN transactionrecord AS tr ON tr.transreg = a.translink\n    JOIN trader AS t ON t.tradereg = tr.trdref\n    WHERE t.tradekind IS NOT NULL\n    GROUP BY t.tradekind\n)\nSELECT tradekind,\n       transaction_count,\n       1.0 * transaction_count / SUM(transaction_count) OVER () AS fraction_of_total\nFROM type_counts\nWHERE transaction_count > (SELECT AVG(transaction_count) FROM type_counts)",
+  "WITH type_counts AS (\n    SELECT t.tradekind,\n           COUNT(ab.abhvreg) AS analysis_count\n    FROM trader AS t\n    LEFT JOIN transactionrecord AS tr\n        ON tr.trdref = t.tradereg\n    LEFT JOIN advancedbehavior AS ab\n        ON ab.translink = tr.transreg\n    WHERE t.tradekind IS NOT NULL\n    GROUP BY t.tradekind\n),\ntype_stats AS (\n    SELECT SUM(analysis_count) AS total_analyses,\n           AVG(analysis_count) AS average_analyses\n    FROM type_counts\n)\nSELECT tc.tradekind,\n       tc.analysis_count,\n       ts.total_analyses,\n       ts.average_analyses\nFROM type_counts AS tc\nCROSS JOIN type_stats AS ts\nWHERE tc.analysis_count > ts.average_analyses;\n",
+  "WITH trader_types(tradekind) AS (\n    VALUES ('Market Maker'), ('Broker'), ('Individual'), ('Institution')\n),\ntype_counts AS (\n    SELECT tt.tradekind, COUNT(ab.abhvreg) AS analysis_count\n    FROM trader_types AS tt\n    LEFT JOIN trader AS t ON t.tradekind = tt.tradekind\n    LEFT JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n    LEFT JOIN advancedbehavior AS ab ON ab.translink = tr.transreg\n    GROUP BY tt.tradekind\n),\nsummary AS (\n    SELECT\n        SUM(analysis_count) AS total_analyses,\n        AVG(analysis_count) AS average_analyses\n    FROM type_counts\n)\nSELECT\n    s.total_analyses,\n    s.average_analyses,\n    GROUP_CONCAT(\n        CASE WHEN tc.analysis_count > s.average_analyses THEN tc.tradekind END,\n        ', '\n    ) AS above_average_types\nFROM summary AS s\nCROSS JOIN type_counts AS tc;\n",
+  "WITH analyses_by_type AS (\n    SELECT t.tradekind, COUNT(ab.abhvreg) AS analysis_count\n    FROM trader AS t\n    LEFT JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n    LEFT JOIN advancedbehavior AS ab ON ab.translink = tr.transreg\n    GROUP BY t.tradekind\n),\ngroup_stats AS (\n    SELECT SUM(analysis_count) AS total_analyses,\n           AVG(analysis_count) AS average_analyses\n    FROM analyses_by_type\n)\nSELECT COALESCE(SUM(a.analysis_count), 0) AS above_average_analyses\nFROM analyses_by_type AS a\nCROSS JOIN group_stats AS s\nWHERE a.analysis_count > s.average_analyses"
+ ],
+ "raw": [
+  "For each non-null trader type represented in qualifying analyses, count distinct linked transactions and compute its fraction of the total; aggregate the types whose counts exceed the average across those represented types.\n\nTreat a null `tradekind` as its own group alongside the trader types represented in qualifying analyses; include that group in the total, the average, and the final aggregation if it qualifies.\n\nInclude every non-null trader type present in `trader`, assigning zero to types with no qualifying analyses; compute the total and average across those types before aggregating types above the average.\n\nInclude every non-null value in the documented `tradekind` enum, assigning zero where there are no qualifying analyses; compute the total and average across all four types before aggregating types above the average.\n\nInclude every trader type present in `trader`, treating null as its own group and assigning zero to groups with no qualifying analyses; compute the total and average across those groups before aggregating groups above the average.\n\nUnder any of these group definitions, express each type\u2019s share as a percentage of the total rather than a fraction.",
+  "Include all four documented `tradekind` enum values, assigning zero where there are no qualifying analyses, and include NULL as an additional group when present in `trader`. Include that group in the total, average, and final aggregation if it qualifies."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 138038,
+  "chars_out": 4258
+ }
+}

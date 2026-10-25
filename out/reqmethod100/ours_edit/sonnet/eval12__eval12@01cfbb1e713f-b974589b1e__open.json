@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Count each risk/margin record once per matching order; the share denominator is the total of matched records across all time-in-force values.",
+  "Average share is the mean of the shares over only time-in-force values that appear among matched records, so each value's deviation is share minus that mean.",
+  "Include every time-in-force value from orders, even with zero matched records, so the average share spans all values.",
+  "Treat orders with a NULL time in force as their own group, included in the total and average share."
+ ],
+ "readings": [
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Count each risk/margin record once per matching order; the share denominator is the total of matched records across all time-in-force values.",
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Average share is the mean of the shares over only time-in-force values that appear among matched records, so each value's deviation is share minus that mean.",
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Include every time-in-force value from orders, even with zero matched records, so the average share spans all values.",
+  "For each time in force, using risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`; unmatched dropped), show the time in force, its risk/margin count, that count's share of the overall total, and how far the share is from the average share across time-in-force values. No rounding. Treat orders with a NULL time in force as their own group, included in the total and average share."
+ ],
+ "queries": [
+  "WITH c AS (\n  SELECT o.timespan AS timespan, COUNT(*) AS cnt\n  FROM riskandmargin r\n  JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY o.timespan\n),\ns AS (\n  SELECT timespan, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share\n  FROM c\n)\nSELECT timespan, cnt AS risk_margin_count, share,\n       share - (SELECT AVG(share) FROM s) AS deviation_from_avg_share\nFROM s;\n",
+  "WITH counts AS (\n  SELECT o.timespan AS timespan, COUNT(*) AS cnt\n  FROM riskandmargin r\n  JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY o.timespan\n),\nshares AS (\n  SELECT timespan, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share\n  FROM counts\n)\nSELECT timespan, cnt AS risk_margin_count, share, share - (SELECT AVG(share) FROM shares) AS deviation\nFROM shares;\n",
+  "WITH tifs AS (\n  SELECT DISTINCT timespan FROM orders\n),\ncounts AS (\n  SELECT t.timespan AS timespan, COUNT(r.riskandmarginpivot) AS cnt\n  FROM tifs t\n  LEFT JOIN orders o ON o.timespan = t.timespan\n  LEFT JOIN riskandmargin r ON r.ordervault = o.recordvault\n  GROUP BY t.timespan\n),\nshares AS (\n  SELECT timespan, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM counts) AS share\n  FROM counts\n)\nSELECT timespan,\n       cnt AS risk_margin_count,\n       share AS share_of_total,\n       share - (SELECT AVG(share) FROM shares) AS deviation_from_avg_share\nFROM shares;\n",
+  "WITH counts AS (\n  SELECT o.timespan AS timespan, COUNT(*) AS cnt\n  FROM riskandmargin r\n  JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY o.timespan\n),\nshares AS (\n  SELECT timespan, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share\n  FROM counts\n)\nSELECT timespan, cnt AS risk_margin_count, share, share - (SELECT AVG(share) FROM shares) AS deviation_from_avg_share\nFROM shares;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 5,
+  "chars_in": 66673,
+  "chars_out": 2306
+ }
+}

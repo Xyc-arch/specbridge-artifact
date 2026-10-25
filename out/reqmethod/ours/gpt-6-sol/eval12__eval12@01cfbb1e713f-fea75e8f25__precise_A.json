@@ -1,0 +1,19 @@
+{
+ "readings": [
+  "For each equipment reference in scanenvironment, calculate its average nonmissing humepct. Calculate the reference average as the mean of those per-equipment averages, and keep only equipment whose average exceeds it. For each kept equipment reference, show its average humidity, the amount by which it exceeds the reference average, and the absolute difference between its average and the mean of the kept equipment's per-equipment averages. Return no rows if either reference average is missing. Sort by the absolute difference descending, with missing values last. Return at most 10 rows, dropping any additional rows tied at the cutoff arbitrarily.",
+  "For each equipment reference in scanenvironment, calculate its average nonmissing humepct. Calculate the reference average as the mean of those per-equipment averages, and keep only equipment whose average exceeds it. For each kept equipment reference, show its average humidity, the amount by which it exceeds the reference average, and the absolute difference between its average and the mean of all nonmissing humidity readings belonging to kept equipment, pooling those readings across equipment. Return no rows if either reference average is missing. Sort by the absolute difference descending, with missing values last. Return at most 10 rows, dropping any additional rows tied at the cutoff arbitrarily."
+ ],
+ "queries": [
+  "WITH equipment_averages AS (\n    SELECT equipref, AVG(humepct) AS avg_humidity\n    FROM scanenvironment\n    GROUP BY equipref\n),\nreference_average AS (\n    SELECT AVG(avg_humidity) AS avg_humidity\n    FROM equipment_averages\n),\nkept_equipment AS (\n    SELECT e.equipref, e.avg_humidity\n    FROM equipment_averages AS e\n    CROSS JOIN reference_average AS r\n    WHERE e.avg_humidity > r.avg_humidity\n),\nkept_average AS (\n    SELECT AVG(avg_humidity) AS avg_humidity\n    FROM kept_equipment\n)\nSELECT\n    k.equipref,\n    k.avg_humidity,\n    k.avg_humidity - r.avg_humidity AS excess_humidity,\n    ABS(k.avg_humidity - a.avg_humidity) AS absolute_difference\nFROM kept_equipment AS k\nCROSS JOIN reference_average AS r\nCROSS JOIN kept_average AS a\nWHERE r.avg_humidity IS NOT NULL\n  AND a.avg_humidity IS NOT NULL\nORDER BY absolute_difference IS NULL, absolute_difference DESC\nLIMIT 10",
+  "WITH equipment_averages AS (\n    SELECT equipref, AVG(humepct) AS avg_humidity\n    FROM scanenvironment\n    GROUP BY equipref\n),\nreference_average AS (\n    SELECT AVG(avg_humidity) AS value\n    FROM equipment_averages\n),\nkept AS (\n    SELECT ea.equipref, ea.avg_humidity\n    FROM equipment_averages AS ea\n    CROSS JOIN reference_average AS ra\n    WHERE ea.avg_humidity > ra.value\n),\npooled_average AS (\n    SELECT AVG(se.humepct) AS value\n    FROM scanenvironment AS se\n    JOIN kept AS k ON k.equipref = se.equipref\n)\nSELECT\n    k.equipref,\n    k.avg_humidity,\n    k.avg_humidity - ra.value AS amount_above_reference,\n    ABS(k.avg_humidity - pa.value) AS absolute_difference\nFROM kept AS k\nCROSS JOIN reference_average AS ra\nCROSS JOIN pooled_average AS pa\nWHERE ra.value IS NOT NULL\n  AND pa.value IS NOT NULL\nORDER BY absolute_difference IS NULL, absolute_difference DESC\nLIMIT 10;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "ours",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123226,
+  "chars_out": 3159
+ }
+}

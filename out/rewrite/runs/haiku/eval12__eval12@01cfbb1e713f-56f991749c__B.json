@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-56f991749c",
+ "model": "haiku",
+ "reading": "B",
+ "description": "A status qualifies if its average model confidence exceeds the average model confidence taken over every individual compliance case.",
+ "a": {
+  "request": "Group the compliance cases by broker reporting status (`brokrepstat`), treating cases with no status as their own group, and find each status's average model confidence (`modelconf`). For the baseline, take the average model confidence computed directly over every individual compliance case, so statuses with more cases weigh more. Which statuses have an average above that baseline? For each, show the status, its average model confidence, its average minus the baseline, and its average divided by the mean of the qualifying statuses' averages. Averages ignore missing values. Return nothing if either reference value is missing. Don't round.",
+  "sql": "WITH baseline AS (\n  SELECT AVG(modelconf) AS base_avg\n  FROM compliancecase\n),\ngrp AS (\n  SELECT brokrepstat, AVG(modelconf) AS grp_avg\n  FROM compliancecase\n  GROUP BY brokrepstat\n),\nqual AS (\n  SELECT g.brokrepstat, g.grp_avg\n  FROM grp g\n  CROSS JOIN baseline b\n  WHERE g.grp_avg > b.base_avg\n),\nref AS (\n  SELECT AVG(grp_avg) AS qual_mean\n  FROM qual\n)\nSELECT q.brokrepstat AS status,\n       q.grp_avg AS avg_modelconf,\n       q.grp_avg - b.base_avg AS diff_from_baseline,\n       q.grp_avg / NULLIF(r.qual_mean, 0) AS ratio_to_qualifying_mean\nFROM qual q\nCROSS JOIN baseline b\nCROSS JOIN ref r\nWHERE b.base_avg IS NOT NULL\n  AND r.qual_mean IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Which `brokrepstat` values (with NULL as its own group) have an average `modelconf` above the overall average `modelconf` across all compliancecase rows, ignoring NULL `modelconf`, returning each qualifying status with its average, the difference from the overall average, and its average divided by the mean of the qualifying statuses' averages, unrounded",
+  "sql": "WITH overall AS (\n  SELECT AVG(modelconf) AS overall_avg\n  FROM compliancecase\n  WHERE modelconf IS NOT NULL\n),\ngrp AS (\n  SELECT brokrepstat, AVG(modelconf) AS avg_conf\n  FROM compliancecase\n  WHERE modelconf IS NOT NULL\n  GROUP BY brokrepstat\n),\nq AS (\n  SELECT g.brokrepstat, g.avg_conf\n  FROM grp g\n  CROSS JOIN overall o\n  WHERE g.avg_conf > o.overall_avg\n)\nSELECT q.brokrepstat,\n       q.avg_conf AS avg_modelconf,\n       q.avg_conf - o.overall_avg AS diff_from_overall,\n       q.avg_conf / AVG(q.avg_conf) OVER () AS ratio_to_qualifying_mean\nFROM q\nCROSS JOIN overall o;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Which broker reporting statuses (`brokrepstat`) have above-average model confidence (`modelconf`)? Treat cases with no status as their own status. For each one, show the status, its average model confidence, how far above average it is, and its average divided by the mean of the qualifying statuses' averages. Ignore missing values when averaging, return nothing if a reference value is missing, and don't round. A status qualifies if its average model confidence exceeds the average model confidence taken over every individual compliance case.",
+  "sql": "WITH overall AS (\n  SELECT AVG(modelconf) AS overall_avg\n  FROM compliancecase\n),\nstatus_avgs AS (\n  SELECT brokrepstat AS status, AVG(modelconf) AS avg_conf\n  FROM compliancecase\n  GROUP BY brokrepstat\n),\nqualifying AS (\n  SELECT s.status, s.avg_conf, o.overall_avg\n  FROM status_avgs s\n  CROSS JOIN overall o\n  WHERE s.avg_conf > o.overall_avg\n)\nSELECT status,\n       avg_conf,\n       avg_conf - overall_avg AS above_avg_by,\n       avg_conf / AVG(avg_conf) OVER () AS ratio_to_qualifying_mean\nFROM qualifying\nORDER BY avg_conf DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among compliance cases, which broker reporting statuses (`brokrepstat`) have an average model confidence (`modelconf`) above the average `modelconf` across all individual compliance cases? Treat cases with no status as their own status. For each qualifying status, show the status, its average model confidence, how far above the overall average it is, and its average divided by the mean of the qualifying statuses' averages. Ignore missing values when averaging, return nothing if the overall reference value is missing, and don't round.",
+  "sql": "WITH overall AS (\n  SELECT AVG(modelconf) AS overall_avg\n  FROM compliancecase\n),\nstatus_avg AS (\n  SELECT COALESCE(brokrepstat, 'No Status') AS status,\n         AVG(modelconf) AS avg_modelconf\n  FROM compliancecase\n  GROUP BY COALESCE(brokrepstat, 'No Status')\n),\nqualifying AS (\n  SELECT s.status, s.avg_modelconf, o.overall_avg\n  FROM status_avg s\n  CROSS JOIN overall o\n  WHERE s.avg_modelconf > o.overall_avg\n)\nSELECT q.status,\n       q.avg_modelconf,\n       q.avg_modelconf - q.overall_avg AS diff_from_overall,\n       q.avg_modelconf / (SELECT AVG(avg_modelconf) FROM qualifying) AS ratio_to_qualifying_mean\nFROM qualifying q;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

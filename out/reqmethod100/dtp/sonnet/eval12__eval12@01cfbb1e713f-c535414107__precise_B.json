@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Patient-level averaging, then sex-level averaging: first compute each patient's average ALB and average of per-test UN/T-BIL ratios, then average those across patients within each sex. Return sexes whose average ALB is above the mean of the sex-level ALB averages.",
+  "Same as 1, but the mean of the sex-level ALB averages is an unweighted mean across sexes (each sex counts equally), not weighted by patient count.",
+  "Same as 1, but the mean of the sex-level ALB averages is computed over patient-level ALB values pooled across all patients (weighted by patient count).",
+  "Same as 1, but the per-patient ratio is the ratio of the patient's average UN to the patient's average T-BIL, not the average of per-test ratios.",
+  "Same as 1, with the per-test ratio computed only where T-BIL is non-null and nonzero, so rows with null or zero T-BIL are excluded from the ratio average.",
+  "Same as 1, but rows with a zero T-BIL are kept and treated as producing a null ratio, still excluded from the ratio average.",
+  "Same as 1, but patients with no computable ratio are dropped entirely, so they also don't contribute to the ALB average.",
+  "Same as 1, but patients with no computable ratio stay in the ALB average and are only left out of the ratio average.",
+  "Same as 1, but sexes are only the non-blank values present in Patient.SEX (such as F and M), excluding null, empty, and whitespace-only values.",
+  "Same as 1, but the sex-level ALB averages used for the mean also include only sexes with a non-null average ALB.",
+  "\"How far its ALB average is above that mean\" is the difference (sex ALB average minus mean of sex averages).",
+  "\"How far its ALB average is above that mean\" is a percentage or ratio relative to the mean.",
+  "\"Above the mean\" is strict (>), excluding sexes equal to the mean.",
+  "\"Above the mean\" is inclusive (>=), including sexes equal to the mean.",
+  "Lab records are joined to patients by Laboratory.ID = Patient.ID with an inner join, so lab records with no matching patient are dropped. Patients with no lab records are also excluded.",
+  "The patient grouping key is (ID, SEX), so a patient with multiple SEX values (not possible given ID is the primary key) would form separate groups.",
+  "The output is one row per qualifying sex with columns sex, average ALB, average UN/T-BIL ratio, and the difference.",
+  "The output covers all qualifying sexes in a single result, with the mean of the sex-level ALB averages used only as a threshold and not shown as a column.",
+  "The ALB average ignores null ALB values, and the ratio average ignores null UN or null T-BIL values.",
+  "Patient-level averages are computed across all lab dates for each patient, with no date filter.",
+  "Same as 1, but each patient's ALB average uses only the lab rows where the UN/T-BIL ratio can be computed, so rows with null UN or null/zero T-BIL are excluded from the ALB average too.",
+  "Same as 1, but the sex-level UN/T-BIL figure is the sex-level average UN divided by the sex-level average T-BIL, rather than the average of the patient-level ratios."
+ ],
+ "queries": [
+  "WITH patient_avg AS (\n    SELECT P.ID, P.SEX,\n           AVG(L.ALB) AS avg_alb,\n           AVG(CAST(L.UN AS REAL) / NULLIF(L.\"T-BIL\", 0)) AS avg_ratio\n    FROM Patient P\n    JOIN Laboratory L ON L.ID = P.ID\n    GROUP BY P.ID, P.SEX\n),\nsex_avg AS (\n    SELECT SEX,\n           AVG(avg_alb) AS sex_alb,\n           AVG(avg_ratio) AS sex_ratio\n    FROM patient_avg\n    GROUP BY SEX\n)\nSELECT SEX\nFROM sex_avg\nWHERE sex_alb > (SELECT AVG(sex_alb) FROM sex_avg);\n",
+  "SELECT AVG(avg_alb) FROM (SELECT AVG(L.ALB) AS avg_alb FROM Laboratory L JOIN Patient P ON L.ID = P.ID GROUP BY P.SEX)",
+  "SELECT AVG(patient_alb) AS mean_alb\nFROM (\n    SELECT P.ID, AVG(L.ALB) AS patient_alb\n    FROM Patient P\n    JOIN Laboratory L ON P.ID = L.ID\n    WHERE L.ALB IS NOT NULL\n    GROUP BY P.ID\n);\n",
+  "SELECT ID, AVG(UN) * 1.0 / AVG(`T-BIL`) AS ratio\nFROM Laboratory\nGROUP BY ID\nHAVING AVG(`T-BIL`) IS NOT NULL AND AVG(`T-BIL`) <> 0;\n",
+  "SELECT AVG(GOT * 1.0 / `T-BIL`) FROM Laboratory WHERE `T-BIL` IS NOT NULL AND `T-BIL` <> 0;\n",
+  "SELECT AVG(CASE WHEN \"T-BIL\" = 0 THEN NULL ELSE GOT * 1.0 / \"T-BIL\" END)\nFROM Laboratory;\n"
+ ],
+ "raw": [
+  "1. Patient-level averaging, then sex-level averaging: first compute each patient's average ALB and average of per-test UN/T-BIL ratios, then average those across patients within each sex. Return sexes whose average ALB is above the mean of the sex-level ALB averages.\n2. Same as 1, but the mean of the sex-level ALB averages is an unweighted mean across sexes (each sex counts equally), not weighted by patient count.\n3. Same as 1, but the mean of the sex-level ALB averages is computed over patient-level ALB values pooled across all patients (weighted by patient count).\n4. Same as 1, but the per-patient ratio is the ratio of the patient's average UN to the patient's average T-BIL, not the average of per-test ratios.\n5. Same as 1, with the per-test ratio computed only where T-BIL is non-null and nonzero, so rows with null or zero T-BIL are excluded from the ratio average.\n6. Same as 1, but rows with a zero T-BIL are kept and treated as producing a null ratio, still excluded from the ratio average.\n7. Same as 1, but patients with no computable ratio are dropped entirely, so they also don't contribute to the ALB average.\n8. Same as 1, but patients with no computable ratio stay in the ALB average and are only left out of the ratio average.\n9. Same as 1, but sexes are only the non-blank values present in Patient.SEX (such as F and M), excluding null, empty, and whitespace-only values.\n10. Same as 1, but the sex-level ALB averages used for the mean also include only sexes with a non-null average ALB.\n11. \"How far its ALB average is above that mean\" is the difference (sex ALB average minus mean of sex averages).\n12. \"How far its ALB average is above that mean\" is a percentage or ratio relative to the mean.\n13. \"Above the mean\" is strict (>), excluding sexes equal to the mean.\n14. \"Above the mean\" is inclusive (>=), including sexes equal to the mean.\n15. Lab records are joined to patients by Laboratory.ID = Patient.ID with an inner join, so lab records with no matching patient are dropped. Patients with no lab records are also excluded.\n16. The patient grouping key is (ID, SEX), so a patient with multiple SEX values (not possible given ID is the primary key) would form separate groups.\n17. The output is one row per qualifying sex with columns sex, average ALB, average UN/T-BIL ratio, and the difference.\n18. The output covers all qualifying sexes in a single result, with the mean of the sex-level ALB averages used only as a threshold and not shown as a column.\n19. The ALB average ignores null ALB values, and the ratio average ignores null UN or null T-BIL values.\n20. Patient-level averages are computed across all lab dates for each patient, with no date filter.",
+  "Same as 1, but each patient's ALB average uses only the lab rows where the UN/T-BIL ratio can be computed, so rows with null UN or null/zero T-BIL are excluded from the ALB average too.\nSame as 1, but the sex-level UN/T-BIL figure is the sex-level average UN divided by the sex-level average T-BIL, rather than the average of the patient-level ratios."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c535414107",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68448,
+  "chars_out": 4713
+ }
+}

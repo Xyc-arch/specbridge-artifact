@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-69c4bd1cc2",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "All orders in Orders are included, and orders with no invoice count as 0.",
+ "b": {
+  "request": "For every order in Orders (including those with no invoices, counted as 0), compute its invoice count and its share as that count divided by the total number of invoices, then among orders whose share is strictly greater than the average share across all orders, return one unrounded row with the sum of their invoice counts, the average of their shares, and the average of (share \u2212 overall average share)",
+  "sql": "WITH c AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT COUNT(*) FROM Invoices) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_invoice_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_share_diff FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Take every order in `Orders`, including orders with no invoice (which get a count of 0), and count its invoices. Give each such order a share: its invoice count divided by the total invoice count across those orders. Average the shares over all of those orders, the zero-invoice ones included. For the orders whose share is strictly above that average, return one unrounded row with: their total number of invoices, their average share, and the average amount by which their share exceeds the average share.",
+  "sql": "WITH oc AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), sh AS (SELECT order_id, cnt, 1.0 * cnt / (SELECT SUM(cnt) FROM oc) AS share FROM oc), av AS (SELECT AVG(share) AS avg_share FROM sh) SELECT SUM(sh.cnt) AS total_invoices, AVG(sh.share) AS avg_share, AVG(sh.share - av.avg_share) AS avg_excess FROM sh CROSS JOIN av WHERE sh.share > av.avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each order, count its invoices and work out its share of all invoices (its count divided by the total). For the orders whose share is strictly above the average share, give one unrounded row with: their total number of invoices, their average share, and the average amount by which their share exceeds the average share. All orders in Orders are included, and orders with no invoice count as 0.",
+  "sql": "WITH oc AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), s AS (SELECT order_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM oc) AS share FROM oc), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(cnt) AS total_invoices, AVG(share) AS avg_share, AVG(share - (SELECT avg_share FROM a)) AS avg_excess_over_avg_share FROM s WHERE share > (SELECT avg_share FROM a)",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each order in Orders, count its invoices (orders with no invoices count as 0, and all orders in Orders are included) and compute its share of all invoices as its count divided by the total number of invoices. For the orders whose share is strictly above the average share across all orders, give one unrounded row with: their total number of invoices, their average share, and the average amount by which their share exceeds the average share.",
+  "sql": "WITH oc AS (SELECT o.order_id, COUNT(i.invoice_number) AS cnt FROM Orders o LEFT JOIN Invoices i ON i.order_id = o.order_id GROUP BY o.order_id), tot AS (SELECT COUNT(*) AS t FROM Invoices), sh AS (SELECT oc.order_id, oc.cnt, oc.cnt * 1.0 / tot.t AS share FROM oc, tot), av AS (SELECT AVG(share) AS a FROM sh) SELECT SUM(sh.cnt) AS total_invoices, AVG(sh.share) AS avg_share, AVG(sh.share - av.a) AS avg_excess FROM sh, av WHERE sh.share > av.a",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

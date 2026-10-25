@@ -1,0 +1,43 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6514cf857d",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NULL OR p.SEX <> '' GROUP BY p.SEX), stats AS (SELECT CAST(SUM(n) AS REAL) / COUNT(*) AS avg_n, SUM(n) AS total FROM counts) SELECT c.sex, c.n AS test_count, CAST(c.n AS REAL) / s.total AS fraction_of_total, c.n - s.avg_n AS above_average FROM counts c CROSS JOIN stats s WHERE c.n > s.avg_n;",
+  "assumptions": [
+   {
+    "assumption": "A test record is a row in Laboratory, and it matches a patient when Laboratory.ID equals Patient.ID (inner join, so unmatched tests are dropped).",
+    "unresolved": false
+   },
+   {
+    "assumption": "Only empty-string SEX values are excluded. NULL SEX is not an empty string, so it is kept and forms its own group. The request does not say whether NULL should be dropped too.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The per-group average and the fraction denominator are computed over all sex groups that remain after exclusion, not just the groups above average.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The average per group is total test records divided by the number of sex groups, and 'above average' means strictly greater than that average.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Also drop patients with a NULL sex, so only non-empty recorded sex values form groups.",
+    "sql": "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' GROUP BY p.SEX), stats AS (SELECT CAST(SUM(n) AS REAL) / COUNT(*) AS avg_n, SUM(n) AS total FROM counts) SELECT c.sex, c.n AS test_count, CAST(c.n AS REAL) / s.total AS fraction_of_total, c.n - s.avg_n AS above_average FROM counts c CROSS JOIN stats s WHERE c.n > s.avg_n;"
+   },
+   {
+    "interpretation": "The fraction is taken over only the above-average groups, not over all sex groups.",
+    "sql": "WITH counts AS (SELECT p.SEX AS sex, COUNT(*) AS n FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE p.SEX IS NULL OR p.SEX <> '' GROUP BY p.SEX), stats AS (SELECT CAST(SUM(n) AS REAL) / COUNT(*) AS avg_n FROM counts), above AS (SELECT c.sex, c.n FROM counts c CROSS JOIN stats s WHERE c.n > s.avg_n) SELECT a.sex, a.n AS test_count, CAST(a.n AS REAL) / (SELECT SUM(n) FROM above) AS fraction_of_total, a.n - s.avg_n AS above_average FROM above a CROSS JOIN stats s;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 10.5
+}

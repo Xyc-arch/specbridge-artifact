@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "SELECT AVG(avg_signed_amount) AS avg_of_avg_signed_amount, AVG(avg_balance) AS avg_of_avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed_amount, AVG(balance) AS avg_balance FROM trans WHERE amount > 2400 GROUP BY account_id) AS per_account",
+  "SELECT AVG(avg_signed) AS avg_of_avg_signed, AVG(avg_balance) AS avg_of_avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_balance FROM trans WHERE amount > 2400 GROUP BY account_id) t;",
+  "SELECT AVG(avg_signed) AS avg_of_avg_signed, AVG(avg_balance) AS avg_of_avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_balance FROM trans WHERE amount > 2400 AND type IN ('PRIJEM','VYDAJ') GROUP BY account_id) t;",
+  "SELECT AVG(avg_signed) AS avg_signed_amount, AVG(avg_bal) AS avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_bal FROM trans WHERE amount > 2400 GROUP BY account_id) AS per_account",
+  "SELECT AVG(avg_signed) AS avg_signed_amount, AVG(avg_bal) AS avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_bal FROM trans WHERE amount > 2400 AND type IN ('PRIJEM', 'VYDAJ') GROUP BY account_id) AS per_account"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT AVG(avg_signed_amount) AS avg_of_avg_signed_amount, AVG(avg_balance) AS avg_of_avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed_amount, AVG(balance) AS avg_balance FROM trans WHERE amount > 2400 GROUP BY account_id) AS per_account",
+   "assumptions": [
+    {
+     "assumption": "The per-account average balance is taken over all of the account's transactions with amount > 2400, including those of type VYBER or with a missing type. Only the signed-amount figure leaves those rows out. As a result, an account whose only large transactions are of other types is still counted in the balance average, but skipped in the signed-amount average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "SELECT AVG(avg_signed) AS avg_of_avg_signed, AVG(avg_balance) AS avg_of_avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_balance FROM trans WHERE amount > 2400 GROUP BY account_id) t;",
+   "assumptions": [
+    {
+     "assumption": "The average balance is computed over all transactions with amount > 2400 for each account, including those of type VYBER or with missing type, which are excluded only from the signed-amount figure.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The final average of the balance figure covers every account with at least one qualifying transaction. The signed-amount average skips accounts with no PRIJEM or VYDAJ rows, because AVG ignores NULL.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The per-account average balance uses only the transactions that count toward the signed amount (type PRIJEM or VYDAJ), so both figures cover the same set of rows and accounts.",
+     "sql": "SELECT AVG(avg_signed) AS avg_of_avg_signed, AVG(avg_balance) AS avg_of_avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_balance FROM trans WHERE amount > 2400 AND type IN ('PRIJEM','VYDAJ') GROUP BY account_id) t;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT AVG(avg_signed) AS avg_signed_amount, AVG(avg_bal) AS avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_bal FROM trans WHERE amount > 2400 GROUP BY account_id) AS per_account",
+   "assumptions": [
+    {
+     "assumption": "Each account's average balance is taken over all of its transactions with amount > 2400, including those whose type is neither PRIJEM nor VYDAJ (e.g. VYBER). Only the signed-amount figure excludes those types.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Accounts that have no PRIJEM/VYDAJ transaction above 2400 still count in the cross-account average of balance, since the request says they are skipped only for the first figure.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Both figures are computed only from PRIJEM/VYDAJ transactions with amount > 2400, so the balance average also leaves out other or missing types and accounts without signed transactions.",
+     "sql": "SELECT AVG(avg_signed) AS avg_signed_amount, AVG(avg_bal) AS avg_balance FROM (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS avg_signed, AVG(balance) AS avg_bal FROM trans WHERE amount > 2400 AND type IN ('PRIJEM', 'VYDAJ') GROUP BY account_id) AS per_account"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-c7d3136268",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 24711,
+  "chars_out": 3525
+ }
+}

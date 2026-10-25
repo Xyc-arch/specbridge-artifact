@@ -1,0 +1,46 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "wording": "open",
+ "model": "sonnet",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH per_order AS (SELECT e.ordersmark, o.timespan, AVG(e.fillcount) AS avg_fill FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault GROUP BY e.ordersmark, o.timespan), scored AS (SELECT ordersmark, timespan, avg_fill, AVG(avg_fill) OVER (PARTITION BY timespan) AS tif_avg, RANK() OVER (PARTITION BY timespan ORDER BY avg_fill DESC NULLS LAST) AS fill_rank FROM per_order) SELECT ordersmark, timespan, avg_fill, avg_fill - tif_avg AS above_tif_avg, fill_rank FROM scored WHERE avg_fill > tif_avg AND fill_rank <= 3 ORDER BY timespan, fill_rank, ordersmark",
+  "assumptions": [
+   {
+    "assumption": "The time-in-force average fill is the mean of the per-order average fills across the matched orders in that time in force. Each order counts once, and orders whose fillcount values are all null are ignored.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Rank is computed among all matched orders in the time in force, before filtering to those above the average. Orders with a null average rank last.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Orders with no matching executions do not appear. Orders with a null timespan form their own group.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The time-in-force average fill is the mean of fillcount over all individual executions in that time in force, so orders with more executions weigh more.",
+    "sql": "WITH j AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault), per_order AS (SELECT ordersmark, timespan, AVG(fillcount) AS avg_fill FROM j GROUP BY ordersmark, timespan), tif AS (SELECT timespan, AVG(fillcount) AS tif_avg FROM j GROUP BY timespan), scored AS (SELECT p.ordersmark, p.timespan, p.avg_fill, t.tif_avg, RANK() OVER (PARTITION BY p.timespan ORDER BY p.avg_fill DESC NULLS LAST) AS fill_rank FROM per_order p JOIN tif t ON t.timespan IS NOT DISTINCT FROM p.timespan) SELECT ordersmark, timespan, avg_fill, avg_fill - tif_avg AS above_tif_avg, fill_rank FROM scored WHERE avg_fill > tif_avg AND fill_rank <= 3 ORDER BY timespan, fill_rank, ordersmark"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "The time-in-force average fill is the mean of fillcount over all individual executions in that time in force, so orders with more executions weigh more.",
+   "sql": "WITH j AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault), per_order AS (SELECT ordersmark, timespan, AVG(fillcount) AS avg_fill FROM j GROUP BY ordersmark, timespan), tif AS (SELECT timespan, AVG(fillcount) AS tif_avg FROM j GROUP BY timespan), scored AS (SELECT p.ordersmark, p.timespan, p.avg_fill, t.tif_avg, RANK() OVER (PARTITION BY p.timespan ORDER BY p.avg_fill DESC NULLS LAST) AS fill_rank FROM per_order p JOIN tif t ON t.timespan IS NOT DISTINCT FROM p.timespan) SELECT ordersmark, timespan, avg_fill, avg_fill - tif_avg AS above_tif_avg, fill_rank FROM scored WHERE avg_fill > tif_avg AND fill_rank <= 3 ORDER BY timespan, fill_rank, ordersmark",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 11.8,
+ "chars_out": 2165
+}

@@ -1,0 +1,70 @@
+{
+ "queries": [
+  "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM account) AS share FROM account GROUP BY district_id) SELECT district_id, account_count, share FROM c WHERE share >= (SELECT share FROM c ORDER BY share DESC LIMIT 1 OFFSET 9) ORDER BY share DESC",
+  "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM account GROUP BY district_id), r AS (SELECT district_id, account_count, share, DENSE_RANK() OVER (ORDER BY share DESC) AS rnk FROM c) SELECT district_id, account_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC",
+  "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM account GROUP BY district_id), r AS (SELECT district_id, account_count, share, RANK() OVER (ORDER BY share DESC) AS rnk FROM c) SELECT district_id, account_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC",
+  "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM account GROUP BY district_id), r AS (SELECT district_id, account_count, share, DENSE_RANK() OVER (ORDER BY share DESC) AS rnk FROM c) SELECT district_id, account_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC, district_id"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM account) AS share FROM account GROUP BY district_id) SELECT district_id, account_count, share FROM c WHERE share >= (SELECT share FROM c ORDER BY share DESC LIMIT 1 OFFSET 9) ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "Share is the district's account count divided by the total number of rows in account, as a fraction between 0 and 1 (not a percentage), computed as a float without rounding.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If fewer than 10 districts exist, the threshold subquery returns NULL and no rows are returned; the data has 77 districts, so this does not arise.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM account GROUP BY district_id), r AS (SELECT district_id, account_count, share, DENSE_RANK() OVER (ORDER BY share DESC) AS rnk FROM c) SELECT district_id, account_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "Ties for 10th place are handled by ranking distinct share values (DENSE_RANK), so the cutoff is the 10th-highest distinct share. This is not the same as the 10th-highest district. The two differ when ties occur above 10th place, and the request says 'the 10th-highest share'.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Share is the district's account count divided by the total number of accounts in the account table, returned as an unrounded decimal fraction between 0 and 1, not a percentage.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only districts with at least one account appear, since districts are taken from account.district_id.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The cutoff is the 10th district by row position in the sorted order (RANK, so ties at 10th are included but ties above 10th push the cutoff earlier). Districts are ranked individually, and ties above 10th place count as separate places.",
+     "sql": "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM account GROUP BY district_id), r AS (SELECT district_id, account_count, share, RANK() OVER (ORDER BY share DESC) AS rnk FROM c) SELECT district_id, account_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT district_id, COUNT(*) AS account_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM account GROUP BY district_id), r AS (SELECT district_id, account_count, share, DENSE_RANK() OVER (ORDER BY share DESC) AS rnk FROM c) SELECT district_id, account_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC, district_id",
+   "assumptions": [
+    {
+     "assumption": "The 10th-highest share means the 10th-highest distinct share value, so ties at that value are included and the result may have more than 10 rows. Ranking uses DENSE_RANK on distinct share values.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Share is the district's account count divided by the total number of rows in account (every account has exactly one district_id). It is a fraction between 0 and 1, not a percentage, and is not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-53afca1d49",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 24210,
+  "chars_out": 3205
+ }
+}

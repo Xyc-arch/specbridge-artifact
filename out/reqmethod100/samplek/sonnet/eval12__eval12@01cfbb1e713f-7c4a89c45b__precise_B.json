@@ -1,0 +1,76 @@
+{
+ "queries": [
+  "WITH grp AS (SELECT COALESCE(rfistat, '(no status)') AS rfistat, AVG(modindex) AS avg_mod FROM signals GROUP BY COALESCE(rfistat, '(no status)')), base AS (SELECT AVG(modindex) AS baseline FROM signals), kept AS (SELECT g.rfistat, g.avg_mod, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT rfistat, avg_mod AS avg_modindex, avg_mod - baseline AS above_baseline, avg_mod - (SELECT AVG(avg_mod) FROM kept) AS diff_from_kept_mean FROM kept ORDER BY avg_mod DESC",
+  "WITH grp AS (\n  SELECT COALESCE(rfistat, 'No Status') AS rfistat, AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY COALESCE(rfistat, 'No Status')\n), base AS (\n  SELECT AVG(modindex) AS baseline FROM signals\n), kept AS (\n  SELECT g.rfistat, g.avg_mod, b.baseline\n  FROM grp g CROSS JOIN base b\n  WHERE g.avg_mod > b.baseline\n)\nSELECT rfistat,\n       avg_mod AS avg_modindex,\n       avg_mod - baseline AS above_baseline,\n       avg_mod - AVG(avg_mod) OVER () AS diff_from_kept_mean\nFROM kept",
+  "WITH grp AS (SELECT COALESCE(rfistat, 'No Status') AS rfistat, AVG(modindex) AS avg_mod FROM signals GROUP BY COALESCE(rfistat, 'No Status')), base AS (SELECT AVG(modindex) AS baseline FROM signals), kept AS (SELECT g.rfistat, g.avg_mod, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT rfistat, avg_mod AS avg_modindex, avg_mod - baseline AS diff_above_baseline, avg_mod - AVG(avg_mod) OVER () AS diff_from_kept_mean FROM kept ORDER BY avg_mod DESC"
+ ],
+ "responses": [
+  {
+   "sql": "WITH grp AS (SELECT COALESCE(rfistat, '(no status)') AS rfistat, AVG(modindex) AS avg_mod FROM signals GROUP BY COALESCE(rfistat, '(no status)')), base AS (SELECT AVG(modindex) AS baseline FROM signals), kept AS (SELECT g.rfistat, g.avg_mod, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT rfistat, avg_mod AS avg_modindex, avg_mod - baseline AS above_baseline, avg_mod - (SELECT AVG(avg_mod) FROM kept) AS diff_from_kept_mean FROM kept ORDER BY avg_mod DESC",
+   "assumptions": [
+    {
+     "assumption": "Signals with NULL rfistat form their own group, labeled '(no status)'. Empty-string statuses, if any, stay as their own separate group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the AVG(modindex) over all signals rows, ignoring NULL modindex values. Each signal counts once because signals has one row per signal.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'mean of the kept statuses' averages' is the unweighted mean of the kept groups' average modindex values, not weighted by group size. The difference is signed (status average minus that mean).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH grp AS (\n  SELECT COALESCE(rfistat, 'No Status') AS rfistat, AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY COALESCE(rfistat, 'No Status')\n), base AS (\n  SELECT AVG(modindex) AS baseline FROM signals\n), kept AS (\n  SELECT g.rfistat, g.avg_mod, b.baseline\n  FROM grp g CROSS JOIN base b\n  WHERE g.avg_mod > b.baseline\n)\nSELECT rfistat,\n       avg_mod AS avg_modindex,\n       avg_mod - baseline AS above_baseline,\n       avg_mod - AVG(avg_mod) OVER () AS diff_from_kept_mean\nFROM kept",
+   "assumptions": [
+    {
+     "assumption": "Signals with NULL rfistat form their own group labeled 'No Status'. Empty-string statuses, if any, stay as separate groups.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the average modindex over all signals, with NULL modindex ignored (AVG skips NULLs). Each signal counts once because the query uses the signals table alone with no joins.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A group whose modindex values are all NULL has a NULL average. It fails the > baseline test and is dropped.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Mean of the kept statuses' averages' is the unweighted mean of the kept groups' averages, not weighted by signal count. The difference is signed (group average minus that mean).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH grp AS (SELECT COALESCE(rfistat, 'No Status') AS rfistat, AVG(modindex) AS avg_mod FROM signals GROUP BY COALESCE(rfistat, 'No Status')), base AS (SELECT AVG(modindex) AS baseline FROM signals), kept AS (SELECT g.rfistat, g.avg_mod, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT rfistat, avg_mod AS avg_modindex, avg_mod - baseline AS diff_above_baseline, avg_mod - AVG(avg_mod) OVER () AS diff_from_kept_mean FROM kept ORDER BY avg_mod DESC",
+   "assumptions": [
+    {
+     "assumption": "Signals with NULL rfistat form their own group labeled 'No Status'; empty-string statuses are treated as ordinary distinct values, not as missing.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The baseline is the plain average of modindex over all signals rows (NULL modindex ignored), each signal counted once, rather than an average of the group averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How far it differs from the mean of the kept statuses' averages' is the signed difference (group average minus the unweighted mean of the kept groups' averages).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 122160,
+  "chars_out": 3588
+ }
+}

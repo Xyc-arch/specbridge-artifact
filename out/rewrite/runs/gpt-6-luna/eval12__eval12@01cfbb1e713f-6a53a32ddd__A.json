@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "A funding source's area-to-volume figure is the mean of each spatial record's area \u00f7 volume.",
+ "b": {
+  "request": "For each funding source, using only spatial records that match a project and have non-null values, calculate the mean of the per-record `(boxy \u2212 boxx) \u00f7 boxx` values and the mean of the per-record `aream2 \u00f7 volm3` values; return sources whose latter mean exceeds the unweighted average of those source-level means, showing the source, both means, and the difference between the source-level mean and that overall average, without rounding",
+  "sql": "WITH source_means AS (\n  SELECT\n    p.fundflux,\n    AVG((ss.boxy - ss.boxx) / ss.boxx) AS mean_box_ratio,\n    AVG(ss.aream2 / ss.volm3) AS mean_area_volume_ratio\n  FROM projects p\n  JOIN scanspatial ss ON ss.arcref = p.arcregistry\n  WHERE ss.boxy IS NOT NULL\n    AND ss.boxx IS NOT NULL\n    AND ss.aream2 IS NOT NULL\n    AND ss.volm3 IS NOT NULL\n  GROUP BY p.fundflux\n), overall_average AS (\n  SELECT AVG(mean_area_volume_ratio) AS avg_source_mean_area_volume_ratio\n  FROM source_means\n)\nSELECT\n  sm.fundflux,\n  sm.mean_box_ratio,\n  sm.mean_area_volume_ratio,\n  sm.mean_area_volume_ratio - oa.avg_source_mean_area_volume_ratio AS difference_from_overall_average\nFROM source_means sm\nCROSS JOIN overall_average oa\nWHERE sm.mean_area_volume_ratio > oa.avg_source_mean_area_volume_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each funding source (`projects.fundflux`), using the spatial records (`scanspatial`) whose `arcref` matches a project's `arcregistry` and dropping any that don't match, work out two numbers. The first is the average over the records of (`boxy` \u2212 `boxx`) \u00f7 `boxx`. The second is the average over the records of each record's area-to-volume ratio (`aream2` \u00f7 `volm3`). Ignore missing values. Then take the simple average of that area-to-volume figure across all funding sources. List only the funding sources whose figure is above that average. Show the funding source, the average Y-vs-X difference, the area-to-volume figure, and how far the figure is above the cross-source average, with no rounding.",
+  "sql": "WITH funding_ratios AS (\n  SELECT\n    p.fundflux,\n    AVG((ss.boxy - ss.boxx) / NULLIF(ss.boxx, 0)) AS avg_y_vs_x_difference,\n    AVG(ss.aream2 / NULLIF(ss.volm3, 0)) AS area_to_volume_figure\n  FROM projects AS p\n  JOIN scanspatial AS ss\n    ON ss.arcref = p.arcregistry\n  GROUP BY p.fundflux\n),\nsource_average AS (\n  SELECT AVG(area_to_volume_figure) AS cross_source_average\n  FROM funding_ratios\n)\nSELECT\n  fr.fundflux,\n  fr.avg_y_vs_x_difference,\n  fr.area_to_volume_figure,\n  fr.area_to_volume_figure - sa.cross_source_average AS above_average_by\nFROM funding_ratios AS fr\nCROSS JOIN source_average AS sa\nWHERE fr.area_to_volume_figure > sa.cross_source_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Using the spatial records (`scanspatial`) whose `arcref` matches a project's `arcregistry` and dropping any that don't match, look at each funding source (`projects.fundflux`). For each one, give the average relative difference between `boxy` and `boxx`, computed per record as (`boxy` \u2212 `boxx`) \u00f7 `boxx`, and give its area-to-volume ratio (`aream2` to `volm3`). Ignore missing values. Which funding sources have a ratio above the simple average of that ratio across all funding sources? Show the funding source, the average Y-vs-X difference, the ratio, and how far the ratio is above that average, with no rounding. A funding source's area-to-volume figure is the mean of each spatial record's area \u00f7 volume.",
+  "sql": "WITH per_source AS (\n  SELECT\n    p.fundflux,\n    AVG((sp.boxy - sp.boxx) / sp.boxx) AS avg_y_vs_x_difference,\n    AVG(sp.aream2 / sp.volm3) AS area_to_volume_ratio\n  FROM scanspatial AS sp\n  JOIN projects AS p\n    ON sp.arcref = p.arcregistry\n  WHERE sp.boxy IS NOT NULL\n    AND sp.boxx IS NOT NULL\n    AND sp.boxx <> 0\n    AND sp.aream2 IS NOT NULL\n    AND sp.volm3 IS NOT NULL\n    AND sp.volm3 <> 0\n  GROUP BY p.fundflux\n),\nwith_average AS (\n  SELECT\n    fundflux,\n    avg_y_vs_x_difference,\n    area_to_volume_ratio,\n    AVG(area_to_volume_ratio) OVER () AS simple_average_ratio\n  FROM per_source\n)\nSELECT\n  fundflux,\n  avg_y_vs_x_difference,\n  area_to_volume_ratio,\n  area_to_volume_ratio - simple_average_ratio AS above_average_by\nFROM with_average\nWHERE area_to_volume_ratio > simple_average_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using spatial records from `scanspatial` whose `arcref` matches a project\u2019s `arcregistry` and excluding nonmatches, group the records by funding source (`projects.fundflux`). For each funding source, compute its area-to-volume figure as the mean of each record\u2019s `aream2 \u00f7 volm3`, ignoring missing values. Also calculate the mean relative difference `(boxy \u2212 boxx) \u00f7 boxx`, ignoring missing values. Which funding sources have an area-to-volume figure above the simple average of that figure across all funding sources? Show each qualifying funding source, its average Y-vs-X difference, its area-to-volume figure, and how far that figure is above the overall average, with no rounding.",
+  "sql": "WITH funding_metrics AS (\n  SELECT\n    p.fundflux,\n    AVG(s.aream2 / s.volm3) AS area_to_volume,\n    AVG((s.boxy - s.boxx) / s.boxx) AS avg_y_vs_x_difference\n  FROM scanspatial AS s\n  JOIN projects AS p\n    ON s.arcref = p.arcregistry\n  GROUP BY p.fundflux\n), overall AS (\n  SELECT AVG(area_to_volume) AS overall_average\n  FROM funding_metrics\n)\nSELECT\n  f.fundflux,\n  f.avg_y_vs_x_difference,\n  f.area_to_volume,\n  f.area_to_volume - o.overall_average AS above_overall_average\nFROM funding_metrics AS f\nCROSS JOIN overall AS o\nWHERE f.area_to_volume > o.overall_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-d52cbe42aa",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Return every row whose rank is within the top 10, including all rows tied at the 10th place.",
+ "c": {
+  "request": "For each order reference (`orderexecutions.ordersmark`, with executions lacking a reference counted together as one group), count its execution records and compute its share of all execution records. What are the top 10 order references by how far their share is above the average share across order references? Show the order reference, execution count, share and share minus the average share, without rounding, from largest difference to smallest (missing values last). Return every row whose rank is within the top 10, including all rows tied at the 10th place.",
+  "sql": "WITH reference_counts AS (\n  SELECT\n    ordersmark,\n    COUNT(*) AS execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\nshares AS (\n  SELECT\n    ordersmark,\n    execution_count,\n    execution_count::numeric / NULLIF(SUM(execution_count) OVER (), 0) AS share\n  FROM reference_counts\n),\nranked AS (\n  SELECT\n    ordersmark,\n    execution_count,\n    share,\n    share - AVG(share) OVER () AS share_minus_average,\n    RANK() OVER (ORDER BY share - AVG(share) OVER () DESC NULLS LAST) AS rank\n  FROM shares\n)\nSELECT\n  ordersmark AS order_reference,\n  execution_count,\n  share,\n  share_minus_average\nFROM ranked\nWHERE rank <= 10\nORDER BY share_minus_average DESC NULLS LAST;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "For each distinct `orderexecutions.ordersmark` value, treating all NULL references as one group, count its execution records and calculate its share of all execution records. Compute the average of these group shares, then return every group whose rank by share minus the average is within the top 10, including all groups tied at rank 10. Show the order reference, execution count, share, and share minus average share, without rounding, ordered by difference descending with missing values last",
+  "sql": "WITH group_counts AS (\n  SELECT ordersmark, COUNT(*) AS execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\ngroup_shares AS (\n  SELECT ordersmark,\n         execution_count,\n         execution_count::numeric / NULLIF(SUM(execution_count) OVER (), 0) AS share\n  FROM group_counts\n),\nscored AS (\n  SELECT ordersmark,\n         execution_count,\n         share,\n         share - AVG(share) OVER () AS share_minus_average\n  FROM group_shares\n),\nranked AS (\n  SELECT *, RANK() OVER (ORDER BY share_minus_average DESC NULLS LAST) AS share_rank\n  FROM scored\n)\nSELECT ordersmark, execution_count, share, share_minus_average\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share_minus_average DESC NULLS LAST",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "For each order reference (`orderexecutions.ordersmark`, with executions lacking a reference counted together as one group), count its execution records and compute its share: that count divided by the total number of execution records. Then compute the average share across order references. List the order reference, execution count, share, and share minus the average share, without rounding, sorted by that difference from largest to smallest (missing values last). Rank the rows by that difference, with tied rows sharing a rank and later ranks skipping accordingly, and return every row ranked 10th or better, so all rows tied at the 10th place are included even if that gives more than 10 rows.",
+  "sql": "WITH execution_counts AS (\n    SELECT\n        ordersmark,\n        COUNT(*) AS execution_count\n    FROM orderexecutions\n    GROUP BY ordersmark\n),\nshares AS (\n    SELECT\n        ordersmark,\n        execution_count,\n        execution_count::numeric / NULLIF(SUM(execution_count) OVER (), 0) AS share\n    FROM execution_counts\n),\nscored AS (\n    SELECT\n        ordersmark,\n        execution_count,\n        share,\n        share - AVG(share) OVER () AS share_difference\n    FROM shares\n),\nranked AS (\n    SELECT\n        ordersmark,\n        execution_count,\n        share,\n        share_difference,\n        RANK() OVER (ORDER BY share_difference DESC NULLS LAST) AS row_rank\n    FROM scored\n)\nSELECT ordersmark, execution_count, share, share_difference\nFROM ranked\nWHERE row_rank <= 10\nORDER BY share_difference DESC NULLS LAST;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each order reference in `orderexecutions.ordersmark` (group executions with no reference together), count the execution records and calculate each reference\u2019s share of all execution records. Rank references by how far their share exceeds the average share across all references. Return every row tied within the top 10, showing the order reference, execution count, share, and share minus the average share without rounding, ordered from largest difference to smallest, with missing values last.",
+  "sql": "WITH reference_counts AS (\n  SELECT ordersmark, COUNT(*) AS execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n), shares AS (\n  SELECT ordersmark, execution_count,\n         execution_count::numeric / SUM(execution_count) OVER () AS share\n  FROM reference_counts\n), ranked AS (\n  SELECT ordersmark, execution_count, share,\n         share - AVG(share) OVER () AS share_minus_average,\n         RANK() OVER (ORDER BY share - AVG(share) OVER () DESC NULLS LAST) AS difference_rank\n  FROM shares\n)\nSELECT ordersmark, execution_count, share, share_minus_average\nFROM ranked\nWHERE difference_rank <= 10\nORDER BY share_minus_average DESC NULLS LAST;",
+  "executes": false,
+  "matches": []
+ }
+}

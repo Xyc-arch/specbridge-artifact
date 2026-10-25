@@ -1,0 +1,40 @@
+{
+ "interpretations": [
+  "Overall average HGB is the mean across all individual lab records (every non-null HGB row weighted equally). Patients are kept if their own average HGB exceeds it. The output is ID, patient average, patient average minus the overall average, and patient average minus the mean of the qualifying patients' averages. The top 10 are ordered by the last column, descending.",
+  "Overall average HGB is the mean of per-patient average HGB values (each patient weighted equally). The rest is the same as interpretation 1.",
+  "\"Average of these above-average patients' averages\" is the unweighted mean of the qualifying patients' averages, so each patient counts once. The last column is the patient average minus that mean.",
+  "\"Average of these above-average patients' averages\" is the mean over all lab records belonging to the qualifying patients (record-weighted). The last column is the patient average minus that mean.",
+  "\"Overall average hemoglobin\" is computed over all Laboratory records, including patients with no other data. It could instead be restricted to patients who appear in the Patient table, or to patients who also have Examination records.",
+  "\"Lab records\" means rows in Laboratory, one per patient per date. It could also mean distinct dates, or rows after joining Examination, which would duplicate lab rows.",
+  "\"Ignoring missing values\" means excluding NULL HGB values from both the patient averages and the overall average. It could also mean excluding zero or empty values.",
+  "\"How far it is above the overall average\" is the plain difference (patient average \u2212 overall average). It could instead be a percentage or ratio above the overall average.",
+  "\"Unrounded\" means the raw floating-point values with no ROUND. It could also mean no formatting or casting at all.",
+  "\"Top 10 by that last value, highest first\" is ORDER BY (patient average \u2212 mean of qualifying averages) DESC with LIMIT 10. Ties could be broken by patient ID or left arbitrary. Because the last column differs from the second-to-last by a constant, the ordering is the same as ordering by patient average.",
+  "\"Above\" is strictly greater than the overall average. It could also be read as greater than or equal.",
+  "Missing interpretations:",
+  "\"Overall average HGB\" is computed only over lab records that have a patient in the Patient table (an orphan-record filter), with the per-patient average and the overall average using the same population.",
+  "\"Patient average minus the average of these above-average patients' averages\" uses a mean taken over the qualifying patients' per-patient averages, but the output \"how far above\" column is relative to the per-patient-mean overall average rather than the record-level one. This mixes Interpretation 2's overall average with the record-weighted mean of qualifying records.",
+  "Patients with no non-null HGB values (average is NULL) are excluded from the set of patients, versus being counted as zero or kept in the per-patient mean.",
+  "Output columns are the patient ID, the patient average, the difference from the overall average, and the difference from the qualifying mean, in that order. The alternative is to return only a subset of these, or to return the qualifying mean and overall average as extra columns.",
+  "Top 10 ordering with ties handled by including all tied rows (for example, a WITH TIES-style result) rather than cutting at exactly 10."
+ ],
+ "queries": [
+  "WITH overall AS (\n    SELECT AVG(HGB) AS avg_all FROM Laboratory WHERE HGB IS NOT NULL\n),\npat AS (\n    SELECT ID, AVG(HGB) AS p_avg\n    FROM Laboratory\n    WHERE HGB IS NOT NULL\n    GROUP BY ID\n),\nq AS (\n    SELECT pat.ID, pat.p_avg, overall.avg_all\n    FROM pat, overall\n    WHERE pat.p_avg > overall.avg_all\n)\nSELECT ID,\n       p_avg,\n       p_avg - avg_all,\n       p_avg - (SELECT AVG(p_avg) FROM q)\nFROM q\nORDER BY 4 DESC\nLIMIT 10;\n",
+  "SELECT AVG(patient_avg) FROM (SELECT ID, AVG(HGB) AS patient_avg FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID);\n",
+  "WITH pa AS (\n    SELECT ID, AVG(GPT) AS avg_val\n    FROM Laboratory\n    GROUP BY ID\n),\nq AS (\n    SELECT ID, avg_val\n    FROM pa\n    WHERE avg_val > (SELECT AVG(GPT) FROM Laboratory)\n)\nSELECT ID,\n       avg_val,\n       (SELECT AVG(avg_val) FROM q) AS mean_of_avgs,\n       avg_val - (SELECT AVG(avg_val) FROM q) AS diff\nFROM q;\n",
+  "SELECT AVG(HGB) FROM Laboratory;\n"
+ ],
+ "raw": [
+  "1. Overall average HGB is the mean across all individual lab records (every non-null HGB row weighted equally). Patients are kept if their own average HGB exceeds it. The output is ID, patient average, patient average minus the overall average, and patient average minus the mean of the qualifying patients' averages. The top 10 are ordered by the last column, descending.\n2. Overall average HGB is the mean of per-patient average HGB values (each patient weighted equally). The rest is the same as interpretation 1.\n3. \"Average of these above-average patients' averages\" is the unweighted mean of the qualifying patients' averages, so each patient counts once. The last column is the patient average minus that mean.\n4. \"Average of these above-average patients' averages\" is the mean over all lab records belonging to the qualifying patients (record-weighted). The last column is the patient average minus that mean.\n5. \"Overall average hemoglobin\" is computed over all Laboratory records, including patients with no other data. It could instead be restricted to patients who appear in the Patient table, or to patients who also have Examination records.\n6. \"Lab records\" means rows in Laboratory, one per patient per date. It could also mean distinct dates, or rows after joining Examination, which would duplicate lab rows.\n7. \"Ignoring missing values\" means excluding NULL HGB values from both the patient averages and the overall average. It could also mean excluding zero or empty values.\n8. \"How far it is above the overall average\" is the plain difference (patient average \u2212 overall average). It could instead be a percentage or ratio above the overall average.\n9. \"Unrounded\" means the raw floating-point values with no ROUND. It could also mean no formatting or casting at all.\n10. \"Top 10 by that last value, highest first\" is ORDER BY (patient average \u2212 mean of qualifying averages) DESC with LIMIT 10. Ties could be broken by patient ID or left arbitrary. Because the last column differs from the second-to-last by a constant, the ordering is the same as ordering by patient average.\n11. \"Above\" is strictly greater than the overall average. It could also be read as greater than or equal.",
+  "Missing interpretations:\n\n\"Overall average HGB\" is computed only over lab records that have a patient in the Patient table (an orphan-record filter), with the per-patient average and the overall average using the same population.\n\"Patient average minus the average of these above-average patients' averages\" uses a mean taken over the qualifying patients' per-patient averages, but the output \"how far above\" column is relative to the per-patient-mean overall average rather than the record-level one. This mixes Interpretation 2's overall average with the record-weighted mean of qualifying records.\nPatients with no non-null HGB values (average is NULL) are excluded from the set of patients, versus being counted as zero or kept in the per-patient mean.\nOutput columns are the patient ID, the patient average, the difference from the overall average, and the difference from the qualifying mean, in that order. The alternative is to return only a subset of these, or to return the qualifying mean and overall average as extra columns.\nTop 10 ordering with ties handled by including all tied rows (for example, a WITH TIES-style result) rather than cutting at exactly 10."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4a2d376afa",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67905,
+  "chars_out": 5532
+ }
+}

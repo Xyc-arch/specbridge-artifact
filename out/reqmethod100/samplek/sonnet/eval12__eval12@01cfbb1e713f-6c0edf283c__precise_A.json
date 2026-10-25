@@ -1,0 +1,64 @@
+{
+ "queries": [
+  "WITH per_status AS (SELECT s.healtheval, COUNT(*) AS cnt FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.healtheval), shares AS (SELECT healtheval, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM per_status), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT AVG(sh.cnt * 1.0) AS avg_count, AVG(sh.share) AS avg_share, AVG(sh.share - av.a) AS avg_excess_over_avg_share FROM shares sh CROSS JOIN avg_share av WHERE sh.share > av.a",
+  "WITH counts AS (SELECT s.healtheval AS healtheval, COUNT(*) AS cnt FROM scanconservation c INNER JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.healtheval), shares AS (SELECT healtheval, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM counts), withavg AS (SELECT healtheval, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT AVG(cnt * 1.0) AS avg_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM withavg WHERE share > avg_share",
+  "WITH c AS (SELECT s.healtheval, COUNT(*) AS cnt FROM scanconservation sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), sh AS (SELECT healtheval, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT healtheval, cnt, share, AVG(share) OVER () AS avg_share FROM sh) SELECT AVG(cnt * 1.0) AS avg_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_status AS (SELECT s.healtheval, COUNT(*) AS cnt FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.healtheval), shares AS (SELECT healtheval, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM per_status), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT AVG(sh.cnt * 1.0) AS avg_count, AVG(sh.share) AS avg_share, AVG(sh.share - av.a) AS avg_excess_over_avg_share FROM shares sh CROSS JOIN avg_share av WHERE sh.share > av.a",
+   "assumptions": [
+    {
+     "assumption": "The three averages are taken over only the statuses whose share is above the average share. The overall average share is computed across all statuses, with NULL healtheval counted as one status.",
+     "unresolved": false
+    },
+    {
+     "assumption": "An inner join on zoneref = zoneregistry drops conservation records with no matching site. Each record counts once.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH counts AS (SELECT s.healtheval AS healtheval, COUNT(*) AS cnt FROM scanconservation c INNER JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.healtheval), shares AS (SELECT healtheval, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM counts), withavg AS (SELECT healtheval, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT AVG(cnt * 1.0) AS avg_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM withavg WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "The average share is taken across all statuses (including the NULL group) before filtering, and the summary row averages only the statuses whose share is strictly above it. The 'average amount by which the share exceeds the average share' is the mean of (share - overall average share) over those statuses.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A missing healtheval (NULL) forms one group of its own. Empty-string values, if any, would be a separate group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT s.healtheval, COUNT(*) AS cnt FROM scanconservation sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), sh AS (SELECT healtheval, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT healtheval, cnt, share, AVG(share) OVER () AS avg_share FROM sh) SELECT AVG(cnt * 1.0) AS avg_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "The 'average share across all statuses' is the mean of every status's share, computed over all groups including the NULL group, before the filter. This equals 1 divided by the number of statuses.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The three summary figures (average count, average share, average excess) are computed only over the statuses whose share is above the average share. The average excess is the mean of (share minus the average share) over those statuses.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL healtheval is its own group, and it is part of both the share denominator and the all-status average. Counts are cast to decimal so shares are not truncated by integer division.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c0edf283c",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123741,
+  "chars_out": 3168
+ }
+}

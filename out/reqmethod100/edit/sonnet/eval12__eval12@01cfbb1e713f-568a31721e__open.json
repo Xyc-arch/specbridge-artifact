@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Compute each patient's ratio as the average of row-level HGB/HCT values, skipping rows with NULLs.",
+  "Compute each patient's ratio as AVG(HGB) divided by AVG(HCT) across their rows.",
+  "Compute each patient's ratio as SUM(HGB) divided by SUM(HCT) across their rows.",
+  "Take the cross-patient average as the mean of all row-level ratios, weighting patients by row count."
+ ],
+ "edited": [
+  "Looking at each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio from their lab records (ignoring missing values), take the patients whose ratio is above the average across all patients. Give one summary row for them: the mean of their average PIC, the mean of their ratios, and the mean amount by which their ratios exceed that cross-patient average. Compute each patient's ratio as the average of row-level HGB/HCT values, skipping rows with NULLs.",
+  "Looking at each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio from their lab records (ignoring missing values), take the patients whose ratio is above the average across all patients. Give one summary row for them: the mean of their average PIC, the mean of their ratios, and the mean amount by which their ratios exceed that cross-patient average. Compute each patient's ratio as AVG(HGB) divided by AVG(HCT) across their rows.",
+  "Looking at each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio from their lab records (ignoring missing values), take the patients whose ratio is above the average across all patients. Give one summary row for them: the mean of their average PIC, the mean of their ratios, and the mean amount by which their ratios exceed that cross-patient average. Compute each patient's ratio as SUM(HGB) divided by SUM(HCT) across their rows.",
+  "Looking at each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio from their lab records (ignoring missing values), take the patients whose ratio is above the average across all patients. Give one summary row for them: the mean of their average PIC, the mean of their ratios, and the mean amount by which their ratios exceed that cross-patient average. Take the cross-patient average as the mean of all row-level ratios, weighting patients by row count."
+ ],
+ "queries": [
+  "WITH patient_stats AS (\n    SELECT ID,\n           AVG(HGB / HCT) AS ratio,\n           AVG(PIC) AS avg_pic\n    FROM Laboratory\n    WHERE HGB IS NOT NULL AND HCT IS NOT NULL\n    GROUP BY ID\n),\noverall AS (\n    SELECT AVG(ratio) AS avg_ratio FROM patient_stats\n)\nSELECT AVG(p.avg_pic) AS mean_avg_pic,\n       AVG(p.ratio) AS mean_ratio,\n       AVG(p.ratio - o.avg_ratio) AS mean_excess\nFROM patient_stats p, overall o\nWHERE p.ratio > o.avg_ratio;\n",
+  "WITH p AS (\n  SELECT ID, AVG(HGB) * 1.0 / AVG(HCT) AS ratio, AVG(PIC) AS avg_pic\n  FROM Laboratory\n  WHERE HGB IS NOT NULL AND HCT IS NOT NULL\n  GROUP BY ID\n),\na AS (\n  SELECT AVG(ratio) AS avg_ratio FROM p\n)\nSELECT AVG(p.avg_pic) AS mean_avg_pic,\n       AVG(p.ratio) AS mean_ratio,\n       AVG(p.ratio - a.avg_ratio) AS mean_excess\nFROM p, a\nWHERE p.ratio > a.avg_ratio;\n",
+  "WITH p AS (\n    SELECT ID,\n           SUM(HGB) * 1.0 / SUM(HCT) AS ratio,\n           AVG(PIC) AS avg_pic\n    FROM Laboratory\n    WHERE HGB IS NOT NULL AND HCT IS NOT NULL\n    GROUP BY ID\n    HAVING SUM(HCT) <> 0\n),\na AS (\n    SELECT AVG(ratio) AS avg_ratio FROM p\n)\nSELECT AVG(p.avg_pic) AS mean_avg_pic,\n       AVG(p.ratio) AS mean_ratio,\n       AVG(p.ratio - a.avg_ratio) AS mean_excess\nFROM p, a\nWHERE p.ratio > a.avg_ratio;\n",
+  "WITH p AS (\n    SELECT ID, AVG(HGB * 1.0 / HCT) AS ratio, AVG(PIC) AS avg_pic\n    FROM Laboratory\n    WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT != 0\n    GROUP BY ID\n),\ng AS (\n    SELECT AVG(HGB * 1.0 / HCT) AS gavg\n    FROM Laboratory\n    WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT != 0\n)\nSELECT AVG(p.avg_pic) AS mean_avg_pic,\n       AVG(p.ratio) AS mean_ratio,\n       AVG(p.ratio - g.gavg) AS mean_excess\nFROM p, g\nWHERE p.ratio > g.gavg;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-568a31721e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 103690,
+  "chars_out": 7914
+ }
+}

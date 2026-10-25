@@ -1,0 +1,563 @@
+[
+ {
+  "task": "b000",
+  "cause": "unwanted processing",
+  "supplied": "for each kept record, return (1) the unique id of atoms (`atom.atom_id`)",
+  "difference": "Repeat 0 returned extra columns (\"a.atom_id, a.element, m.molecule_id, m.label\") where the gold has only \"T1.atom_id\". Repeat 1 had the right column but added \"LIMIT 20\", so it returned 20 rows instead of 2000.",
+  "question_gap": "partly: the question's \"which one\" implies the output is just the atom identifier, but nothing stops the agent from adding columns or a LIMIT.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b001",
+  "cause": "semantic mapping",
+  "supplied": "A is the number of records in the group whose ... [1] `atom.element` equals 'h'; [2] `molecule.label` equals '+' ...; B is the number of records in the group whose `molecule.molecule_id` is not missing",
+  "difference": "The agent counted distinct molecules: carcinogenic molecules containing hydrogen divided by all molecules containing hydrogen (144/329, ROUND to 43.77). The gold counts joined atom rows: COUNT(CASE WHEN element='h' AND label='+') / COUNT(T2.molecule_id) over atom JOIN molecule, which gives 17.2209. The agent also added ROUND(...,2).",
+  "question_gap": "partly: the evidence formula DIVIDE(SUM(label='+' and element='h'), COUNT(molecule_id)) points to the gold's row-level count, but \"percentage of molecules\" suggests counting distinct molecules, which is the agent's reading.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b003",
+  "cause": "run variation",
+  "supplied": "`bond.bond_type` equals '=' (compared as text, character by character)",
+  "difference": "Repeat 0 used the evidence's literal \"bond_type = ' = '\" (with spaces) and got [0,'+']. The gold uses '=' and gets [6,'+']. Repeat 1 used '=' and passed.",
+  "question_gap": "partly: the evidence writes ' = ' with spaces while the stored value is '='; the agent got it right in one repeat by checking the data.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   true
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b004",
+  "cause": "semantic mapping",
+  "supplied": "the sum of ... if `molecule.label` equals '+' then 1; otherwise 0 in the group",
+  "difference": "The gold's second column is SUM(CASE WHEN label='+' THEN 1 ELSE 0 END) over bond rows, which counts double bonds in carcinogenic molecules (634). Repeat 1 counted distinct carcinogenic molecules (121). Repeat 1 also took its first column from bond alone, with no join to molecule, giving 370 vs the gold's 291. Repeat 0 used the literal ' = ' and got [0,0].",
+  "question_gap": "no: \"how many are labeled as carcinogenic\" asks for a molecule count, and the question gives no hint that the gold's second number counts bonds or that molecules missing from the molecule table are excluded.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b005",
+  "cause": "semantic mapping",
+  "supplied": "`atom.element` does not equal 's' ... `bond.bond_type` does not equal '=' ... number of distinct ... `atom.molecule_id`",
+  "difference": "The agent read \"without sulphur\" and \"not having double bond\" as molecule-level exclusions (NOT EXISTS / NOT IN), giving 50, or 283 with the ' = ' literal. The gold applies row-level filters on the join, \"element <> 's' AND bond_type <> '='\", so any molecule with at least one non-sulphur atom and at least one non-double bond counts (442).",
+  "question_gap": "no: \"molecules without sulphur\" naturally means the agent's exclusion reading, and only the gold's row-level <> filters produce 442; the evidence \"bond_type ! = ' = '\" only hints at it.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b012",
+  "cause": "run variation",
+  "supplied": "for each kept record, return (1) molecule id (`bond.molecule_id`)",
+  "difference": "Failing repeat 1 returned an extra column, \"SELECT atom_id, molecule_id FROM atom WHERE atom_id IN ('TR000_2', 'TR000_4')\", which gave 2 rows: [['TR000_2','TR000'],['TR000_4','TR000']]. The gold returns only molecule_id: [['TR000']]. Repeat 0 used \"SELECT DISTINCT molecule_id ... \" and passed.",
+  "question_gap": "partly: 'What is the molecule' implies only the molecule id should be returned, but the question does not say whether the two atoms must be bonded. Both readings give TR000 here.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   true,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b014",
+  "cause": "run variation",
+  "supplied": "(A \u00d7 100) \u00f7 B ... A is the number of records in the group whose ... `bond.bond_type` equals '-' ... B is the number of records in the group whose ... `bond.bond_id` is not missing",
+  "difference": "Failing repeat 0 hard-coded the counts and rounded the result, \"ROUND(100.0 * 10528 / 12379, 2)\", which gave 85.05. The gold's unrounded value is 85.04725745213668. Repeat 1 computed the value without rounding and passed.",
+  "question_gap": "yes: the evidence gives the formula and asks for no rounding. The failure came from the agent adding ROUND.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   true
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b015",
+  "cause": "reading choice",
+  "supplied": "combine it with each `bond` record for which molecule id (`atom.molecule_id`) equals molecule id (`bond.molecule_id`)",
+  "difference": "The submissions required the sulfur atom itself to be part of the double bond, via \"JOIN connected c ON (a.atom_id = c.atom_id OR a.atom_id = c.atom_id2) JOIN bond b ON c.bond_id = b.bond_id\". That gave 47 rows; repeat 0 returned no rows. The gold joins atom to bond only on molecule_id, \"INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id\", so it accepts any molecule that has a sulfur atom and any double bond. That gave 68 rows.",
+  "question_gap": "no: 'Sulphur atom with double bond' more naturally means the sulfur takes part in the double bond. The question does not establish the gold's looser co-occurrence-in-molecule reading.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b016",
+  "cause": "run variation",
+  "supplied": "for each kept record, return (1) column (1) of step 1",
+  "difference": "Failing repeat 1 returned extra columns, \"SELECT m.molecule_id, m.label, COUNT(a.atom_id) as atom_count\". The gold returns only molecule_id. Both have the same 186 molecules. Repeat 0 returned only molecule_id and passed.",
+  "question_gap": "yes: 'Which ... molecules' asks only for the molecule ids. The extra columns were the agent's addition.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   true,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b017",
+  "cause": "reading choice",
+  "supplied": "combine it with each `bond` record for which molecule id (`atom.molecule_id`) equals molecule id (`bond.molecule_id`)",
+  "difference": "The submissions kept only atoms that take part in a double bond, via \"JOIN connected c ON a.atom_id = c.atom_id [OR a.atom_id = c.atom_id2] JOIN bond b ON c.bond_id = b.bond_id\". That gave {c, o}. The gold joins on molecule_id only, \"ON T1.molecule_id = T2.molecule_id\", so it returns every element in TR024: {c, o, s, h, p}.",
+  "question_gap": "no: 'elements with double bond' naturally means atoms that participate in a double bond. The gold's molecule-level join is not implied by the question or evidence.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b018",
+  "cause": "implicit requirement",
+  "supplied": "combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`)",
+  "difference": "The gold joins bond to the molecule by molecule_id only (\"INNER JOIN bond AS T3 ON T1.molecule_id = T3.molecule_id\"), so it keeps any molecule that has an 'h' atom and also a '#' bond somewhere. Both submissions instead linked the atom to its actual bond through `connected` (\"JOIN connected c ON a.atom_id = c.atom_id ... JOIN bond b ON c.bond_id = b.bond_id\"). That join finds no hydrogen in a triple bond, so repeat 0 returned None (0/0) and repeat 1 returned 0.0. Repeat 1 also changed the denominator to all carcinogenic molecules. The gold returns 100.0.",
+  "question_gap": "no \u2014 'triple bonded hydrogen atoms' reads naturally as the hydrogen atom being in the triple bond, which needs `connected`; the gold's molecule-level co-occurrence join is not implied.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b020",
+  "cause": "run variation",
+  "supplied": "Start from each `bond` record",
+  "difference": "Repeat 0 inner-joined `molecule` (\"FROM molecule m JOIN bond b ON m.molecule_id = b.molecule_id\") and got 6. That suggests one bond molecule_id in the range has no row in `molecule`. The gold counts directly from `bond` and gets 7, and repeat 1 of the original wrote exactly the gold query and passed.",
+  "question_gap": "partly \u2014 the question doesn't say which table to count from, and the two only differ because of a referential gap in the data; the agent still got it right in one repeat.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   true
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b023",
+  "cause": "implicit requirement",
+  "supplied": "combine it with each `bond` record for which molecule id (`atom.molecule_id`) equals molecule id (`bond.molecule_id`)",
+  "difference": "The gold joins atom to bond on molecule_id only (\"atom AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id\"), giving 273. Both submissions required the oxygen atom to actually be in the '=' bond through `connected`. Repeat 0 matched only atom_id and got 157; repeat 1 matched either atom_id or atom_id2 and got 205.",
+  "question_gap": "no \u2014 'double bonded oxygen' implies the oxygen is in the double bond, but the gold only needs an 'o' atom and an '=' bond in the same molecule.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b025",
+  "cause": "implicit requirement",
+  "supplied": "combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`)",
+  "difference": "Both submissions linked atoms to bonds through `connected` (\"JOIN connected c ON (a.atom_id = c.atom_id OR a.atom_id = c.atom_id2) JOIN bond b ON c.bond_id = b.bond_id\") and returned only TR012_2 and TR012_3. The gold joins bond at molecule level, so it returns all 12 carbon atoms in TR012 whenever the molecule has any '=' bond.",
+  "question_gap": "no \u2014 'atom ID of double bonded carbon' points to carbons that are in a double bond, which the submissions computed; the gold's molecule-level join returns every carbon.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b026",
+  "cause": "run variation",
+  "supplied": "return (1) superhero (alias) name (`superhero.superhero_name`)",
+  "difference": "Repeat 0 added an extra column (\"SELECT superhero_name, height_cm\" \u2192 ['Surtur', 30480]), while the gold returns only superhero_name ['Surtur']. Repeat 1 of the original matched the gold exactly.",
+  "question_gap": "yes \u2014 'Name the tallest superhero' asks only for the name, and the agent produced the gold query in one repeat.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   true
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b027",
+  "cause": "unwanted processing",
+  "supplied": "return (1) (A \u00d7 100) \u00f7 B",
+  "difference": "Both original submissions wrap the ratio in ROUND(..., 2), which gives 13.33. The gold returns the unrounded 13.333333333333334. Repeat 0 also uses LEFT JOIN gender instead of an inner join, but the value matches, so only the rounding causes the mismatch.",
+  "question_gap": "partly: the evidence gives the percentage formula with no rounding, but it does not say that rounding is forbidden.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b028",
+  "cause": "unwanted processing",
+  "supplied": "return (1) (A \u00d7 100) \u00f7 B ... combine it with each `alignment` record ... (a record without a match is dropped)",
+  "difference": "Both original submissions apply ROUND(..., 2): repeat 1 gives 66.67 against the gold's 66.66666666666667. Repeat 0 also uses LEFT JOIN alignment with COUNT(*). That counts superheroes with no alignment match in the denominator and gives 66.15, whereas the gold's INNER JOIN with COUNT(T1.id) gives 66.67.",
+  "question_gap": "partly: the evidence formula implies no rounding, and the evidence does not say whether heroes without a matching alignment should be dropped.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b030",
+  "cause": "run variation",
+  "supplied": "return (1) attribute score/level (`hero_attribute.attribute_value`)",
+  "difference": "Original repeat 0 adds an extra column, 'SELECT a.attribute_name, ha.attribute_value', which produces rows like ['Combat', 15]. Original repeat 1 returns only attribute_value and passes.",
+  "question_gap": "yes: the question asks only for the attribute value, so the extra attribute_name column was the agent's own addition.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   true
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b034",
+  "cause": "other",
+  "supplied": "at least one of the following holds: [1] `Laboratory.FG` is at most 150; [2] all of the following hold: [1] `Laboratory.FG` is at least 450; [2] `Patient.Birthday` is greater than '1980-01-01'",
+  "difference": "The original submissions use 'p.Birthday > '1980-01-01' AND (l.FG < 150 OR l.FG > 450)', which returns 3. The gold's 'T2.FG <= 150 OR T2.FG >= 450 AND T1.Birthday > '1980-01-01'' binds AND before OR. The birthday filter therefore applies only to the high-FG branch, and the result is 75. The boundaries also differ: the original uses strict < / >, the gold uses <= / >=.",
+  "question_gap": "no: the question applies the birth-date filter to all abnormal patients, so the gold's unparenthesized operator precedence is not derivable from it. The explicit version only reproduces that quirk.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b035",
+  "cause": "run variation",
+  "supplied": "is at least 30 (compared as text: the number is written as text first)",
+  "difference": "Explicit repeat 0 uses 'CAST(l.`U-PRO` as REAL) >= 30', a numeric comparison that gives 593 rows. The gold's \"`U-PRO` >= 30\" is effectively a text comparison on the text column and gives 1359 rows, and the two produce a different diagnosis set. Explicit repeat 1 uses >= '30' and passes. The original submissions, which add DISTINCT, pass because grading compares sets.",
+  "question_gap": "partly: the evidence says `U-PRO` >= 30 but does not say whether the comparison is textual or numeric. The failing run ignored the explicit text-comparison instruction.",
+  "confidence": "medium",
+  "category": "unaudited",
+  "original": [
+   true,
+   true
+  ],
+  "explicit": [
+   false,
+   true
+  ]
+ },
+ {
+  "task": "b036",
+  "cause": "run variation",
+  "supplied": "",
+  "difference": "The failing explicit repeat 0 used \"CAST(l.`U-PRO` as REAL) > 0 AND CAST(l.`U-PRO` as REAL) < 30\" and returned 19 rows. The gold's \"T2.`U-PRO` > 0 AND T2.`U-PRO` < 30\" compares as text on this TEXT column and returns 24 rows. The explicit text said 'compared as text', but repeat 0 cast to REAL anyway. Explicit repeat 1 (\"> '0' AND < '30'\") and both original repeats matched the gold.",
+  "question_gap": "yes - the evidence '0 < `U-PRO` < 30' written as-is is exactly the gold predicate, and the original runs reproduced it.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   true,
+   true
+  ],
+  "explicit": [
+   false,
+   true
+  ]
+ },
+ {
+  "task": "b037",
+  "cause": "implicit requirement",
+  "supplied": "combine it with each `Examination` record for which identification of the patient (`Examination.ID`) equals identification of the patient (`Laboratory.ID`) ... (a record without a match is dropped)",
+  "difference": "The submission counted \"COUNT(DISTINCT l.ID) FROM Laboratory l WHERE l.IGG >= 2000\" and got 136. The gold inner-joins Patient and Examination as well (\"INNER JOIN Examination AS T3 ON T3.ID = T2.ID\"), which keeps only patients that have Examination rows, and gets 9.",
+  "question_gap": "no - nothing in the question or evidence mentions the Examination table or limits the count to patients with examination records.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b038",
+  "cause": "implicit requirement",
+  "supplied": "return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing; ... is greater than '1990'; ... between 80 and 500, inclusive",
+  "difference": "The submission used \"COUNT(DISTINCT p.ID)\" and got 140. The gold uses \"COUNT(T1.ID)\" over the joined lab rows and gets 1590. The gold also uses \"strftime('%Y', ...) > '1990'\" where the submission used >= 1990, and \"BETWEEN 80 AND 500\" where the submission used strict > / <. The deciding gap is counting distinct patients versus counting lab records.",
+  "question_gap": "no - the question asks 'how many patients', and the evidence says >= 1990 and strict IGA bounds. The gold's row count, > '1990' and inclusive bounds all depart from that wording.",
+  "confidence": "medium",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b039",
+  "cause": "unwanted processing",
+  "supplied": "for each result row, return (1) primary diagnosed disease (`Patient.Diagnosis`)",
+  "difference": "The submission returned an extra count column (\"SELECT p.Diagnosis, COUNT(*) as cnt\" giving ['RA', 36]). The gold returns only ['RA']. The disease is the same; only the extra column differs.",
+  "question_gap": "yes - the question asks only for the most common disease, so a count column is not requested.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b040",
+  "cause": "implicit requirement",
+  "supplied": "return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing",
+  "difference": "The submission used \"COUNT(DISTINCT p.ID)\" and got 25. The gold uses \"COUNT(T1.ID)\" over the joined Patient-Laboratory rows and gets 208, so it counts lab records rather than distinct patients.",
+  "question_gap": "no - 'how many patients' points to distinct patients, and nothing in the question or evidence says to count lab records.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b046",
+  "cause": "semantic mapping",
+  "supplied": "`Laboratory.RNP` equals 'negative' ... [2] all of the following hold: [1] `Laboratory.RNP` equals '0' ... [2] `Patient.Admission` equals '+'",
+  "difference": "Both original repeats filtered on the evidence's symbolic values `l.RNP IN ('-', '+-')`, which never occur as stored values, so they returned 0. The gold uses the stored values 'negative' and '0'. The gold also has a precedence quirk: `T2.RNP = 'negative' OR T2.RNP = '0' AND T1.Admission = '+'` applies the admission filter only to '0' rows. The submissions applied `AND p.Admission = '+'` to every row. The gold returns 47.",
+  "question_gap": "partly -- the evidence says '-' means 'negative' and '+-' means '0', so the stored values are recoverable, but the question requires admission for all patients, so it does not determine the gold's OR/AND precedence.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b048",
+  "cause": "semantic mapping",
+  "supplied": "`Laboratory.SM` is one of 'negative', '0' ... the number of records in the group whose `Examination.ID` is not missing",
+  "difference": "The original repeats used `l.SM IN ('-', '+-')`, values that do not exist, and got 0. The gold uses `T2.SM IN ('negative','0')` and gets 7. The gold also counts joined rows (`COUNT(T1.ID)`) where the submissions used `COUNT(DISTINCT ...)`. Those could differ even after fixing the values.",
+  "question_gap": "partly -- the evidence maps the symbols to 'negative' and '0', but 'how many of them' suggests distinct patients, so it does not determine the gold's non-distinct row count.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b049",
+  "cause": "semantic mapping",
+  "supplied": "Start from each `Patient` record; combine it with each `Laboratory` record ... return `Patient.ID` [for each kept record, no deduplication] ... keep only the first 3 rows",
+  "difference": "The original repeats ignored the evidence's `NOT IN ('negative','0')` and used `l.SM NOT IN ('-', '+-')`, which keeps nearly all non-null SM rows. They also added a join to `Examination`. Their results ([5440870], [5400270], ...) differ from the gold set {5302954, 3561717}. The gold keeps duplicate rows before `LIMIT 3`, giving [5302954], [5302954], [3561717]. Explicit repeat 0 added `DISTINCT`, which pulled in 283032 and failed. Explicit repeat 1 kept duplicates and passed.",
+  "question_gap": "partly -- the evidence states the correct SM values and needs no Examination join, but asking for 'three youngest' patients does not determine that duplicate lab rows should take up LIMIT slots.",
+  "confidence": "medium",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   false,
+   true
+  ]
+ },
+ {
+  "task": "b051",
+  "cause": "run variation",
+  "supplied": "",
+  "difference": "Original repeat 0 used `p.ID IN (SELECT ID FROM Examination WHERE Symptoms IS NULL)` and passed with 2. Repeat 1 used `p.ID NOT IN (SELECT ID FROM Examination WHERE Symptoms IS NOT NULL)`, which requires the patient to have no symptom on any examination, and returned 0. The gold's join keeps any patient with at least one examination where `Symptoms IS NULL`.",
+  "question_gap": "partly -- the evidence `symptoms IS NULL` fits the row-level reading, but 'does not have any symptom' could also mean no symptoms on any examination. The agent got it right in one repeat.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   true,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b052",
+  "cause": "semantic mapping",
+  "supplied": "the year of laboratory test date (`Laboratory.Date`) (as text, `%Y`) is less than '2000'",
+  "difference": "Original repeat 0 filtered on `p.`First Date` < '2000-01-01'`, as the evidence says, and got 56. The gold uses `STRFTIME('%Y', T2.Date) < '2000'` on the lab test date and gets 58. Repeat 1 also used the stored-absent values `SSA IN ('-', '+-')` and got 0.",
+  "question_gap": "no -- the evidence explicitly says YEAR(`First Date`) < 2000, but the gold filters on `Laboratory.Date`.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b056",
+  "cause": "run variation",
+  "supplied": "`Laboratory.CENTROMEA` is one of 'negative', '0' ... `Laboratory.SSB` is one of 'negative', '0'",
+  "difference": "Failing repeat 0 used the evidence's literal values \"l.CENTROMEA IN ('-', '+-') AND l.SSB IN ('-', '+-')\", which returned [[0]]. The gold uses \"T2.CENTROMEA IN ('negative', '0') AND T2.SSB IN ('negative', '0')\", which returns [[1]]. Original repeat 1 used the gold's values and passed.",
+  "question_gap": "no \u2014 the evidence explicitly says normal means IN('-', '+-'), but the gold uses the stored values 'negative' and '0', so following the evidence gives the wrong answer.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   true
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b057",
+  "cause": "semantic mapping",
+  "supplied": "return (1) primary diagnosed disease (`Patient.Diagnosis`)",
+  "difference": "Both failing repeats read \"SELECT DISTINCT Diagnosis FROM Examination ...\". The gold reads \"SELECT DISTINCT(T1.Diagnosis) FROM Patient AS T1 INNER JOIN Laboratory ...\". Repeat 1 also cast DNA to REAL. The gold compares \"T2.DNA >= 8\" against the stored DNA value with no CAST, and the explicit version says this is a text comparison. The failing repeats returned [] and [['SLE, SjS, vertigo']] instead of 3 rows.",
+  "question_gap": "partly \u2014 the evidence maps diseases to a Diagnosis column but doesn't say which table, and both Patient and Examination have one.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ },
+ {
+  "task": "b059",
+  "cause": "reading choice",
+  "supplied": "the number of records in the group whose identification of the patient (`Patient.ID`) is not missing",
+  "difference": "The submission used \"COUNT(DISTINCT l.ID)\", which counts distinct patients and gives [[91]]. The gold uses \"COUNT(T1.ID)\" over the joined Patient\u2013Laboratory rows, which counts lab records and gives [[974]].",
+  "question_gap": "no \u2014 'how many of them' refers to patients, which suggests a distinct-patient count; nothing in the question or evidence calls for counting lab records.",
+  "confidence": "high",
+  "category": "unaudited",
+  "original": [
+   false,
+   false
+  ],
+  "explicit": [
+   true,
+   true
+  ]
+ }
+]

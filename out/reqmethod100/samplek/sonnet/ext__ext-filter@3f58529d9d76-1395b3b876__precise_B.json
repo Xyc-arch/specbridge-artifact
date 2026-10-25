@@ -1,0 +1,78 @@
+{
+ "queries": [
+  "SELECT i.invoice_number, AVG(ili.derived_total_cost * 1.0 / ili.derived_product_cost) AS avg_cost_ratio, COUNT(ili.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON ili.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC LIMIT 10;",
+  "SELECT i.invoice_number, SUM(ili.derived_total_cost) * 1.0 / SUM(ili.derived_product_cost) AS avg_cost_ratio, COUNT(ili.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON ili.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC LIMIT 10;",
+  "SELECT i.invoice_number, AVG(CAST(l.derived_total_cost AS REAL) / NULLIF(l.derived_product_cost, 0)) AS avg_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;",
+  "SELECT i.invoice_number, SUM(CAST(l.derived_total_cost AS REAL)) / NULLIF(SUM(l.derived_product_cost), 0) AS avg_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;",
+  "SELECT i.invoice_number, AVG(l.derived_total_cost * 1.0 / l.derived_product_cost) AS avg_total_to_product_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;",
+  "SELECT i.invoice_number, SUM(l.derived_total_cost) * 1.0 / SUM(l.derived_product_cost) AS avg_total_to_product_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT i.invoice_number, AVG(ili.derived_total_cost * 1.0 / ili.derived_product_cost) AS avg_cost_ratio, COUNT(ili.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON ili.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The average ratio is the mean of per-line-item ratios (derived_total_cost / derived_product_cost), not total cost sum divided by product cost sum. Line items with zero derived_product_cost would cause division issues (NULL in SQLite, error in some other databases).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in line item count at the 10th position are broken arbitrarily, since the request gives no tie-breaker.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Ratio of aggregates: sum of derived_total_cost divided by sum of derived_product_cost per invoice, rather than the average of per-line ratios.",
+     "sql": "SELECT i.invoice_number, SUM(ili.derived_total_cost) * 1.0 / SUM(ili.derived_product_cost) AS avg_cost_ratio, COUNT(ili.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON ili.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT i.invoice_number, AVG(CAST(l.derived_total_cost AS REAL) / NULLIF(l.derived_product_cost, 0)) AS avg_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The average ratio is the mean of the per-line-item ratios (derived_total_cost / derived_product_cost), not total of costs divided by total of costs. Lines with a zero product cost yield NULL ratios and are skipped in the average but still counted as line items.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in line item count are broken by ascending invoice number, since the request does not specify a tie-break.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Ratio of sums: the average ratio computed as SUM(derived_total_cost) / SUM(derived_product_cost) across each invoice's line items.",
+     "sql": "SELECT i.invoice_number, SUM(CAST(l.derived_total_cost AS REAL)) / NULLIF(SUM(l.derived_product_cost), 0) AS avg_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT i.invoice_number, AVG(l.derived_total_cost * 1.0 / l.derived_product_cost) AS avg_total_to_product_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The average is the mean of per-line ratios (derived_total_cost / derived_product_cost), not the ratio of sums. Lines with a zero derived_product_cost would cause division errors or NULLs, and none are assumed.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in line item count are broken by invoice_number ascending, since the request does not specify tie-breaking.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Ratio of summed costs per invoice (SUM(total)/SUM(product cost)) instead of the mean of per-line ratios.",
+     "sql": "SELECT i.invoice_number, SUM(l.derived_total_cost) * 1.0 / SUM(l.derived_product_cost) AS avg_total_to_product_cost_ratio, COUNT(l.order_item_id) AS line_item_count FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number ORDER BY line_item_count DESC, i.invoice_number ASC LIMIT 10;"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-1395b3b876",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11646,
+  "chars_out": 3887
+ }
+}

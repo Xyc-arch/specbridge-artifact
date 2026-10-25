@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-d901f0eed2",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "A customer's excess is their share minus the average share, divided by the average share.",
+ "c": {
+  "request": "Total up each customer's invoice totals and work out each customer's share of overall revenue (their total over the sum across all customers). Keep the customers whose share is above the average share. Give one row with: the average amount those customers spent, their average share, and on average how much their share beats the average share. No rounding. A customer's excess is their share minus the average share, divided by the average share.",
+  "sql": "WITH CustomerTotals AS (\n    SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS CustomerTotal\n    FROM Customer c\n    LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId\n    GROUP BY c.CustomerId\n), CustomerShares AS (\n    SELECT CustomerId, CustomerTotal,\n           CustomerTotal / SUM(CustomerTotal) OVER () AS Share\n    FROM CustomerTotals\n), AverageShare AS (\n    SELECT AVG(Share) AS AvgShare\n    FROM CustomerShares\n)\nSELECT AVG(cs.CustomerTotal) AS AverageAmountSpent,\n       AVG(cs.Share) AS AverageShare,\n       AVG((cs.Share - a.AvgShare) / a.AvgShare) AS AverageExcess\nFROM CustomerShares cs\nCROSS JOIN AverageShare a\nWHERE cs.Share > a.AvgShare",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Total up each customer's invoice `Total`s, and compute each customer's share of overall revenue (their total divided by the sum over all customers). Find the average share across customers, and keep the customers whose share is above it. Return one row with: the average total spent by those customers, their average share, and the average relative difference between their share and the average share ((share minus average share) divided by average share). Don't round.",
+  "sql": "WITH CustomerTotals AS (\n  SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS TotalSpent\n  FROM Customer c\n  LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId\n  GROUP BY c.CustomerId\n), CustomerShares AS (\n  SELECT CustomerId,\n         TotalSpent,\n         TotalSpent / SUM(TotalSpent) OVER () AS Share\n  FROM CustomerTotals\n), SharesWithAverage AS (\n  SELECT CustomerId,\n         TotalSpent,\n         Share,\n         AVG(Share) OVER () AS AverageShare\n  FROM CustomerShares\n)\nSELECT AVG(TotalSpent) AS AverageTotalSpent,\n       AVG(Share) AS AverageShare,\n       AVG((Share - AverageShare) / AverageShare) AS AverageRelativeDifference\nFROM SharesWithAverage\nWHERE Share > AverageShare;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For customers whose share of total revenue exceeds the average customer share, return one row containing their average invoice total, their average revenue share, and their average relative excess share, where each customer\u2019s relative excess is (their share \u2212 average share) / average share, with no rounding",
+  "sql": "WITH customer_revenue AS (\n  SELECT c.CustomerId, SUM(i.Total) AS revenue\n  FROM Customer c\n  JOIN Invoice i ON i.CustomerId = c.CustomerId\n  GROUP BY c.CustomerId\n), customer_shares AS (\n  SELECT CustomerId, revenue,\n         revenue / SUM(revenue) OVER () AS revenue_share\n  FROM customer_revenue\n), average_share AS (\n  SELECT AVG(revenue_share) AS share\n  FROM customer_shares\n)\nSELECT AVG(i.Total) AS average_invoice_total,\n       AVG(cs.revenue_share) AS average_revenue_share,\n       AVG((cs.revenue_share - a.share) / a.share) AS average_relative_excess_share\nFROM customer_shares cs\nJOIN Invoice i ON i.CustomerId = cs.CustomerId\nCROSS JOIN average_share a\nWHERE cs.revenue_share > a.share",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each customer, total their invoice amounts and calculate their share of overall revenue. Keep only customers whose share exceeds the average share. Report one row with their average total spend, average share, and average relative excess, where relative excess is (customer share \u2212 average share) \u00f7 average share. Do not round.",
+  "sql": "WITH customer_revenue AS (\n  SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total_spend\n  FROM Customer c\n  LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId\n  GROUP BY c.CustomerId\n), customer_shares AS (\n  SELECT total_spend,\n         total_spend / NULLIF(SUM(total_spend) OVER (), 0) AS revenue_share\n  FROM customer_revenue\n), average_share AS (\n  SELECT AVG(revenue_share) AS avg_share\n  FROM customer_shares\n)\nSELECT AVG(cs.total_spend) AS average_total_spend,\n       AVG(cs.revenue_share) AS average_share,\n       AVG((cs.revenue_share - a.avg_share) / NULLIF(a.avg_share, 0)) AS average_relative_excess\nFROM customer_shares cs\nCROSS JOIN average_share a\nWHERE cs.revenue_share > a.avg_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

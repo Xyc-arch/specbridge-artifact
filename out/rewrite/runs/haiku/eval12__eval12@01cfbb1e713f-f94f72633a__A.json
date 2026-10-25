@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f94f72633a",
+ "model": "haiku",
+ "reading": "A",
+ "description": "The trader type is taken from the trader who made the snapshot's transaction (`transactionrecord.trdref`).",
+ "b": {
+  "request": "Per trader type (`trader.tradekind`, reached via `transactionrecord.trdref`), for each (`transref`, trader type) pair with a non-null average `anlycount` that exceeds the mean of all pair averages: the mean of those pair averages, the mean margin above the overall mean, and that mean divided by the mean of the per-type values, unrounded",
+  "sql": "WITH pair_avgs AS (\n  SELECT s.transref, t.tradekind, AVG(s.anlycount) AS pair_avg\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord tr ON tr.transreg = s.transref\n  JOIN trader t ON t.tradereg = tr.trdref\n  GROUP BY s.transref, t.tradekind\n  HAVING AVG(s.anlycount) IS NOT NULL\n),\noverall AS (\n  SELECT AVG(pair_avg) AS overall_mean FROM pair_avgs\n),\nqualified AS (\n  SELECT p.tradekind, p.pair_avg, o.overall_mean\n  FROM pair_avgs p\n  CROSS JOIN overall o\n  WHERE p.pair_avg > o.overall_mean\n),\nper_type AS (\n  SELECT tradekind,\n         AVG(pair_avg) AS type_mean,\n         AVG(pair_avg - overall_mean) AS type_margin\n  FROM qualified\n  GROUP BY tradekind\n)\nSELECT tradekind,\n       type_mean,\n       type_margin,\n       type_mean / AVG(type_mean) OVER () AS ratio\nFROM per_type;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Take the sentiment snapshots in `sentimentandfundamentals` that match their transaction (`transref`), and attach the trader type of the trader who made that transaction (`transactionrecord.trdref`), dropping anything without a match. For each pair of transaction (`transref`) and trader type, average the analyst coverage count (`anlycount`), ignoring missing values. Keep the pairs whose average is above the overall mean of those pair averages, and note how far above it they are. Then for each trader type, return the trader type, the average analyst count of its kept pairs, their average amount above the overall mean, and that trader type's average analyst count divided by the mean of this figure across all trader types, without rounding.",
+  "sql": "WITH matched AS (SELECT s.transref, t.tradekind, s.anlycount FROM sentimentandfundamentals s JOIN transactionrecord tr ON s.transref = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), pairs AS (SELECT transref, tradekind, AVG(anlycount) AS pair_avg FROM matched GROUP BY transref, tradekind), overall AS (SELECT AVG(pair_avg) AS overall_mean FROM pairs), kept AS (SELECT p.tradekind, p.pair_avg, p.pair_avg - o.overall_mean AS above_by FROM pairs p CROSS JOIN overall o WHERE p.pair_avg > o.overall_mean), per_type AS (SELECT tradekind, AVG(pair_avg) AS avg_analyst, AVG(above_by) AS avg_above FROM kept GROUP BY tradekind) SELECT tradekind, avg_analyst, avg_above, avg_analyst / AVG(avg_analyst) OVER () AS analyst_ratio FROM per_type ORDER BY tradekind;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For the sentiment snapshots in `sentimentandfundamentals` that match their transaction (`transref`), look at the snapshot's trader type (skipping anything without a match). For each transaction (`transref`) and trader type pair, average the analyst coverage count (`anlycount`), ignoring missing values, and keep the pairs above the overall mean of those pair averages, noting by how much. Then per trader type, give the trader type, the average analyst count of its kept pairs, their average margin over the overall mean, and that average analyst count relative to (divided by) the mean of it across trader types \u2014 unrounded. The trader type is taken from the trader who made the snapshot's transaction (`transactionrecord.trdref`).",
+  "sql": "WITH pair_avg AS (SELECT s.transref, t.tradekind, AVG(s.anlycount) AS avg_anly FROM sentimentandfundamentals s JOIN transactionrecord tr ON tr.transreg = s.transref JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY s.transref, t.tradekind HAVING AVG(s.anlycount) IS NOT NULL), overall AS (SELECT AVG(avg_anly) AS overall_mean FROM pair_avg), kept AS (SELECT p.tradekind, p.avg_anly, p.avg_anly - o.overall_mean AS margin FROM pair_avg p CROSS JOIN overall o WHERE p.avg_anly > o.overall_mean), per_type AS (SELECT tradekind, AVG(avg_anly) AS avg_analyst, AVG(margin) AS avg_margin FROM kept GROUP BY tradekind) SELECT tradekind, avg_analyst, avg_margin, avg_analyst / AVG(avg_analyst) OVER () AS relative_to_type_mean FROM per_type ORDER BY tradekind;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Rewritten as a standalone question:\n\nFor each sentiment snapshot in `sentimentandfundamentals` that matches a transaction by `transref`, take the trader type of the trader who made that transaction (`transactionrecord.trdref`), skipping snapshots with no match. For each (`transref`, trader type) pair, average the analyst coverage count (`anlycount`), ignoring missing values, and keep the pairs whose average is above the overall mean of all pair averages, noting by how much. Then, for each trader type, report the trader type, the average analyst count of its kept pairs, the average margin of those pairs over the overall mean, and that average analyst count divided by the mean of the per-trader-type averages across trader types, unrounded.",
+  "sql": "WITH pair_avgs AS (\n  SELECT s.transref, tr.tradekind AS trader_type, AVG(s.anlycount) AS avg_anlycount\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord t ON s.transref = t.transreg\n  JOIN trader tr ON t.trdref = tr.tradereg\n  WHERE tr.tradekind IS NOT NULL\n  GROUP BY s.transref, tr.tradekind\n  HAVING AVG(s.anlycount) IS NOT NULL\n),\noverall AS (\n  SELECT AVG(avg_anlycount) AS overall_mean FROM pair_avgs\n),\nkept AS (\n  SELECT p.trader_type, p.avg_anlycount, p.avg_anlycount - o.overall_mean AS margin\n  FROM pair_avgs p\n  CROSS JOIN overall o\n  WHERE p.avg_anlycount > o.overall_mean\n),\nper_type AS (\n  SELECT trader_type, AVG(avg_anlycount) AS type_avg, AVG(margin) AS avg_margin\n  FROM kept\n  GROUP BY trader_type\n)\nSELECT pt.trader_type,\n       pt.type_avg AS avg_anlycount_kept,\n       pt.avg_margin,\n       pt.type_avg / (SELECT AVG(type_avg) FROM per_type) AS ratio_to_mean_of_type_avgs\nFROM per_type pt\nORDER BY pt.trader_type;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

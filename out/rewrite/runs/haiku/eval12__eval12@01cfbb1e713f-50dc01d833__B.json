@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
+ "model": "haiku",
+ "reading": "B",
+ "description": "The first benchmark is the mean unfilled quantity over all execution records.",
+ "b": {
+  "request": "Compute the mean `remaincount` over all non-null execution records as the first benchmark; group by `ordersmark` (NULL grouped as one order) and average each group's `remaincount`; keep groups whose average exceeds that benchmark and record each excess; from those, keep groups whose average exceeds the mean of the kept averages and record each excess over that second mean; return one unrounded row: the mean of the final averages, the mean of the first excesses, and the mean of the second excesses",
+  "sql": "WITH benchmark AS (SELECT AVG(remaincount) AS bench FROM orderexecutions WHERE remaincount IS NOT NULL), group_avgs AS (SELECT ordersmark, AVG(remaincount) AS avg_remain FROM orderexecutions WHERE remaincount IS NOT NULL GROUP BY ordersmark), first_kept AS (SELECT g.ordersmark, g.avg_remain, g.avg_remain - b.bench AS excess1 FROM group_avgs g CROSS JOIN benchmark b WHERE g.avg_remain > b.bench), second_mean AS (SELECT AVG(avg_remain) AS mean2 FROM first_kept), second_kept AS (SELECT f.ordersmark, f.avg_remain, f.avg_remain - s.mean2 AS excess2 FROM first_kept f CROSS JOIN second_mean s WHERE f.avg_remain > s.mean2) SELECT (SELECT AVG(avg_remain) FROM second_kept) AS mean_final_averages, (SELECT AVG(excess1) FROM first_kept) AS mean_first_excesses, (SELECT AVG(excess2) FROM second_kept) AS mean_second_excesses;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Using the order executions, find each order's (`ordersmark`) average unfilled quantity (`remaincount`), ignoring missing values; executions with no order reference count together as one order. Take the mean unfilled quantity across all individual execution records, and keep the orders whose average is above it, noting how far above it they are. Among those orders, take the mean of their averages, keep only the orders above that mean as well, and note how far above it they are. Return one row with three values, without rounding: the average of the remaining orders' averages, their average excess over the first benchmark, and their average excess over the second.",
+  "sql": "WITH exec_clean AS (SELECT ordersmark, remaincount FROM orderexecutions WHERE remaincount IS NOT NULL), order_avgs AS (SELECT ordersmark, AVG(remaincount) AS avg_remain FROM exec_clean GROUP BY ordersmark), bench1 AS (SELECT AVG(remaincount) AS mean1 FROM exec_clean), above1 AS (SELECT o.ordersmark, o.avg_remain FROM order_avgs o CROSS JOIN bench1 b WHERE o.avg_remain > b.mean1), bench2 AS (SELECT AVG(avg_remain) AS mean2 FROM above1), above2 AS (SELECT a.avg_remain FROM above1 a CROSS JOIN bench2 b WHERE a.avg_remain > b.mean2) SELECT AVG(a.avg_remain) AS mean_of_averages, AVG(a.avg_remain - b1.mean1) AS avg_excess_over_first, AVG(a.avg_remain - b2.mean2) AS avg_excess_over_second FROM above2 a CROSS JOIN bench1 b1 CROSS JOIN bench2 b2;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Using the order executions, find each order's (`ordersmark`) average unfilled quantity (`remaincount`), ignoring missing values; executions with no order reference count together as one order. Which orders are above the overall average unfilled quantity, and by how much? Among those orders, keep only the ones that are also above the group's own average, and note how far above it they are. Return one row with three values, without rounding: the average of these orders' averages, their average excess over the overall average, and their average excess over the second average. The first benchmark is the mean unfilled quantity over all execution records.",
+  "sql": "WITH order_avgs AS (SELECT ordersmark, AVG(remaincount) AS avg_remain FROM orderexecutions GROUP BY ordersmark), overall_bench AS (SELECT AVG(remaincount) AS overall_avg FROM orderexecutions), above_overall AS (SELECT oa.avg_remain FROM order_avgs oa CROSS JOIN overall_bench ob WHERE oa.avg_remain > ob.overall_avg), second_bench AS (SELECT AVG(avg_remain) AS second_avg FROM above_overall), final_set AS (SELECT a.avg_remain FROM above_overall a CROSS JOIN second_bench sb WHERE a.avg_remain > sb.second_avg) SELECT AVG(f.avg_remain) AS avg_of_averages, AVG(f.avg_remain) - ob.overall_avg AS avg_excess_over_overall, AVG(f.avg_remain) - sb.second_avg AS avg_excess_over_second FROM final_set f CROSS JOIN overall_bench ob CROSS JOIN second_bench sb;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the orders whose average unfilled quantity (`remaincount`, ignoring missing values, with executions lacking an order reference grouped together as one order) is above the overall average unfilled quantity across all orders, and which are also above their own group's average, what are the average of those orders' averages, their average excess over the overall average, and their average excess over the second average? Return one row with these three values, unrounded. Use the mean unfilled quantity over all execution records as the first benchmark.",
+  "sql": "WITH order_avgs AS (SELECT ordersmark, AVG(remaincount) AS avg_remain FROM orderexecutions GROUP BY ordersmark), bench AS (SELECT (SELECT AVG(remaincount) FROM orderexecutions) AS first_avg, (SELECT AVG(avg_remain) FROM order_avgs) AS second_avg), qualified AS (SELECT o.avg_remain, b.first_avg, b.second_avg FROM order_avgs o CROSS JOIN bench b WHERE o.avg_remain > b.first_avg AND o.avg_remain > b.second_avg) SELECT AVG(avg_remain) AS avg_of_avgs, AVG(avg_remain - first_avg) AS avg_excess_first, AVG(avg_remain - second_avg) AS avg_excess_second FROM qualified;",
+  "executes": true,
+  "matches": []
+ }
+}

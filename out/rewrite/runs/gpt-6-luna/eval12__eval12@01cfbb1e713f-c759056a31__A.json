@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c759056a31",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "A country's averages are the mean of per-race averages, so each race counts equally.",
+ "a": {
+  "request": "For each circuit country, average the constructors' stored season-to-date points (`constructorStandings.points`) and season-to-date wins (`constructorStandings.wins`), first within each race held there and then across those per-race figures, so each race counts equally (ignoring missing values). Return every country with its average points, its average wins, and its average wins minus the simple mean of all countries' average wins (each country counted once), without rounding.",
+  "sql": "WITH per_race AS (\n  SELECT ci.country, r.raceId,\n         AVG(cs.points) AS avg_points,\n         AVG(cs.wins) AS avg_wins\n  FROM races AS r\n  JOIN circuits AS ci ON ci.circuitId = r.circuitId\n  JOIN constructorStandings AS cs ON cs.raceId = r.raceId\n  GROUP BY ci.country, r.raceId\n), country_averages AS (\n  SELECT country,\n         AVG(avg_points) AS average_points,\n         AVG(avg_wins) AS average_wins\n  FROM per_race\n  GROUP BY country\n)\nSELECT country,\n       average_points,\n       average_wins,\n       average_wins - (SELECT AVG(average_wins) FROM country_averages) AS wins_minus_country_mean\nFROM country_averages;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For each circuit country, what are the average constructor standings points and wins (the season-to-date figures) at races held there? Also, how far is each country's average wins above or below the average of the country figures? A country's averages are the mean of per-race averages, so each race counts equally.",
+  "sql": "WITH race_averages AS (\n  SELECT\n    c.country,\n    r.raceId,\n    AVG(cs.points) AS avg_points,\n    AVG(cs.wins) AS avg_wins\n  FROM races r\n  JOIN circuits c ON c.circuitId = r.circuitId\n  JOIN constructorStandings cs ON cs.raceId = r.raceId\n  GROUP BY c.country, r.raceId\n), country_averages AS (\n  SELECT\n    country,\n    AVG(avg_points) AS average_constructor_standings_points,\n    AVG(avg_wins) AS average_constructor_standings_wins\n  FROM race_averages\n  GROUP BY country\n)\nSELECT\n  country,\n  average_constructor_standings_points,\n  average_constructor_standings_wins,\n  average_constructor_standings_wins - AVG(average_constructor_standings_wins) OVER () AS wins_difference_from_country_average\nFROM country_averages\nORDER BY country;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each country represented by a circuit, calculate the mean across its races of the per-race average constructor season-to-date points and wins, weighting each race equally, then report how far that country\u2019s average wins is above or below the mean of those country-level average wins",
+  "sql": "WITH race_constructor_averages AS (\n  SELECT r.raceId, c.country,\n         AVG(cs.points) AS avg_points,\n         AVG(cs.wins) AS avg_wins\n  FROM races r\n  JOIN circuits c ON c.circuitId = r.circuitId\n  JOIN constructorStandings cs ON cs.raceId = r.raceId\n  GROUP BY r.raceId, c.country\n), country_averages AS (\n  SELECT country,\n         AVG(avg_points) AS mean_race_avg_constructor_points,\n         AVG(avg_wins) AS mean_race_avg_constructor_wins\n  FROM race_constructor_averages\n  GROUP BY country\n)\nSELECT country,\n       mean_race_avg_constructor_points,\n       mean_race_avg_constructor_wins,\n       mean_race_avg_constructor_wins - AVG(mean_race_avg_constructor_wins) OVER () AS wins_difference_from_country_mean\nFROM country_averages\nORDER BY country;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each circuit country, what are the season-to-date average constructor standings points and wins at races held there, calculated as the mean of the per-race averages so that each race counts equally? Also, how far is each country\u2019s average wins above or below the overall average of the country figures?",
+  "sql": "WITH race_averages AS (\n  SELECT\n    ci.country,\n    r.raceId,\n    AVG(cs.points) AS avg_points,\n    AVG(cs.wins) AS avg_wins\n  FROM races AS r\n  JOIN circuits AS ci ON ci.circuitId = r.circuitId\n  JOIN constructorStandings AS cs ON cs.raceId = r.raceId\n  GROUP BY ci.country, r.raceId\n), country_averages AS (\n  SELECT\n    country,\n    AVG(avg_points) AS avg_points,\n    AVG(avg_wins) AS avg_wins\n  FROM race_averages\n  GROUP BY country\n)\nSELECT\n  country,\n  avg_points AS season_to_date_avg_constructor_points,\n  avg_wins AS season_to_date_avg_constructor_wins,\n  avg_wins - AVG(avg_wins) OVER () AS wins_difference_from_overall_country_average\nFROM country_averages\nORDER BY country",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

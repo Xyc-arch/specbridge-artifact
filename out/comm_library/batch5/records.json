@@ -1,0 +1,2106 @@
+{
+ "library": [
+  {
+   "version": "comm-library-v2",
+   "task": "b002",
+   "question_id": 156,
+   "database": "financial",
+   "original": "Who is the owner of the account with the largest loan amount?",
+   "explicit": "Start from each `disp` record; combine it with each `account` record for which id number of account (`disp.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); combine it with each `loan` record for which the id of the account (`account.account_id`) equals the id number identifying the account (`loan.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which disposition role on account (`disp.type`) equals 'OWNER' (compared as text, character by character); for each kept record, return (1) id number of client (`disp.client_id`); order the result rows by loan principal amount (`loan.amount`) descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.client_id FROM disp AS T1 INNER JOIN account AS T3 ON T1.account_id = T3.account_id INNER JOIN loan AS T2 ON T3.account_id = T2.account_id WHERE T1.type = 'OWNER' ORDER BY T2.amount DESC LIMIT 1",
+   "decision": "What to return to identify 'the owner': just the client's ID, or the client's ID plus their descriptive attributes (gender, birth date)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Identify the owner by their client_id only.",
+     "sql": "SELECT T1.client_id FROM disp AS T1 INNER JOIN account AS T3 ON T1.account_id = T3.account_id INNER JOIN loan AS T2 ON T3.account_id = T2.account_id WHERE T1.type = 'OWNER' ORDER BY T2.amount DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Identify the owner by giving their client record: client_id along with gender and birth date.",
+     "sql": "SELECT T1.client_id, T4.gender, T4.birth_date FROM disp AS T1 INNER JOIN account AS T3 ON T1.account_id = T3.account_id INNER JOIN loan AS T2 ON T3.account_id = T2.account_id INNER JOIN client AS T4 ON T1.client_id = T4.client_id WHERE T1.type = 'OWNER' ORDER BY T2.amount DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Identify the owner by client_id plus the owner's district (client.district_id or district name A2), since this is the only other descriptive attribute available for a client."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return the client_id together with the account_id and/or the loan amount, so the answer shows which account and loan the owner was found through.",
+      "Return the client_id plus gender, birth_date and district_id (the full client row)."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 0 returned \"client.client_id, client.gender, client.birth_date\" ([9340, 'M', '1967-08-22']), while the gold returns only [9340]. The client it identified was correct. Original repeat 1 returned only client_id and passed.",
+    "question_gap": "partly -- 'Who is the owner' doesn't say to return just the client_id, though one original repeat chose that anyway.",
+    "supplied": "return (1) id number of client (`disp.client_id`)"
+   },
+   "analysis": null
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b003",
+   "question_id": 159,
+   "database": "financial",
+   "original": "List all the withdrawals in cash transactions that the client with the id 3356 makes.\nEvidence: operation = 'VYBER' refers to withdrawal in cash",
+   "explicit": "Start from each `client` record; combine it with each `disp` record for which the unique number (`client.client_id`) equals id number of client (`disp.client_id`), one combined record per match (a record without a match is dropped); combine it with each `account` record for which id number of account (`disp.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); combine it with each `trans` record for which the id of the account (`account.account_id`) equals Account number (`trans.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the unique number (`client.client_id`) equals 3356; [2] transaction channel/mode (`trans.operation`) equals 'VYBER' (compared as text, character by character) [end]; for each kept record, return (1) transaction id (`trans.trans_id`).",
+   "gold_sql": "SELECT T4.trans_id FROM client AS T1 INNER JOIN disp AS T2 ON T1.client_id = T2.client_id INNER JOIN account AS T3 ON T2.account_id = T3.account_id INNER JOIN trans AS T4 ON T3.account_id = T4.account_id WHERE T1.client_id = 3356 AND T4.operation = 'VYBER'",
+   "decision": "Which columns to return for each withdrawal: just the transaction id, or the id plus the transaction's details (account, date, type, operation, amount, balance)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List each cash withdrawal by its transaction id only",
+     "sql": "SELECT T4.trans_id FROM client AS T1 INNER JOIN disp AS T2 ON T1.client_id = T2.client_id INNER JOIN account AS T3 ON T2.account_id = T3.account_id INNER JOIN trans AS T4 ON T3.account_id = T4.account_id WHERE T1.client_id = 3356 AND T4.operation = 'VYBER'",
+     "rows": 140,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List each cash withdrawal with its descriptive details: transaction id, account, date, type, operation, amount and balance",
+     "sql": "SELECT T4.trans_id, T4.account_id, T4.date, T4.type, T4.operation, T4.amount, T4.balance FROM client AS T1 INNER JOIN disp AS T2 ON T1.client_id = T2.client_id INNER JOIN account AS T3 ON T2.account_id = T3.account_id INNER JOIN trans AS T4 ON T3.account_id = T4.account_id WHERE T1.client_id = 3356 AND T4.operation = 'VYBER'",
+     "rows": 140,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "List each cash withdrawal with all of its transaction record fields",
+     "sql": "SELECT T4.* FROM client AS T1 INNER JOIN disp AS T2 ON T1.client_id = T2.client_id INNER JOIN account AS T3 ON T2.account_id = T3.account_id INNER JOIN trans AS T4 ON T3.account_id = T4.account_id WHERE T1.client_id = 3356 AND T4.operation = 'VYBER'",
+     "rows": 140,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "List each cash withdrawal by its id, date and amount",
+     "sql": "SELECT T4.trans_id, T4.date, T4.amount FROM client AS T1 INNER JOIN disp AS T2 ON T1.client_id = T2.client_id INNER JOIN account AS T3 ON T2.account_id = T3.account_id INNER JOIN trans AS T4 ON T3.account_id = T4.account_id WHERE T1.client_id = 3356 AND T4.operation = 'VYBER'",
+     "rows": 140,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "A": "fits",
+      "B": "fits",
+      "C1": "fits"
+     },
+     "other_readings": [
+      "List each cash withdrawal by its amount only",
+      "List each cash withdrawal by its id and amount",
+      "List each cash withdrawal by its date and amount",
+      "List each cash withdrawal with its transaction id and account id (the client may have several accounts through disp)"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "does not fit",
+      "C0": "fits",
+      "C1": "does not fit"
+     },
+     "other_readings": [
+      "List each cash withdrawal by transaction id and amount only.",
+      "List each cash withdrawal by transaction date and amount only.",
+      "List each cash withdrawal by transaction id and date only."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Both original repeats found the same 140 transactions but returned many columns (\"trans_id, account_id, date, type, operation, amount, balance[, k_symbol, bank, account]\"). The gold returns only \"T4.trans_id\".",
+    "question_gap": "no -- 'List all the withdrawals' doesn't say which columns describe a withdrawal, so returning only trans_id isn't determined.",
+    "supplied": "return (1) transaction id (`trans.trans_id`)"
+   },
+   "analysis": {
+    "task": "b003",
+    "requirements": [
+     {
+      "requirement": "link client to accounts through dispositions",
+      "real": "implied",
+      "phrase": "the client ... makes"
+     },
+     {
+      "requirement": "link accounts to transactions",
+      "real": "implied",
+      "phrase": "transactions that the client ... makes"
+     },
+     {
+      "requirement": "inner joins (drop unmatched records)",
+      "real": "implied",
+      "phrase": "the client with the id 3356 makes"
+     },
+     {
+      "requirement": "filter client_id = 3356",
+      "real": "stated",
+      "phrase": "the client with the id 3356"
+     },
+     {
+      "requirement": "filter operation = 'VYBER'",
+      "real": "via_evidence",
+      "phrase": "operation = 'VYBER' refers to withdrawal in cash"
+     },
+     {
+      "requirement": "output only the transaction id",
+      "real": "left_open",
+      "phrase": "List all the withdrawals"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": "List all"
+     },
+     {
+      "requirement": "keep duplicates (no DISTINCT)",
+      "real": "implied",
+      "phrase": "all the withdrawals"
+     }
+    ],
+    "choice": {
+     "decision": "which columns describe each listed withdrawal: transaction id only, or the full transaction details",
+     "open_phrase": "List all the withdrawals",
+     "why_both": "Listing the withdrawals names whole transaction records without saying which attributes to show, so a reader could give just the id or the full row of descriptive fields."
+    },
+    "pattern": [
+     "names the target entities as a whole ('list all the X') and does not say which output attributes to return",
+     "identifies the subject by a literal id value given in the text",
+     "leaves the mapping from a domain term to a coded value to the evidence",
+     "leaves the multi-hop link from person to transactions implicit in the verb 'makes'",
+     "says 'all' to signal no limit, with no ordering stated"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b007",
+   "question_id": 174,
+   "database": "financial",
+   "original": "What year was account owner number 130 born?",
+   "explicit": "Start from each `client` record; combine it with each `disp` record for which the unique number (`client.client_id`) equals id number of client (`disp.client_id`), one combined record per match (a record without a match is dropped); combine it with each `account` record for which id number of account (`disp.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which the id of the account (`account.account_id`) equals 130; for each kept record, return (1) the year of client date of birth (`client.birth_date`) (as text, `%Y`).",
+   "gold_sql": "SELECT STRFTIME('%Y', T1.birth_date) FROM client AS T1 INNER JOIN disp AS T3 ON T1.client_id = T3.client_id INNER JOIN account AS T2 ON T3.account_id = T2.account_id WHERE T2.account_id = 130",
+   "decision": "Which ID the number 130 in 'account owner number 130' refers to: the account ID or the client ID",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "130 is the account's number. The question asks for the birth year of the client linked to account 130 through disp. The gold has no filter requiring that client to be the OWNER.",
+     "sql": "SELECT STRFTIME('%Y', T1.birth_date) FROM client AS T1 INNER JOIN disp AS T3 ON T1.client_id = T3.client_id INNER JOIN account AS T2 ON T3.account_id = T2.account_id WHERE T2.account_id = 130",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "130 is the owner's own number. The question asks for the birth year of the client whose client_id is 130.",
+     "sql": "SELECT STRFTIME('%Y', T1.birth_date) FROM client AS T1 INNER JOIN disp AS T3 ON T1.client_id = T3.client_id INNER JOIN account AS T2 ON T3.account_id = T2.account_id WHERE T1.client_id = 130",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "130 is the account's number, and the question asks for the birth year of the client linked to account 130 through disp, restricted to disp.type = 'OWNER' because the question says 'owner'."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "130 is the account's number and the client is the one whose disp.type = 'OWNER' on that account. This is a stricter version of R2 and arguably the most faithful to the word \"owner\".",
+      "130 is a disp_id, meaning the owner disposition number, and the client is the one linked to that disp row. This is less plausible because the question says \"account owner\" and does not mention a disposition."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Both original repeats read 'account owner number 130' as \"client_id = 130\" and returned 1942. The gold joins client\u2192disp\u2192account with \"T2.account_id = 130\" and returns '1930'. The gold also has no disp.type = 'OWNER' filter. A second difference is that the agent cast the year to INTEGER while the gold returns it as text.",
+    "question_gap": "partly -- 'account owner number 130' can mean account 130's owner or client 130, and the gold doesn't even enforce the 'owner' role.",
+    "supplied": "keep only the records for which the id of the account (`account.account_id`) equals 130"
+   },
+   "analysis": {
+    "task": "b007",
+    "requirements": [
+     {
+      "requirement": "start from client records (the person whose birth year is asked)",
+      "real": "implied",
+      "phrase": "account owner ... born"
+     },
+     {
+      "requirement": "link client to disp by client_id, dropping unmatched",
+      "real": "implied",
+      "phrase": "account owner"
+     },
+     {
+      "requirement": "link disp to account by account_id, dropping unmatched",
+      "real": "implied",
+      "phrase": "account owner"
+     },
+     {
+      "requirement": "filter to account_id = 130",
+      "real": "left_open",
+      "phrase": "account owner number 130"
+     },
+     {
+      "requirement": "no restriction to disposition type OWNER (any linked client returned)",
+      "real": "contradicted",
+      "phrase": "account owner"
+     },
+     {
+      "requirement": "output the year of birth_date as text formatted %Y",
+      "real": "stated",
+      "phrase": "What year ... born"
+     },
+     {
+      "requirement": "one row per matching linked client, no dedup or limit",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether 130 identifies the account (account_id) or the owner/client (client_id)",
+     "open_phrase": "account owner number 130",
+     "why_both": "In the compound noun 'account owner number 130', the number can attach to 'account' (the owner of account number 130) or to the whole 'account owner' (owner number 130), so either id column is a grammatical reading."
+    },
+    "pattern": [
+     "packs the entity and its identifier into one stacked noun phrase, so it is unclear which noun the number modifies",
+     "uses a role word ('owner') that suggests a type filter the intended query does not apply",
+     "states the output as a natural-language unit ('what year') and leaves the extraction format to convention",
+     "gives no evidence that maps the number to a specific id column",
+     "uses singular phrasing ('what year') and states nothing about multiple matching people"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b011",
+   "question_id": 179,
+   "database": "financial",
+   "original": "How much, in total, did client number 617 pay for all of the transactions in 1998?",
+   "explicit": "Start from each `client` record; combine it with each `disp` record for which the unique number (`client.client_id`) equals id number of client (`disp.client_id`), one combined record per match (a record without a match is dropped); combine it with each `account` record for which id number of account (`disp.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); combine it with each `trans` record for which the id of the account (`account.account_id`) equals Account number (`trans.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of transaction date (`trans.date`) (as text, `%Y`) equals '1998' (compared as text, character by character); [2] the unique number (`client.client_id`) equals 617 [end]; all kept records form one group, which gives one result row; for each result row, return (1) the sum of transaction amount (`trans.amount`) in the group (missing values ignored; missing when there are none).",
+   "gold_sql": "SELECT SUM(T3.amount) FROM client AS T1 INNER JOIN disp AS T4 ON T1.client_id = T4.client_id INNER JOIN account AS T2 ON T4.account_id = T2.account_id INNER JOIN trans AS T3 ON T2.account_id = T3.account_id WHERE STRFTIME('%Y', T3.date)= '1998' AND T1.client_id = 617",
+   "decision": "Which 1998 transactions count as the client having 'paid': every transaction on the client's accounts, or only outgoing ones (debits).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Add up the amounts of all 1998 transactions on the accounts linked to client 617, whatever their direction (credits and debits alike).",
+     "sql": "SELECT SUM(T3.amount) FROM client AS T1 INNER JOIN disp AS T4 ON T1.client_id = T4.client_id INNER JOIN account AS T2 ON T4.account_id = T2.account_id INNER JOIN trans AS T3 ON T2.account_id = T3.account_id WHERE STRFTIME('%Y', T3.date)= '1998' AND T1.client_id = 617",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Add up only the outgoing 1998 transactions (type 'VYDAJ', i.e. withdrawals/debits) on the accounts linked to client 617, since money paid by the client is money leaving the account.",
+     "sql": "SELECT SUM(T3.amount) FROM client AS T1 INNER JOIN disp AS T4 ON T1.client_id = T4.client_id INNER JOIN account AS T2 ON T4.account_id = T2.account_id INNER JOIN trans AS T3 ON T2.account_id = T3.account_id WHERE STRFTIME('%Y', T3.date)= '1998' AND T1.client_id = 617 AND T3.type = 'VYDAJ'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count all non-credit transactions as payments. This includes the undocumented 'VYBER' type, which is probably also a withdrawal, as well as 'VYDAJ'.",
+     "sql": "SELECT SUM(T3.amount) FROM client AS T1 INNER JOIN disp AS T4 ON T1.client_id = T4.client_id INNER JOIN account AS T2 ON T4.account_id = T2.account_id INNER JOIN trans AS T3 ON T2.account_id = T3.account_id WHERE STRFTIME('%Y', T3.date)= '1998' AND T1.client_id = 617 AND T3.type IN ('VYDAJ', 'VYBER')",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "value_mapping",
+    "structure": [
+     "aggregation_over_join",
+     "filter_only"
+    ],
+    "semantics": [
+     "coded_values"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "C0": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Net signed total: add the outgoing amounts ('VYDAJ', and possibly 'VYBER') and subtract the 'PRIJEM' credits, giving the client's net outflow for 1998.",
+      "Treat a payment as any transaction whose operation is a withdrawal or remittance ('VYBER KARTOU', 'VYBER', 'PREVOD NA UCET'), using trans.operation instead of trans.type to set the direction."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Use only OWNER dispositions to link client 617 to accounts, excluding USER/DISPONENT links, and sum all or only outgoing transactions.",
+      "Sum outgoing transactions identified by operation (VYBER, VYBER KARTOU, PREVOD NA UCET) or by k_symbol payment categories, instead of by type.",
+      "Compute net flow (credits minus debits) for 1998 instead of a gross total.",
+      "Treat VYDAJ plus VYBER, where VYBER is stored as a type value, as outgoing, with the direction of VYBER inferred rather than documented. This is R3 in different wording."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Both original repeats read 'pay' as outgoing transactions only, adding \"AND t.type = 'VYDAJ'\", and returned 143545. The gold sums all of the client's 1998 transactions with no type filter and returns 303276.",
+    "question_gap": "no -- 'pay' plausibly means debits only, so the gold's sum over all transaction types isn't determined by the question.",
+    "supplied": "keep only the records for which all of the following hold: [1] the year of transaction date (`trans.date`) (as text, `%Y`) equals '1998' ...; [2] the unique number (`client.client_id`) equals 617 [end]"
+   },
+   "analysis": {
+    "task": "b011",
+    "requirements": [
+     {
+      "requirement": "start from the client record and link it to its accounts through the disposition table (inner joins)",
+      "real": "implied",
+      "phrase": "client number 617"
+     },
+     {
+      "requirement": "link the accounts to their transactions (inner join)",
+      "real": "implied",
+      "phrase": "all of the transactions"
+     },
+     {
+      "requirement": "filter: client_id = 617",
+      "real": "stated",
+      "phrase": "client number 617"
+     },
+     {
+      "requirement": "filter: the year of the transaction date is 1998 (compared as text)",
+      "real": "stated",
+      "phrase": "in 1998"
+     },
+     {
+      "requirement": "include every transaction regardless of type or direction",
+      "real": "left_open",
+      "phrase": "pay for all of the transactions"
+     },
+     {
+      "requirement": "computation: sum of trans.amount",
+      "real": "stated",
+      "phrase": "How much, in total"
+     },
+     {
+      "requirement": "all kept rows form one group, giving a single result row",
+      "real": "implied",
+      "phrase": "in total"
+     },
+     {
+      "requirement": "output column: only the summed amount",
+      "real": "implied",
+      "phrase": "How much"
+     },
+     {
+      "requirement": "missing amounts are ignored; the result is missing when no rows match",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "duplicates: a transaction is counted once per matching disposition (the client has one disposition per account)",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to sum all transactions or only outgoing (debit, type 'VYDAJ') transactions",
+     "open_phrase": "did client number 617 pay for all of the transactions",
+     "why_both": "\"all of the transactions\" suggests no type filter, but \"pay\" suggests money leaving the client, which would mean only debits, so either reading is reasonable."
+    },
+    "pattern": [
+     "names the entity by its ID number directly",
+     "gives the time filter as a bare year",
+     "asks for an aggregate with \"how much, in total\"",
+     "uses a verb with a direction (\"pay\") that clashes with the all-inclusive scope (\"all of the transactions\")",
+     "leaves the multi-hop link from entity to records unstated",
+     "says nothing about missing values or duplicates"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b019",
+   "question_id": 251,
+   "database": "toxicology",
+   "original": "What is the least common element of all carcinogenic molecules?\nEvidence: label = '+' mean molecules are carcinogenic",
+   "explicit": "Step 1. Start from each `molecule` record; combine it with each `atom` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`atom.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which carcinogenicity status of the molecule (`molecule.label`) equals '+' (compared as text, character by character); group the kept records by chemical element of the atom (`atom.element`); each group gives one result row; for each result row, return (1) chemical element of the atom (`atom.element`); (2) the number of distinct non-missing values of molecule id (`atom.molecule_id`) in the group; order the result rows by the number of distinct non-missing values of molecule id (`atom.molecule_id`) in the group ascending (missing first); keep only the first 1 rows.\nStep 2 (the answer). Start from the rows of step 1; for each kept record, return (1) column (1) of step 1.",
+   "gold_sql": "SELECT T.element FROM ( SELECT T2.element, COUNT(DISTINCT T2.molecule_id) FROM molecule AS T1 INNER JOIN atom AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.label = '+' GROUP BY T2.element ORDER BY COUNT(DISTINCT T2.molecule_id) LIMIT 1 ) t",
+   "decision": "What unit 'least common' is counted in: the number of carcinogenic molecules that contain the element, or the number of atoms of that element across all carcinogenic molecules",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "The least common element is the one that appears in the fewest carcinogenic molecules (count of distinct molecules containing it)",
+     "sql": "SELECT T.element FROM ( SELECT T2.element, COUNT(DISTINCT T2.molecule_id) FROM molecule AS T1 INNER JOIN atom AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.label = '+' GROUP BY T2.element ORDER BY COUNT(DISTINCT T2.molecule_id) LIMIT 1 ) t",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "The least common element is the one with the fewest atoms in total across all carcinogenic molecules",
+     "sql": "SELECT T.element FROM ( SELECT T2.element, COUNT(T2.atom_id) FROM molecule AS T1 INNER JOIN atom AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.label = '+' GROUP BY T2.element ORDER BY COUNT(T2.atom_id) LIMIT 1 ) t",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "extreme_selection"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "The least common element is found separately inside each carcinogenic molecule (the element with the fewest atoms in that molecule), giving one answer per molecule instead of a single overall answer."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Least common element measured by the number of distinct carcinogenic molecules containing it (the same as R1, but a defensible alternative if 'common' is read as prevalence across molecules rather than atom counts).",
+      "Ties: several elements may share the minimum count (e.g., a single atom each), so the question could be read as requiring all tied elements rather than a single one."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "reading choice",
+    "difference": "Submitted ranks elements by `COUNT(a.atom_id)` (number of atoms) and gets 'y'. Gold ranks by `COUNT(DISTINCT T2.molecule_id)` (number of molecules containing the element) and gets 'cu'.",
+    "question_gap": "no -- 'least common element' can mean fewest atoms or fewest molecules, and the evidence doesn't say which; the gold picks the molecule count.",
+    "supplied": "the number of distinct non-missing values of molecule id (`atom.molecule_id`) in the group; order the result rows by ... ascending"
+   },
+   "analysis": {
+    "task": "b019",
+    "requirements": [
+     {
+      "requirement": "start from molecule records joined to their atoms by molecule id (inner join)",
+      "real": "implied",
+      "phrase": "element of all carcinogenic molecules"
+     },
+     {
+      "requirement": "keep only molecules with label = '+'",
+      "real": "via_evidence",
+      "phrase": "label = '+' mean molecules are carcinogenic"
+     },
+     {
+      "requirement": "group by atom element",
+      "real": "implied",
+      "phrase": "least common element"
+     },
+     {
+      "requirement": "measure commonness as the count of distinct molecules containing the element",
+      "real": "left_open",
+      "phrase": "least common"
+     },
+     {
+      "requirement": "order ascending by that count",
+      "real": "stated",
+      "phrase": "least common"
+     },
+     {
+      "requirement": "keep only 1 row",
+      "real": "implied",
+      "phrase": "What is the least common element"
+     },
+     {
+      "requirement": "ties broken arbitrarily (no tie rule)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output only the element column",
+      "real": "stated",
+      "phrase": "What is the ... element"
+     },
+     {
+      "requirement": "missing counts sort first",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Whether commonness is measured by the number of distinct carcinogenic molecules that contain the element or by the total number of atoms of that element",
+     "open_phrase": "least common element of all carcinogenic molecules",
+     "why_both": "'Least common' never says what is being counted, so it could mean the element found in the fewest molecules or the element with the fewest atoms overall, and both are natural readings of how often an element occurs."
+    },
+    "pattern": [
+     "names the extreme with a singular superlative ('least common') and states no tie rule",
+     "leaves the frequency measure unstated, so it could count either containing entities or individual occurrences",
+     "uses evidence only to map the qualifying adjective to a code value of a flag column",
+     "leaves the join between the parent entity and its parts to be inferred from the possessive 'of all ... molecules'",
+     "takes the output column from the question's head noun"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b020",
+   "question_id": 252,
+   "database": "toxicology",
+   "original": "What are the atoms that can bond with the atom that has the element lead?\nEvidence: atom that has the element lead refers to atom_id where element = 'pb'",
+   "explicit": "Start from each `atom` record; combine it with each `connected` record for which the unique id of atoms (`atom.atom_id`) equals id of the first atom (`connected.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which chemical element of the atom (`atom.element`) equals 'pb' (compared as text, character by character); for each kept record, return (1) id of the first atom (`connected.atom_id`); (2) id of the second atom (`connected.atom_id2`).",
+   "gold_sql": "SELECT T2.atom_id, T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id WHERE T1.element = 'pb'",
+   "decision": "What each output row should contain: the whole bond pair (the lead atom ID plus its partner's ID) or only the partner atom's ID",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List each connection from a lead atom as a pair: the lead atom's ID and the ID of the atom it bonds with",
+     "sql": "SELECT T2.atom_id, T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id WHERE T1.element = 'pb'",
+     "rows": 4,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List only the atoms that bond with a lead atom (the partner atom IDs), without the lead atom's own ID",
+     "sql": "SELECT T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id WHERE T1.element = 'pb'",
+     "rows": 4,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Report which elements the lead atom can bond with, rather than individual atom IDs",
+     "sql": "SELECT DISTINCT T3.element FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN atom AS T3 ON T2.atom_id2 = T3.atom_id WHERE T1.element = 'pb'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "List the partner atom IDs together with their element, so the IDs come with chemical context"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Return the partner atoms' IDs only from connected.atom_id2 where atom_id is lead, without also checking the reverse direction (atom_id2 is lead, partner in atom_id). This differs from R2, which takes bonds in both directions.",
+      "Return the partner atoms in both directions (lead as atom_id or as atom_id2), as distinct IDs.",
+      "Return partner atoms with extra details, such as their element and molecule, rather than just their IDs."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Submitted returns one column, the bonded partner atoms (UNION of both directions), giving [['TR151_15'],...]. Gold returns the pair `T2.atom_id, T2.atom_id2`, giving [['TR151_14','TR151_15'],...]. The partner IDs match; only the extra lead-atom column differs.",
+    "question_gap": "no -- 'the atoms that can bond with' the lead atom points to partner atoms only; nothing asks for the lead atom's own ID as a column.",
+    "supplied": "for each kept record, return (1) id of the first atom (`connected.atom_id`); (2) id of the second atom (`connected.atom_id2`)"
+   },
+   "analysis": {
+    "task": "b020",
+    "requirements": [
+     {
+      "requirement": "start from atom records",
+      "real": "stated",
+      "phrase": "the atom that has the element lead"
+     },
+     {
+      "requirement": "link atom to connected via atom.atom_id = connected.atom_id (lead atom as first atom)",
+      "real": "implied",
+      "phrase": "atoms that can bond with the atom"
+     },
+     {
+      "requirement": "inner join: atoms without connections dropped",
+      "real": "implied",
+      "phrase": "can bond with"
+     },
+     {
+      "requirement": "filter element = 'pb'",
+      "real": "via_evidence",
+      "phrase": "atom that has the element lead refers to atom_id where element = 'pb'"
+     },
+     {
+      "requirement": "output connected.atom_id (lead atom's id)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output connected.atom_id2 (partner atom id)",
+      "real": "stated",
+      "phrase": "What are the atoms that can bond with"
+     },
+     {
+      "requirement": "no deduplication; one row per connection",
+      "real": "left_open",
+      "phrase": "What are the atoms"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to include the lead atom's own id next to the partner atom id in the output",
+     "open_phrase": "What are the atoms that can bond with the atom that has the element lead?",
+     "why_both": "Taken literally, the question asks only for the partner atoms, but the evidence talks about the lead atom's atom_id, and pairing each partner with its lead atom makes the answer clear when there are several lead atoms, so either output shape is a reasonable reading."
+    },
+    "pattern": [
+     "names the wanted entities with a relative clause about a relationship to an anchor entity",
+     "uses evidence to map a natural-language attribute value to a coded filter value",
+     "does not say whether the anchor entity's identifier should appear in the output",
+     "leaves the join direction across the relationship table implied rather than stated",
+     "says nothing about duplicates when one partner links to several anchors"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b022",
+   "question_id": 255,
+   "database": "toxicology",
+   "original": "What proportion of single bonds are carcinogenic? Please provide your answer as a percentage with five decimal places.\nEvidence: single bond refers to bond_type = '-'; label = '+' mean molecules are carcinogenic; proportion = DIVIDE(SUM(label = '+') * 100, COUNT(bond_id)) where bond_type = '-'",
+   "explicit": "Start from each `bond` record; combine it with each `molecule` record for which molecule id (`bond.molecule_id`) equals unique id of molecule (`molecule.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which bond order/type between two atoms (`bond.bond_type`) equals '-' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) round((A \u00d7 100) \u00f7 B, 5). Here A is the number of records in the group whose the value of the first rule that applies: if carcinogenicity status of the molecule (`molecule.label`) equals '+' (compared as text, character by character) then unique id representing bonds (`bond.bond_id`); otherwise None is not missing; B is the number of records in the group whose unique id representing bonds (`bond.bond_id`) is not missing.",
+   "gold_sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T2.label = '+' THEN T1.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T1.bond_id),5) FROM bond AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.bond_type = '-'",
+   "decision": "Whether to return the percentage as a number rounded to five decimal places, or as a text string formatted to show exactly five decimal places",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return the share of single bonds that belong to carcinogenic molecules as a number, rounded to five decimal places (e.g. 39.75203).",
+     "sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T2.label = '+' THEN T1.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T1.bond_id),5) FROM bond AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.bond_type = '-'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the same share as a text value with exactly five digits after the decimal point (e.g. '39.75203'), because 'provide your answer as a percentage with five decimal places' is read as a display format.",
+     "sql": "SELECT PRINTF('%.5f', CAST(COUNT(CASE WHEN T2.label = '+' THEN T1.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T1.bond_id)) FROM bond AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.bond_type = '-'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return a text value with five decimal places followed by a percent sign (e.g. '39.75203%').",
+     "sql": "SELECT PRINTF('%.5f%%', CAST(COUNT(CASE WHEN T2.label = '+' THEN T1.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T1.bond_id)) FROM bond AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.bond_type = '-'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "ratio",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "C0": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the unrounded full-precision percentage value, treating 'five decimal places' as a precision hint rather than a rounding or formatting requirement.",
+      "Return the five-decimal value truncated rather than rounded (e.g. 39.75202 instead of 39.75203)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Return the unrounded numeric result of the evidence formula (full floating-point precision), treating 'five decimal places' as informal.",
+      "Return a number truncated, not rounded, to five decimal places.",
+      "Count the proportion by distinct molecules (the share of molecules with single bonds that are carcinogenic) instead of by bond rows, though the evidence's COUNT(bond_id) points to bonds."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "numeric precision / grading sensitivity",
+    "difference": "Repeat 1 got the same value as the gold but returned it as text: \"PRINTF('%.5f', ...)\" gives ['39.75203'], while the gold \"ROUND(...,5)\" gives the number [39.75203]. Repeat 0 also returned text, and its value was wrong (29.23632). It used \"COUNT(DISTINCT b.bond_id)\" over the join for the top of the fraction and a separate subquery \"(SELECT COUNT(*) FROM bond WHERE bond_type = '-')\" for the bottom. The gold uses COUNT(T1.bond_id) over the joined rows.",
+    "question_gap": "partly -- 'percentage with five decimal places' allows either a rounded number or a formatted string. Only the explicit round() rules out the text output that the grader rejects.",
+    "supplied": "return (1) round((A \u00d7 100) \u00f7 B, 5)"
+   },
+   "analysis": {
+    "task": "b022",
+    "requirements": [
+     {
+      "requirement": "start from bond records",
+      "real": "stated",
+      "phrase": "single bonds"
+     },
+     {
+      "requirement": "link each bond to its molecule via molecule_id (inner join, unmatched bonds dropped)",
+      "real": "implied",
+      "phrase": "single bonds are carcinogenic"
+     },
+     {
+      "requirement": "filter bond_type = '-'",
+      "real": "via_evidence",
+      "phrase": "single bond refers to bond_type = '-'"
+     },
+     {
+      "requirement": "one group over all kept records, one result row",
+      "real": "implied",
+      "phrase": "What proportion"
+     },
+     {
+      "requirement": "numerator: count of bonds whose molecule label = '+'",
+      "real": "via_evidence",
+      "phrase": "label = '+' mean molecules are carcinogenic; SUM(label = '+')"
+     },
+     {
+      "requirement": "denominator: count of non-missing bond_id",
+      "real": "via_evidence",
+      "phrase": "COUNT(bond_id)"
+     },
+     {
+      "requirement": "multiply by 100 (percentage)",
+      "real": "stated",
+      "phrase": "as a percentage; DIVIDE(SUM(label = '+') * 100, ...)"
+     },
+     {
+      "requirement": "round to 5 decimal places",
+      "real": "stated",
+      "phrase": "with five decimal places"
+     },
+     {
+      "requirement": "output type numeric vs formatted text",
+      "real": "left_open",
+      "phrase": "Please provide your answer as a percentage with five decimal places"
+     },
+     {
+      "requirement": "single output column",
+      "real": "implied",
+      "phrase": "What proportion"
+     }
+    ],
+    "choice": {
+     "decision": "Return the percentage as a rounded number (ROUND) or as a fixed-format text string with exactly five decimals (PRINTF)",
+     "open_phrase": "Please provide your answer as a percentage with five decimal places",
+     "why_both": "\"Five decimal places\" can mean rounding the numeric value to that precision or presenting it with exactly five digits after the point, and the question doesn't say whether it wants a number or a display string."
+    },
+    "pattern": [
+     "asks for a proportion and relies on the evidence formula for the numerator and denominator",
+     "maps domain terms (single bond, carcinogenic) to coded values only in the evidence",
+     "leaves the link between the counted entity and the entity carrying the attribute implicit in ordinary wording",
+     "states precision as a presentation instruction ('provide your answer as ... with N decimal places') without saying whether that means rounding or formatting",
+     "says 'percentage' in words, while the evidence makes the \u00d7100 scaling explicit"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b025",
+   "question_id": 259,
+   "database": "toxicology",
+   "original": "How many elements are there for single bond molecules?\nEvidence: single bond refers to bond_type = '-';",
+   "explicit": "Step 1. Start from each `atom` record; combine it with each `molecule` record for which molecule id (`atom.molecule_id`) equals unique id of molecule (`molecule.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which bond order/type between two atoms (`bond.bond_type`) equals '-' (compared as text, character by character); for each kept record, return (1) unique id of molecule (`molecule.molecule_id`); (2) chemical element of the atom (`atom.element`); remove duplicate result rows.\nStep 2 (the answer). Start from the rows of step 1; all kept records form one group, which gives one result row; for each result row, return (1) the number of distinct non-missing values of column (2) of step 1 in the group.",
+   "gold_sql": "SELECT COUNT(DISTINCT T.element) FROM ( SELECT DISTINCT T2.molecule_id, T1.element FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T3.bond_type = '-' ) AS T",
+   "decision": "Whether to count only atoms whose molecule_id also has a row in the molecule table (gold uses an inner join through molecule) or every atom whose molecule_id appears in a single bond, whether or not that molecule is in the molecule table",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count the distinct elements among atoms in molecules that are listed in the molecule table and have at least one single bond ('-'). Atoms whose molecule has no molecule row are left out.",
+     "sql": "SELECT COUNT(DISTINCT T.element) FROM ( SELECT DISTINCT T2.molecule_id, T1.element FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T3.bond_type = '-' ) AS T",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count the distinct elements among all atoms whose molecule_id has at least one single bond ('-') in the bond table, even if that molecule has no row in the molecule table.",
+     "sql": "SELECT COUNT(DISTINCT T.element) FROM ( SELECT DISTINCT T1.molecule_id, T1.element FROM atom AS T1 INNER JOIN bond AS T3 ON T1.molecule_id = T3.molecule_id WHERE T3.bond_type = '-' ) AS T",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "missing_values",
+    "structure": [
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count the number of atoms (not distinct elements) belonging to molecules that have single bonds, interpreting 'how many elements' as atom count.",
+      "Count distinct elements only among atoms actually participating in single bonds (via the connected table joined to bond with bond_type = '-'), rather than all atoms in molecules containing a single bond.",
+      "Count distinct elements per molecule, or per element a count of single-bond molecules, i.e., a grouped result rather than one total."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "The submission filters atoms with \"a.molecule_id IN (SELECT DISTINCT b.molecule_id FROM bond b WHERE b.bond_type = '-')\" and never joins `molecule`, giving 20. The gold does an inner join atom\u2192molecule\u2192bond, which drops atoms whose molecule has no matching `molecule` row, giving 17.",
+    "question_gap": "no -- the question never says atoms must also match a row in the molecule table. The IN-subquery is a reasonable reading of the question.",
+    "supplied": "combine it with each `molecule` record for which molecule id (`atom.molecule_id`) equals unique id of molecule (`molecule.molecule_id`) ... (a record without a match is dropped); combine it with each `bond` record"
+   },
+   "analysis": {
+    "task": "b025",
+    "requirements": [
+     {
+      "requirement": "start from atom records (elements belong to atoms)",
+      "real": "implied",
+      "phrase": "elements"
+     },
+     {
+      "requirement": "link atoms to molecule table by molecule_id (inner join, drop unmatched)",
+      "real": "left_open",
+      "phrase": "single bond molecules"
+     },
+     {
+      "requirement": "link molecules to bonds by molecule_id (inner join)",
+      "real": "implied",
+      "phrase": "single bond molecules"
+     },
+     {
+      "requirement": "filter bond_type = '-'",
+      "real": "via_evidence",
+      "phrase": "single bond refers to bond_type = '-'"
+     },
+     {
+      "requirement": "a molecule qualifies if it has at least one single bond (existence, not 'only single bonds')",
+      "real": "implied",
+      "phrase": "single bond molecules"
+     },
+     {
+      "requirement": "deduplicate (molecule, element) pairs",
+      "real": "implied",
+      "phrase": "How many elements"
+     },
+     {
+      "requirement": "count distinct non-missing element values",
+      "real": "implied",
+      "phrase": "How many elements"
+     },
+     {
+      "requirement": "single scalar output, one row",
+      "real": "implied",
+      "phrase": "How many"
+     }
+    ],
+    "choice": {
+     "decision": "whether atoms must belong to a molecule that exists in the molecule table (join through molecule) or only need a molecule_id that has a single bond in the bond table",
+     "open_phrase": "single bond molecules",
+     "why_both": "The word 'molecules' can be read as calling for the molecule entity table, but a molecule with a single bond is fully identified by the bond table's molecule_id, so the molecule-table join adds a constraint the question never states."
+    },
+    "pattern": [
+     "names the target entity with a bare plural count ('how many X') and relies on convention for distinct counting",
+     "qualifies the scope with a compact noun-modifier phrase ('single bond molecules') rather than an explicit condition",
+     "uses evidence only to map a domain term to a coded value",
+     "leaves the existence-vs-universal meaning of the qualifier unstated, settled by convention as 'has at least one'",
+     "does not say which intermediate entity tables must be joined, so it's unclear whether membership in the parent table is required"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b028",
+   "question_id": 263,
+   "database": "toxicology",
+   "original": "What is the composition of element chlorine in percentage among the single bond molecules?\nEvidence: element chlorine refers to element = 'cl'; single bond refers to bond_type = '-'; percentage = DIVIDE(SUM(element = 'cl'), COUNT(atom_id)) as percent where bond_type = '-'",
+   "explicit": "Step 1. Start from each `atom` record; combine it with each `molecule` record for which molecule id (`atom.molecule_id`) equals unique id of molecule (`molecule.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which bond order/type between two atoms (`bond.bond_type`) equals '-' (compared as text, character by character); for each kept record, return (1) the unique id of atoms (`atom.atom_id`); (2) chemical element of the atom (`atom.element`).\nStep 2 (the answer). Start from the rows of step 1; all kept records form one group, which gives one result row; for each result row, return (1) (A \u00d7 100) \u00f7 B. Here A is the number of records in the group whose the value of the first rule that applies: if column (2) of step 1 equals 'cl' (compared as text, character by character) then column (1) of step 1; otherwise None is not missing; B is the number of records in the group whose column (1) of step 1 is not missing.",
+   "gold_sql": "SELECT CAST(COUNT(CASE WHEN T.element = 'cl' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id) FROM ( SELECT T1.atom_id, T1.element FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T3.bond_type = '-' ) AS T",
+   "decision": "Whether each atom in a molecule with a single bond is counted once, or once for every single bond in its molecule (the multiplicity that comes from the bond join)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Join atoms to every single bond in the same molecule and take the chlorine share of the joined rows. Each atom is weighted by how many single bonds its molecule has.",
+     "sql": "SELECT CAST(COUNT(CASE WHEN T.element = 'cl' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id) FROM ( SELECT T1.atom_id, T1.element FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T3.bond_type = '-' ) AS T",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Take the set of distinct atoms that belong to molecules with at least one single bond, and report the percentage of those atoms that are chlorine. Each atom counts once.",
+     "sql": "SELECT CAST(COUNT(CASE WHEN T.element = 'cl' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id) FROM ( SELECT DISTINCT T1.atom_id, T1.element FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T3.bond_type = '-' ) AS T",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "ratio",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count only the distinct atoms that are themselves an endpoint of a single bond, found through connected.bond_id joined to bond.bond_type = '-', and report the percentage of those atoms that are chlorine.",
+      "Limit the set to molecules whose bonds are all single bonds, then report the percentage of their distinct atoms that are chlorine."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Join atoms to bonds through the connected table (atom_id or atom_id2 to bond_id) and count only atoms actually participating in single bonds. This counts each atom once per single-bond endpoint, or once if deduplicated, instead of matching on molecule_id.",
+      "Count only distinct atoms that are endpoints of a single bond via connected, with each atom counted once, and report the chlorine percentage among them."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "The submission counts each atom once with \"a.molecule_id IN (SELECT DISTINCT b.molecule_id ...)\" and rounds to 2 places, giving 3.48. The gold joins to `bond` without deduplicating, so each atom is counted once per single bond in its molecule, and does not round: 2.6840451814272206. The submission also added unwanted \"ROUND(...,2)\".",
+    "question_gap": "no -- 'composition of chlorine among the single bond molecules' points to a per-atom count. The gold's weighting by number of bonds is a join side effect that the question doesn't specify.",
+    "supplied": "combine it with each `bond` record ... one combined record per match ... B is the number of records in the group whose column (1) of step 1 is not missing"
+   },
+   "analysis": {
+    "task": "b028",
+    "requirements": [
+     {
+      "requirement": "start from atom records",
+      "real": "implied",
+      "phrase": "composition of element chlorine"
+     },
+     {
+      "requirement": "link atoms to their molecule",
+      "real": "implied",
+      "phrase": "among the single bond molecules"
+     },
+     {
+      "requirement": "link the molecule to its bonds",
+      "real": "implied",
+      "phrase": "single bond molecules"
+     },
+     {
+      "requirement": "keep only bonds with bond_type = '-'",
+      "real": "via_evidence",
+      "phrase": "single bond refers to bond_type = '-'"
+     },
+     {
+      "requirement": "numerator: count of rows whose element = 'cl'",
+      "real": "via_evidence",
+      "phrase": "element chlorine refers to element = 'cl'; SUM(element = 'cl')"
+     },
+     {
+      "requirement": "denominator: count of atom_id over the joined rows",
+      "real": "via_evidence",
+      "phrase": "COUNT(atom_id)"
+     },
+     {
+      "requirement": "multiply by 100 and use real division",
+      "real": "implied",
+      "phrase": "in percentage"
+     },
+     {
+      "requirement": "one result row over all kept records",
+      "real": "implied",
+      "phrase": "What is the composition"
+     },
+     {
+      "requirement": "duplicates: an atom counts once per matching single bond in its molecule (no DISTINCT)",
+      "real": "left_open",
+      "phrase": "COUNT(atom_id) ... where bond_type = '-'"
+     },
+     {
+      "requirement": "output column: just the percentage value",
+      "real": "implied",
+      "phrase": "What is the composition ... in percentage"
+     }
+    ],
+    "choice": {
+     "decision": "Whether atoms are deduplicated after joining to single bonds, or counted once per single bond in their molecule",
+     "open_phrase": "percentage = DIVIDE(SUM(element = 'cl'), COUNT(atom_id)) as percent where bond_type = '-'",
+     "why_both": "The evidence formula COUNT(atom_id) applied to the joined rows gives the bond-weighted count, but the phrase 'composition of element chlorine' naturally suggests the share of distinct atoms, and nothing says how atoms that join to several bonds should be counted."
+    },
+    "pattern": [
+     "asks for a ratio as a 'composition in percentage' and gives the formula only as pseudo-code in the evidence",
+     "names the filter on a related entity ('single bond molecules') without saying how that entity's rows multiply the counted rows",
+     "uses COUNT over an identifier without saying whether it is distinct",
+     "maps domain terms to literal codes through the evidence",
+     "leaves the row grain (atom vs. atom-bond pair) unstated"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b030",
+   "question_id": 773,
+   "database": "superhero",
+   "original": "Which superhero has the same eyes, hair and skin colour? Indicate the publisher of the superhero.\nEvidence: which superhero refers to superhero_name; the same eyes, hair and skin colour refers to hair_colour_id = skin_colour_id AND hair_colour_id = eye_colour_id; publisher refers to publisher_name;",
+   "explicit": "Start from each `superhero` record; combine it with each `publisher` record for which the id of the publisher (`superhero.publisher_id`) equals the unique identifier of the publisher (`publisher.id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] eye colour id (`superhero.eye_colour_id`) equals hair colour id (`superhero.hair_colour_id`); [2] eye colour id (`superhero.eye_colour_id`) equals skin colour id (`superhero.skin_colour_id`) [end]; for each kept record, return (1) superhero (alias) name (`superhero.superhero_name`); (2) the name of the publisher (`publisher.publisher_name`).",
+   "gold_sql": "SELECT T1.superhero_name, T2.publisher_name FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T1.eye_colour_id = T1.hair_colour_id AND T1.eye_colour_id = T1.skin_colour_id",
+   "decision": "Whether superheroes with no matching publisher row should be kept (inner join vs. left join to publisher)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List only superheroes whose eye, hair and skin colour ids match and who have a publisher; heroes with no matching publisher row are dropped.",
+     "sql": "SELECT T1.superhero_name, T2.publisher_name FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T1.eye_colour_id = T1.hair_colour_id AND T1.eye_colour_id = T1.skin_colour_id",
+     "rows": 157,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List every superhero whose eye, hair and skin colour ids match, and show the publisher if there is one; heroes without a matching publisher still appear with a NULL publisher.",
+     "sql": "SELECT T1.superhero_name, T2.publisher_name FROM superhero AS T1 LEFT JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T1.eye_colour_id = T1.hair_colour_id AND T1.eye_colour_id = T1.skin_colour_id",
+     "rows": 159,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "missing_values",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 used \"LEFT JOIN publisher p\" and returned 159 rows, including heroes with no matching publisher. The gold uses an INNER JOIN and returns 157 rows. Repeat 1 of the original question used an inner JOIN and passed.",
+    "question_gap": "partly -- 'Indicate the publisher' suggests a publisher must exist, but the question doesn't say whether to drop heroes without one.",
+    "supplied": ""
+   },
+   "analysis": {
+    "task": "b030",
+    "requirements": [
+     {
+      "requirement": "start from superhero records",
+      "real": "stated",
+      "phrase": "Which superhero"
+     },
+     {
+      "requirement": "output superhero_name as the hero identifier",
+      "real": "via_evidence",
+      "phrase": "which superhero refers to superhero_name"
+     },
+     {
+      "requirement": "link superhero to publisher via publisher_id = publisher.id",
+      "real": "implied",
+      "phrase": "Indicate the publisher of the superhero"
+     },
+     {
+      "requirement": "drop heroes with no matching publisher (inner join)",
+      "real": "left_open",
+      "phrase": "Indicate the publisher of the superhero"
+     },
+     {
+      "requirement": "filter eye_colour_id = hair_colour_id",
+      "real": "via_evidence",
+      "phrase": "hair_colour_id = eye_colour_id"
+     },
+     {
+      "requirement": "filter eye_colour_id = skin_colour_id",
+      "real": "via_evidence",
+      "phrase": "hair_colour_id = skin_colour_id"
+     },
+     {
+      "requirement": "output publisher_name",
+      "real": "via_evidence",
+      "phrase": "publisher refers to publisher_name"
+     },
+     {
+      "requirement": "return all qualifying heroes, not just one",
+      "real": "implied",
+      "phrase": "Which superhero has"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "no deduplication",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Whether heroes with no matching publisher row are dropped (INNER JOIN) or kept with a NULL publisher (LEFT JOIN).",
+     "open_phrase": "Indicate the publisher of the superhero",
+     "why_both": "The question is mainly about which heroes match on colour, and the publisher looks like an extra detail to attach, so keeping unmatched heroes with a blank publisher is reasonable; but asking to 'indicate the publisher' can also be read as assuming every listed hero has one, which supports dropping those without."
+    },
+    "pattern": [
+     "asks with a singular 'which X' but means every record that qualifies",
+     "relies on the evidence to turn a natural-language equality condition into column comparisons",
+     "adds an attribute from a related table with a request to 'indicate' it, without saying what to do when the link is missing",
+     "states no ordering, limit or tie rule",
+     "evidence lists column names but leaves the join type unstated"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b041",
+   "question_id": 788,
+   "database": "superhero",
+   "original": "How many percent of female heroes were published by Marvel Comics?\nEvidence: percent = MULTIPLY(DIVIDE(SUM(gender = 'Female' WHERE publisher_name = 'Marvel Comics'), COUNT(publisher_name = 'Marvel Comics')), 100); female heroes refers to gender = 'Female'; Marvel Comics refers to publisher_name = 'Marvel Comics';",
+   "explicit": "Start from each `superhero` record; combine it with each `publisher` record for which the id of the publisher (`superhero.publisher_id`) equals the unique identifier of the publisher (`publisher.id`), one combined record per match (a record without a match is dropped); combine it with each `gender` record for which the id of the superhero's gender (`superhero.gender_id`) equals the unique identifier of the gender (`gender.id`), one combined record per match (a record without a match is dropped); keep only the records for which gender classification (`gender.gender`) equals 'Female' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) (A \u00d7 100) \u00f7 B. Here A is the number of records in the group whose the value of the first rule that applies: if the name of the publisher (`publisher.publisher_name`) equals 'Marvel Comics' (compared as text, character by character) then 1; otherwise None is not missing; B is the number of records in the group whose the unique identifier of the superhero (`superhero.id`) is not missing.",
+   "gold_sql": "SELECT CAST(COUNT(CASE WHEN T2.publisher_name = 'Marvel Comics' THEN 1 ELSE NULL END) AS REAL) * 100 / COUNT(T1.id) FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id INNER JOIN gender AS T3 ON T1.gender_id = T3.id WHERE T3.gender = 'Female'",
+   "decision": "Which group is the base of the percentage: the share of female heroes who are published by Marvel, or the share of Marvel heroes who are female",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Of all female heroes, what percent were published by Marvel Comics (filter to female heroes, then count the Marvel ones)",
+     "sql": "SELECT CAST(COUNT(CASE WHEN T2.publisher_name = 'Marvel Comics' THEN 1 ELSE NULL END) AS REAL) * 100 / COUNT(T1.id) FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id INNER JOIN gender AS T3 ON T1.gender_id = T3.id WHERE T3.gender = 'Female'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Of all heroes published by Marvel Comics, what percent are female (filter to Marvel heroes, then count the female ones), which is what the evidence formula describes",
+     "sql": "SELECT CAST(COUNT(CASE WHEN T3.gender = 'Female' THEN 1 ELSE NULL END) AS REAL) * 100 / COUNT(T1.id) FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id INNER JOIN gender AS T3 ON T1.gender_id = T3.id WHERE T2.publisher_name = 'Marvel Comics'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "other",
+    "structure": [
+     "ratio",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Female Marvel heroes as a percent of all heroes in the table (count of female Marvel heroes divided by the total number of superheroes)"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "reading choice",
+    "difference": "The original filtered \"WHERE p.publisher_name = 'Marvel Comics'\" and counted \"CASE WHEN g.gender = 'Female'\", which is the female share of Marvel heroes: 28.68. The gold filters \"WHERE T3.gender = 'Female'\" and counts \"CASE WHEN T2.publisher_name = 'Marvel Comics'\", which is the Marvel share of female heroes: 54.95. The original also rounded its result.",
+    "question_gap": "partly \u2014 the question's wording points to the gold's reading (Marvel share of female heroes), but the evidence formula (SUM(gender='Female' WHERE publisher='Marvel') / COUNT(publisher='Marvel')) points to the opposite one, and the original submission followed the evidence.",
+    "supplied": "keep only the records for which gender classification (`gender.gender`) equals 'Female' ... A is the number of records ... if the name of the publisher (`publisher.publisher_name`) equals 'Marvel Comics'"
+   },
+   "analysis": {
+    "task": "b041",
+    "requirements": [
+     {
+      "requirement": "start from superhero records",
+      "real": "implied",
+      "phrase": "heroes"
+     },
+     {
+      "requirement": "link superhero to publisher via publisher_id",
+      "real": "via_evidence",
+      "phrase": "Marvel Comics refers to publisher_name = 'Marvel Comics'"
+     },
+     {
+      "requirement": "link superhero to gender via gender_id",
+      "real": "via_evidence",
+      "phrase": "female heroes refers to gender = 'Female'"
+     },
+     {
+      "requirement": "drop heroes with no matching publisher or gender (inner joins)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "restrict population to female heroes (denominator = female heroes)",
+      "real": "contradicted",
+      "phrase": "percent of female heroes ... COUNT(publisher_name = 'Marvel Comics')"
+     },
+     {
+      "requirement": "numerator counts records whose publisher is Marvel Comics",
+      "real": "contradicted",
+      "phrase": "published by Marvel Comics; SUM(gender = 'Female' WHERE publisher_name = 'Marvel Comics')"
+     },
+     {
+      "requirement": "denominator counts records with non-missing superhero id",
+      "real": "implied",
+      "phrase": "How many percent of"
+     },
+     {
+      "requirement": "result = numerator * 100 / denominator",
+      "real": "via_evidence",
+      "phrase": "MULTIPLY(DIVIDE(...), 100)"
+     },
+     {
+      "requirement": "single aggregate row over all kept records",
+      "real": "implied",
+      "phrase": "How many percent"
+     },
+     {
+      "requirement": "exact string match 'Female' and 'Marvel Comics'",
+      "real": "via_evidence",
+      "phrase": "gender = 'Female'; publisher_name = 'Marvel Comics'"
+     }
+    ],
+    "choice": {
+     "decision": "which set forms the base population (denominator): female heroes vs. Marvel heroes",
+     "open_phrase": "How many percent of female heroes were published by Marvel Comics? ... DIVIDE(SUM(gender = 'Female' WHERE publisher_name = 'Marvel Comics'), COUNT(publisher_name = 'Marvel Comics'))",
+     "why_both": "The question says 'percent of female heroes', which puts female heroes in the denominator, but the evidence formula divides female Marvel heroes by all Marvel heroes, so a reader who follows the question gets A and a reader who follows the evidence gets B."
+    },
+    "pattern": [
+     "uses an 'X percent of P were Q' phrasing that, taken literally, makes P the base population",
+     "includes a pseudo-formula in the evidence that reverses which condition is the base, so the question and the evidence disagree",
+     "names the filter values only through the evidence mappings and never states the join paths",
+     "says nothing about heroes with a missing publisher or gender",
+     "asks for one scalar ratio scaled to a percentage, with no ordering or tie concerns"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b048",
+   "question_id": 1188,
+   "database": "thrombosis_prediction",
+   "original": "How many female patients born in 1964 were admitted to the hospital? List them by ID.\nEvidence: female refers to SEX = 'F'; born in 1964 refers to YEAR(Birthday) = 1964; admitted to the hospital refers to Admission = '+'",
+   "explicit": "Start from each `Patient` record; keep only the records for which all of the following hold: [1] the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`) equals '1964' (compared as text, character by character); [2] patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character); [3] hospital admission status (admitted vs outpatient) (`Patient.Admission`) equals '+' (compared as text, character by character) [end]; for each kept record, return (1) identification of the patient (`Patient.ID`).",
+   "gold_sql": "SELECT ID FROM Patient WHERE STRFTIME('%Y', Birthday) = '1964' AND SEX = 'F' AND Admission = '+'",
+   "decision": "Output form for 'how many ... list them by ID': return only one row per matching patient ID (the count is implied by the number of rows), or return the count explicitly along with the IDs",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the ID of each female patient born in 1964 who was admitted, one row per patient. The count is the number of rows returned.",
+     "sql": "SELECT ID FROM Patient WHERE STRFTIME('%Y', Birthday) = '1964' AND SEX = 'F' AND Admission = '+'",
+     "rows": 9,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the number of such patients as an explicit count, with their IDs combined into a single list in the same row.",
+     "sql": "SELECT COUNT(ID), GROUP_CONCAT(ID) FROM Patient WHERE STRFTIME('%Y', Birthday) = '1964' AND SEX = 'F' AND Admission = '+'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return each patient's ID on its own row, with the total count repeated on every row.",
+     "sql": "SELECT ID, COUNT(ID) OVER () FROM Patient WHERE STRFTIME('%Y', Birthday) = '1964' AND SEX = 'F' AND Admission = '+'",
+     "rows": 9,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Return only the count of such patients.",
+     "sql": "SELECT COUNT(ID) FROM Patient WHERE STRFTIME('%Y', Birthday) = '1964' AND SEX = 'F' AND Admission = '+'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "C0": "fits",
+      "B": "fits",
+      "C1": "does not fit"
+     },
+     "other_readings": [
+      "Return two separate result sets: one query that lists the IDs and a second query that gives the count."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits",
+      "C1": "does not fit",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Return two outputs: a separate count row or query plus a separate list of IDs.",
+      "Return the count and the ID list as separate columns, with the IDs as one aggregated value, which is a variant of R1."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Submissions returned one row with a count and concatenated IDs: \"COUNT(*) as count, GROUP_CONCAT(ID, ', ')\" giving [[9, '1061042, 3046555, ...']]. Gold returns 9 rows with one ID each: \"SELECT ID FROM Patient WHERE ...\". The filters were the same.",
+    "question_gap": "partly -- the question asks for both 'how many' and 'list them by ID', so whether to return a count, a list, or both, and in what form, is left open; the gold returns only the ID rows.",
+    "supplied": "for each kept record, return (1) identification of the patient (`Patient.ID`)"
+   },
+   "analysis": {
+    "task": "b048",
+    "requirements": [
+     {
+      "requirement": "one record per patient from the patient table",
+      "real": "implied",
+      "phrase": "female patients"
+     },
+     {
+      "requirement": "birth year equals 1964, taken as the year part of the birthday",
+      "real": "via_evidence",
+      "phrase": "born in 1964 refers to YEAR(Birthday) = 1964"
+     },
+     {
+      "requirement": "sex equals 'F'",
+      "real": "via_evidence",
+      "phrase": "female refers to SEX = 'F'"
+     },
+     {
+      "requirement": "admission status equals '+'",
+      "real": "via_evidence",
+      "phrase": "admitted to the hospital refers to Admission = '+'"
+     },
+     {
+      "requirement": "output only the patient ID, one row per patient",
+      "real": "contradicted",
+      "phrase": "How many ... List them by ID."
+     },
+     {
+      "requirement": "no explicit count column (the count is the number of rows returned)",
+      "real": "contradicted",
+      "phrase": "How many female patients"
+     },
+     {
+      "requirement": "no ordering is required",
+      "real": "left_open",
+      "phrase": "List them by ID"
+     },
+     {
+      "requirement": "duplicates are not handled because each patient record is unique",
+      "real": "implied",
+      "phrase": "patients"
+     }
+    ],
+    "choice": {
+     "decision": "Whether the output is a per-patient list of IDs (where the count is just the row count) or an aggregated row holding an explicit count plus the combined IDs",
+     "open_phrase": "How many female patients born in 1964 were admitted to the hospital? List them by ID.",
+     "why_both": "The question asks for a number ('How many') and also for a list ('List them by ID'), so a reader can either let the listed rows stand in for the count or return the count and the IDs together in one aggregated row."
+    },
+    "pattern": [
+     "combines a count question with a request to list the matching entities, without saying what shape the output should take",
+     "leaves every filter definition to evidence that maps everyday words to column codes",
+     "states a birth year in plain terms, and the evidence turns it into a year-extraction comparison",
+     "says 'list them by ID', which can mean either the identifier column or an ordering by ID",
+     "gives no ordering or tie rules, since the result is just a filtered set"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b049",
+   "question_id": 1189,
+   "database": "thrombosis_prediction",
+   "original": "What number of patients with a degree of thrombosis level 2 and ANA pattern of only S, have a level of anti-Cardiolip in antibody (IgM) 20% higher than average?\nEvidence: thrombosis level 2 refers to Thrombosis = 2; ANA pattern of only S refers to ANA = 'S'; average anti-Cardiolip in antibody (IgM) refers to AVG(`aCL IgM`); calculation = MULTIPLY(AVG + AVG, 0.2)",
+   "explicit": "Start from each `Examination` record; keep only the records for which all of the following hold: [1] thrombosis severity grade (`Examination.Thrombosis`) equals 2; [2] antinuclear antibody immunofluorescence pattern (`Examination.ANA Pattern`) equals 'S' (compared as text, character by character); [3] anti-cardiolipin antibody IgM level (`Examination.aCL IgM`) is greater than the single value returned by [start from each `Examination` record; keep only the records for which all of the following hold: [1] thrombosis severity grade (`Examination.Thrombosis`) equals 2; [2] antinuclear antibody immunofluorescence pattern (`Examination.ANA Pattern`) equals 'S' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) A \u00d7 1.2] (missing when it returns no row) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group. Here A is the average of anti-cardiolipin antibody IgM level (`Examination.aCL IgM`) in the group (missing values ignored; missing when there are none).",
+   "gold_sql": "SELECT COUNT(*) FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S' AND `aCL IgM` > (SELECT AVG(`aCL IgM`) * 1.2 FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S')",
+   "decision": "Which population the average aCL IgM is computed over, which sets the 1.2x threshold",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Compute the average aCL IgM over only the examination records with Thrombosis = 2 and ANA Pattern 'S'. Then count the records in that same subset whose aCL IgM is more than 20% above that subgroup average.",
+     "sql": "SELECT COUNT(*) FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S' AND `aCL IgM` > (SELECT AVG(`aCL IgM`) * 1.2 FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S')",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Compute the average aCL IgM over all examination records. Then count the records with Thrombosis = 2 and ANA Pattern 'S' whose aCL IgM is more than 20% above that overall average.",
+     "sql": "SELECT COUNT(*) FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S' AND `aCL IgM` > (SELECT AVG(`aCL IgM`) * 1.2 FROM Examination)",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Compute the average over the patients with thrombosis level 2 only, without the ANA pattern condition, and compare the subset against it.",
+     "sql": "SELECT COUNT(*) FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S' AND `aCL IgM` > (SELECT AVG(`aCL IgM`) * 1.2 FROM Examination WHERE Thrombosis = 2)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "aggregation_level",
+    "structure": [
+     "filter_only",
+     "other"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Calculate the average per patient by first collapsing each patient's examination records into one value, either over all patients or over the filtered patients, and then count distinct patients above 1.2 times that average."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients (by ID) rather than examination records, since the question asks for 'number of patients'.",
+      "Use the literal evidence formula, where the threshold is (AVG + AVG) * 0.2, which equals 0.4 * AVG. This compares aCL IgM against 40% of the average instead of 120% of it.",
+      "Treat 'ANA = S' literally as the ANA column, which is an integer concentration, instead of the `ANA Pattern` column."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both submissions computed the average over all of Examination: \"(SELECT AVG(`aCL IgM`) * 1.2 FROM Examination)\". Gold restricts the subquery to the same subset: \"... FROM Examination WHERE Thrombosis = 2 AND `ANA Pattern` = 'S'\". Result: 0 vs 3.",
+    "question_gap": "no -- 'higher than average' doesn't say which population the average is taken over, and the evidence formula 'MULTIPLY(AVG + AVG, 0.2)' is garbled and gives no scope.",
+    "supplied": "is greater than the single value returned by [start from each `Examination` record; keep only the records for which ... [1] ... `Thrombosis` equals 2; [2] ... `ANA Pattern` equals 'S' ...] ... A \u00d7 1.2"
+   },
+   "analysis": {
+    "task": "b049",
+    "requirements": [
+     {
+      "requirement": "unit counted is examination records (not distinct patients)",
+      "real": "contradicted",
+      "phrase": "What number of patients"
+     },
+     {
+      "requirement": "filter Thrombosis = 2",
+      "real": "via_evidence",
+      "phrase": "thrombosis level 2 refers to Thrombosis = 2"
+     },
+     {
+      "requirement": "filter ANA Pattern = 'S' (exact text match)",
+      "real": "via_evidence",
+      "phrase": "ANA pattern of only S refers to ANA = 'S'"
+     },
+     {
+      "requirement": "compare aCL IgM against a threshold using strict greater-than",
+      "real": "implied",
+      "phrase": "20% higher than average"
+     },
+     {
+      "requirement": "threshold = average aCL IgM \u00d7 1.2",
+      "real": "via_evidence",
+      "phrase": "20% higher than average; calculation = MULTIPLY(AVG + AVG, 0.2)"
+     },
+     {
+      "requirement": "average computed over the Thrombosis=2 and ANA='S' subgroup only",
+      "real": "left_open",
+      "phrase": "higher than average"
+     },
+     {
+      "requirement": "missing aCL IgM values ignored in the average",
+      "real": "implied",
+      "phrase": "AVG(`aCL IgM`)"
+     },
+     {
+      "requirement": "output a single count",
+      "real": "stated",
+      "phrase": "What number of"
+     }
+    ],
+    "choice": {
+     "decision": "whether the average aCL IgM baseline is taken over the filtered subgroup (Thrombosis=2, ANA='S') or over all examination records",
+     "open_phrase": "have a level of anti-Cardiolip in antibody (IgM) 20% higher than average",
+     "why_both": "\"average\" is never tied to a population, and the evidence gives only AVG(`aCL IgM`) with no filter, so it could mean the average of the patients just described or the average across everyone."
+    },
+    "pattern": [
+     "names a comparison baseline as a bare 'average' without saying which population it is computed over",
+     "leaves the filter definitions and the aggregate formula to evidence, which gives the formula without its scope",
+     "evidence arithmetic is garbled (AVG + AVG times 0.2) and only the wording '20% higher' shows that the factor is 1.2",
+     "says 'number of patients' when the count is of examination records, and gives no rule for duplicates",
+     "uses 'higher than' with no explicit boundary rule, so strict inequality is assumed by convention"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b056",
+   "question_id": 1207,
+   "database": "thrombosis_prediction",
+   "original": "List all patients with their sex and date of birthday, whose AST glutamic oxaloacetic transaminase (GOT) index is within normal range for loboratory examination in 1994.\nEvidence: AST glutamic oxaloacetic transaminase (GOT) index is within normal range refers to GOT < 60; examination in 1994 refers to year(Date) = 1994",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] AST liver enzyme level (`Laboratory.GOT`) is less than 60; [2] the year of laboratory test date (`Laboratory.Date`) (as text, `%Y`) equals '1994' (compared as text, character by character) [end]; for each kept record, return (1) patient sex (`Patient.SEX`); (2) patient date of birth (`Patient.Birthday`); remove duplicate result rows.",
+   "gold_sql": "SELECT DISTINCT T1.SEX, T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND STRFTIME('%Y', T2.Date) = '1994'",
+   "decision": "Whether the output identifies each patient by including the patient ID alongside sex and birthday, or returns only the sex and birthday columns",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List only the sex and birthday of the qualifying patients, with distinct (sex, birthday) pairs",
+     "sql": "SELECT DISTINCT T1.SEX, T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND STRFTIME('%Y', T2.Date) = '1994'",
+     "rows": 97,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List each qualifying patient by their ID, along with their sex and birthday",
+     "sql": "SELECT DISTINCT T1.ID, T1.SEX, T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND STRFTIME('%Y', T2.Date) = '1994'",
+     "rows": 97,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return only sex and birthday, with one row per distinct qualifying patient (deduplicated by ID, but the ID is not shown), so patients who share the same sex and birthday still appear separately",
+      "Return sex and birthday with no deduplication, giving one row for each qualifying 1994 lab record, so a patient with several normal-GOT tests in 1994 appears several times"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "List the qualifying patients as one row per patient with only sex and birthday (no ID), without deduplication, so patients who share the same sex and birthday appear as repeated rows.",
+      "Interpret 'within normal range' as 0 <= GOT < 60 (excluding negative values), though the evidence only states GOT < 60."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Submissions added an ID column: \"SELECT DISTINCT p.ID, p.SEX, p.Birthday\". Gold has \"SELECT DISTINCT T1.SEX, T1.Birthday\". The rows match apart from the extra column (97 rows each).",
+    "question_gap": "partly -- 'List all patients with their sex and date of birthday' suggests identifying the patients, so adding ID is reasonable; the gold returns only sex and birthday.",
+    "supplied": "return (1) patient sex (`Patient.SEX`); (2) patient date of birth (`Patient.Birthday`); remove duplicate result rows"
+   },
+   "analysis": {
+    "task": "b056",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "List all patients"
+     },
+     {
+      "requirement": "link patients to their laboratory records by patient ID (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "patients ... whose AST ... index is within normal range for loboratory examination"
+     },
+     {
+      "requirement": "filter GOT < 60",
+      "real": "via_evidence",
+      "phrase": "within normal range refers to GOT < 60"
+     },
+     {
+      "requirement": "filter lab date year = 1994",
+      "real": "via_evidence",
+      "phrase": "examination in 1994 refers to year(Date) = 1994"
+     },
+     {
+      "requirement": "output patient sex",
+      "real": "stated",
+      "phrase": "with their sex"
+     },
+     {
+      "requirement": "output patient birthday",
+      "real": "stated",
+      "phrase": "date of birthday"
+     },
+     {
+      "requirement": "no patient identifier in output",
+      "real": "left_open",
+      "phrase": "List all patients with their sex and date of birthday"
+     },
+     {
+      "requirement": "remove duplicate result rows",
+      "real": "left_open",
+      "phrase": "List all patients"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether the output identifies each patient (includes ID) or returns only distinct (sex, birthday) pairs",
+     "open_phrase": "List all patients with their sex and date of birthday",
+     "why_both": "'List all patients' suggests each patient should be identified, so an ID column fits, while 'with their sex and date of birthday' names only those two attributes as the output, so returning just those columns also fits."
+    },
+    "pattern": [
+     "names the entity to list and then adds 'with their' attributes, so it's unclear whether the entity itself needs its own identifier column",
+     "leaves the threshold and the year filter to evidence that maps the wording to column conditions",
+     "assumes the link between entity and measurement records without stating it",
+     "says nothing about deduplication, though several matching measurement rows per entity make duplicates likely",
+     "contains typos and loose wording ('date of birthday', 'loboratory') that don't change the meaning"
+    ]
+   }
+  }
+ ],
+ "not_library": [
+  {
+   "task": "b014",
+   "status": "agent mistake (no reading)",
+   "pair": {
+    "decision": "The literal string used to match the region in district.A3: the question's lowercase 'east Bohemia' or the capitalized 'East Bohemia'",
+    "reading_A": "Count clients born in 1920 whose district's region (A3) is 'east Bohemia', written exactly as it appears in the question and as it is stored in the data",
+    "reading_B": "",
+    "sql_B": "",
+    "further": [],
+    "tags": {
+     "choice": "value_mapping",
+     "structure": [
+      "filter_only"
+     ],
+     "semantics": [
+      "coded_values"
+     ]
+    }
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b017",
+   "question_id": 248,
+   "database": "toxicology",
+   "original": "What are the atoms of the triple bond with the molecule \"TR041\"?\nEvidence: TR041 is the molecule id; triple bond refers to bond_type = '#';",
+   "explicit": "Start from each `atom` record; combine it with each `connected` record for which the unique id of atoms (`atom.atom_id`) equals id of the first atom (`connected.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); combine it with each `bond` record for which bond id (`connected.bond_id`) equals unique id representing bonds (`bond.bond_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] bond order/type between two atoms (`bond.bond_type`) equals '#' (compared as text, character by character); [2] molecule id (`bond.molecule_id`) equals 'TR041' (compared as text, character by character) [end]; for each kept record, return (1) id of the first atom (`connected.atom_id`); (2) id of the second atom (`connected.atom_id2`).",
+   "gold_sql": "SELECT T2.atom_id, T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_type = '#' AND T3.molecule_id = 'TR041'",
+   "decision": "Which columns to return for the triple-bond atoms: only the two atom ids of each connected pair, or the pair plus the bond it belongs to (bond_id and bond_type).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the atom pairs joined by a triple bond in molecule TR041, giving only the two atom ids (atom_id, atom_id2) for each connection row.",
+     "sql": "SELECT T2.atom_id, T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_type = '#' AND T3.molecule_id = 'TR041'",
+     "rows": 4,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List the atom pairs joined by a triple bond in molecule TR041, and also show which bond each pair belongs to (its bond_id and bond_type).",
+     "sql": "SELECT T2.atom_id, T2.atom_id2, T2.bond_id, T3.bond_type FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_type = '#' AND T3.molecule_id = 'TR041'",
+     "rows": 4,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "List each distinct atom that takes part in a triple bond in TR041 as a single column of atom ids, not as pairs.",
+     "sql": "SELECT DISTINCT T2.atom_id FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_type = '#' AND T3.molecule_id = 'TR041'",
+     "rows": 4,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Give the atoms in a triple bond in TR041 as their elements, showing each atom id with its element.",
+     "sql": "SELECT T2.atom_id, T1.element FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_type = '#' AND T3.molecule_id = 'TR041'",
+     "rows": 4,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "does not fit",
+      "A": "fits",
+      "C1": "fits"
+     },
+     "other_readings": [
+      "Return only the element symbols of the atoms in TR041's triple bond(s), with no atom ids, possibly deduplicated (e.g., 'c', 'n')."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "B": "does not fit",
+      "C1": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return atom_id and atom_id2 from connected but filter the molecule via the atom table's molecule_id instead of bond.molecule_id (same result in practice).",
+      "Return a single flattened, deduplicated list of atom ids with the pair relationship dropped (R1) but using UNION of atom_id and atom_id2 across both directions."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 1 returned two extra columns, `c.bond_id, b.bond_type`, and hardcoded `c.bond_id IN ('TR041_7_10', 'TR041_8_9')`. Repeat 0 returned only `c.atom_id, c.atom_id2`, which matches gold's 4 rows, and it passed.",
+    "question_gap": "partly -- the question doesn't say which columns to output, but the agent got it right in one repeat.",
+    "supplied": "for each kept record, return (1) id of the first atom (`connected.atom_id`); (2) id of the second atom (`connected.atom_id2`)"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b054",
+   "question_id": 1200,
+   "database": "thrombosis_prediction",
+   "original": "What proportion of patients who had signs of thrombocytopenia had SLE diagnosed?\nEvidence: thrombocytopenia' refers to symptoms; 'SLE' refers to diagnosis; calculation =  DIVIDE(SUM(DIAGNOSIS LIKE '%ITP%'), SUM(DIAGNOSIS LIKE '%SLE%')) MULTIPLY 100",
+   "explicit": "Start from each `Examination` record; keep only the records for which reported clinical symptom (`Examination.Symptoms`) equals 'thrombocytopenia' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) (A \u00d7 100) \u00f7 B. Here A is the sum of the value of the first rule that applies: if diagnosed disease at examination (`Examination.Diagnosis`) equals 'SLE' (compared as text, character by character) then 1; otherwise 0 in the group (missing values ignored; missing when there are none); B is the number of records in the group whose identification of the patient (`Examination.ID`) is not missing.",
+   "gold_sql": "SELECT CAST(SUM(CASE WHEN Diagnosis = 'SLE' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(ID) FROM Examination WHERE Symptoms = 'thrombocytopenia'",
+   "decision": "How to identify patients with 'signs of thrombocytopenia': by the Examination.Symptoms text, or by a low platelet count (PLT < 100) in the Laboratory table",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Patients have thrombocytopenia when their examination record lists 'thrombocytopenia' in the Symptoms column. This matches the evidence, which says thrombocytopenia refers to symptoms.",
+     "sql": "SELECT CAST(SUM(CASE WHEN Diagnosis = 'SLE' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(ID) FROM Examination WHERE Symptoms = 'thrombocytopenia'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Patients have thrombocytopenia when a lab test shows a platelet count below the normal range (PLT < 100), which is the clinical sign of thrombocytopenia.",
+     "sql": "SELECT CAST(SUM(CASE WHEN Diagnosis = 'SLE' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(ID) FROM Examination WHERE ID IN (SELECT ID FROM Laboratory WHERE PLT < 100)",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Thrombocytopenia counts as present when it is mentioned anywhere in the Symptoms text, even alongside other symptoms, not only when it is the exact value",
+     "sql": "SELECT CAST(SUM(CASE WHEN Diagnosis = 'SLE' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(ID) FROM Examination WHERE Symptoms LIKE '%thrombocytopenia%'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "C1",
+     "reading": "Thrombocytopenia counts as present when it is either recorded as a symptom or shown by a low platelet count in the lab",
+     "sql": "SELECT CAST(SUM(CASE WHEN Diagnosis = 'SLE' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(ID) FROM Examination WHERE Symptoms = 'thrombocytopenia' OR ID IN (SELECT ID FROM Laboratory WHERE PLT < 100)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "ratio",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "C1": "does not fit",
+      "C0": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Thrombocytopenia counts as present when the Examination Diagnosis text mentions ITP or thrombocytopenia, following the evidence's calculation that uses DIAGNOSIS LIKE '%ITP%'"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "C1": "does not fit",
+      "A": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Thrombocytopenia is identified from the Diagnosis column (e.g. Diagnosis LIKE '%ITP%', as in the evidence formula) rather than from Symptoms, since the formula's numerator uses ITP in DIAGNOSIS.",
+      "Thrombocytopenia is identified from Symptoms in Examination, but SLE is taken from Patient.Diagnosis rather than Examination.Diagnosis, so the two tables are joined on ID."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Submissions treated thrombocytopenia as a lab value, \"Laboratory l ... WHERE l.PLT < 100\", used Patient.Diagnosis with \"LIKE '%SLE%'\" and counted DISTINCT patients, giving 55.56. Gold uses \"Examination WHERE Symptoms = 'thrombocytopenia'\" with \"Diagnosis = 'SLE'\" over COUNT(ID), giving 75.0.",
+    "question_gap": "partly -- the evidence says thrombocytopenia 'refers to symptoms', which points to the Symptoms column, but it doesn't name the table. Its formula (ITP/SLE, LIKE) also contradicts the gold's exact-match SLE ratio.",
+    "supplied": "keep only the records for which reported clinical symptom (`Examination.Symptoms`) equals 'thrombocytopenia' ... if diagnosed disease at examination (`Examination.Diagnosis`) equals 'SLE'"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b055",
+   "question_id": 1203,
+   "database": "thrombosis_prediction",
+   "original": "How many patients who were female got white blood cells that were below 3.5?\nEvidence: female refers to SEX = 'F'; white blood cells that were below 3.5 refers to WBC < 3.5",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] white blood cell concentration (`Laboratory.WBC`) is less than 3.5; [2] patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.WBC < 3.5 AND T1.SEX = 'F'",
+   "decision": "Counting unit: whether to count each lab record (joined row) where a female patient's WBC was below 3.5, or each distinct female patient with at least one such record",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count the lab test records (patient-visit rows) of female patients in which WBC was below 3.5, so a patient with several low readings is counted once per reading",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.WBC < 3.5 AND T1.SEX = 'F'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct female patients who had at least one lab record with WBC below 3.5",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.WBC < 3.5 AND T1.SEX = 'F'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count distinct female patients whose WBC was below 3.5 in all of their lab tests that recorded WBC (consistently low)",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.WBC IS NOT NULL GROUP BY T1.SEX HAVING 1=1 AND T1.ID NOT IN (SELECT ID FROM Laboratory WHERE WBC >= 3.5)",
+     "rows": 0,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "filter_only"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Count distinct female patients whose most recent (latest-dated) WBC reading was below 3.5"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "C0": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct female patients whose most recent (or first) lab record had WBC below 3.5, which is a single-reading variant that the wording does not clearly support."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Submissions used \"COUNT(DISTINCT l.ID)\" / \"COUNT(DISTINCT p.ID)\", giving 88 patients. Gold uses \"COUNT(T1.ID)\" over the joined lab rows, giving 641.",
+    "question_gap": "no -- 'How many patients' most naturally means distinct patients; the gold counts lab records, and nothing in the question or evidence says to do that.",
+    "supplied": "return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   }
+  }
+ ],
+ "other_causes": [
+  {
+   "task": "b001",
+   "cause": "run variation",
+   "question_gap": "yes -- the question and its evidence ('issued date < 1998') fully determine the gold filter, and one original repeat got it right.",
+   "difference": "The failing repeat 0 filtered with \"CAST(SUBSTR(issued, 1, 2) AS INTEGER) < 98\". That reads the century digits ('19'), not the two-digit year, so every gold card passed the filter. It also wrapped the result in ROUND(..., 2) and returned 9.87 instead of 3.9237668161434978. Original repeat 1 used \"issued < '1998-01-01'\" and matched the gold exactly."
+  },
+  {
+   "task": "b018",
+   "cause": "output shape",
+   "question_gap": "yes -- 'which one' asks only for the molecule, so the count column was extra.",
+   "difference": "Submitted returns `m.molecule_id, COUNT(b.bond_id) as double_bond_count`, giving [['TR430', 26]]. Gold returns only `T.molecule_id`, giving [['TR430']]. The extra count column causes the failure."
+  },
+  {
+   "task": "b031",
+   "cause": "run variation",
+   "question_gap": "yes -- the question asks only for the group (race), so the answer is a single column.",
+   "difference": "Repeat 0 returned an extra column: \"SELECT sh.superhero_name, r.race\" gives ['A-Bomb','Human'], while the gold returns ['Human']. Repeat 1 returned only race and passed."
+  },
+  {
+   "task": "b032",
+   "cause": "unwanted processing",
+   "question_gap": "yes \u2014 neither the question nor the evidence asks for rounding, so the agent added the ROUND on its own.",
+   "difference": "Both original submissions wrapped the result in \"ROUND(..., 2)\" and returned 2.46. The gold has no rounding and returns 2.4630541871921183. The original also used \"LEFT JOIN colour\" where the gold uses an INNER JOIN, but that did not change the result. The only thing that differs is the added rounding."
+  },
+  {
+   "task": "b034",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 the question asks only for the gender, and one original repeat got it right.",
+   "difference": "Original repeat 0 returned an extra column, \"SELECT sh.superhero_name, g.gender\", giving ['Agent 13','Female']. The gold returns only \"T2.gender\", giving ['Female']. Original repeat 1 returned only g.gender and passed."
+  },
+  {
+   "task": "b042",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 'average' together with AVG(weight_kg) in the evidence fixes the answer, and the original repeats got it.",
+   "difference": "This is the reverse case: the original passed and the explicit version failed once. Explicit repeat 0 used \"SUM(superhero.weight_kg) / COUNT(superhero.id)\" with no cast, so SQLite did integer division and returned 123. The gold uses \"CAST(SUM(T1.weight_kg) AS REAL) / COUNT(T1.id)\" and returns 123.75. Explicit repeat 1 added the cast and passed, and both original repeats passed using AVG. The explicit wording \"A \u00f7 B\" does not say the division should be real-valued."
+  },
+  {
+   "task": "b043",
+   "cause": "unwanted processing",
+   "question_gap": "yes \u2014 the evidence states 'DIVIDE(SUM(height_cm), COUNT(all heros))', which rules out the agent's added height_cm > 0 filter.",
+   "difference": "The original used \"AVG(height_cm) ... WHERE height_cm > 0\", which drops zero and NULL heights from the denominator, giving 345.04. The gold uses \"CAST(SUM(height_cm) AS REAL) / COUNT(id)\" over all rows, giving 247.05. Explicit repeat 0 also failed, because integer division without a cast returned 247."
+  }
+ ]
+}

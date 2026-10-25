@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Inner join advancedbehavior \u2192 transactionrecord (translink = transreg) \u2192 trader (trdref = tradereg); group by tradekind; count advancedbehavior rows per group (each analysis counted); proportion = group count / sum of all group counts, unrounded",
+  "Same as 1, but trader types with null tradekind are included as their own group (null) and counted in the total",
+  "Same as 1, but rows with null tradekind are excluded from both the groups and the total denominator",
+  "Same as 1, but the count is of distinct abhvreg values per tradekind (equivalent to 1 since abhvreg is the primary key)",
+  "Same as 1, but the count is of distinct transactions (translink) per tradekind, so a transaction analysed twice counts once. This contradicts the stated \"counts twice\" rule",
+  "Same as 1, but the proportion is expressed as a percentage (fraction \u00d7 100) rather than a fraction",
+  "Same as 1, but the proportion is computed as integer division (truncated) instead of a decimal fraction",
+  "Same as 1, but trader types with zero qualifying analyses are also listed (count 0, proportion 0), drawing the full set of trader types from the enum or from the trader table",
+  "Same as 1, but the denominator is the total of all advancedbehavior records, including those lacking a linked transaction record or trader, rather than the sum over the listed trader types",
+  "Same as 1, with the \"linked trader\" taken through a different path (e.g., via compliancecase or sentimentandfundamentals.trdref2) rather than transactionrecord.trdref",
+  "Same as 1, but the result is ordered by trader type, by count descending, or by proportion descending",
+  "Missing interpretations:",
+  "Same as 1, but the proportion is computed relative to the total of all analysis records, so it uses a window function over the grouped counts. The result is the same as 1, so this adds nothing new",
+  "Same as 1, but \"exist\" is read as a left join that keeps analyses with no matching transaction or trader. These unmatched rows go into a null group and are counted in the denominator",
+  "Same as 1, but only the transaction-record link is required to exist and the trader is not. This is the same as 2 for rows with a null tradekind",
+  "Same as 1, but the proportion is rounded to a fixed number of decimals. The question says without rounding, so this contradicts it",
+  "Same as 1, but `tradekind` is taken from the `trading_performance` JSON instead of the `tradekind` column",
+  "Same as 1, but the counted records are compliance cases tied to the analyses, not advancedbehavior rows",
+  "The only interpretations I would add are these:",
+  "Same as 1, but the proportion is returned as a text string or with a percent sign",
+  "Same as 1, but with the proportion cast to a float or double instead of exact numeric"
+ ],
+ "queries": [
+  "SELECT t.tradekind,\n       COUNT(*) AS cnt,\n       CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS proportion\nFROM advancedbehavior ab\nINNER JOIN transactionrecord tr ON ab.translink = tr.transreg\nINNER JOIN trader t ON tr.trdref = t.tradereg\nGROUP BY t.tradekind;\n",
+  "SELECT tradekind,\n       COUNT(*) AS trader_count,\n       ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM trader), 2) AS percentage\nFROM trader\nGROUP BY tradekind;\n",
+  "SELECT tradekind,\n       COUNT(*) AS trader_count,\n       ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM trader WHERE tradekind IS NOT NULL), 2) AS percentage\nFROM trader\nWHERE tradekind IS NOT NULL\nGROUP BY tradekind;\n",
+  "SELECT t.tradekind, COUNT(DISTINCT ab.abhvreg) AS abhv_count\nFROM advancedbehavior ab\nJOIN transactionrecord tr ON ab.translink = tr.transreg\nJOIN trader t ON tr.trdref = t.tradereg\nGROUP BY t.tradekind;\n",
+  "SELECT t.tradekind, COUNT(DISTINCT a.translink) AS transaction_count\nFROM advancedbehavior a\nJOIN transactionrecord tr ON a.translink = tr.transreg\nJOIN trader t ON tr.trdref = t.tradereg\nGROUP BY t.tradekind"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e6f24d2438",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 137653,
+  "chars_out": 4005
+ }
+}

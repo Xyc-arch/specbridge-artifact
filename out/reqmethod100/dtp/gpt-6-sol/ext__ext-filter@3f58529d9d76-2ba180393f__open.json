@@ -1,0 +1,30 @@
+{
+ "interpretations": [
+  "Use `feerate > 0.0009`; average `feerate - rebrate` over matched fee records with a nonmissing rebate; count all matched high-rate fee records; compare each group average with the unweighted average of group averages for its side; return the top 10 groups overall.",
+  "Use `feerate >= 0.0009`, with the same grouping, missing-value handling, count, side comparison, and global top 10.",
+  "Use `feerate > 0.0009`; treat a missing `rebrate` as zero when calculating the net rate; count all matched high-rate fee records; compare group averages with their side\u2019s unweighted average; return the top 10 overall.",
+  "Use `feerate > 0.0009`; exclude records with a missing rebate from both the group average and the displayed record count; compare group averages with their side\u2019s unweighted average; return the top 10 overall.",
+  "Use `feerate > 0.0009`; include orders with a missing `dealedge` as a separate side for grouping and comparison; ignore missing net rates in averages; return the top 10 overall.",
+  "Use `feerate > 0.0009`; exclude orders with a missing `dealedge`; ignore missing net rates in averages; return the top 10 overall.",
+  "Use `feerate > 0.0009`; ignore missing net rates in averages; compare each group with its side\u2019s unweighted average of group averages; return the top 10 qualifying groups **for each side**."
+ ],
+ "queries": [
+  "WITH fee_groups AS (\n  SELECT\n    o.dealedge AS side,\n    f.feerange,\n    f.feecoin,\n    COUNT(*) AS high_rate_fee_count,\n    AVG(CASE WHEN f.rebrate IS NOT NULL THEN f.feerate - f.rebrate END) AS avg_net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  WHERE f.feerate > 0.0009\n  GROUP BY o.dealedge, f.feerange, f.feecoin\n),\ncompared AS (\n  SELECT\n    *,\n    AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg_of_group_averages\n  FROM fee_groups\n)\nSELECT\n  side,\n  feerange,\n  feecoin,\n  high_rate_fee_count,\n  avg_net_fee_rate,\n  side_avg_of_group_averages,\n  avg_net_fee_rate - side_avg_of_group_averages AS difference_from_side_avg\nFROM compared\nORDER BY avg_net_fee_rate DESC\nLIMIT 10",
+  "WITH high_rate_fees AS (\n    SELECT\n        f.feerange,\n        o.dealedge,\n        f.feerate - COALESCE(f.rebrate, 0) AS net_rate\n    FROM fees AS f\n    JOIN orders AS o ON o.recordvault = f.orderslink\n    WHERE f.feerate > 0.0009\n),\nside_averages AS (\n    SELECT dealedge, AVG(net_rate) AS side_avg_net_rate\n    FROM high_rate_fees\n    GROUP BY dealedge\n),\ngroup_averages AS (\n    SELECT\n        feerange,\n        dealedge,\n        COUNT(*) AS fee_record_count,\n        AVG(net_rate) AS avg_net_rate\n    FROM high_rate_fees\n    GROUP BY feerange, dealedge\n)\nSELECT\n    g.feerange,\n    g.dealedge,\n    g.fee_record_count,\n    g.avg_net_rate,\n    s.side_avg_net_rate\nFROM group_averages AS g\nJOIN side_averages AS s USING (dealedge)\nORDER BY g.avg_net_rate - s.side_avg_net_rate DESC\nLIMIT 10",
+  "WITH group_averages AS (\n    SELECT\n        o.dealedge,\n        f.feerange,\n        COUNT(*) AS record_count,\n        AVG(f.rebtotal) AS average_rebate\n    FROM fees AS f\n    JOIN orders AS o ON o.recordvault = f.orderslink\n    WHERE f.feerate > 0.0009\n      AND f.rebtotal IS NOT NULL\n    GROUP BY o.dealedge, f.feerange\n)\nSELECT\n    dealedge,\n    feerange,\n    record_count,\n    average_rebate,\n    AVG(average_rebate) OVER (PARTITION BY dealedge) AS side_average_rebate\nFROM group_averages\nORDER BY average_rebate DESC\nLIMIT 10",
+  "SELECT\n    f.feerange,\n    COALESCE(o.dealedge, 'Missing') AS dealedge,\n    AVG(f.feerate - f.rebrate) AS avg_net_rate\nFROM fees AS f\nJOIN orders AS o ON o.recordvault = f.orderslink\nWHERE f.feerate > 0.0009\nGROUP BY f.feerange, COALESCE(o.dealedge, 'Missing')\nORDER BY avg_net_rate DESC\nLIMIT 10"
+ ],
+ "raw": [
+  "- Use `feerate > 0.0009`; average `feerate - rebrate` over matched fee records with a nonmissing rebate; count all matched high-rate fee records; compare each group average with the unweighted average of group averages for its side; return the top 10 groups overall.\n- Use `feerate >= 0.0009`, with the same grouping, missing-value handling, count, side comparison, and global top 10.\n- Use `feerate > 0.0009`; treat a missing `rebrate` as zero when calculating the net rate; count all matched high-rate fee records; compare group averages with their side\u2019s unweighted average; return the top 10 overall.\n- Use `feerate > 0.0009`; exclude records with a missing rebate from both the group average and the displayed record count; compare group averages with their side\u2019s unweighted average; return the top 10 overall.\n- Use `feerate > 0.0009`; include orders with a missing `dealedge` as a separate side for grouping and comparison; ignore missing net rates in averages; return the top 10 overall.\n- Use `feerate > 0.0009`; exclude orders with a missing `dealedge`; ignore missing net rates in averages; return the top 10 overall.\n- Use `feerate > 0.0009`; ignore missing net rates in averages; compare each group with its side\u2019s unweighted average of group averages; return the top 10 qualifying groups **for each side**.",
+  "All possible interpretations are covered."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107316,
+  "chars_out": 3911
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "interpretations": [
+  "Group income by `link_to_member`, sum `amount` per member, and compute each member's share as their total divided by the sum of all member totals. Keep members with a share strictly above the average share, taking the average over members who have income records. Return one row with the sum of their totals, the average of their shares, and the average of (share \u2212 average share).",
+  "Same as 1, but the average share is taken over all members in the `member` table, including those with no income, so it counts members with zero totals.",
+  "Same as 1, but the group-by includes income rows where `link_to_member` is NULL as their own group. Those rows count in the grand total and in the average share.",
+  "Same as 1, but income rows with NULL `link_to_member` are excluded from the grand total and from the groups.",
+  "Same as 1, but the \"combined amount\" is the sum of the above-average members' totals, and \"average share\" is the average of the above-average members' own shares. The average excess is that average minus the overall average share.",
+  "Same as 1, but \"their average share\" is the overall average share across all members, which is the same value used as the threshold, and not the average over the qualifying members.",
+  "Same as 1, but the \"average amount by which their share is above the average share\" is computed in dollar terms. That means the average of (member total \u2212 average member total), not the difference in shares.",
+  "Same as 1, but \"combined amount\" means the average of the qualifying members' totals, not the sum.",
+  "Same as 1, but the output is one row per qualifying member (member, total, share, excess) instead of one aggregate row.",
+  "Same as 1, but the shares are computed as percentages (multiplied by 100) rather than fractions.",
+  "Some interpretations are missing:",
+  "Same as 1, but the average excess is taken over all members (or all groups), with non-qualifying members contributing zero or negative differences, not only over the qualifying members.",
+  "Same as 1, but the threshold \"average share\" is the average of per-income-row shares (each income record's amount divided by the grand total), not the average of per-member shares.",
+  "Same as 1, but the share is computed with integer division on the INTEGER `amount` column, so shares truncate to 0 and no real-valued shares are used."
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT link_to_member, SUM(amount) AS total\n  FROM income\n  GROUP BY link_to_member\n),\ns AS (\n  SELECT link_to_member, total, total * 1.0 / (SELECT SUM(total) FROM t) AS share\n  FROM t\n),\na AS (\n  SELECT AVG(share) AS avg_share FROM s\n)\nSELECT SUM(s.total) AS sum_total,\n       AVG(s.share) AS avg_share,\n       AVG(s.share - a.avg_share) AS avg_diff\nFROM s, a\nWHERE s.share > a.avg_share;\n",
+  "SELECT AVG(COALESCE(t.total, 0))\nFROM member m\nLEFT JOIN (\n    SELECT link_to_member, SUM(amount) AS total\n    FROM income\n    GROUP BY link_to_member\n) t ON m.member_id = t.link_to_member;\n",
+  "SELECT link_to_member,\n       SUM(amount) AS total_amount,\n       SUM(amount) * 1.0 / (SELECT SUM(amount) FROM income) AS share,\n       AVG(SUM(amount) * 1.0 / (SELECT SUM(amount) FROM income)) OVER () AS avg_share\nFROM income\nGROUP BY link_to_member;\n",
+  "SELECT link_to_member, SUM(amount) AS total_amount\nFROM income\nWHERE link_to_member IS NOT NULL\nGROUP BY link_to_member\nUNION ALL\nSELECT NULL, SUM(amount)\nFROM income\nWHERE link_to_member IS NOT NULL"
+ ],
+ "raw": [
+  "1. Group income by `link_to_member`, sum `amount` per member, and compute each member's share as their total divided by the sum of all member totals. Keep members with a share strictly above the average share, taking the average over members who have income records. Return one row with the sum of their totals, the average of their shares, and the average of (share \u2212 average share).\n\n2. Same as 1, but the average share is taken over all members in the `member` table, including those with no income, so it counts members with zero totals.\n\n3. Same as 1, but the group-by includes income rows where `link_to_member` is NULL as their own group. Those rows count in the grand total and in the average share.\n\n4. Same as 1, but income rows with NULL `link_to_member` are excluded from the grand total and from the groups.\n\n5. Same as 1, but the \"combined amount\" is the sum of the above-average members' totals, and \"average share\" is the average of the above-average members' own shares. The average excess is that average minus the overall average share.\n\n6. Same as 1, but \"their average share\" is the overall average share across all members, which is the same value used as the threshold, and not the average over the qualifying members.\n\n7. Same as 1, but the \"average amount by which their share is above the average share\" is computed in dollar terms. That means the average of (member total \u2212 average member total), not the difference in shares.\n\n8. Same as 1, but \"combined amount\" means the average of the qualifying members' totals, not the sum.\n\n9. Same as 1, but the output is one row per qualifying member (member, total, share, excess) instead of one aggregate row.\n\n10. Same as 1, but the shares are computed as percentages (multiplied by 100) rather than fractions.",
+  "Some interpretations are missing:\n\nSame as 1, but the average excess is taken over all members (or all groups), with non-qualifying members contributing zero or negative differences, not only over the qualifying members.\nSame as 1, but the threshold \"average share\" is the average of per-income-row shares (each income record's amount divided by the grand total), not the average of per-member shares.\nSame as 1, but the share is computed with integer division on the INTEGER `amount` column, so shares truncate to 0 and no real-valued shares are used."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4eb2b4a71e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 60960,
+  "chars_out": 4493
+ }
+}

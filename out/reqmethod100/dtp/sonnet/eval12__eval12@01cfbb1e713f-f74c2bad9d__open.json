@@ -1,0 +1,55 @@
+{
+ "interpretations": [
+  "Players who received award votes are taken from player_award_vote only. Join to player on player_id and group by death_country. Per country, average points_won, skipping NULL points. Report each death country, its average, and the difference (signed) between that average and the simple mean of the per-country averages. Nothing is rounded.",
+  "The same as 1, but the distance is the absolute value of the difference.",
+  "The same as 1, but the distance is the squared difference.",
+  "The same as 1, but the distance is a percentage or ratio of the mean of the per-country averages.",
+  "Players who received award votes are taken from both player_award_vote and manager_award_vote, combined. A manager_award_vote row is matched to player on player_id.",
+  "Players who received award votes are taken from manager_award_vote only.",
+  "Players with a NULL or empty death_country (living players, or players with unknown death country) are kept as their own group, shown as NULL or empty.",
+  "Players with a NULL or empty death_country are excluded, so only actual death countries appear.",
+  "Players with no matching row in player are excluded (inner join).",
+  "Players with no matching row in player are kept as an unmatched group (left join from the votes).",
+  "The per-country average is taken over all vote rows, so a player with several vote rows counts once per row.",
+  "The per-country average is first taken per player (average points_won per player), then averaged across the players in each country.",
+  "The per-country average is of points_won summed per player across all their votes, then averaged over players.",
+  "\"Ignoring missing points\" means excluding rows where points_won is NULL. The mean of the per-country averages then covers only countries with at least one non-NULL points_won.",
+  "\"Ignoring missing points\" means treating NULL points_won as 0, so the rows are kept in the average.",
+  "Countries whose points_won values are all NULL appear with a NULL average, and the mean of the averages skips them.",
+  "Countries whose points_won values are all NULL are dropped from the output.",
+  "The simple average of the per-country averages is computed over the countries shown, each country weighted equally. It is not the overall row-level average of points_won.",
+  "The comparison is to the overall average of points_won across all rows (weighted by vote count), not to the mean of the per-country averages.",
+  "Countries are grouped by exact death_country text. Variants in spelling or case are not merged.",
+  "Countries are grouped case-insensitively or after trimming whitespace.",
+  "The results are ordered by country name.",
+  "The results are ordered by the average, or by the distance from the mean, descending.",
+  "The results are unordered.",
+  "Missing interpretations:",
+  "Players who received award votes are taken from player_award_vote only, but only players whose points_won is non-NULL are counted as having received votes.",
+  "The distance from the mean is computed against the mean of the per-country averages and shown as a ratio to the country's own average.",
+  "The simple average of the per-country averages is a median rather than a mean.",
+  "The per-country average is weighted by player (each distinct player counted once per country), but the vote rows are deduplicated first by player_id, year, and award_id.",
+  "Players with a NULL death_country are labeled as a placeholder such as 'Alive' or 'Unknown' instead of NULL.",
+  "Only players who actually have award votes are included, and the mean of per-country averages includes countries whose average is NULL as 0.",
+  "Death country is derived from a different field, such as birth_country or the death_state/death_city, rather than death_country.",
+  "Points are normalized (points_won divided by points_max) before averaging."
+ ],
+ "queries": [
+  "WITH c AS (\n  SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points\n  FROM player_award_vote v\n  JOIN player p ON v.player_id = p.player_id\n  WHERE v.points_won IS NOT NULL\n  GROUP BY p.death_country\n)\nSELECT death_country, avg_points, avg_points - (SELECT AVG(avg_points) FROM c) AS diff\nFROM c;\n",
+  "WITH country_avg AS (\n    SELECT birth_country, AVG(height) AS avg_height\n    FROM player\n    WHERE birth_country IS NOT NULL AND height IS NOT NULL\n    GROUP BY birth_country\n),\noverall AS (\n    SELECT AVG(avg_height) AS mean_avg FROM country_avg\n)\nSELECT c.birth_country\nFROM country_avg c, overall o\nWHERE ABS(c.avg_height - o.mean_avg) > 0.1 * o.mean_avg;\n",
+  "SELECT p.player_id\nFROM player p\nWHERE p.player_id IN (\n    SELECT player_id FROM player_award_vote\n    UNION\n    SELECT player_id FROM manager_award_vote\n);\n"
+ ],
+ "raw": [
+  "1. Players who received award votes are taken from player_award_vote only. Join to player on player_id and group by death_country. Per country, average points_won, skipping NULL points. Report each death country, its average, and the difference (signed) between that average and the simple mean of the per-country averages. Nothing is rounded.\n2. The same as 1, but the distance is the absolute value of the difference.\n3. The same as 1, but the distance is the squared difference.\n4. The same as 1, but the distance is a percentage or ratio of the mean of the per-country averages.\n5. Players who received award votes are taken from both player_award_vote and manager_award_vote, combined. A manager_award_vote row is matched to player on player_id.\n6. Players who received award votes are taken from manager_award_vote only.\n7. Players with a NULL or empty death_country (living players, or players with unknown death country) are kept as their own group, shown as NULL or empty.\n8. Players with a NULL or empty death_country are excluded, so only actual death countries appear.\n9. Players with no matching row in player are excluded (inner join).\n10. Players with no matching row in player are kept as an unmatched group (left join from the votes).\n11. The per-country average is taken over all vote rows, so a player with several vote rows counts once per row.\n12. The per-country average is first taken per player (average points_won per player), then averaged across the players in each country.\n13. The per-country average is of points_won summed per player across all their votes, then averaged over players.\n14. \"Ignoring missing points\" means excluding rows where points_won is NULL. The mean of the per-country averages then covers only countries with at least one non-NULL points_won.\n15. \"Ignoring missing points\" means treating NULL points_won as 0, so the rows are kept in the average.\n16. Countries whose points_won values are all NULL appear with a NULL average, and the mean of the averages skips them.\n17. Countries whose points_won values are all NULL are dropped from the output.\n18. The simple average of the per-country averages is computed over the countries shown, each country weighted equally. It is not the overall row-level average of points_won.\n19. The comparison is to the overall average of points_won across all rows (weighted by vote count), not to the mean of the per-country averages.\n20. Countries are grouped by exact death_country text. Variants in spelling or case are not merged.\n21. Countries are grouped case-insensitively or after trimming whitespace.\n22. The results are ordered by country name.\n23. The results are ordered by the average, or by the distance from the mean, descending.\n24. The results are unordered.",
+  "Missing interpretations:\n\nPlayers who received award votes are taken from player_award_vote only, but only players whose points_won is non-NULL are counted as having received votes.\nThe distance from the mean is computed against the mean of the per-country averages and shown as a ratio to the country's own average.\nThe simple average of the per-country averages is a median rather than a mean.\nThe per-country average is weighted by player (each distinct player counted once per country), but the vote rows are deduplicated first by player_id, year, and award_id.\nPlayers with a NULL death_country are labeled as a placeholder such as 'Alive' or 'Unknown' instead of NULL.\nOnly players who actually have award votes are included, and the mean of per-country averages includes countries whose average is NULL as 0.\nDeath country is derived from a different field, such as birth_country or the death_state/death_city, rather than death_country.\nPoints are normalized (points_won divided by points_max) before averaging."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-f74c2bad9d",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 72819,
+  "chars_out": 5975
+ }
+}

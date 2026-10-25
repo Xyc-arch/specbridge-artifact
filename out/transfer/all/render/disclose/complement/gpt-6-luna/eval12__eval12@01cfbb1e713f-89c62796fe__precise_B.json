@@ -1,0 +1,20 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-89c62796fe",
+ "wording": "precise_B",
+ "model": "gpt-6-luna",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH counts AS (\n  SELECT\n    o.recordvault AS order_reference,\n    o.orderflow AS status,\n    COUNT(*) AS record_count\n  FROM riskandmargin AS r\n  JOIN orders AS o\n    ON r.ordervault = o.recordvault\n  GROUP BY o.recordvault, o.orderflow\n), shares AS (\n  SELECT\n    order_reference,\n    status,\n    record_count,\n    record_count::numeric / SUM(record_count) OVER (PARTITION BY status) AS share\n  FROM counts\n), compared AS (\n  SELECT\n    order_reference,\n    status,\n    record_count,\n    share,\n    share - AVG(share) OVER (PARTITION BY status) AS share_minus_status_average\n  FROM shares\n), ranked AS (\n  SELECT\n    *,\n    RANK() OVER (ORDER BY share_minus_status_average DESC) AS difference_rank\n  FROM compared\n  WHERE share_minus_status_average > 0\n)\nSELECT\n  order_reference,\n  status,\n  record_count,\n  share,\n  share_minus_status_average\nFROM ranked\nWHERE difference_rank <= 10\nORDER BY share_minus_status_average DESC;",
+  "assumptions": [
+   {
+    "assumption": "Shares are each order reference's fraction of risk/margin records among the matched orders with the same status; the average is the unweighted mean across order-reference/status combinations for that status. Ties at rank 10 are included.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": false,
+ "primary_matches": [],
+ "seconds": 6.1
+}

@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ea536393b9",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Rank the site-and-risk-status groups by share of scans and return exactly 10. Ties at the cut are broken arbitrarily.",
+ "c": {
+  "request": "Matching each scan to its site by site code (dropping scans with no matching site), group the scans by site code (`scans.zoneref`) and risk evaluation status (`riskeval`). For each group give the site code, the risk evaluation status, the average compression ratio (`pressratio`, ignoring missing values), the number of scans, and that number as a share of all matched scans. Show the top 10 by share, largest first. Don't round. Rank the site-and-risk-status groups by share of scans and return exactly 10. Ties at the cut are broken arbitrarily.",
+  "sql": "WITH group_stats AS (\n  SELECT\n    s.zoneref AS site_code,\n    st.riskeval AS risk_evaluation_status,\n    AVG(s.pressratio) AS average_compression_ratio,\n    COUNT(*) AS scan_count\n  FROM scans AS s\n  JOIN sites AS st\n    ON st.zoneregistry = s.zoneref\n  GROUP BY s.zoneref, st.riskeval\n),\nranked AS (\n  SELECT\n    site_code,\n    risk_evaluation_status,\n    average_compression_ratio,\n    scan_count,\n    scan_count * 1.0 / SUM(scan_count) OVER () AS share_of_matched_scans\n  FROM group_stats\n)\nSELECT\n  site_code,\n  risk_evaluation_status,\n  average_compression_ratio,\n  scan_count,\n  share_of_matched_scans\nFROM ranked\nORDER BY share_of_matched_scans DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Group matched scans by site code and risk evaluation status, return exactly 10 groups ranked by their share of all matched scans in descending order with ties at the cutoff broken arbitrarily, and for each report the site code, risk evaluation status, average nonmissing compression ratio, scan count, and share without rounding",
+  "sql": "WITH matched AS (\n  SELECT zoneref, arcref\n  FROM scans\n  WHERE zoneref IS NOT NULL\n    AND arcref IS NOT NULL\n), grouped AS (\n  SELECT\n    m.zoneref AS site_code,\n    s.riskeval AS risk_evaluation_status,\n    AVG(sc.pressratio) AS average_compression_ratio,\n    COUNT(*) AS scan_count\n  FROM matched m\n  JOIN sites s ON s.zoneregistry = m.zoneref\n  JOIN scans sc ON sc.zoneref = m.zoneref AND sc.arcref = m.arcref\n  GROUP BY m.zoneref, s.riskeval\n)\nSELECT\n  site_code,\n  risk_evaluation_status,\n  average_compression_ratio,\n  scan_count,\n  scan_count::numeric / SUM(scan_count) OVER () AS share\nFROM grouped\nORDER BY share DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Matching each scan to its site by site code (dropping scans with no matching site), group the scans by site code (`scans.zoneref`) and risk evaluation status (`riskeval`). For each group give the site code, the risk evaluation status, the average compression ratio (`pressratio`, ignoring missing values), the number of scans, and that number as a share of all matched scans. Sort by share from largest to smallest and keep exactly 10 rows; if several groups tie at the 10th place, any of them may fill the remaining spots. Don't round.",
+  "sql": "WITH matched_scans AS (\n  SELECT s.zoneref, si.riskeval, s.pressratio\n  FROM scans AS s\n  JOIN sites AS si ON si.zoneregistry = s.zoneref\n), grouped AS (\n  SELECT zoneref, riskeval, AVG(pressratio) AS avg_compression_ratio, COUNT(*) AS scan_count\n  FROM matched_scans\n  GROUP BY zoneref, riskeval\n)\nSELECT zoneref AS site_code,\n       riskeval AS risk_evaluation_status,\n       avg_compression_ratio,\n       scan_count,\n       scan_count * 1.0 / (SELECT COUNT(*) FROM matched_scans) AS share_of_matched_scans\nFROM grouped\nORDER BY share_of_matched_scans DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Rank the matched scan groups by site code (`scans.zoneref`) and risk evaluation status (`riskeval`) according to their share of all matched scans, largest first. Return exactly the top 10 groups; break ties at the cutoff arbitrarily. For each group, provide its site code, risk evaluation status, average compression ratio (`pressratio`, ignoring missing values), scan count, and share of all matched scans. Don\u2019t round.",
+  "sql": "WITH matched_scans AS (\n  SELECT s.zoneref, si.riskeval, s.pressratio\n  FROM scans AS s\n  JOIN sites AS si ON si.zoneregistry = s.zoneref\n), group_stats AS (\n  SELECT\n    zoneref AS site_code,\n    riskeval AS risk_evaluation_status,\n    AVG(pressratio) AS average_compression_ratio,\n    COUNT(*) AS scan_count\n  FROM matched_scans\n  GROUP BY zoneref, riskeval\n)\nSELECT\n  site_code,\n  risk_evaluation_status,\n  average_compression_ratio,\n  scan_count,\n  scan_count::numeric / SUM(scan_count) OVER () AS share_of_all_matched_scans\nFROM group_stats\nORDER BY share_of_all_matched_scans DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ }
+}

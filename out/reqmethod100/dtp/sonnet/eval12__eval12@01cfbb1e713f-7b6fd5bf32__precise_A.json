@@ -1,0 +1,40 @@
+{
+ "interpretations": [
+  "Join each risk/margin record to its order using an inner join, so records with no matching order are dropped. Group by `ordertune`, counting risk/margin records, so an order with two records counts twice. Take the average of those per-type counts. Keep the types whose count is strictly above that average. Return one row with the average count of those types and the average of (count \u2212 overall average) for those types, both unrounded.",
+  "Same as 1, but the \"average count across types\" is taken only over the types that have at least one matched record. Types with no matched records do not appear in the grouping and are not part of the average.",
+  "Same as 1, but the \"average count across types\" includes every `ordertune` value (Stop, Market, Limit, StopLimit), with a count of 0 for types that have no matched risk/margin records.",
+  "Same as 1, but the comparison uses \"at or above\" the average instead of strictly above. The question says \"above\", so this is an unlikely reading.",
+  "Same as 1, but the output is two columns: the average count of the above-average types, and the average excess over the overall average. The excess is the above-average types' average count minus the overall average, which is mathematically the same as the average of the individual excesses.",
+  "Same as 1, but the \"average count\" is computed over distinct orders per type instead of risk/margin records. This contradicts the statement that an order with two records counts twice, so it is unlikely.",
+  "Same as 1, but orders with a null `ordertune` are grouped as their own type and included in the per-type average. This is only possible if null values exist in the data.",
+  "Same as 1, but orders with a null `ordertune` are excluded from the grouping and from the average.",
+  "Same as 1, but \"unrounded\" means no rounding functions or casts are applied. The result keeps the full floating-point or decimal precision of the average.",
+  "Same as 1, but if no type is above average, for example when all counts are equal, the result is either no row or one row with null averages. This is an edge case.",
+  "Interpretations 1 to 10 cover most readings, but these are missing:",
+  "Same as 1, but the \"average count across types\" is a record-weighted average, meaning total matched records divided by number of types. That is the same as 1 when each type's count is used once, so this is only a variant if the average is taken over orders rather than types.",
+  "Same as 1, but the excess is measured against the average of the above-average types themselves (mean absolute deviation within that group), not against the overall average across types.",
+  "Same as 1, but the average excess is taken over all types, with negative or zero excesses counted as 0 for types at or below the average, instead of only over the above-average types.",
+  "Same as 1, but only risk/margin records with a non-null `risk_margin_profile` are counted.",
+  "Same as 1, but the join is a left join from orders, so orders with no risk/margin records count as one row or as zero for their type. This contradicts \"dropping those without a match\"."
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT o.ordertune, COUNT(*) AS cnt\n  FROM riskandmargin r\n  INNER JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY o.ordertune\n),\noverall AS (\n  SELECT AVG(cnt) AS avg_cnt FROM counts\n)\nSELECT AVG(c.cnt) AS avg_count, AVG(c.cnt - ov.avg_cnt) AS avg_diff\nFROM counts c\nCROSS JOIN overall ov\nWHERE c.cnt > ov.avg_cnt;\n",
+  "SELECT AVG(cnt) FROM (SELECT ordertune, COUNT(*) AS cnt FROM orders GROUP BY ordertune);\n",
+  "WITH types(t) AS (VALUES ('Stop'),('Market'),('Limit'),('StopLimit'))\nSELECT AVG(cnt) AS average_count\nFROM (\n  SELECT t,\n         (SELECT COUNT(*)\n          FROM orders o\n          JOIN riskandmargin r ON r.ordervault = o.recordvault\n          WHERE o.ordertune = types.t) AS cnt\n  FROM types\n);\n",
+  "WITH type_counts AS (\n  SELECT ordertune, COUNT(*) AS cnt\n  FROM orders\n  GROUP BY ordertune\n),\noverall AS (\n  SELECT AVG(cnt) AS avg_cnt FROM type_counts\n)\nSELECT AVG(t.cnt) AS avg_count_above_average,\n       AVG(t.cnt) - o.avg_cnt AS avg_excess\nFROM type_counts t\nCROSS JOIN overall o\nWHERE t.cnt > o.avg_cnt;\n",
+  "SELECT o.ordertune, AVG(o.dealcount) AS average_count\nFROM orders o\nWHERE o.recordvault IN (SELECT ordervault FROM riskandmargin)\nGROUP BY o.ordertune;\n"
+ ],
+ "raw": [
+  "1. Join each risk/margin record to its order using an inner join, so records with no matching order are dropped. Group by `ordertune`, counting risk/margin records, so an order with two records counts twice. Take the average of those per-type counts. Keep the types whose count is strictly above that average. Return one row with the average count of those types and the average of (count \u2212 overall average) for those types, both unrounded.\n\n2. Same as 1, but the \"average count across types\" is taken only over the types that have at least one matched record. Types with no matched records do not appear in the grouping and are not part of the average.\n\n3. Same as 1, but the \"average count across types\" includes every `ordertune` value (Stop, Market, Limit, StopLimit), with a count of 0 for types that have no matched risk/margin records.\n\n4. Same as 1, but the comparison uses \"at or above\" the average instead of strictly above. The question says \"above\", so this is an unlikely reading.\n\n5. Same as 1, but the output is two columns: the average count of the above-average types, and the average excess over the overall average. The excess is the above-average types' average count minus the overall average, which is mathematically the same as the average of the individual excesses.\n\n6. Same as 1, but the \"average count\" is computed over distinct orders per type instead of risk/margin records. This contradicts the statement that an order with two records counts twice, so it is unlikely.\n\n7. Same as 1, but orders with a null `ordertune` are grouped as their own type and included in the per-type average. This is only possible if null values exist in the data.\n\n8. Same as 1, but orders with a null `ordertune` are excluded from the grouping and from the average.\n\n9. Same as 1, but \"unrounded\" means no rounding functions or casts are applied. The result keeps the full floating-point or decimal precision of the average.\n\n10. Same as 1, but if no type is above average, for example when all counts are equal, the result is either no row or one row with null averages. This is an edge case.",
+  "Interpretations 1 to 10 cover most readings, but these are missing:\n\nSame as 1, but the \"average count across types\" is a record-weighted average, meaning total matched records divided by number of types. That is the same as 1 when each type's count is used once, so this is only a variant if the average is taken over orders rather than types.\n\nSame as 1, but the excess is measured against the average of the above-average types themselves (mean absolute deviation within that group), not against the overall average across types.\n\nSame as 1, but the average excess is taken over all types, with negative or zero excesses counted as 0 for types at or below the average, instead of only over the above-average types.\n\nSame as 1, but only risk/margin records with a non-null `risk_margin_profile` are counted.\n\nSame as 1, but the join is a left join from orders, so orders with no risk/margin records count as one row or as zero for their type. This contradicts \"dropping those without a match\"."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7b6fd5bf32",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107736,
+  "chars_out": 5439
+ }
+}

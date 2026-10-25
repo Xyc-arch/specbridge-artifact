@@ -1,0 +1,23 @@
+{
+ "clauses": [
+  "Report the signed difference: share minus the average share, so values can be negative.",
+  "Report the absolute difference between the share and the average share, so values are never negative."
+ ],
+ "readings": [
+  "For each time-in-force value (`orders.timespan`), looking at risk/margin records matched to their order (`riskandmargin.ordervault` = `orders.recordvault`; unmatched records dropped), show the time in force, the number of distinct orders with risk/margin records (an order with several records counts once), that number's share of the total across all time-in-force values, and how much the share differs from the average share across the time-in-force values. Don't round. Report the signed difference: share minus the average share, so values can be negative.",
+  "For each time-in-force value (`orders.timespan`), looking at risk/margin records matched to their order (`riskandmargin.ordervault` = `orders.recordvault`; unmatched records dropped), show the time in force, the number of distinct orders with risk/margin records (an order with several records counts once), that number's share of the total across all time-in-force values, and how much the share differs from the average share across the time-in-force values. Don't round. Report the absolute difference between the share and the average share, so values are never negative."
+ ],
+ "queries": [
+  "SELECT\n  o.timespan AS time_in_force,\n  COUNT(DISTINCT o.recordvault) AS order_count,\n  COUNT(DISTINCT o.recordvault) * 1.0 / SUM(COUNT(DISTINCT o.recordvault)) OVER () AS share,\n  COUNT(DISTINCT o.recordvault) * 1.0 / SUM(COUNT(DISTINCT o.recordvault)) OVER () - AVG(COUNT(DISTINCT o.recordvault) * 1.0 / SUM(COUNT(DISTINCT o.recordvault)) OVER ()) OVER () AS share_diff_from_avg\nFROM riskandmargin r\nJOIN orders o ON r.ordervault = o.recordvault\nGROUP BY o.timespan;\n",
+  "WITH counts AS (\n  SELECT o.timespan AS timespan, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM riskandmargin r\n  JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY o.timespan\n),\nshares AS (\n  SELECT timespan, order_count,\n         order_count * 1.0 / (SELECT SUM(order_count) FROM counts) AS share\n  FROM counts\n)\nSELECT timespan,\n       order_count,\n       share,\n       ABS(share - (SELECT AVG(share) FROM shares)) AS share_diff_from_avg\nFROM shares;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40469,
+  "chars_out": 1176
+ }
+}

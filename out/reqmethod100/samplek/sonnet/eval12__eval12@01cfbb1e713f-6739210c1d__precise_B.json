@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH per_status AS (SELECT COALESCE(s.insurstat, 'Missing') AS insurstat, COUNT(DISTINCT sc.zoneref) AS site_count FROM scanconservation sc LEFT JOIN sites s ON s.zoneregistry = sc.zoneref GROUP BY COALESCE(s.insurstat, 'Missing')) SELECT insurstat, site_count, CAST(site_count AS REAL) / SUM(site_count) OVER () AS share FROM per_status",
+  "WITH per_status AS (SELECT s.insurstat AS insurstat, COUNT(DISTINCT sc.zoneref) AS site_count FROM scanconservation sc LEFT JOIN sites s ON s.zoneregistry = sc.zoneref GROUP BY s.insurstat) SELECT insurstat, site_count, CAST(site_count AS REAL) / SUM(site_count) OVER () AS share FROM per_status",
+  "WITH per_status AS (SELECT s.insurstat AS insurstat, COUNT(DISTINCT c.zoneref) AS site_count FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.insurstat) SELECT insurstat, site_count, CAST(site_count AS REAL) / SUM(site_count) OVER () AS share FROM per_status"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_status AS (SELECT COALESCE(s.insurstat, 'Missing') AS insurstat, COUNT(DISTINCT sc.zoneref) AS site_count FROM scanconservation sc LEFT JOIN sites s ON s.zoneregistry = sc.zoneref GROUP BY COALESCE(s.insurstat, 'Missing')) SELECT insurstat, site_count, CAST(site_count AS REAL) / SUM(site_count) OVER () AS share FROM per_status",
+   "assumptions": [
+    {
+     "assumption": "A missing insurance status (NULL insurstat, or no matching site row) is grouped under the label 'Missing'. The foreign key means every zoneref should match a site, so the unmatched case is unlikely to occur.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The share is the status's distinct-site count divided by the sum of the per-status counts. Each site has one status, so this sum equals the total number of distinct sites with conservation records. The share is a plain division with no rounding.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_status AS (SELECT s.insurstat AS insurstat, COUNT(DISTINCT sc.zoneref) AS site_count FROM scanconservation sc LEFT JOIN sites s ON s.zoneregistry = sc.zoneref GROUP BY s.insurstat) SELECT insurstat, site_count, CAST(site_count AS REAL) / SUM(site_count) OVER () AS share FROM per_status",
+   "assumptions": [
+    {
+     "assumption": "Conservation records are matched to sites via scanconservation.zoneref = sites.zoneregistry. A LEFT JOIN keeps unmatched records, which fall into the NULL group. The foreign key makes unmatched records unlikely.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A missing status means a NULL insurstat. It is shown as its own group with a NULL status value, not relabeled. Empty strings are not treated as missing.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Each site has exactly one insurance status, so the per-status distinct counts are disjoint. The share denominator is therefore the total number of distinct sites with conservation records.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_status AS (SELECT s.insurstat AS insurstat, COUNT(DISTINCT c.zoneref) AS site_count FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.insurstat) SELECT insurstat, site_count, CAST(site_count AS REAL) / SUM(site_count) OVER () AS share FROM per_status",
+   "assumptions": [
+    {
+     "assumption": "Conservation records are matched to sites with an inner join on zoneref = zoneregistry. The foreign key means every record has a site, so none are dropped.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL insurstat forms its own group. GROUP BY puts NULLs together, so the status column shows NULL for that group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Each site has exactly one insurance status. So the per-status distinct counts add up to the total number of distinct sites, and the share is each count divided by that sum. The share is not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6739210c1d",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123201,
+  "chars_out": 2922
+ }
+}

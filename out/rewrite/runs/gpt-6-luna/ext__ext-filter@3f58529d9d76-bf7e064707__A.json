@@ -1,0 +1,38 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-bf7e064707",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Payments of exactly 4.99 are included along with larger ones.",
+ "b": {
+  "request": "Include payments with an amount of 4.99 or more that link through a rental to an inventory item; group by rental and inventory store, then report each store ID with the unrounded average per-rental payment total and average payment count, ignoring missing values.",
+  "sql": "SELECT i.store_id, AVG(rental_totals.total_amount) AS avg_per_rental_payment_total, AVG(rental_totals.payment_count) AS avg_payment_count\nFROM (\n  SELECT p.rental_id, SUM(p.amount) AS total_amount, COUNT(p.payment_id) AS payment_count\n  FROM payment p\n  WHERE p.amount >= 4.99\n    AND p.rental_id IS NOT NULL\n  GROUP BY p.rental_id\n) AS rental_totals\nJOIN rental r ON r.rental_id = rental_totals.rental_id\nJOIN inventory i ON i.inventory_id = r.inventory_id\nGROUP BY i.store_id;",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "Include payments with an amount of 4.99 or more that link through a rental to an inventory item; group by rental and inventory store, then report each store ID with the unrounded average per-rental payment total and average payment count, ignoring missing values."
+ },
+ "a": {
+  "request": "Take the payments of at least 4.99 that can be linked to a rental and, through that rental, to an inventory item (leave out payments without such a match). For each rental and store (`inventory.store_id`), total the payment amounts and count the payments. Then for each store, show the store id, the average of those per-rental totals, and the average number of payments per rental (both unrounded, ignoring missing values).",
+  "sql": "SELECT i.store_id, AVG(rental_totals.total_amount) AS avg_total_amount_per_rental, AVG(rental_totals.payment_count) AS avg_payments_per_rental\nFROM (\n  SELECT p.rental_id, i.store_id, SUM(p.amount) AS total_amount, COUNT(*) AS payment_count\n  FROM payment p\n  JOIN rental r ON r.rental_id = p.rental_id\n  JOIN inventory i ON i.inventory_id = r.inventory_id\n  WHERE p.amount >= 4.99\n  GROUP BY p.rental_id, i.store_id\n) AS rental_totals\nGROUP BY i.store_id;",
+  "executes": false,
+  "matches": []
+ },
+ "d": {
+  "request": "Include payments with amount \u2265 4.99 that link through a rental to an inventory item; for each rental and its inventory store, sum payment amounts and count payments, then report each store\u2019s ID, the unrounded average of per-rental payment totals, and the unrounded average number of payments per rental, ignoring missing values.",
+  "sql": "SELECT i.store_id, AVG(rental_totals.payment_total) AS avg_payment_total_per_rental, AVG(rental_totals.payment_count) AS avg_payments_per_rental\nFROM (\n  SELECT p.rental_id, SUM(p.amount) AS payment_total, COUNT(p.payment_id) AS payment_count\n  FROM payment p\n  JOIN rental r ON r.rental_id = p.rental_id\n  JOIN inventory i ON i.inventory_id = r.inventory_id\n  WHERE p.amount >= 4.99\n  GROUP BY p.rental_id\n) AS rental_totals\nJOIN rental r ON r.rental_id = rental_totals.rental_id\nJOIN inventory i ON i.inventory_id = r.inventory_id\nGROUP BY i.store_id;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Applying a 4.99 cutoff on the payment amount, take the qualifying payments that can be linked to a rental and, through that rental, to an inventory item (leave out payments without such a match). For each rental and store (`inventory.store_id`), total the payment amounts and count the payments. Then for each store, show the store id, the average of those per-rental totals, and the average number of payments per rental (both unrounded, ignoring missing values). Payments of exactly 4.99 are included along with larger ones.",
+  "sql": "WITH rental_store_totals AS (\n  SELECT r.rental_id, i.store_id,\n         SUM(p.amount) AS rental_total,\n         COUNT(p.payment_id) AS payment_count\n  FROM payment p\n  JOIN rental r ON r.rental_id = p.rental_id\n  JOIN inventory i ON i.inventory_id = r.inventory_id\n  WHERE p.amount >= 4.99\n  GROUP BY r.rental_id, i.store_id\n)\nSELECT store_id,\n       AVG(rental_total) AS avg_rental_total,\n       AVG(payment_count) AS avg_payments_per_rental\nFROM rental_store_totals\nGROUP BY store_id;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6
+}

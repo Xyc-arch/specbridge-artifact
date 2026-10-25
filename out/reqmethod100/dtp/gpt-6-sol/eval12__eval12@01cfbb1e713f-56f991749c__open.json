@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "Group all cases by `brokrepstat`, treating NULL as a status. Return groups whose average `modelconf` exceeds the average across all cases; show the absolute difference from that case average and divide each group\u2019s average by the unweighted mean of the qualifying groups\u2019 averages.",
+  "Use the same grouping and qualifying rule, but report \u201chow far above average\u201d as a percentage of the all-case average.",
+  "Group all cases by `brokrepstat`, treating NULL as a status. Return groups whose average `modelconf` exceeds the unweighted mean of all status averages; show the absolute difference from that mean and divide by the unweighted mean of the qualifying groups\u2019 averages.",
+  "Use the same status-average baseline and qualifying rule, but report \u201chow far above average\u201d as a percentage of the mean of all status averages.",
+  "Identify cases whose `modelconf` exceeds the average across all cases, then group those cases by `brokrepstat`, treating NULL as a status. Show each group\u2019s average confidence, its difference from the all-case average, and its average divided by the mean of the returned groups\u2019 averages.",
+  "In every interpretation, omit NULL `modelconf` values from averages, preserve full precision, and return no rows when a required reference average is NULL.",
+  "Identify cases whose `modelconf` exceeds the average across all cases, then group those cases by `brokrepstat`, treating NULL as a status. Show each group\u2019s average confidence, its percentage above the all-case average, and its average divided by the unweighted mean of the returned groups\u2019 averages. Ignore NULL `modelconf` values, preserve full precision, and return no rows if a required reference average is NULL."
+ ],
+ "queries": [
+  "WITH group_averages AS (\n    SELECT brokrepstat, AVG(modelconf) AS group_avg\n    FROM compliancecase\n    GROUP BY brokrepstat\n),\nqualifying AS (\n    SELECT brokrepstat, group_avg, (SELECT AVG(modelconf) FROM compliancecase) AS case_avg\n    FROM group_averages\n    WHERE group_avg > (SELECT AVG(modelconf) FROM compliancecase)\n)\nSELECT\n    brokrepstat,\n    ABS(group_avg - case_avg) AS absolute_difference,\n    group_avg / (SELECT AVG(group_avg) FROM qualifying) AS ratio_to_qualifying_mean\nFROM qualifying",
+  "WITH status_averages AS (\n    SELECT brokrepstat, AVG(modelconf) AS avg_modelconf\n    FROM compliancecase\n    GROUP BY brokrepstat\n),\noverall_mean AS (\n    SELECT AVG(avg_modelconf) AS mean_of_averages\n    FROM status_averages\n),\nqualifying AS (\n    SELECT s.brokrepstat, s.avg_modelconf, o.mean_of_averages\n    FROM status_averages AS s\n    CROSS JOIN overall_mean AS o\n    WHERE s.avg_modelconf > o.mean_of_averages\n)\nSELECT\n    brokrepstat,\n    ABS(avg_modelconf - mean_of_averages) AS absolute_difference,\n    ABS(avg_modelconf - mean_of_averages)\n        / (SELECT AVG(avg_modelconf) FROM qualifying) AS divided_difference\nFROM qualifying",
+  "WITH all_case_average AS (\n    SELECT AVG(modelconf) AS avg_confidence\n    FROM compliancecase\n),\nstatus_averages AS (\n    SELECT\n        brokrepstat,\n        AVG(modelconf) AS avg_confidence\n    FROM compliancecase\n    WHERE modelconf > (SELECT avg_confidence FROM all_case_average)\n    GROUP BY brokrepstat\n)\nSELECT\n    brokrepstat,\n    avg_confidence,\n    avg_confidence - (SELECT avg_confidence FROM all_case_average) AS difference_from_all_case_average,\n    avg_confidence / (SELECT AVG(avg_confidence) FROM status_averages) AS ratio_to_group_average_mean\nFROM status_averages"
+ ],
+ "raw": [
+  "1. Group all cases by `brokrepstat`, treating NULL as a status. Return groups whose average `modelconf` exceeds the average across all cases; show the absolute difference from that case average and divide each group\u2019s average by the unweighted mean of the qualifying groups\u2019 averages.\n2. Use the same grouping and qualifying rule, but report \u201chow far above average\u201d as a percentage of the all-case average.\n3. Group all cases by `brokrepstat`, treating NULL as a status. Return groups whose average `modelconf` exceeds the unweighted mean of all status averages; show the absolute difference from that mean and divide by the unweighted mean of the qualifying groups\u2019 averages.\n4. Use the same status-average baseline and qualifying rule, but report \u201chow far above average\u201d as a percentage of the mean of all status averages.\n5. Identify cases whose `modelconf` exceeds the average across all cases, then group those cases by `brokrepstat`, treating NULL as a status. Show each group\u2019s average confidence, its difference from the all-case average, and its average divided by the mean of the returned groups\u2019 averages.\n\nIn every interpretation, omit NULL `modelconf` values from averages, preserve full precision, and return no rows when a required reference average is NULL.",
+  "Identify cases whose `modelconf` exceeds the average across all cases, then group those cases by `brokrepstat`, treating NULL as a status. Show each group\u2019s average confidence, its percentage above the all-case average, and its average divided by the unweighted mean of the returned groups\u2019 averages. Ignore NULL `modelconf` values, preserve full precision, and return no rows if a required reference average is NULL."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-56f991749c",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 137904,
+  "chars_out": 3731
+ }
+}

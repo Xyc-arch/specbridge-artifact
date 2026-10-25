@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6c1b7822e6",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "The baseline is the average quantity over all individual order items.",
+ "c": {
+  "request": "For each order in `Order_Items`, how does its average `product_quantity` (ignoring missing values) compare with the overall average quantity? Show the order id, the order's average quantity, and the order's average minus the overall average, with results only if the overall average exists. Sort by the difference from largest to smallest, with missing differences last, and keep the top 10. The baseline is the average quantity over all individual order items.",
+  "sql": "WITH quantities AS (SELECT order_id, CAST(NULLIF(TRIM(product_quantity), '') AS REAL) AS quantity FROM Order_Items), overall AS (SELECT AVG(quantity) AS overall_avg FROM quantities), per_order AS (SELECT order_id, AVG(quantity) AS order_avg FROM quantities GROUP BY order_id) SELECT p.order_id, p.order_avg, p.order_avg - o.overall_avg AS difference FROM per_order AS p CROSS JOIN overall AS o WHERE o.overall_avg IS NOT NULL ORDER BY difference IS NULL, difference DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each order represented in `Order_Items`, calculate the average of its nonmissing `product_quantity` values and subtract the average of nonmissing `product_quantity` values across all individual order items; return the order id, order average, and difference only when the overall average exists, sorted by difference descending with missing differences last, limited to 10 orders",
+  "sql": "WITH overall AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items WHERE product_quantity IS NOT NULL), order_averages AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS order_avg FROM Order_Items WHERE product_quantity IS NOT NULL GROUP BY order_id) SELECT oi.order_id, oa.order_avg, oa.order_avg - overall.overall_avg AS difference FROM (SELECT DISTINCT order_id FROM Order_Items) AS oi LEFT JOIN order_averages AS oa ON oa.order_id = oi.order_id CROSS JOIN overall WHERE overall.overall_avg IS NOT NULL ORDER BY difference DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each order id in `Order_Items`, compute the order's average `product_quantity` (ignoring missing values). Then compute a baseline by averaging `product_quantity` directly over all individual order-item rows, so each item counts once and orders with more items weigh more (ignoring missing values). Return rows only if this baseline exists. List the order id, the order's average quantity, and the order's average minus the baseline. Sort by that difference from largest to smallest, with missing differences last, and keep the top 10.",
+  "sql": "WITH baseline AS (SELECT AVG(CAST(product_quantity AS REAL)) AS avg_quantity FROM Order_Items), order_averages AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_quantity FROM Order_Items GROUP BY order_id) SELECT o.order_id, o.avg_quantity AS order_avg_quantity, o.avg_quantity - b.avg_quantity AS difference_from_baseline FROM order_averages AS o CROSS JOIN baseline AS b WHERE b.avg_quantity IS NOT NULL ORDER BY difference_from_baseline IS NULL, difference_from_baseline DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each order in `Order_Items`, how does its average non-missing `product_quantity` compare with the average non-missing quantity across all individual order items? Show the order id, the order\u2019s average quantity, and the difference between the order\u2019s average and the overall average. Return results only if the overall average exists. Sort by the difference from largest to smallest, with missing differences last, and keep the top 10.",
+  "sql": "WITH overall AS (SELECT AVG(CAST(NULLIF(TRIM(product_quantity), '') AS REAL)) AS average_quantity FROM Order_Items), order_averages AS (SELECT order_id, AVG(CAST(NULLIF(TRIM(product_quantity), '') AS REAL)) AS average_quantity FROM Order_Items GROUP BY order_id) SELECT o.order_id, o.average_quantity AS order_average_quantity, o.average_quantity - a.average_quantity AS difference_from_overall FROM order_averages AS o CROSS JOIN overall AS a WHERE a.average_quantity IS NOT NULL ORDER BY difference_from_overall IS NULL, difference_from_overall DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

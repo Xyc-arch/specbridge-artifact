@@ -1,0 +1,43 @@
+{
+ "interpretations": [
+  "Count distinct projects (by `arcregistry`) per `fundflux` among projects that have at least one `scanqc` record, via an inner join. Rows with NULL `fundflux` form one group. Output: funding source, project count, count \u00f7 total of all counts, count \u00f7 average count per group.",
+  "Same as 1, but \"missing funding source\" also covers empty-string or whitespace-only `fundflux` values, which are grouped with NULL in a single \"missing\" group.",
+  "Same as 1, but NULL and empty-string `fundflux` values form separate groups.",
+  "Same as 1, but the \"fraction of the total\" is expressed as a percentage (\u00d7100) instead of a 0\u20131 fraction.",
+  "Same as 1, but the \"total across all funding sources\" is the sum of the per-group distinct project counts. A project cannot appear in two groups, because each project has one `fundflux`, so this equals the total number of distinct projects with QC records.",
+  "Same as 1, but the \"total\" is the number of all projects in `projects`, including projects with no QC records. The fraction is then count \u00f7 total projects.",
+  "Same as 1, but the \"average per funding source\" is the average over only the funding-source groups that appear in the result. The ratio is count \u00f7 (total distinct projects \u00f7 number of groups).",
+  "Same as 1, but the \"average per funding source\" is taken over all distinct `fundflux` values in `projects`, including values with zero projects that have QC records.",
+  "Same as 1, but the funding-source groups are case- or whitespace-normalized (e.g. 'Government' and 'government ' are merged) before counting.",
+  "Same as 1, but the count is of QC records (`scanqc` rows) per funding source rather than distinct projects.",
+  "Same as 1, but \"without rounding\" means the ratios are returned as full-precision decimals (floating-point or numeric), not as integer-divided or rounded values.",
+  "Same as 1, but \"without rounding\" means avoiding integer division. The count is cast to a decimal before the divisions, so the fraction and ratio are not truncated to 0.",
+  "Output columns in the order funding source, project count, fraction of total, ratio to average, with no particular row ordering.",
+  "Same as 13, but rows are ordered by project count descending, or by funding source.",
+  "Missing interpretations:",
+  "Same as 1, but the total and average are computed over all QC-matched projects, with the join keeping only distinct (project, funding source) pairs, so QC records are deduplicated before the join. This gives the same counts as 1 but is an explicit alternative implementation.",
+  "Same as 1, but \"missing funding source\" covers common placeholder strings such as 'N/A', 'Unknown', or 'None' as well as NULL, and these are grouped together.",
+  "Same as 1, but the ratio to the average is expressed as a percentage (\u00d7100) instead of a plain ratio.",
+  "Same as 1, but the fraction and ratio columns are returned as text or are formatted with a fixed number of decimals, rather than raw numeric values."
+ ],
+ "queries": [
+  "SELECT fundflux,\n       COUNT(DISTINCT p.arcregistry) AS project_count,\n       COUNT(DISTINCT p.arcregistry) * 1.0 / SUM(COUNT(DISTINCT p.arcregistry)) OVER () AS ratio_to_total,\n       COUNT(DISTINCT p.arcregistry) * 1.0 / AVG(COUNT(DISTINCT p.arcregistry)) OVER () AS ratio_to_avg\nFROM projects p\nINNER JOIN scanqc q ON q.arcref = p.arcregistry\nGROUP BY p.fundflux;\n",
+  "SELECT CASE WHEN fundflux IS NULL OR TRIM(fundflux) = '' THEN NULL ELSE fundflux END AS fundflux, COUNT(*) AS project_count\nFROM projects\nGROUP BY CASE WHEN fundflux IS NULL OR TRIM(fundflux) = '' THEN NULL ELSE fundflux END;\n",
+  "SELECT fundflux, COUNT(*) AS project_count FROM projects GROUP BY fundflux;\n",
+  "SELECT p.fundflux, COUNT(DISTINCT q.arcref) AS project_count\nFROM scanqc q\nJOIN projects p ON q.arcref = p.arcregistry\nGROUP BY p.fundflux\nUNION ALL\nSELECT 'Total', SUM(cnt)\nFROM (\n  SELECT COUNT(DISTINCT q.arcref) AS cnt\n  FROM scanqc q\n  JOIN projects p ON q.arcref = p.arcregistry\n  GROUP BY p.fundflux\n);\n",
+  "SELECT COUNT(DISTINCT q.arcref) * 1.0 / (SELECT COUNT(*) FROM projects) AS fraction\nFROM scanqc q;\n"
+ ],
+ "raw": [
+  "1. Count distinct projects (by `arcregistry`) per `fundflux` among projects that have at least one `scanqc` record, via an inner join. Rows with NULL `fundflux` form one group. Output: funding source, project count, count \u00f7 total of all counts, count \u00f7 average count per group.\n2. Same as 1, but \"missing funding source\" also covers empty-string or whitespace-only `fundflux` values, which are grouped with NULL in a single \"missing\" group.\n3. Same as 1, but NULL and empty-string `fundflux` values form separate groups.\n4. Same as 1, but the \"fraction of the total\" is expressed as a percentage (\u00d7100) instead of a 0\u20131 fraction.\n5. Same as 1, but the \"total across all funding sources\" is the sum of the per-group distinct project counts. A project cannot appear in two groups, because each project has one `fundflux`, so this equals the total number of distinct projects with QC records.\n6. Same as 1, but the \"total\" is the number of all projects in `projects`, including projects with no QC records. The fraction is then count \u00f7 total projects.\n7. Same as 1, but the \"average per funding source\" is the average over only the funding-source groups that appear in the result. The ratio is count \u00f7 (total distinct projects \u00f7 number of groups).\n8. Same as 1, but the \"average per funding source\" is taken over all distinct `fundflux` values in `projects`, including values with zero projects that have QC records.\n9. Same as 1, but the funding-source groups are case- or whitespace-normalized (e.g. 'Government' and 'government ' are merged) before counting.\n10. Same as 1, but the count is of QC records (`scanqc` rows) per funding source rather than distinct projects.\n11. Same as 1, but \"without rounding\" means the ratios are returned as full-precision decimals (floating-point or numeric), not as integer-divided or rounded values.\n12. Same as 1, but \"without rounding\" means avoiding integer division. The count is cast to a decimal before the divisions, so the fraction and ratio are not truncated to 0.\n13. Output columns in the order funding source, project count, fraction of total, ratio to average, with no particular row ordering.\n14. Same as 13, but rows are ordered by project count descending, or by funding source.",
+  "Missing interpretations:\n\nSame as 1, but the total and average are computed over all QC-matched projects, with the join keeping only distinct (project, funding source) pairs, so QC records are deduplicated before the join. This gives the same counts as 1 but is an explicit alternative implementation.\nSame as 1, but \"missing funding source\" covers common placeholder strings such as 'N/A', 'Unknown', or 'None' as well as NULL, and these are grouped together.\nSame as 1, but the ratio to the average is expressed as a percentage (\u00d7100) instead of a plain ratio.\nSame as 1, but the fraction and ratio columns are returned as text or are formatted with a fixed number of decimals, rather than raw numeric values."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-8f823fb0da",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327452,
+  "chars_out": 5244
+ }
+}

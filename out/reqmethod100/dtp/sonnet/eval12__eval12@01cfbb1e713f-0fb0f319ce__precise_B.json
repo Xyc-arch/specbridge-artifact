@@ -1,0 +1,54 @@
+{
+ "interpretations": [
+  "Invoice average = AVG(InvoiceLine.UnitPrice) per invoice, unweighted by Quantity; country = Customer.Country.",
+  "Invoice average = quantity-weighted average of InvoiceLine.UnitPrice per invoice (SUM(UnitPrice*Quantity)/SUM(Quantity)).",
+  "Invoice average = AVG(InvoiceLine.UnitPrice) per invoice, but country = Invoice.BillingCountry instead of Customer.Country.",
+  "Invoice average = AVG(Track.UnitPrice) of the tracks on the invoice's lines, instead of InvoiceLine.UnitPrice.",
+  "Overall average = simple average of all invoice averages, so each invoice counts equally. This is the main reading.",
+  "Overall average = average of UnitPrice across all invoice lines, so invoices with more lines count more.",
+  "Invoices with no invoice lines are excluded, because their average is NULL.",
+  "Invoices with no invoice lines are kept, with a NULL average, deviation and adjusted deviation. These sort last under \"blanks last\".",
+  "Country average deviation = average of the deviations over that country's invoices, so each invoice counts equally.",
+  "Country average deviation = average of each customer's average deviation within the country, so each customer counts equally.",
+  "The last value = invoice deviation minus its country's average deviation, sorted descending with NULLs last.",
+  "Top 10 with ties = all invoices whose last value is greater than or equal to the 10th highest value, which can return more than 10 rows.",
+  "Top 10 with ties = all invoices ranked 10 or better under RANK, which is the same set as reading 12.",
+  "Top 10 with ties = all invoices ranked 10 or better under DENSE_RANK, which returns the invoices with the 10 highest distinct values.",
+  "Top 10 with ties = exactly 10 rows, with ties broken arbitrarily or by invoice id. This ignores the \"including ties\" instruction.",
+  "Unrounded output = raw floating-point or decimal values as computed.",
+  "Output columns = invoice id, country, average unit price, deviation from the overall average, and deviation minus country average deviation.",
+  "Customers with NULL Country form their own group, so their invoices are averaged together.",
+  "Customers with NULL Country are excluded from the country averages.",
+  "Customers with NULL Country get a NULL adjusted deviation, because the country group is blank.",
+  "Missing interpretations:",
+  "Invoices whose customer has a NULL Country are kept in the output, with a NULL country, because the join to Customer is still valid. Their country average deviation is computed over the NULL-country group, so the adjusted value is not NULL.",
+  "Country is matched case-sensitively or with trimmed text, so variants like \"USA\" and \"usa\" form separate groups.",
+  "Overall average is taken over all invoices that have invoice lines, which excludes empty invoices even when those invoices are kept in the output.",
+  "Invoice average weights each line by Quantity in the overall average, but not in the per-invoice average. This is a mixed weighting.",
+  "Top 10 with ties = the top 10 rows after a stable sort, with ties included only when they are exactly equal in floating-point values. Near-equal values caused by floating-point error are treated as distinct.",
+  "Sort order treats NULLs as lowest and places them last, which is the same result as \"blanks last\". Alternatively, the NULL ordering follows the database default, so NULLs could come first under DESC in some engines.",
+  "Invoice average uses InvoiceLine.UnitPrice summed across duplicate track lines, with lines for the same track on one invoice counted once (DISTINCT UnitPrice or DISTINCT TrackId).",
+  "Average unit price is AVG(DISTINCT InvoiceLine.UnitPrice), so repeated prices within an invoice are collapsed."
+ ],
+ "queries": [
+  "SELECT c.Country, AVG(t.inv_avg) AS AverageInvoiceAverage\nFROM Customer c\nJOIN Invoice i ON i.CustomerId = c.CustomerId\nJOIN (\n  SELECT InvoiceId, AVG(UnitPrice) AS inv_avg\n  FROM InvoiceLine\n  GROUP BY InvoiceId\n) t ON t.InvoiceId = i.InvoiceId\nGROUP BY c.Country;\n",
+  "SELECT InvoiceId, SUM(UnitPrice * Quantity) * 1.0 / SUM(Quantity) AS InvoiceAverage FROM InvoiceLine GROUP BY InvoiceId",
+  "SELECT i.BillingCountry, AVG(il.UnitPrice) FROM Invoice i JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId GROUP BY i.BillingCountry",
+  "SELECT il.InvoiceId, AVG(t.UnitPrice) FROM InvoiceLine il JOIN Track t ON il.TrackId = t.TrackId GROUP BY il.InvoiceId",
+  "SELECT AVG(Total) FROM Invoice;\n",
+  "SELECT AVG(UnitPrice) FROM InvoiceLine"
+ ],
+ "raw": [
+  "1. Invoice average = AVG(InvoiceLine.UnitPrice) per invoice, unweighted by Quantity; country = Customer.Country.\n2. Invoice average = quantity-weighted average of InvoiceLine.UnitPrice per invoice (SUM(UnitPrice*Quantity)/SUM(Quantity)).\n3. Invoice average = AVG(InvoiceLine.UnitPrice) per invoice, but country = Invoice.BillingCountry instead of Customer.Country.\n4. Invoice average = AVG(Track.UnitPrice) of the tracks on the invoice's lines, instead of InvoiceLine.UnitPrice.\n5. Overall average = simple average of all invoice averages, so each invoice counts equally. This is the main reading.\n6. Overall average = average of UnitPrice across all invoice lines, so invoices with more lines count more.\n7. Invoices with no invoice lines are excluded, because their average is NULL.\n8. Invoices with no invoice lines are kept, with a NULL average, deviation and adjusted deviation. These sort last under \"blanks last\".\n9. Country average deviation = average of the deviations over that country's invoices, so each invoice counts equally.\n10. Country average deviation = average of each customer's average deviation within the country, so each customer counts equally.\n11. The last value = invoice deviation minus its country's average deviation, sorted descending with NULLs last.\n12. Top 10 with ties = all invoices whose last value is greater than or equal to the 10th highest value, which can return more than 10 rows.\n13. Top 10 with ties = all invoices ranked 10 or better under RANK, which is the same set as reading 12.\n14. Top 10 with ties = all invoices ranked 10 or better under DENSE_RANK, which returns the invoices with the 10 highest distinct values.\n15. Top 10 with ties = exactly 10 rows, with ties broken arbitrarily or by invoice id. This ignores the \"including ties\" instruction.\n16. Unrounded output = raw floating-point or decimal values as computed.\n17. Output columns = invoice id, country, average unit price, deviation from the overall average, and deviation minus country average deviation.\n18. Customers with NULL Country form their own group, so their invoices are averaged together.\n19. Customers with NULL Country are excluded from the country averages.\n20. Customers with NULL Country get a NULL adjusted deviation, because the country group is blank.",
+  "Missing interpretations:\n\nInvoices whose customer has a NULL Country are kept in the output, with a NULL country, because the join to Customer is still valid. Their country average deviation is computed over the NULL-country group, so the adjusted value is not NULL.\nCountry is matched case-sensitively or with trimmed text, so variants like \"USA\" and \"usa\" form separate groups.\nOverall average is taken over all invoices that have invoice lines, which excludes empty invoices even when those invoices are kept in the output.\nInvoice average weights each line by Quantity in the overall average, but not in the per-invoice average. This is a mixed weighting.\nTop 10 with ties = the top 10 rows after a stable sort, with ties included only when they are exactly equal in floating-point values. Near-equal values caused by floating-point error are treated as distinct.\nSort order treats NULLs as lowest and places them last, which is the same result as \"blanks last\". Alternatively, the NULL ordering follows the database default, so NULLs could come first under DESC in some engines.\nInvoice average uses InvoiceLine.UnitPrice summed across duplicate track lines, with lines for the same track on one invoice counted once (DISTINCT UnitPrice or DISTINCT TrackId).\nAverage unit price is AVG(DISTINCT InvoiceLine.UnitPrice), so repeated prices within an invoice are collapsed."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0fb0f319ce",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42976,
+  "chars_out": 4872
+ }
+}

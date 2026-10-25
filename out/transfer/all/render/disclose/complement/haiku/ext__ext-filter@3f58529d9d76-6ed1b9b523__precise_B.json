@@ -1,0 +1,35 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-6ed1b9b523",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH circuit_counts AS (\n  SELECT c.circuitId, c.country, COUNT(*) AS race_count\n  FROM races r\n  JOIN circuits c ON c.circuitId = r.circuitId\n  WHERE r.date > '1978-03-04' AND r.date < '2003-03-09'\n  GROUP BY c.circuitId, c.country\n),\ncountry_avg AS (\n  SELECT country, AVG(race_count) AS avg_count\n  FROM circuit_counts\n  GROUP BY country\n)\nSELECT cc.circuitId, cc.country, cc.race_count,\n  CAST(cc.race_count AS REAL) / ca.avg_count AS ratio\nFROM circuit_counts cc\nLEFT JOIN country_avg ca ON ca.country = cc.country\nORDER BY ratio IS NULL, ratio DESC\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "races.date is stored as ISO 'YYYY-MM-DD' text, so the direct text comparison is chronological, as the request specifies.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Each country's average is taken over only the circuits that have at least one race in the date window, since circuits with zero such races do not appear in the per-circuit counts.",
+    "unresolved": true
+   },
+   {
+    "assumption": "A circuit's country is taken from circuits.country; a circuit with a NULL country gets a NULL ratio (it has no country average to divide by) and sorts last.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Average each country's per-circuit race counts over all circuits in the circuits table, counting circuits with no races in the window as zero. Those zero-count circuits are then included in the output with a ratio of 0.",
+    "sql": "WITH circuit_counts AS (\n  SELECT c.circuitId, c.country, COUNT(r.raceId) AS race_count\n  FROM circuits c\n  LEFT JOIN races r ON r.circuitId = c.circuitId AND r.date > '1978-03-04' AND r.date < '2003-03-09'\n  GROUP BY c.circuitId, c.country\n),\ncountry_avg AS (\n  SELECT country, AVG(race_count) AS avg_count\n  FROM circuit_counts\n  GROUP BY country\n)\nSELECT cc.circuitId, cc.country, cc.race_count,\n  CAST(cc.race_count AS REAL) / ca.avg_count AS ratio\nFROM circuit_counts cc\nLEFT JOIN country_avg ca ON ca.country = cc.country\nORDER BY ratio IS NULL, ratio DESC\nLIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 15.8
+}

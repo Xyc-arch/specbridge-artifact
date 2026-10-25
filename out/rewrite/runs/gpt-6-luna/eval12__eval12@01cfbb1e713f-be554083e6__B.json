@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-be554083e6",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Zero rebates mean no rebate applies (taker fills) and are left out of the per-currency rebate and gap averages.",
+ "c": {
+  "request": "By fee currency (`feecoin`, with records lacking a currency treated as one group), which currencies have an average maker rebate (`rebtotal`) strictly above the average of the currencies' average maker rebates, each currency counting equally? For those currencies, give me one row: the mean of their average maker rebate, the mean of their average relative gap between maker rebate rate and fee rate ((`rebrate` minus `feerate`) divided by `feerate`, missing when the fee rate is 0), and the mean amount by which their average maker rebate exceeds that cross-currency benchmark. If the benchmark is missing, no currencies count. Skip missing values in the averages (missing if there's nothing to average) and don't round anything. Zero rebates mean no rebate applies (taker fills) and are left out of the per-currency rebate and gap averages.",
+  "sql": "WITH per_currency AS (\n  SELECT\n    feecoin,\n    AVG(rebtotal) AS avg_rebate,\n    AVG((rebrate - feerate) / NULLIF(feerate, 0)) AS avg_relative_gap\n  FROM fees\n  WHERE rebtotal <> 0\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_rebate) AS avg_of_currency_rebates\n  FROM per_currency\n),\nabove_benchmark AS (\n  SELECT\n    pc.avg_rebate,\n    pc.avg_relative_gap,\n    pc.avg_rebate - b.avg_of_currency_rebates AS excess_rebate\n  FROM per_currency AS pc\n  CROSS JOIN benchmark AS b\n  WHERE b.avg_of_currency_rebates IS NOT NULL\n    AND pc.avg_rebate > b.avg_of_currency_rebates\n)\nSELECT\n  AVG(avg_rebate) AS mean_average_maker_rebate,\n  AVG(avg_relative_gap) AS mean_average_relative_gap,\n  AVG(excess_rebate) AS mean_excess_over_benchmark\nFROM above_benchmark;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group fee records by `feecoin`, treating missing currency as one group. For each currency, calculate the average `rebtotal` and the average of `(rebrate - feerate) / feerate`, excluding records with zero `rebtotal` from both averages and treating zero `feerate` as missing for the gap. Skip missing values in averages; an average with no values is missing. Calculate the benchmark as the unweighted average of the currencies\u2019 average `rebtotal` values. Return one row containing the mean average `rebtotal`, mean average relative gap, and mean excess over the benchmark for currencies whose average `rebtotal` is strictly above the benchmark; each currency counts equally in these means. If the benchmark is missing, return no currencies. Do not round",
+  "sql": "WITH per_currency AS (\n  SELECT\n    feecoin,\n    AVG(rebtotal) FILTER (WHERE rebtotal <> 0) AS avg_rebtotal,\n    AVG((rebrate - feerate) / NULLIF(feerate, 0)) FILTER (WHERE rebtotal <> 0) AS avg_relative_gap\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_rebtotal) AS avg_rebtotal\n  FROM per_currency\n),\nabove AS (\n  SELECT\n    p.avg_rebtotal,\n    p.avg_relative_gap,\n    p.avg_rebtotal - b.avg_rebtotal AS excess\n  FROM per_currency p\n  CROSS JOIN benchmark b\n  WHERE b.avg_rebtotal IS NOT NULL\n    AND p.avg_rebtotal > b.avg_rebtotal\n)\nSELECT\n  AVG(avg_rebtotal) AS mean_avg_rebtotal,\n  AVG(avg_relative_gap) AS mean_avg_relative_gap,\n  AVG(excess) AS mean_excess_over_benchmark\nFROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Group the fee records by fee currency (`feecoin`), with records lacking a currency forming one group. For each currency, work out the average total rebate (`rebtotal`) and the average relative rebate-to-fee gap, (`rebrate` minus `feerate`) divided by `feerate`, which is missing when the fee rate is 0. In both averages, treat a zero rebate as not applicable and leave it out: a `rebtotal` of 0 is skipped in the rebate average, and a record with `rebrate` of 0 is skipped in the gap average. For the benchmark, take the mean of the per-currency average total rebates, with each currency counting equally. Keep only the currencies whose average total rebate is strictly above this benchmark (if the benchmark is missing, keep none), and return a single row with: the average of their average total rebates, the average of their average relative rebate-to-fee gaps, and the average amount by which their average total rebate exceeds the benchmark. Skip missing values in every average (an average with nothing to average is missing), and don't round the results.",
+  "sql": "WITH per_currency AS (\n  SELECT\n    feecoin,\n    AVG(NULLIF(rebtotal, 0)) AS avg_rebtotal,\n    AVG(CASE WHEN rebrate <> 0 AND feerate <> 0 THEN (rebrate - feerate) / feerate END) AS avg_relative_gap\n  FROM fees\n  GROUP BY feecoin\n), benchmark AS (\n  SELECT AVG(avg_rebtotal) AS mean_avg_rebtotal\n  FROM per_currency\n)\nSELECT\n  AVG(p.avg_rebtotal) AS avg_total_rebate,\n  AVG(p.avg_relative_gap) AS avg_relative_rebate_fee_gap,\n  AVG(p.avg_rebtotal - b.mean_avg_rebtotal) AS avg_excess_rebate\nFROM per_currency p\nCROSS JOIN benchmark b\nWHERE b.mean_avg_rebtotal IS NOT NULL\n  AND p.avg_rebtotal > b.mean_avg_rebtotal",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "By fee currency (`feecoin`, treating records with a missing currency as one group), which currencies have an average maker rebate (`rebtotal`) strictly above the equally weighted average of the currencies\u2019 average maker rebates? Exclude zero-rebate records (taker fills) from each currency\u2019s rebate and relative-gap averages. For the qualifying currencies, return one row with the mean of their average maker rebates, the mean of their average relative gaps `((rebrate - feerate) / feerate)`, and the mean amount by which their average maker rebates exceed the cross-currency benchmark. Treat the relative gap as missing when `feerate` is zero. Skip missing values when averaging, returning missing if nothing remains; return no currencies if the benchmark is missing. Do not round.",
+  "sql": "WITH currency_averages AS (\n  SELECT feecoin,\n         AVG(rebtotal) FILTER (WHERE rebtotal <> 0) AS avg_maker_rebate,\n         AVG((rebrate - feerate) / NULLIF(feerate, 0)) FILTER (WHERE rebtotal <> 0) AS avg_relative_gap\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_maker_rebate) AS cross_currency_benchmark\n  FROM currency_averages\n)\nSELECT AVG(c.avg_maker_rebate) AS mean_avg_maker_rebate,\n       AVG(c.avg_relative_gap) AS mean_avg_relative_gap,\n       AVG(c.avg_maker_rebate - b.cross_currency_benchmark) AS mean_excess_over_benchmark\nFROM currency_averages c\nCROSS JOIN benchmark b\nWHERE b.cross_currency_benchmark IS NOT NULL\n  AND c.avg_maker_rebate > b.cross_currency_benchmark;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

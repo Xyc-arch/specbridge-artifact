@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH j AS (SELECT t.tradekind, tr.transreg FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref), c AS (SELECT tradekind, COUNT(DISTINCT transreg) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n",
+  "WITH j AS (SELECT t.tradekind, ab.abhvreg FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref), c AS (SELECT tradekind, COUNT(*) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n",
+  "WITH j AS (SELECT t.tradekind, tr.transreg FROM advancedbehavior a JOIN transactionrecord tr ON a.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), c AS (SELECT tradekind, COUNT(DISTINCT transreg) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_number, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_average FROM s WHERE n > avg_n",
+  "WITH j AS (SELECT t.tradekind, a.abhvreg FROM advancedbehavior a JOIN transactionrecord tr ON a.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), c AS (SELECT tradekind, COUNT(*) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_number, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_average FROM s WHERE n > avg_n",
+  "WITH c AS (SELECT t.tradekind, COUNT(*) AS n FROM advancedbehavior a JOIN transactionrecord r ON r.transreg = a.translink JOIN trader t ON t.tradereg = r.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n;",
+  "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT r.transreg) AS n FROM advancedbehavior a JOIN transactionrecord r ON r.transreg = a.translink JOIN trader t ON t.tradereg = r.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH j AS (SELECT t.tradekind, tr.transreg FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref), c AS (SELECT tradekind, COUNT(DISTINCT transreg) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n",
+   "assumptions": [
+    {
+     "assumption": "An 'analysed trade record' is a distinct transactionrecord that has at least one advancedbehavior row. Records are counted per trader type, using an inner join through to the trader so that only trades with a findable trader are included.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average number across trader types is the mean of the per-type counts. It covers only the trader types that appear in the joined data. Each type's share is its count divided by the sum of all counts.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The result is one row with three columns. combined_count is the sum of counts for types strictly above the mean. avg_share is the mean of their shares, as fractions (not percentages). avg_excess_over_mean is the mean of (count minus the mean count) for those types. No rounding is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count advancedbehavior rows per trader type instead of distinct trade records. This differs only if several behaviour rows link to the same trade.",
+     "sql": "WITH j AS (SELECT t.tradekind, ab.abhvreg FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref), c AS (SELECT tradekind, COUNT(*) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n"
+    }
+   ]
+  },
+  {
+   "sql": "WITH j AS (SELECT t.tradekind, tr.transreg FROM advancedbehavior a JOIN transactionrecord tr ON a.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), c AS (SELECT tradekind, COUNT(DISTINCT transreg) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_number, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_average FROM s WHERE n > avg_n",
+   "assumptions": [
+    {
+     "assumption": "An 'analysed trade record' is a distinct transactionrecord that has at least one advancedbehavior row. The trade and its trader must both exist, so the query uses inner joins. Trader type is trader.tradekind.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Share of the overall total is each type's count divided by the sum of counts across all trader types. The average number is the mean of the per-type counts. Only types strictly above that mean are kept.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Average share is the simple mean of the qualifying types' shares. Average excess is the mean of (type count minus the average count) over the qualifying types.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count advancedbehavior analysis records (rows) per trader type, rather than distinct trade records. This differs only if a trade has several behaviour rows.",
+     "sql": "WITH j AS (SELECT t.tradekind, a.abhvreg FROM advancedbehavior a JOIN transactionrecord tr ON a.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), c AS (SELECT tradekind, COUNT(*) AS n FROM j GROUP BY tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_number, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_average FROM s WHERE n > avg_n"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT t.tradekind, COUNT(*) AS n FROM advancedbehavior a JOIN transactionrecord r ON r.transreg = a.translink JOIN trader t ON t.tradereg = r.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n;",
+   "assumptions": [
+    {
+     "assumption": "An 'analysed trade record' is one advancedbehavior row. Rows are kept only if they link through translink to an existing transactionrecord whose trdref matches an existing trader (inner joins), and are counted per trader.tradekind.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Share is a fraction of the total count (0 to 1), not a percentage. Rows with a NULL trader type are excluded. The average count across trader types is taken over the types present after the joins.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Several advancedbehavior rows can point to the same transaction. The primary query counts each row separately.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count distinct transaction records per trader type, so a transaction with several advancedbehavior rows counts once.",
+     "sql": "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT r.transreg) AS n FROM advancedbehavior a JOIN transactionrecord r ON r.transreg = a.translink JOIN trader t ON t.tradereg = r.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM c) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52479,
+  "chars_out": 5771
+ }
+}

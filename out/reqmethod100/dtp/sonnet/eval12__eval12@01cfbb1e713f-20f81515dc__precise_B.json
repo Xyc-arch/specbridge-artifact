@@ -1,0 +1,45 @@
+{
+ "interpretations": [
+  "Ratio is facetresmm divided by geomdeltamm per mesh record; per-site average of these ratios (NULL ratios ignored). Status average is the simple mean of site-level averages. Kept sites are those strictly above it. Output per status: status, mean of kept sites' ratios, count of kept sites, mean excess over the status average.",
+  "Same as 1, but \"ratio\" is read as average facetresmm divided by average geomdeltamm per site (ratio of averages) instead of average of per-record ratios.",
+  "Same as 1, but records with geomdeltamm = 0 are excluded or treated as missing ratios (to avoid division by zero), versus allowing them to error or be NULL.",
+  "Same as 1, but records with a NULL facetresmm or NULL geomdeltamm are all ignored, while records with a zero geomdeltamm are kept and may produce errors or infinities.",
+  "The status average is computed over all sites with that status, including those with only NULL ratios (counted as zero), rather than only sites with a computable ratio.",
+  "The status average is computed only over sites that have a computable average ratio (sites with all-NULL ratios are excluded from the status average and from the kept set).",
+  "The mesh record count per site is merely an intermediate column and does not affect the output. Alternatively, the count of mesh records is reported in the final output (total mesh records of the kept sites), but the question says the number of kept sites is counted, so the record count is not output.",
+  "The final \"number of kept sites\" counts distinct sites, not mesh records. The alternative is a join-inflated count of mesh records per kept site.",
+  "Sites with a NULL insurstat are excluded. Alternatively, sites whose insurstat is an empty string or a placeholder value such as 'Unknown' are also treated as unrecorded and excluded.",
+  "Insurance status groups use the raw values (e.g., 'Expired', 'Pending') case-sensitively. Alternatively, values differing in case or whitespace are normalized into the same group.",
+  "The average excess is the mean of (site ratio \u2212 status average) over kept sites only. Alternatively, it is the mean of that difference over all sites in the status (which would include negative values), but the question says only kept sites.",
+  "Statuses with no kept sites (for example, all sites having identical ratios) are omitted. Alternatively, they appear with NULL or zero values.",
+  "Sites with no matching mesh records (no scanmesh rows) are excluded because of the inner match. Alternatively, they are included with NULL ratios and a count of zero.",
+  "Mesh records whose zoneref does not match any site are excluded. Alternatively, they are retained but dropped later because they have no insurance status.",
+  "The strict comparison \"above their status's average\" is read as ratio > average. Alternatively, \u2265 average, which would include sites exactly equal to the mean.",
+  "Missing interpretations:",
+  "The ratio is computed as geomdeltamm divided by facetresmm, which reverses the direction of the ratio.",
+  "Mesh records with a zero or negative facetresmm or geomdeltamm are excluded as invalid, rather than only zero geomdeltamm.",
+  "The status average is weighted by mesh record count, so sites with more mesh records count more. The question's \"simple average\" rules this out.",
+  "The average excess is measured as a percentage of the status average, not as an absolute difference.",
+  "Sites with the same zoneregistry but different insurstat values are treated as distinct site and status groups.",
+  "The count of mesh records per site is used as a filter, such as requiring at least one non-NULL ratio, rather than serving only as an intermediate column."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT e.equipstatus AS status, m.zoneref, AVG(m.facetresmm * 1.0 / m.geomdeltamm) AS avg_ratio\n  FROM scanmesh m\n  JOIN equipment e ON m.equipref = e.equipregistry\n  GROUP BY e.equipstatus, m.zoneref\n  HAVING AVG(m.facetresmm * 1.0 / m.geomdeltamm) IS NOT NULL\n),\ns AS (\n  SELECT status, AVG(avg_ratio) AS status_avg\n  FROM r\n  GROUP BY status\n)\nSELECT r.status,\n       AVG(r.avg_ratio) AS mean_kept_ratio,\n       COUNT(*) AS kept_site_count,\n       AVG(r.avg_ratio - s.status_avg) AS mean_excess\nFROM r\nJOIN s ON r.status = s.status\nWHERE r.avg_ratio > s.status_avg\nGROUP BY r.status;\n",
+  "SELECT zoneref, AVG(facetresmm) / AVG(geomdeltamm) AS ratio\nFROM scanmesh\nGROUP BY zoneref",
+  "SELECT facetregistry, facetresmm / geomdeltamm AS ratio\nFROM scanmesh\nWHERE geomdeltamm IS NOT NULL AND geomdeltamm <> 0;\n",
+  "SELECT AVG(facetresmm / geomdeltamm) FROM scanmesh WHERE facetresmm IS NOT NULL AND geomdeltamm IS NOT NULL;\n"
+ ],
+ "raw": [
+  "1. Ratio is facetresmm divided by geomdeltamm per mesh record; per-site average of these ratios (NULL ratios ignored). Status average is the simple mean of site-level averages. Kept sites are those strictly above it. Output per status: status, mean of kept sites' ratios, count of kept sites, mean excess over the status average.\n\n2. Same as 1, but \"ratio\" is read as average facetresmm divided by average geomdeltamm per site (ratio of averages) instead of average of per-record ratios.\n\n3. Same as 1, but records with geomdeltamm = 0 are excluded or treated as missing ratios (to avoid division by zero), versus allowing them to error or be NULL.\n\n4. Same as 1, but records with a NULL facetresmm or NULL geomdeltamm are all ignored, while records with a zero geomdeltamm are kept and may produce errors or infinities.\n\n5. The status average is computed over all sites with that status, including those with only NULL ratios (counted as zero), rather than only sites with a computable ratio.\n\n6. The status average is computed only over sites that have a computable average ratio (sites with all-NULL ratios are excluded from the status average and from the kept set).\n\n7. The mesh record count per site is merely an intermediate column and does not affect the output. Alternatively, the count of mesh records is reported in the final output (total mesh records of the kept sites), but the question says the number of kept sites is counted, so the record count is not output.\n\n8. The final \"number of kept sites\" counts distinct sites, not mesh records. The alternative is a join-inflated count of mesh records per kept site.\n\n9. Sites with a NULL insurstat are excluded. Alternatively, sites whose insurstat is an empty string or a placeholder value such as 'Unknown' are also treated as unrecorded and excluded.\n\n10. Insurance status groups use the raw values (e.g., 'Expired', 'Pending') case-sensitively. Alternatively, values differing in case or whitespace are normalized into the same group.\n\n11. The average excess is the mean of (site ratio \u2212 status average) over kept sites only. Alternatively, it is the mean of that difference over all sites in the status (which would include negative values), but the question says only kept sites.\n\n12. Statuses with no kept sites (for example, all sites having identical ratios) are omitted. Alternatively, they appear with NULL or zero values.\n\n13. Sites with no matching mesh records (no scanmesh rows) are excluded because of the inner match. Alternatively, they are included with NULL ratios and a count of zero.\n\n14. Mesh records whose zoneref does not match any site are excluded. Alternatively, they are retained but dropped later because they have no insurance status.\n\n15. The strict comparison \"above their status's average\" is read as ratio > average. Alternatively, \u2265 average, which would include sites exactly equal to the mean.",
+  "Missing interpretations:\n\nThe ratio is computed as geomdeltamm divided by facetresmm, which reverses the direction of the ratio.\nMesh records with a zero or negative facetresmm or geomdeltamm are excluded as invalid, rather than only zero geomdeltamm.\nThe status average is weighted by mesh record count, so sites with more mesh records count more. The question's \"simple average\" rules this out.\nThe average excess is measured as a percentage of the status average, not as an absolute difference.\nSites with the same zoneregistry but different insurstat values are treated as distinct site and status groups.\nThe count of mesh records per site is used as a filter, such as requiring at least one non-NULL ratio, rather than serving only as an intermediate column."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 328974,
+  "chars_out": 5860
+ }
+}

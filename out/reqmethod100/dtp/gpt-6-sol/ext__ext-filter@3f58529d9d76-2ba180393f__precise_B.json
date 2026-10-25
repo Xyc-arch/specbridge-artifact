@@ -1,0 +1,27 @@
+{
+ "interpretations": [
+  "For each matched `orderslink` and side, average `feerate - rebrate` over records with both values present; count all matched fee records in the group. Compare that average with the unweighted average of group averages for the same side.",
+  "For each matched `orderslink` and side, average `feerate - rebrate` over records with both values present; count only records that contribute to that average. Compare it with the unweighted average of group averages for the same side.",
+  "For each matched `orderslink` and side, subtract the average nonmissing `rebrate` from the average `feerate`; count all matched fee records in the group. Compare the result with the unweighted average of group results for the same side.",
+  "For each matched `orderslink` and side, subtract the average nonmissing `rebrate` from the average `feerate`; count only records with both values present. Compare the result with the unweighted average of group results for the same side."
+ ],
+ "queries": [
+  "WITH fee_groups AS (\n    SELECT\n        f.orderslink,\n        o.dealedge AS side,\n        AVG(CASE\n            WHEN f.feerate IS NOT NULL AND f.rebrate IS NOT NULL\n            THEN f.feerate - f.rebrate\n        END) AS avg_net_rate,\n        COUNT(*) AS fee_count\n    FROM fees AS f\n    JOIN orders AS o\n        ON o.recordvault = f.orderslink\n    GROUP BY f.orderslink, o.dealedge\n)\nSELECT\n    orderslink,\n    side,\n    avg_net_rate,\n    fee_count,\n    AVG(avg_net_rate) OVER (PARTITION BY side) AS side_avg_of_group_averages\nFROM fee_groups",
+  "WITH group_rates AS (\n    SELECT\n        f.orderslink,\n        o.dealedge AS side,\n        AVG(f.feerate - f.rebrate) AS avg_net_rate,\n        COUNT(*) AS contributing_count\n    FROM fees AS f\n    JOIN orders AS o ON o.recordvault = f.orderslink\n    WHERE f.feerate IS NOT NULL\n      AND f.rebrate IS NOT NULL\n    GROUP BY f.orderslink, o.dealedge\n)\nSELECT\n    orderslink,\n    side,\n    avg_net_rate,\n    contributing_count,\n    AVG(avg_net_rate) OVER (PARTITION BY side) AS side_avg_of_group_averages\nFROM group_rates",
+  "WITH fee_groups AS (\n    SELECT\n        f.orderslink,\n        o.dealedge AS side,\n        AVG(f.feerate) - AVG(f.rebrate) AS rate_difference,\n        COUNT(*) AS fee_count\n    FROM fees AS f\n    JOIN orders AS o\n      ON o.recordvault = f.orderslink\n    GROUP BY f.orderslink, o.dealedge\n)\nSELECT\n    orderslink,\n    side,\n    rate_difference,\n    fee_count,\n    AVG(rate_difference) OVER (PARTITION BY side) AS side_average\nFROM fee_groups",
+  "WITH group_results AS (\n    SELECT\n        f.orderslink,\n        o.dealedge AS side,\n        AVG(f.feerate) - AVG(f.rebrate) AS rate_difference\n    FROM fees AS f\n    JOIN orders AS o\n        ON o.recordvault = f.orderslink\n    WHERE f.feerate IS NOT NULL\n      AND f.rebrate IS NOT NULL\n    GROUP BY f.orderslink, o.dealedge\n)\nSELECT\n    orderslink,\n    side,\n    rate_difference,\n    AVG(rate_difference) OVER (PARTITION BY side) AS side_average\nFROM group_results"
+ ],
+ "raw": [
+  "For each matched `orderslink` and side, average `feerate - rebrate` over records with both values present; count all matched fee records in the group. Compare that average with the unweighted average of group averages for the same side.\n\nFor each matched `orderslink` and side, average `feerate - rebrate` over records with both values present; count only records that contribute to that average. Compare it with the unweighted average of group averages for the same side.\n\nFor each matched `orderslink` and side, subtract the average nonmissing `rebrate` from the average `feerate`; count all matched fee records in the group. Compare the result with the unweighted average of group results for the same side.\n\nFor each matched `orderslink` and side, subtract the average nonmissing `rebrate` from the average `feerate`; count only records with both values present. Compare the result with the unweighted average of group results for the same side.",
+  "All possible interpretations are covered."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 6,
+  "chars_in": 81076,
+  "chars_out": 2959
+ }
+}

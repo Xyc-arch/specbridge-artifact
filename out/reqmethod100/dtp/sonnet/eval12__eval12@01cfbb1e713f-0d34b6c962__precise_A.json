@@ -1,0 +1,50 @@
+{
+ "interpretations": [
+  "Group budget lines by `link_to_event`. Compute `spent/amount` per line, and treat NULL `spent` or NULL `amount` as missing. Average the non-missing ratios per event. Overall average = plain average of the event ratios that are non-NULL. Relative = event ratio / overall average. Sort descending with NULL last, top 10.",
+  "Same as 1, but lines with `amount` = 0 also count as missing, so they are excluded from the event's average. This avoids divide-by-zero.",
+  "Same as 1, but lines with `amount` = 0 produce a NULL ratio through SQL division-by-zero behavior and are ignored. Events with no valid lines have a NULL ratio.",
+  "Same as 1, but the overall average is taken over all events in the budget table, including events whose ratio is NULL. NULLs are ignored by the average, so this is the same as 1, or the NULL events are counted as 0 in the denominator.",
+  "Same as 1, but the overall average is taken over all events in the `event` table, including events with no budget lines.",
+  "Same as 1, but budget rows with NULL `link_to_event` form their own group (a NULL event id) and are included as an event.",
+  "Same as 1, but budget rows with NULL `link_to_event` are excluded.",
+  "Same as 1, but events whose ratio is NULL are kept in the output with NULL ratio and NULL relative value, placed last. They can appear in the top 10 if there are fewer than 10 events with valid ratios.",
+  "Same as 1, but events whose ratio is NULL are removed before ranking.",
+  "The overall average is computed across all events before the top-10 limit. It is not recomputed from the top 10 only.",
+  "The overall average is computed only from the 10 returned events.",
+  "The relative figure is NULL when the overall average is 0 or NULL.",
+  "Ties in the relative figure are broken arbitrarily.",
+  "Ties in the relative figure are broken by event id.",
+  "The ratio is computed in floating point, with no rounding or integer truncation. `spent` is REAL, so the division is real.",
+  "\"Spend ratio\" is `spent/amount` per line, averaged per event. It is not total spent / total amount per event.",
+  "Events are restricted to those that also exist in the `event` table, via a join, rather than any id appearing in `budget.link_to_event`.",
+  "The output has three columns: event id, event spend ratio, and ratio relative to the overall average.",
+  "Missing interpretations:",
+  "Same as 1, but the per-line ratio is computed using integer division (`amount` is INTEGER, `spent` is REAL, so this is unlikely), which would truncate the ratio.",
+  "Same as 1, but the overall average is the average of per-line ratios across all budget lines, not the plain average of event ratios.",
+  "Same as 1, but lines with negative `remaining` (over budget) are handled specially or excluded.",
+  "Same as 1, but only budget lines with a non-NULL `link_to_event` that matches an event with `event_status` = 'Closed' are included.",
+  "Same as 1, but the relative figure is computed as overall average / event ratio (inverse direction).",
+  "Same as 1, but the output is ordered by the event ratio instead of the relative figure."
+ ],
+ "queries": [
+  "WITH event_ratio AS (\n    SELECT link_to_event,\n           AVG(spent * 1.0 / amount) AS avg_ratio\n    FROM budget\n    WHERE spent IS NOT NULL AND amount IS NOT NULL\n    GROUP BY link_to_event\n),\noverall AS (\n    SELECT AVG(avg_ratio) AS overall_avg\n    FROM event_ratio\n    WHERE avg_ratio IS NOT NULL\n)\nSELECT e.link_to_event,\n       e.avg_ratio / o.overall_avg AS relative\nFROM event_ratio e, overall o\nORDER BY relative DESC\nLIMIT 10;\n",
+  "SELECT link_to_event, AVG(spent * 1.0 / amount) AS avg_spent_ratio\nFROM budget\nWHERE amount IS NOT NULL AND amount <> 0 AND spent IS NOT NULL\nGROUP BY link_to_event;\n",
+  "SELECT e.event_id, AVG(b.spent / b.amount) AS ratio\nFROM event e\nLEFT JOIN budget b ON b.link_to_event = e.event_id\nGROUP BY e.event_id;\n",
+  "SELECT AVG(ratio) FROM (SELECT link_to_event, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS ratio FROM budget GROUP BY link_to_event);\n",
+  "SELECT AVG(total_amount)\nFROM (\n    SELECT COALESCE(SUM(b.amount), 0) AS total_amount\n    FROM event e\n    LEFT JOIN budget b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id\n);\n",
+  "SELECT COUNT(*) FROM (SELECT link_to_event FROM budget GROUP BY link_to_event);\n"
+ ],
+ "raw": [
+  "1. Group budget lines by `link_to_event`. Compute `spent/amount` per line, and treat NULL `spent` or NULL `amount` as missing. Average the non-missing ratios per event. Overall average = plain average of the event ratios that are non-NULL. Relative = event ratio / overall average. Sort descending with NULL last, top 10.\n2. Same as 1, but lines with `amount` = 0 also count as missing, so they are excluded from the event's average. This avoids divide-by-zero.\n3. Same as 1, but lines with `amount` = 0 produce a NULL ratio through SQL division-by-zero behavior and are ignored. Events with no valid lines have a NULL ratio.\n4. Same as 1, but the overall average is taken over all events in the budget table, including events whose ratio is NULL. NULLs are ignored by the average, so this is the same as 1, or the NULL events are counted as 0 in the denominator.\n5. Same as 1, but the overall average is taken over all events in the `event` table, including events with no budget lines.\n6. Same as 1, but budget rows with NULL `link_to_event` form their own group (a NULL event id) and are included as an event.\n7. Same as 1, but budget rows with NULL `link_to_event` are excluded.\n8. Same as 1, but events whose ratio is NULL are kept in the output with NULL ratio and NULL relative value, placed last. They can appear in the top 10 if there are fewer than 10 events with valid ratios.\n9. Same as 1, but events whose ratio is NULL are removed before ranking.\n10. The overall average is computed across all events before the top-10 limit. It is not recomputed from the top 10 only.\n11. The overall average is computed only from the 10 returned events.\n12. The relative figure is NULL when the overall average is 0 or NULL.\n13. Ties in the relative figure are broken arbitrarily.\n14. Ties in the relative figure are broken by event id.\n15. The ratio is computed in floating point, with no rounding or integer truncation. `spent` is REAL, so the division is real.\n16. \"Spend ratio\" is `spent/amount` per line, averaged per event. It is not total spent / total amount per event.\n17. Events are restricted to those that also exist in the `event` table, via a join, rather than any id appearing in `budget.link_to_event`.\n18. The output has three columns: event id, event spend ratio, and ratio relative to the overall average.",
+  "Missing interpretations:\n\nSame as 1, but the per-line ratio is computed using integer division (`amount` is INTEGER, `spent` is REAL, so this is unlikely), which would truncate the ratio.\nSame as 1, but the overall average is the average of per-line ratios across all budget lines, not the plain average of event ratios.\nSame as 1, but lines with negative `remaining` (over budget) are handled specially or excluded.\nSame as 1, but only budget lines with a non-NULL `link_to_event` that matches an event with `event_status` = 'Closed' are included.\nSame as 1, but the relative figure is computed as overall average / event ratio (inverse direction).\nSame as 1, but the output is ordered by the event ratio instead of the relative figure."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0d34b6c962",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 61722,
+  "chars_out": 5213
+ }
+}

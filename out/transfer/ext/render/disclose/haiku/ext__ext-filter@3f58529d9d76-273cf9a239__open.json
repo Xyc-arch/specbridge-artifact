@@ -1,0 +1,54 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-273cf9a239",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH site_ratio AS (SELECT s.zoneregistry AS site_code, s.healtheval AS status, AVG(sc.gbsize / sc.spanmin) AS avg_ratio, COUNT(*) AS scan_count FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' AND sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 GROUP BY s.zoneregistry, s.healtheval), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM site_ratio) SELECT g.site_code, g.status, g.avg_ratio, g.scan_count, g.avg_ratio - o.mean_ratio AS beat_by FROM site_ratio g CROSS JOIN overall o WHERE g.avg_ratio > o.mean_ratio ORDER BY beat_by DESC NULLS LAST LIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "chronotag is compared as text with inclusive BETWEEN bounds, as the request specifies; the schema declares it text(6) while the documentation says TIMESTAMP, but the request settles the comparison as text.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Scans are linked to sites by scans.zoneref = sites.zoneregistry using an inner join, so scans without a matching site are dropped.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Scans with NULL gbsize or NULL spanmin, and scans with spanmin = 0 (to avoid division by zero), are excluded before aggregation, so scan_count counts only the scans that contribute to the average.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Groups are formed by site code and healtheval; a NULL healtheval forms its own group. The mean is the unweighted AVG of the group averages. If no group has a computable average, the mean is NULL and no rows are returned.",
+    "unresolved": false
+   },
+   {
+    "assumption": "beat_by is the group average minus the mean of group averages, unrounded, and the sort puts NULLs last.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "scan_count counts every scan in the group, including scans with missing gbsize or spanmin. Missing values are skipped only in the average, so groups whose scans all lack a ratio still exist but are excluded from the mean and the result.",
+    "sql": "WITH site_ratio AS (SELECT s.zoneregistry AS site_code, s.healtheval AS status, AVG(CASE WHEN sc.spanmin <> 0 THEN sc.gbsize / sc.spanmin END) AS avg_ratio, COUNT(*) AS scan_count FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY s.zoneregistry, s.healtheval), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM site_ratio) SELECT g.site_code, g.status, g.avg_ratio, g.scan_count, g.avg_ratio - o.mean_ratio AS beat_by FROM site_ratio g CROSS JOIN overall o WHERE g.avg_ratio > o.mean_ratio ORDER BY beat_by DESC NULLS LAST LIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "scan_count counts every scan in the group, including scans with missing gbsize or spanmin. Missing values are skipped only in the average, so groups whose scans all lack a ratio still exist but are excluded from the mean and the result.",
+   "sql": "WITH site_ratio AS (SELECT s.zoneregistry AS site_code, s.healtheval AS status, AVG(CASE WHEN sc.spanmin <> 0 THEN sc.gbsize / sc.spanmin END) AS avg_ratio, COUNT(*) AS scan_count FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY s.zoneregistry, s.healtheval), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM site_ratio) SELECT g.site_code, g.status, g.avg_ratio, g.scan_count, g.avg_ratio - o.mean_ratio AS beat_by FROM site_ratio g CROSS JOIN overall o WHERE g.avg_ratio > o.mean_ratio ORDER BY beat_by DESC NULLS LAST LIMIT 10;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 25.2,
+ "chars_out": 2695
+}

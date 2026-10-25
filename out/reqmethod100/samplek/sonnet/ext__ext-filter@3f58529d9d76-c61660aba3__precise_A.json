@@ -1,0 +1,56 @@
+{
+ "queries": [
+  "WITH per_rating AS (\n  SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio\n  FROM film\n  WHERE replacement_cost >= 20.99\n  GROUP BY rating\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS overall_mean\n  FROM per_rating\n  WHERE avg_ratio IS NOT NULL\n)\nSELECT p.rating,\n       p.avg_ratio AS average,\n       p.avg_ratio - o.overall_mean AS above_overall_mean\nFROM per_rating p\nCROSS JOIN overall o\nWHERE o.overall_mean IS NOT NULL\n  AND p.avg_ratio > o.overall_mean\nORDER BY p.rating;",
+  "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 AND rental_rate IS NOT NULL AND rental_duration IS NOT NULL AND rental_duration <> 0 GROUP BY rating), overall AS (SELECT AVG(avg_ratio) AS overall_mean FROM per_rating WHERE avg_ratio IS NOT NULL) SELECT p.rating, p.avg_ratio, p.avg_ratio - o.overall_mean AS diff_above_mean FROM per_rating p CROSS JOIN overall o WHERE o.overall_mean IS NOT NULL AND p.avg_ratio > o.overall_mean",
+  "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 AND rental_duration <> 0 GROUP BY rating), overall AS (SELECT AVG(avg_ratio) AS overall_mean FROM per_rating WHERE avg_ratio IS NOT NULL) SELECT p.rating, p.avg_ratio AS avg_rate_per_day, p.avg_ratio - o.overall_mean AS diff_above_overall_mean FROM per_rating p CROSS JOIN overall o WHERE o.overall_mean IS NOT NULL AND p.avg_ratio > o.overall_mean ORDER BY p.rating"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_rating AS (\n  SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio\n  FROM film\n  WHERE replacement_cost >= 20.99\n  GROUP BY rating\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS overall_mean\n  FROM per_rating\n  WHERE avg_ratio IS NOT NULL\n)\nSELECT p.rating,\n       p.avg_ratio AS average,\n       p.avg_ratio - o.overall_mean AS above_overall_mean\nFROM per_rating p\nCROSS JOIN overall o\nWHERE o.overall_mean IS NOT NULL\n  AND p.avg_ratio > o.overall_mean\nORDER BY p.rating;",
+   "assumptions": [
+    {
+     "assumption": "Ratings with no film having replacement_cost >= 20.99 do not appear as groups, so they do not enter the overall mean. The overall mean is the unweighted mean of the per-rating averages, not a film-level average. rental_duration is never 0 (verified range 3-7), so there is no division by zero.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 AND rental_rate IS NOT NULL AND rental_duration IS NOT NULL AND rental_duration <> 0 GROUP BY rating), overall AS (SELECT AVG(avg_ratio) AS overall_mean FROM per_rating WHERE avg_ratio IS NOT NULL) SELECT p.rating, p.avg_ratio, p.avg_ratio - o.overall_mean AS diff_above_mean FROM per_rating p CROSS JOIN overall o WHERE o.overall_mean IS NOT NULL AND p.avg_ratio > o.overall_mean",
+   "assumptions": [
+    {
+     "assumption": "Films with replacement_cost >= 20.99 form the population; the per-film ratio is rental_rate / rental_duration, computed with decimal (non-integer) division, and rental_duration = 0 is excluded to avoid division by zero (none exist per the verified data).",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall mean is the unweighted mean of the per-rating averages (not weighted by film count), as the request states 'simple mean'.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_rating AS (SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS avg_ratio FROM film WHERE replacement_cost >= 20.99 AND rental_duration <> 0 GROUP BY rating), overall AS (SELECT AVG(avg_ratio) AS overall_mean FROM per_rating WHERE avg_ratio IS NOT NULL) SELECT p.rating, p.avg_ratio AS avg_rate_per_day, p.avg_ratio - o.overall_mean AS diff_above_overall_mean FROM per_rating p CROSS JOIN overall o WHERE o.overall_mean IS NOT NULL AND p.avg_ratio > o.overall_mean ORDER BY p.rating",
+   "assumptions": [
+    {
+     "assumption": "Ratings with no films meeting the replacement_cost >= 20.99 filter do not appear as groups; the overall mean is the unweighted mean of the per-rating averages over the ratings that do appear.",
+     "unresolved": false
+    },
+    {
+     "assumption": "rental_rate / rental_duration is computed with decimal (non-integer) division; rental_duration is never 0 in the data (values 3-7), so the guard is harmless.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-c61660aba3",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42783,
+  "chars_out": 2920
+ }
+}

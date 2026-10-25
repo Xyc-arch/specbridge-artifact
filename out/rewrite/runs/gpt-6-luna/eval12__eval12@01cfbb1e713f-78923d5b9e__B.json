@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-78923d5b9e",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "List the site/insurance-status groups with the largest share of conservation records. Return all rows whose share reaches the 10th-highest value, including every row tied at the cutoff.",
+ "b": {
+  "request": "For conservation records matched to sites by `scanconservation.zoneref = sites.zoneregistry`, group by site reference and insurance status, treating missing insurance status as its own group; return each group\u2019s record count and its count divided by all matched conservation records, unrounded, including all groups tied at the 10th-highest share, sorted by share descending with missing statuses last",
+  "sql": "WITH group_counts AS (\n  SELECT\n    sc.zoneref,\n    s.insurstat,\n    COUNT(*) AS record_count\n  FROM scanconservation AS sc\n  JOIN sites AS s\n    ON sc.zoneref = s.zoneregistry\n  GROUP BY sc.zoneref, s.insurstat\n),\nshares AS (\n  SELECT\n    zoneref,\n    insurstat,\n    record_count,\n    record_count::numeric / SUM(record_count) OVER () AS share\n  FROM group_counts\n),\nranked AS (\n  SELECT\n    zoneref,\n    insurstat,\n    record_count,\n    share,\n    DENSE_RANK() OVER (ORDER BY share DESC) AS share_rank\n  FROM shares\n)\nSELECT zoneref, insurstat, record_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC, insurstat NULLS LAST;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Match each conservation record (`scanconservation`) to its site where `sites.zoneregistry` equals `scanconservation.zoneref`, and drop records with no matching site. For each combination of site reference (`zoneref`) and insurance status (`insurstat`), with a missing status kept as its own value, show the site reference, the insurance status, the number of conservation records, and that number as a fraction of all matched conservation records, unrounded. Sort by that fraction from highest to lowest (missing last) and return every row whose fraction is at least the 10th-highest, keeping all rows tied at 10th place.",
+  "sql": "WITH grouped AS (\n  SELECT sc.zoneref, s.insurstat, COUNT(*) AS conservation_record_count\n  FROM scanconservation AS sc\n  JOIN sites AS s ON s.zoneregistry = sc.zoneref\n  GROUP BY sc.zoneref, s.insurstat\n), ranked AS (\n  SELECT zoneref, insurstat, conservation_record_count,\n         conservation_record_count::numeric / SUM(conservation_record_count) OVER () AS fraction_of_matched_records,\n         RANK() OVER (ORDER BY conservation_record_count::numeric / SUM(conservation_record_count) OVER () DESC NULLS LAST) AS fraction_rank\n  FROM grouped\n)\nSELECT zoneref, insurstat, conservation_record_count, fraction_of_matched_records\nFROM ranked\nWHERE fraction_rank <= 10\nORDER BY fraction_of_matched_records DESC NULLS LAST;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Matching conservation records (`scanconservation`) to their sites on `zoneref` = `sites.zoneregistry` and dropping any without a site, which are the top 10 site reference and insurance status (`insurstat`) combinations by share of conservation records? Treat a missing status as its own value. Show the site reference, the insurance status, the record count, and the count as a fraction of all matched conservation records (unrounded), sorted by that fraction from highest to lowest with missing values last. List the site/insurance-status groups with the largest share of conservation records. Return all rows whose share reaches the 10th-highest value, including every row tied at the cutoff.",
+  "sql": "WITH matched AS (\n  SELECT sc.zoneref, s.insurstat\n  FROM scanconservation AS sc\n  INNER JOIN sites AS s\n    ON sc.zoneref = s.zoneregistry\n), group_counts AS (\n  SELECT zoneref, insurstat, COUNT(*) AS record_count,\n         COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS share\n  FROM matched\n  GROUP BY zoneref, insurstat\n), ranked AS (\n  SELECT *, DENSE_RANK() OVER (ORDER BY share DESC) AS share_rank\n  FROM group_counts\n)\nSELECT zoneref AS site_reference, insurstat AS insurance_status,\n       record_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC, (insurstat IS NULL), zoneref;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For conservation records in `scanconservation` matched to sites where `zoneref = sites.zoneregistry`, excluding records without a matching site, list the site reference and insurance-status (`insurstat`) groups with the largest share of all matched records. Treat missing insurance status as its own value. Include each group\u2019s record count and its unrounded fraction of all matched conservation records. Return all groups whose share is at least the 10th-highest share, including ties at the cutoff, and sort by share from highest to lowest with missing values last.",
+  "sql": "WITH group_counts AS (\n  SELECT\n    sc.zoneref,\n    s.insurstat,\n    COUNT(*) AS record_count\n  FROM scanconservation AS sc\n  INNER JOIN sites AS s\n    ON sc.zoneref = s.zoneregistry\n  GROUP BY sc.zoneref, s.insurstat\n),\nshares AS (\n  SELECT\n    zoneref,\n    insurstat,\n    record_count,\n    record_count::numeric / SUM(record_count) OVER () AS share\n  FROM group_counts\n),\nranked AS (\n  SELECT\n    zoneref,\n    insurstat,\n    record_count,\n    share,\n    DENSE_RANK() OVER (ORDER BY share DESC) AS share_rank\n  FROM shares\n)\nSELECT zoneref, insurstat, record_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC, insurstat NULLS LAST, zoneref;",
+  "executes": false,
+  "matches": []
+ }
+}

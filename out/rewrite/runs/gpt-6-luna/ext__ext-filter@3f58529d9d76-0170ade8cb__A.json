@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-0170ade8cb",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Keep films whose rental duration is 5 days or more, so films with exactly 5 days count.",
+ "d": {
+  "request": "Filter to films with `rental_duration >= 5`, then group by `rating`. For each rating, return the rating, the average of `rental_rate / rental_duration` across films with nonmissing values for that ratio, the total number of films in the group, and that average divided by the unweighted mean of the per-rating averages across all ratings. Return no rows if that benchmark is missing, and leave all values unrounded.",
+  "sql": "WITH rating_averages AS (\n  SELECT\n    rating,\n    AVG(rental_rate / rental_duration) AS avg_rate_per_day,\n    COUNT(*) AS film_count\n  FROM film\n  WHERE rental_duration >= 5\n    AND rental_rate IS NOT NULL\n    AND rental_duration IS NOT NULL\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_day) AS mean_rating_average\n  FROM rating_averages\n)\nSELECT\n  ra.rating,\n  ra.avg_rate_per_day,\n  ra.film_count,\n  ra.avg_rate_per_day / b.mean_rating_average AS relative_to_mean\nFROM rating_averages AS ra\nCROSS JOIN benchmark AS b\nWHERE b.mean_rating_average IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Treating 5 days as the cutoff for a long rental period, look only at the long-rental films (by `rental_duration`) and group them by `rating`. For each rating, show the rating, the average per film of `rental_rate` divided by `rental_duration` (ignoring missing values), the number of films, and that average divided by an overall benchmark. The benchmark is the plain unweighted mean of the per-rating averages across all ratings, ignoring any missing ones. If the benchmark itself is missing, return no rows. Leave all values unrounded. Keep films whose rental duration is 5 days or more, so films with exactly 5 days count.",
+  "sql": "WITH per_rating AS (\n  SELECT\n    rating,\n    AVG(rental_rate / rental_duration) AS avg_rate_per_day,\n    COUNT(*) AS film_count\n  FROM film\n  WHERE rental_duration >= 5\n  GROUP BY rating\n), benchmark AS (\n  SELECT AVG(avg_rate_per_day) AS benchmark_avg\n  FROM per_rating\n)\nSELECT\n  p.rating,\n  p.avg_rate_per_day,\n  p.film_count,\n  p.avg_rate_per_day / b.benchmark_avg AS avg_to_benchmark\nFROM per_rating AS p\nCROSS JOIN benchmark AS b\nWHERE b.benchmark_avg IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For films with `rental_duration >= 5`, group by `rating` and return the rating, the average of `rental_rate / rental_duration` per film (excluding rows where either value is missing), the film count, and that per-rating average divided by the unweighted mean of the per-rating averages across all ratings (excluding missing averages). Return no rows if the benchmark is missing, and do not round any values.",
+  "sql": "WITH rating_averages AS (SELECT rating, AVG(rental_rate / rental_duration) AS avg_rate_per_day, COUNT(*) AS film_count FROM film WHERE rental_duration >= 5 AND rental_rate IS NOT NULL AND rental_duration IS NOT NULL GROUP BY rating), benchmark AS (SELECT AVG(avg_rate_per_day) AS mean_rating_average FROM rating_averages) SELECT ra.rating, ra.avg_rate_per_day, ra.film_count, ra.avg_rate_per_day / b.mean_rating_average AS relative_to_mean FROM rating_averages ra CROSS JOIN benchmark b WHERE b.mean_rating_average IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "For films with `rental_duration >= 5`, group by `rating` and return the rating, the average of `rental_rate / rental_duration` per film (excluding rows where either value is missing), the film count, and that per-rating average divided by the unweighted mean of the per-rating averages across all ratings (excluding missing averages). Return no rows if the benchmark is missing, and do not round any values."
+ },
+ "a": {
+  "request": "Looking only at films whose `rental_duration` is at least 5 days, group them by `rating`. For each rating, show the rating, the average per film of `rental_rate` divided by `rental_duration` (ignoring missing values), the number of films, and that average divided by an overall benchmark. The benchmark is the plain unweighted mean of the per-rating averages across all ratings, ignoring any missing ones. If the benchmark itself is missing, return no rows. Leave all values unrounded.",
+  "sql": "WITH rating_averages AS (\n  SELECT rating, AVG(rental_rate / rental_duration) AS avg_rate_per_day, COUNT(*) AS film_count\n  FROM film\n  WHERE rental_duration >= 5\n  GROUP BY rating\n), benchmark AS (\n  SELECT AVG(avg_rate_per_day) AS overall_benchmark\n  FROM rating_averages\n)\nSELECT ra.rating, ra.avg_rate_per_day, ra.film_count,\n       ra.avg_rate_per_day / b.overall_benchmark AS benchmark_ratio\nFROM rating_averages ra\nCROSS JOIN benchmark b\nWHERE b.overall_benchmark IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6
+}

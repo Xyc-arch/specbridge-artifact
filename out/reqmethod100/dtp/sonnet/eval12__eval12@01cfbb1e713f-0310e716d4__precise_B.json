@@ -1,0 +1,39 @@
+{
+ "interpretations": [
+  "Group payments with a non-null rental_id by rental_id and sum the amounts. Take each rental's store from rental.inventory_id \u2192 inventory.store_id. Compute one overall average of these rental totals across both stores. For each store, keep rentals whose total is strictly greater than that average. Output store_id, the sum of the kept totals, and the average of (total \u2212 overall average) over the kept rentals.",
+  "The same as 1, but the third column is the per-store average of the kept totals minus the overall average. This is mathematically the same as 1.",
+  "The same as 1, but the third column is the total excess, the sum of (total \u2212 overall average), rather than the average excess.",
+  "The same as 1, but the third column is the average of the kept rentals' totals, not the excess over the overall average.",
+  "The same as 1, but the overall average is computed over individual payment rows (average payment amount) rather than over per-rental totals.",
+  "The same as 1, but the overall average includes every rental in the rental table. Rentals with no payments count as a total of 0 instead of being ignored.",
+  "The same as 1, but the overall average is computed only over rentals that have a valid inventory copy and store, after the join.",
+  "The same as 1, but the store is taken from the customer's store_id or the staff's store_id instead of the inventory copy.",
+  "The same as 1, but the comparison is made against each store's own average instead of the single overall average. This conflicts with the \"computed once\" wording.",
+  "The same as 1, but rentals with a total equal to the average are also kept (\u2265 instead of >).",
+  "The same as 1, but stores with no rentals above the average are shown with a sum of 0 and a NULL average, instead of being omitted.",
+  "The same as 1, but payments are first joined to the rental table, so payments whose rental_id has no matching rental row are dropped before totalling. In 1, they are counted by rental_id alone.",
+  "The same as 1, but a rental whose payments are split across several staff or dates is totalled once per rental. The alternative is totalling per rental and per staff_id, or per rental and per payment date.",
+  "Missing interpretations:",
+  "The same as 1, but the single overall average is the mean of the two stores' own average rental totals (an average of per-store averages), not the average over all rentals pooled together.",
+  "The same as 1, but the third column divides the total excess by the number of all the store's rentals, not just the kept rentals.",
+  "The same as 1, but the third column is the average ratio (or percentage) of each kept total to the overall average, not the absolute difference."
+ ],
+ "queries": [
+  "WITH rental_totals AS (\n  SELECT p.rental_id, i.store_id, SUM(p.amount) AS total\n  FROM payment p\n  JOIN rental r ON r.rental_id = p.rental_id\n  JOIN inventory i ON i.inventory_id = r.inventory_id\n  WHERE p.rental_id IS NOT NULL\n  GROUP BY p.rental_id, i.store_id\n),\noverall AS (\n  SELECT AVG(total) AS avg_total FROM rental_totals\n)\nSELECT rt.store_id,\n       SUM(rt.total) AS sum_kept_totals,\n       AVG(rt.total - o.avg_total) AS avg_diff\nFROM rental_totals rt\nCROSS JOIN overall o\nWHERE rt.total > o.avg_total\nGROUP BY rt.store_id;\n",
+  "SELECT customer_id\nFROM (\n  SELECT customer_id, AVG(rental_total) AS avg_rental_total\n  FROM (\n    SELECT customer_id, rental_id, SUM(amount) AS rental_total\n    FROM payment\n    GROUP BY customer_id, rental_id\n  )\n  GROUP BY customer_id\n)\nWHERE avg_rental_total > (SELECT AVG(amount) FROM payment);\n",
+  "SELECT AVG(COALESCE(p.total, 0)) AS average_total_payment\nFROM rental r\nLEFT JOIN (\n  SELECT rental_id, SUM(amount) AS total\n  FROM payment\n  GROUP BY rental_id\n) p ON r.rental_id = p.rental_id;\n"
+ ],
+ "raw": [
+  "1. Group payments with a non-null rental_id by rental_id and sum the amounts. Take each rental's store from rental.inventory_id \u2192 inventory.store_id. Compute one overall average of these rental totals across both stores. For each store, keep rentals whose total is strictly greater than that average. Output store_id, the sum of the kept totals, and the average of (total \u2212 overall average) over the kept rentals.\n2. The same as 1, but the third column is the per-store average of the kept totals minus the overall average. This is mathematically the same as 1.\n3. The same as 1, but the third column is the total excess, the sum of (total \u2212 overall average), rather than the average excess.\n4. The same as 1, but the third column is the average of the kept rentals' totals, not the excess over the overall average.\n5. The same as 1, but the overall average is computed over individual payment rows (average payment amount) rather than over per-rental totals.\n6. The same as 1, but the overall average includes every rental in the rental table. Rentals with no payments count as a total of 0 instead of being ignored.\n7. The same as 1, but the overall average is computed only over rentals that have a valid inventory copy and store, after the join.\n8. The same as 1, but the store is taken from the customer's store_id or the staff's store_id instead of the inventory copy.\n9. The same as 1, but the comparison is made against each store's own average instead of the single overall average. This conflicts with the \"computed once\" wording.\n10. The same as 1, but rentals with a total equal to the average are also kept (\u2265 instead of >).\n11. The same as 1, but stores with no rentals above the average are shown with a sum of 0 and a NULL average, instead of being omitted.\n12. The same as 1, but payments are first joined to the rental table, so payments whose rental_id has no matching rental row are dropped before totalling. In 1, they are counted by rental_id alone.\n13. The same as 1, but a rental whose payments are split across several staff or dates is totalled once per rental. The alternative is totalling per rental and per staff_id, or per rental and per payment date.",
+  "Missing interpretations:\n\nThe same as 1, but the single overall average is the mean of the two stores' own average rental totals (an average of per-store averages), not the average over all rentals pooled together.\n\nThe same as 1, but the third column divides the total excess by the number of all the store's rentals, not just the kept rentals.\n\nThe same as 1, but the third column is the average ratio (or percentage) of each kept total to the overall average, not the absolute difference."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0310e716d4",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 112781,
+  "chars_out": 4969
+ }
+}

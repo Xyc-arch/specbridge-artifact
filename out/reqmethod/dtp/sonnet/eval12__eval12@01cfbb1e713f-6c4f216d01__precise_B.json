@@ -1,0 +1,43 @@
+{
+ "interpretations": [
+  "Orders per account are counted as rows in `order` joined to account and then district, using an inner join. Accounts with no orders are excluded. The average is the mean order count over accounts that have orders. Output is account id, region A3, order count, and count minus average. Sort is by difference descending, returning the top 10 plus all ties with the 10th value",
+  "Same as 1, but the average is computed after the join to district, so only accounts with a matching district are averaged. This differs only if some accounts have no district match",
+  "The average is the total number of orders divided by the number of distinct accounts with orders, which is the same as interpretation 1 but written as a ratio of totals",
+  "The average is taken over all accounts in the `account` table, including those with no orders. This contradicts the \"accounts that have orders\" wording, but it is a possible reading",
+  "The average is taken per region, as the mean order count of accounts in the same A3 region, and the difference is measured against that regional average",
+  "The average is taken per district rather than overall",
+  "Orders are counted as distinct `order_id` values rather than as joined rows. The result is the same unless the join duplicates rows",
+  "Orders are counted per (account, region) pair. Since each account has one district, this is the same as per account",
+  "\"Top 10 plus ties\" is read as all accounts whose difference is greater than or equal to the 10th-highest difference. This is the standard reading",
+  "\"Top 10 plus ties\" is read as the top 10 distinct difference values, with all accounts having those values",
+  "\"Top 10 plus ties\" is read as a plain LIMIT 10, ignoring ties",
+  "The \"branch district\" is `account.district_id`, which is the branch location. The alternative, client district via `disp` and `client`, is not what the question describes",
+  "\"Region\" is read as district.A3. Other readings, such as A2 (district name) or A5 to A8, are unlikely, since the question names A",
+  "The difference is shown unrounded as a floating-point value. Integer division in the average is avoided, so the average is not truncated",
+  "The average is truncated by integer division, which would give a rounded or truncated difference. This conflicts with \"no rounding.\"",
+  "Order of tied rows is unspecified, or is broken by account id ascending",
+  "The count of orders is interpreted as the number of order rows, not the sum of `order.amount`",
+  "Missing interpretations:",
+  "Orders are joined to the account's district via an inner join, so orders whose account has no matching district row are dropped before counting. The count itself, not only the average, is then affected",
+  "The average is the mean of per-account order counts taken before the top-N cut. It is not the mean over the top-N rows only",
+  "\"Top 10 plus ties\" is read as RANK()/RANK-style ranking, where the cutoff is rank \u2264 10. This gives the same rows as the \u2265 10th-value reading, but differs from a DENSE_RANK reading",
+  "Orders are counted with `COUNT(*)` on the joined rows, so the count is NULL-safe. `COUNT(order_id)` gives the same result because `order_id` is a primary key",
+  "The difference is computed as count minus average, with a negative sign for accounts below average. Sorting is by the signed value, not by absolute deviation",
+  "Sorting by absolute difference (largest deviation either way) rather than signed difference"
+ ],
+ "queries": [
+  "WITH oc AS (\n    SELECT a.account_id, d.A3 AS region, COUNT(*) AS order_count\n    FROM \"order\" o\n    JOIN account a ON o.account_id = a.account_id\n    JOIN district d ON a.district_id = d.district_id\n    GROUP BY a.account_id, d.A3\n),\navgc AS (\n    SELECT AVG(order_count) AS avg_count FROM oc\n),\nranked AS (\n    SELECT oc.account_id, oc.region AS A3, oc.order_count,\n           oc.order_count - avgc.avg_count AS diff\n    FROM oc, avgc\n)\nSELECT account_id, A3, order_count, diff\nFROM ranked\nWHERE diff >= (SELECT diff FROM ranked ORDER BY diff DESC LIMIT 1 OFFSET 9)\nORDER BY diff DESC;\n",
+  "SELECT CAST(COUNT(order_id) AS REAL) / COUNT(DISTINCT account_id) FROM `order`;\n",
+  "SELECT AVG(order_count) FROM (SELECT a.account_id, COUNT(o.order_id) AS order_count FROM account a LEFT JOIN `order` o ON a.account_id = o.account_id GROUP BY a.account_id);\n",
+  "WITH account_orders AS (\n    SELECT a.account_id, d.A3 AS region, COUNT(o.order_id) AS order_count\n    FROM account a\n    JOIN district d ON a.district_id = d.district_id\n    LEFT JOIN `order` o ON a.account_id = o.account_id\n    GROUP BY a.account_id, d.A3\n)\nSELECT account_id,\n       order_count - AVG(order_count) OVER (PARTITION BY region) AS difference\nFROM account_orders;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c4f216d01",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 63598,
+  "chars_out": 5254
+ }
+}

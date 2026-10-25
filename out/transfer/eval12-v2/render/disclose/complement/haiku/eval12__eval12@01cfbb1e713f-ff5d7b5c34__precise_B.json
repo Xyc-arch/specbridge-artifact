@@ -1,0 +1,34 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH pair_avg AS (\n  SELECT f.orderslink, u.acctscope, AVG(f.feerate) AS avg_feerate\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  JOIN users u ON o.userlink = u.userstamp\n  GROUP BY f.orderslink, u.acctscope\n),\nstats AS (\n  SELECT AVG(avg_feerate) AS mean_avg FROM pair_avg\n),\nkept AS (\n  SELECT p.orderslink, p.acctscope, p.avg_feerate, p.avg_feerate - s.mean_avg AS excess\n  FROM pair_avg p\n  CROSS JOIN stats s\n  WHERE p.avg_feerate > s.mean_avg\n),\nranked AS (\n  SELECT k.orderslink, k.acctscope, k.avg_feerate, k.excess,\n         ROW_NUMBER() OVER (PARTITION BY k.acctscope ORDER BY k.excess DESC, k.orderslink ASC) AS rnk\n  FROM kept k\n)\nSELECT orderslink, acctscope, avg_feerate, excess, rnk\nFROM ranked\nWHERE rnk <= 3\nORDER BY acctscope, rnk;",
+  "assumptions": [
+   {
+    "assumption": "The inner joins drop fees with no matching order or user, as the request specifies. Users are matched on userstamp, which the schema does not declare UNIQUE; if it has duplicates, the join will inflate the averages.",
+    "unresolved": true
+   },
+   {
+    "assumption": "AVG ignores NULL feerate values, so a pair whose feerates are all NULL gets a NULL average and is excluded by the strict comparison. The mean of pair averages also ignores NULL averages.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A NULL users.acctscope is treated as its own scope group, so those pairs can be kept and ranked. If NULL scopes should be excluded, add AND u.acctscope IS NOT NULL to the join.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Averages and excess values are returned unrounded, as the request specifies, and the output is ordered by scope and then rank.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 10.6
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-aed8b6c38d",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Blank sex is treated as unknown and its group is not reported.",
+ "c": {
+  "request": "Matching laboratory records to their patient on `ID` (lab records with no matching patient are dropped), work out each patient's (by ID and sex) average prothrombin time (`PT`) and average `IGA` \u2212 `IGM` difference per record, ignoring missing values. Also work out how each patient's IGA\u2212IGM average compares to the mean across all patients, as their average divided by that mean. Then break this down by sex: for each sex, give the average PT, the average IGA\u2212IGM difference, and the average ratio to the overall mean. Blank sex is treated as unknown and its group is not reported.",
+  "sql": "WITH patient_averages AS (SELECT p.ID, p.SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_iga_igm_difference FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_iga_igm_difference) AS mean_difference FROM patient_averages) SELECT pa.SEX, AVG(pa.avg_pt) AS avg_pt, AVG(pa.avg_iga_igm_difference) AS avg_iga_igm_difference, AVG(pa.avg_iga_igm_difference / NULLIF(o.mean_difference, 0)) AS avg_ratio_to_overall_mean FROM patient_averages AS pa CROSS JOIN overall AS o WHERE pa.SEX IS NOT NULL AND TRIM(pa.SEX) <> '' GROUP BY pa.SEX",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Matching laboratory records to their patient on `ID` (lab records with no matching patient are dropped), compute for each patient (by ID and sex) the average prothrombin time (`PT`) and the average of `IGA` \u2212 `IGM` per record, ignoring missing values. Also compute the mean of that IGA\u2212IGM average across all patients, and divide each patient's IGA\u2212IGM average by this overall mean. Then break the patients down by sex, leaving out patients whose `SEX` is blank (an empty string), since their sex is unknown. For each sex, report the sex, the average of the patients' average PT, the average of their IGA\u2212IGM averages, and the average of their ratios to the overall mean.",
+  "sql": "WITH patient_averages AS (SELECT p.ID, p.SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_iga_igm FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall_mean AS (SELECT AVG(avg_iga_igm) AS mean_iga_igm FROM patient_averages) SELECT pa.SEX, AVG(pa.avg_pt) AS avg_patient_pt, AVG(pa.avg_iga_igm) AS avg_patient_iga_igm, AVG(pa.avg_iga_igm / NULLIF(om.mean_iga_igm, 0)) AS avg_ratio_to_overall_mean FROM patient_averages AS pa CROSS JOIN overall_mean AS om WHERE pa.SEX <> '' GROUP BY pa.SEX",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Join laboratory records to patients on ID, dropping unmatched records; for each patient, calculate average nonmissing PT and average per-record IGA\u2212IGM where both values are present, then divide that patient\u2019s difference average by the mean of all patients\u2019 available difference averages; report, for each nonblank sex, the averages of those three patient-level measures, ignoring missing values",
+  "sql": "WITH patient_measures AS (SELECT p.ID, p.SEX, AVG(l.PT) AS avg_pt, AVG(CASE WHEN l.IGA IS NOT NULL AND l.IGM IS NOT NULL THEN l.IGA - l.IGM END) AS avg_iga_igm_difference FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_iga_igm_difference) AS mean_difference FROM patient_measures) SELECT pm.SEX, AVG(pm.avg_pt) AS avg_patient_pt, AVG(pm.avg_iga_igm_difference) AS avg_patient_iga_igm_difference, AVG(pm.avg_iga_igm_difference / NULLIF(o.mean_difference, 0)) AS avg_normalized_difference FROM patient_measures AS pm CROSS JOIN overall AS o WHERE TRIM(pm.SEX) <> '' GROUP BY pm.SEX;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match laboratory records to patients by `ID`, dropping records without a matching patient. For each patient, identified by `ID` and sex, calculate the average `PT` and the average per-record `IGA \u2212 IGM` difference, ignoring missing values. Divide each patient\u2019s average difference by the mean of those averages across all patients. Then, for each reported sex, calculate the average patient `PT`, average patient `IGA \u2212 IGM` difference, and average patient ratio. Treat blank sex as unknown and omit the unknown-sex group from the sex breakdown.",
+  "sql": "WITH patient_averages AS (SELECT p.ID, NULLIF(TRIM(p.SEX), '') AS sex, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID GROUP BY p.ID, NULLIF(TRIM(p.SEX), '')), overall AS (SELECT AVG(avg_diff) AS mean_patient_diff FROM patient_averages) SELECT pa.sex, AVG(pa.avg_pt) AS avg_patient_pt, AVG(pa.avg_diff) AS avg_patient_iga_igm_diff, AVG(pa.avg_diff / NULLIF(o.mean_patient_diff, 0)) AS avg_patient_ratio FROM patient_averages AS pa CROSS JOIN overall AS o WHERE pa.sex IS NOT NULL GROUP BY pa.sex ORDER BY pa.sex;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

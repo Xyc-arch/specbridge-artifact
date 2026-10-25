@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Count distinct invoiced orders (distinct order_id with at least one invoice) per gender; share = count / total of those counts; return genders with share > the simple average of the genders' shares (1/number of genders); output gender, count, share, share minus average share.",
+  "Count invoices (not distinct orders) per gender, treating each invoice as an \"invoiced order\"; the rest is the same as in 1.",
+  "Count distinct orders per gender, but with the average share computed as the mean of the per-gender shares (same as 1/number of genders), and the difference expressed as a ratio (share / average) rather than a subtraction.",
+  "Same as 1, but the difference is expressed in percentage points (share \u00d7 100 minus average share \u00d7 100).",
+  "Same as 1, but the share is expressed as a percentage (0\u2013100) rather than a fraction (0\u20131).",
+  "Same as 1, but genders with NULL or empty `gender` values are treated as their own group and counted in the total and in the average.",
+  "Same as 1, but genders with NULL `gender` are excluded from the total, the groups, and the average.",
+  "Same as 1, but \"invoiced orders\" counts order rows joined through invoices without deduplication, so an order with several invoices is counted once per invoice (equivalent to 2).",
+  "Same as 1, but the average share is the share of the overall total divided by the number of genders that have at least one invoiced order (genders with no invoiced orders are excluded from the average).",
+  "Same as 1, but the average share is computed over all distinct gender values in `Customers`, including genders with zero invoiced orders.",
+  "Same as 1, but the genders are returned with the share strictly above the average (excluding ties) versus above or equal to the average.",
+  "Same as 1, but the average is a weighted average of shares (weighted by count) rather than the simple mean.",
+  "Same as 1, but the \"total\" is the total number of all orders (including uninvoiced ones) rather than only invoiced orders.",
+  "Same as 1, but the \"total\" is the total number of all customers' orders linked to customers, and the count is invoiced orders only.",
+  "Same as 1, but the \"how far above\" is measured relative to the average count per gender (count minus average count) rather than the share difference.",
+  "Missing interpretations:",
+  "Same as 1, but gender values are normalized (case-insensitive and trimmed, so 'F' and 'f' are one group) before grouping.",
+  "Same as 1, but \"invoiced orders\" counts distinct customers per gender who have at least one invoiced order, rather than distinct orders.",
+  "Same as 1, but \"invoiced orders\" is determined through `Invoice_Line_Items` and `Order_Items` (orders with invoice line items) rather than directly through `Invoices.order_id`."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt\n  FROM Orders o\n  JOIN Customers c ON c.customer_id = o.customer_id\n  JOIN Invoices i ON i.order_id = o.order_id\n  GROUP BY c.gender\n),\ns AS (\n  SELECT gender, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM g) AS share\n  FROM g\n)\nSELECT gender, cnt AS count, share, share - 1.0 / (SELECT COUNT(*) FROM g) AS share_minus_avg\nFROM s\nWHERE share > 1.0 / (SELECT COUNT(*) FROM g);\n",
+  "SELECT c.gender, COUNT(i.invoice_number) AS invoiced_orders\nFROM Customers c\nJOIN Orders o ON o.customer_id = c.customer_id\nJOIN Invoices i ON i.order_id = o.order_id\nGROUP BY c.gender;\n",
+  "WITH g AS (\n  SELECT c.gender, COUNT(DISTINCT o.order_id) AS order_count\n  FROM Orders o\n  JOIN Customers c ON o.customer_id = c.customer_id\n  GROUP BY c.gender\n),\nt AS (\n  SELECT SUM(order_count) AS total, COUNT(*) AS n FROM g\n)\nSELECT g.gender,\n       g.order_count,\n       (g.order_count * 1.0 / t.total) / (1.0 / t.n) AS share_to_average_ratio\nFROM g, t;\n",
+  "SELECT COALESCE(NULLIF(gender, ''), 'Unknown') AS gender, COUNT(*) AS customer_count\nFROM Customers\nGROUP BY COALESCE(NULLIF(gender, ''), 'Unknown');\n"
+ ],
+ "raw": [
+  "1. Count distinct invoiced orders (distinct order_id with at least one invoice) per gender; share = count / total of those counts; return genders with share > the simple average of the genders' shares (1/number of genders); output gender, count, share, share minus average share.\n2. Count invoices (not distinct orders) per gender, treating each invoice as an \"invoiced order\"; the rest is the same as in 1.\n3. Count distinct orders per gender, but with the average share computed as the mean of the per-gender shares (same as 1/number of genders), and the difference expressed as a ratio (share / average) rather than a subtraction.\n4. Same as 1, but the difference is expressed in percentage points (share \u00d7 100 minus average share \u00d7 100).\n5. Same as 1, but the share is expressed as a percentage (0\u2013100) rather than a fraction (0\u20131).\n6. Same as 1, but genders with NULL or empty `gender` values are treated as their own group and counted in the total and in the average.\n7. Same as 1, but genders with NULL `gender` are excluded from the total, the groups, and the average.\n8. Same as 1, but \"invoiced orders\" counts order rows joined through invoices without deduplication, so an order with several invoices is counted once per invoice (equivalent to 2).\n9. Same as 1, but the average share is the share of the overall total divided by the number of genders that have at least one invoiced order (genders with no invoiced orders are excluded from the average).\n10. Same as 1, but the average share is computed over all distinct gender values in `Customers`, including genders with zero invoiced orders.\n11. Same as 1, but the genders are returned with the share strictly above the average (excluding ties) versus above or equal to the average.\n12. Same as 1, but the average is a weighted average of shares (weighted by count) rather than the simple mean.\n13. Same as 1, but the \"total\" is the total number of all orders (including uninvoiced ones) rather than only invoiced orders.\n14. Same as 1, but the \"total\" is the total number of all customers' orders linked to customers, and the count is invoiced orders only.\n15. Same as 1, but the \"how far above\" is measured relative to the average count per gender (count minus average count) rather than the share difference.",
+  "Missing interpretations:\n\nSame as 1, but gender values are normalized (case-insensitive and trimmed, so 'F' and 'f' are one group) before grouping.\nSame as 1, but \"invoiced orders\" counts distinct customers per gender who have at least one invoiced order, rather than distinct orders.\nSame as 1, but \"invoiced orders\" is determined through `Invoice_Line_Items` and `Order_Items` (orders with invoice line items) rather than directly through `Invoices.order_id`."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-10d659166c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30670,
+  "chars_out": 4814
+ }
+}

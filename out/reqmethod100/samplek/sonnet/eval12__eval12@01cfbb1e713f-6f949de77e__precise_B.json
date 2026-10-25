@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH r AS (SELECT m.Name, 1.0 * SUM(t.Bytes) / SUM(t.Milliseconds) AS rate, COUNT(*) AS cnt FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), a AS (SELECT AVG(rate) AS avg_rate FROM r) SELECT AVG(r.rate) AS avg_rate_above, AVG(r.cnt) AS avg_track_count, AVG(r.rate - a.avg_rate) AS avg_excess FROM r CROSS JOIN a WHERE r.rate > a.avg_rate",
+  "WITH r AS (SELECT m.Name, 1.0 * SUM(t.Bytes) / NULLIF(SUM(t.Milliseconds), 0) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), a AS (SELECT AVG(rate) AS avg_rate FROM r) SELECT AVG(r.rate) AS avg_rate_above, AVG(r.track_count * 1.0) AS avg_track_count, AVG(r.rate - a.avg_rate) AS avg_excess FROM r CROSS JOIN a WHERE r.rate > a.avg_rate",
+  "WITH r AS (SELECT m.Name, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), a AS (SELECT AVG(rate) AS avg_rate FROM r) SELECT AVG(r.rate) AS avg_rate_of_above, AVG(r.track_count) AS avg_track_count, AVG(r.rate - a.avg_rate) AS avg_excess FROM r CROSS JOIN a WHERE r.rate > a.avg_rate"
+ ],
+ "responses": [
+  {
+   "sql": "WITH r AS (SELECT m.Name, 1.0 * SUM(t.Bytes) / SUM(t.Milliseconds) AS rate, COUNT(*) AS cnt FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), a AS (SELECT AVG(rate) AS avg_rate FROM r) SELECT AVG(r.rate) AS avg_rate_above, AVG(r.cnt) AS avg_track_count, AVG(r.rate - a.avg_rate) AS avg_excess FROM r CROSS JOIN a WHERE r.rate > a.avg_rate",
+   "assumptions": [
+    {
+     "assumption": "Rate is computed as SUM(Bytes)/SUM(Milliseconds) using decimal (non-integer) division. Tracks with NULL Bytes add to the Milliseconds total but not the Bytes total, because SUM skips NULLs. Tracks are counted regardless of whether Bytes is NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the simple, unweighted mean of the per-media-type rates, taken over all groups before the filter. The filter is strictly greater than that mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH r AS (SELECT m.Name, 1.0 * SUM(t.Bytes) / NULLIF(SUM(t.Milliseconds), 0) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), a AS (SELECT AVG(rate) AS avg_rate FROM r) SELECT AVG(r.rate) AS avg_rate_above, AVG(r.track_count * 1.0) AS avg_track_count, AVG(r.rate - a.avg_rate) AS avg_excess FROM r CROSS JOIN a WHERE r.rate > a.avg_rate",
+   "assumptions": [
+    {
+     "assumption": "An inner join of Track to MediaType keeps only tracks with a media type. Media types with no tracks are excluded, and the overall average is taken over the types that remain.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The rate is SUM(Bytes)/SUM(Milliseconds) with floating-point division and no rounding. SUM skips NULL Bytes. The track count is COUNT(*) of the tracks in each group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH r AS (SELECT m.Name, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), a AS (SELECT AVG(rate) AS avg_rate FROM r) SELECT AVG(r.rate) AS avg_rate_of_above, AVG(r.track_count) AS avg_track_count, AVG(r.rate - a.avg_rate) AS avg_excess FROM r CROSS JOIN a WHERE r.rate > a.avg_rate",
+   "assumptions": [
+    {
+     "assumption": "Tracks are inner-joined to MediaType, so media types with no tracks are excluded. Track count is COUNT(*) of the tracks in each group. Bytes is nullable, and SUM ignores NULL Bytes while those tracks still count toward the track count.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Division is done as a decimal or float (multiplying by 1.0) to avoid integer truncation. No rounding is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6f949de77e",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16881,
+  "chars_out": 2623
+ }
+}

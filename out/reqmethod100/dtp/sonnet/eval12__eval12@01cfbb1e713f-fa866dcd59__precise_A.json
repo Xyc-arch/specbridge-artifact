@@ -1,0 +1,34 @@
+{
+ "interpretations": [
+  "Count rentals per rating by joining rental to inventory to film, then take the mean of the per-rating counts as the overall average. Keep ratings with a count strictly above it, and return the mean of their counts and the mean of (count \u2212 overall average)",
+  "Same as above, but keep ratings with a count greater than or equal to the overall average",
+  "Count distinct rental_id values per rating rather than joined rows, so that any duplicate rows from the joins are not counted twice",
+  "Treat \"rental transactions\" as payment records: link payment to rental to inventory to film, count payments per rating, and apply the same above-average filter and the two averages",
+  "Treat \"rental transactions\" as only the rentals that have a payment, excluding rentals with no payment",
+  "Treat \"rental transactions\" as only completed rentals with a non-null return_date",
+  "Define the overall average as total rentals divided by the number of ratings, including any ratings with zero rentals, rather than the average over ratings that appear in the join",
+  "Define the overall average count as the average number of rentals per film within each rating, then compare per-film rental averages across ratings",
+  "Return the second value as the average of (count \u2212 overall average) over the above-average ratings, which equals the first value minus the overall average",
+  "Return the second value as the average excess as a percentage or ratio of the overall average, rather than an absolute number of rentals",
+  "Return the two values as two columns in one row, with the first being the average count and the second the average excess",
+  "Compute the overall average over all ratings including the above-average ones, versus excluding the above-average ones, i.e. compare against the mean of the remaining ratings",
+  "Return the values without any rounding, keeping the full decimal precision"
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT f.rating AS rating, COUNT(*) AS cnt\n  FROM rental r\n  JOIN inventory i ON r.inventory_id = i.inventory_id\n  JOIN film f ON i.film_id = f.film_id\n  GROUP BY f.rating\n),\noverall AS (\n  SELECT AVG(cnt) AS avg_cnt FROM counts\n)\nSELECT AVG(c.cnt) AS avg_count, AVG(c.cnt - o.avg_cnt) AS avg_diff\nFROM counts c\nCROSS JOIN overall o\nWHERE c.cnt > o.avg_cnt;\n",
+  "SELECT rating, COUNT(*) AS film_count\nFROM film\nGROUP BY rating\nHAVING COUNT(*) >= (SELECT AVG(cnt) FROM (SELECT COUNT(*) AS cnt FROM film GROUP BY rating))",
+  "SELECT f.rating, COUNT(DISTINCT r.rental_id)\nFROM rental r\nJOIN inventory i ON r.inventory_id = i.inventory_id\nJOIN film f ON i.film_id = f.film_id\nGROUP BY f.rating",
+  "WITH rating_stats AS (\n  SELECT f.rating,\n         COUNT(p.payment_id) AS payment_count,\n         AVG(f.rental_rate) AS avg_rental_rate,\n         AVG(f.length) AS avg_length\n  FROM payment p\n  JOIN rental r ON p.rental_id = r.rental_id\n  JOIN inventory i ON r.inventory_id = i.inventory_id\n  JOIN film f ON i.film_id = f.film_id\n  GROUP BY f.rating\n)\nSELECT rating, payment_count, avg_rental_rate, avg_length\nFROM rating_stats\nWHERE payment_count > (SELECT AVG(payment_count) FROM rating_stats);\n",
+  "SELECT COUNT(DISTINCT r.rental_id) FROM rental r JOIN payment p ON p.rental_id = r.rental_id;\n",
+  "SELECT COUNT(*) FROM rental WHERE return_date IS NOT NULL;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fa866dcd59",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 112026,
+  "chars_out": 4050
+ }
+}

@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Keep statuses whose average `modelconf` is above the overall average `modelconf` across all cases (a row-level mean that ignores null `modelconf`). Null status counts as its own group. \"How far above average\" is the status average minus the overall average. The last column is the status average divided by the mean of the qualifying statuses' averages.",
+  "Same as 1, but \"how far above average\" is a percentage: (status average \u2212 overall average) / overall average \u00d7 100.",
+  "Same as 1, but \"how far above average\" is a ratio: status average / overall average.",
+  "Keep statuses whose average `modelconf` is above the mean of all the statuses' averages (an unweighted mean of group averages, with null status as its own group). The distance is the status average minus that mean. The last column is the status average divided by the mean of the qualifying statuses' averages.",
+  "Same as 4, but the distance is a percentage or ratio instead of a difference.",
+  "Same as 1, but the overall average comes from cases that have a non-null `brokrepstat`, so the null-status group is excluded from the reference but still shown as a candidate.",
+  "Same as 1, but the null-status group is excluded entirely, both as a candidate and from the overall average. This contradicts the \"own status\" instruction, so it is the least likely reading.",
+  "Same as 1, but the overall average is taken over distinct cases that have a non-null `modelconf`. Duplicates are impossible here because `compreg` is the primary key, so this gives the same result as 1.",
+  "The \"mean of the qualifying statuses' averages\" is a simple mean of the group averages. The output has one row per qualifying status.",
+  "The \"mean of the qualifying statuses' averages\" is weighted by case count, which is the same as the pooled mean of `modelconf` across all qualifying cases.",
+  "The \"mean of the qualifying statuses' averages\" includes only statuses above the overall average (the qualifying ones). A broader reading uses all statuses' averages.",
+  "If the overall average is null (no non-null `modelconf` values), or there are no qualifying statuses, return an empty result.",
+  "A status whose cases all have null `modelconf` has a null average. It is excluded from the comparison and does not qualify.",
+  "\"Above-average\" is a strict greater-than comparison. Statuses equal to the average are excluded.",
+  "Values are shown unrounded, as raw numeric results.",
+  "Interpretations I think are missing:",
+  "Same as 4, but the mean of group averages leaves out the null-status group as a reference. The null group is still a candidate.",
+  "Same as 1, but empty-string or blank `brokrepstat` values are also treated as missing, so they fall into the null-status group.",
+  "Same as 4, but the denominator in the last column is the case-count-weighted (pooled) mean of the qualifying statuses.",
+  "Same as 1, but \"how far above average\" is measured against the mean of the qualifying statuses' averages instead of the overall average."
+ ],
+ "queries": [
+  "WITH overall AS (\n  SELECT AVG(modelconf) AS avg_all FROM compliancecase\n),\nstatus_avg AS (\n  SELECT casestat, AVG(modelconf) AS avg_conf\n  FROM compliancecase\n  GROUP BY casestat\n),\nqualifying AS (\n  SELECT s.casestat, s.avg_conf, s.avg_conf - o.avg_all AS above_avg\n  FROM status_avg s, overall o\n  WHERE s.avg_conf > o.avg_all\n)\nSELECT casestat, avg_conf, above_avg,\n       avg_conf / (SELECT AVG(avg_conf) FROM qualifying) AS ratio\nFROM qualifying;\n",
+  "SELECT casestat,\n       AVG(risksc) AS avg_risksc,\n       (AVG(risksc) - (SELECT AVG(risksc) FROM compliancecase)) / (SELECT AVG(risksc) FROM compliancecase) * 100 AS pct_above_overall\nFROM compliancecase\nGROUP BY casestat\nHAVING AVG(risksc) > (SELECT AVG(risksc) FROM compliancecase);\n",
+  "SELECT casestat, AVG(risksc) / (SELECT AVG(risksc) FROM compliancecase) AS ratio FROM compliancecase GROUP BY casestat",
+  "WITH g AS (\n  SELECT casestat, AVG(modelconf) AS avg_conf\n  FROM compliancecase\n  GROUP BY casestat\n),\nm AS (\n  SELECT AVG(avg_conf) AS mean_avg FROM g\n),\nq AS (\n  SELECT g.casestat, g.avg_conf, g.avg_conf - m.mean_avg AS distance\n  FROM g, m\n  WHERE g.avg_conf > m.mean_avg\n)\nSELECT casestat, avg_conf, distance, avg_conf / (SELECT AVG(avg_conf) FROM q) AS ratio\nFROM q;\n",
+  "SELECT brokrepstat, AVG(risksc) AS avg_risksc\nFROM compliancecase\nGROUP BY brokrepstat\nHAVING AVG(risksc) > (SELECT AVG(risksc) FROM compliancecase WHERE brokrepstat IS NOT NULL);\n"
+ ],
+ "raw": [
+  "1. Keep statuses whose average `modelconf` is above the overall average `modelconf` across all cases (a row-level mean that ignores null `modelconf`). Null status counts as its own group. \"How far above average\" is the status average minus the overall average. The last column is the status average divided by the mean of the qualifying statuses' averages.\n2. Same as 1, but \"how far above average\" is a percentage: (status average \u2212 overall average) / overall average \u00d7 100.\n3. Same as 1, but \"how far above average\" is a ratio: status average / overall average.\n4. Keep statuses whose average `modelconf` is above the mean of all the statuses' averages (an unweighted mean of group averages, with null status as its own group). The distance is the status average minus that mean. The last column is the status average divided by the mean of the qualifying statuses' averages.\n5. Same as 4, but the distance is a percentage or ratio instead of a difference.\n6. Same as 1, but the overall average comes from cases that have a non-null `brokrepstat`, so the null-status group is excluded from the reference but still shown as a candidate.\n7. Same as 1, but the null-status group is excluded entirely, both as a candidate and from the overall average. This contradicts the \"own status\" instruction, so it is the least likely reading.\n8. Same as 1, but the overall average is taken over distinct cases that have a non-null `modelconf`. Duplicates are impossible here because `compreg` is the primary key, so this gives the same result as 1.\n9. The \"mean of the qualifying statuses' averages\" is a simple mean of the group averages. The output has one row per qualifying status.\n10. The \"mean of the qualifying statuses' averages\" is weighted by case count, which is the same as the pooled mean of `modelconf` across all qualifying cases.\n11. The \"mean of the qualifying statuses' averages\" includes only statuses above the overall average (the qualifying ones). A broader reading uses all statuses' averages.\n12. If the overall average is null (no non-null `modelconf` values), or there are no qualifying statuses, return an empty result.\n13. A status whose cases all have null `modelconf` has a null average. It is excluded from the comparison and does not qualify.\n14. \"Above-average\" is a strict greater-than comparison. Statuses equal to the average are excluded.\n15. Values are shown unrounded, as raw numeric results.",
+  "Interpretations I think are missing:\n\nSame as 4, but the mean of group averages leaves out the null-status group as a reference. The null group is still a candidate.\nSame as 1, but empty-string or blank `brokrepstat` values are also treated as missing, so they fall into the null-status group.\nSame as 4, but the denominator in the last column is the case-count-weighted (pooled) mean of the qualifying statuses.\nSame as 1, but \"how far above average\" is measured against the mean of the qualifying statuses' averages instead of the overall average."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-56f991749c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 138878,
+  "chars_out": 5350
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-de5cec30a7",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Average aCL IgM per patient (ID, sex) first, then compute deviations from the mean of those patient averages, compare them with sex-group average deviations, and rank the patients.",
+ "a": {
+  "request": "Linking each examination to its patient by `ID` (dropping examinations with no matching patient), work per patient: take each patient's (`ID`, `SEX`) average `aCL IgM` over their examinations. Find the overall mean of these per-patient values and each one's deviation from that overall mean. Then, within each sex (exact text match, so a blank sex is its own group and a missing sex matches nothing), average those deviations. Keep only the per-patient values whose deviation is above their sex's average deviation, and show the top 10 by how far above it they are, largest first (missing last): patient `ID`, `SEX`, the `aCL IgM` value, its deviation from the overall mean, and how far that deviation exceeds the sex's average deviation. All averages ignore missing values; don't round.",
+  "sql": "WITH per_patient AS (SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS acl_igm FROM Patient AS p JOIN Examination AS e ON e.ID = p.ID GROUP BY p.ID, p.SEX), overall_mean AS (SELECT AVG(acl_igm) AS mean_igm FROM per_patient), deviations AS (SELECT pp.ID, pp.SEX, pp.acl_igm, pp.acl_igm - om.mean_igm AS deviation FROM per_patient AS pp CROSS JOIN overall_mean AS om), sex_averages AS (SELECT SEX, AVG(deviation) AS average_deviation FROM deviations GROUP BY SEX) SELECT d.ID, d.SEX, d.acl_igm AS `aCL IgM`, d.deviation, d.deviation - s.average_deviation AS excess_deviation FROM deviations AS d JOIN sex_averages AS s ON d.SEX = s.SEX WHERE d.deviation > s.average_deviation ORDER BY excess_deviation IS NULL, excess_deviation DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Linking examinations to patients by `ID` (dropping examinations with no matching patient), how far is patients' `aCL IgM` above or below the overall mean? Within each sex (exact text match, so a blank sex is its own group and a missing sex matches nothing), what is the average of those deviations? Show the top 10 entries whose deviation is above their sex's average deviation, ranked by how far above it they are, largest first (missing last): patient `ID`, `SEX`, `aCL IgM`, its deviation from the overall mean, and how far that deviation exceeds the sex's average deviation. All averages ignore missing values; don't round. Average aCL IgM per patient (ID, sex) first, then compute deviations from the mean of those patient averages, compare them with sex-group average deviations, and rank the patients.",
+  "sql": "WITH patient_averages AS (SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS avg_acl_igm FROM Examination AS e JOIN Patient AS p ON p.ID = e.ID GROUP BY p.ID, p.SEX), overall_mean AS (SELECT AVG(avg_acl_igm) AS mean_acl_igm FROM patient_averages), deviations AS (SELECT pa.ID, pa.SEX, pa.avg_acl_igm, pa.avg_acl_igm - om.mean_acl_igm AS deviation FROM patient_averages AS pa CROSS JOIN overall_mean AS om), sex_averages AS (SELECT SEX, AVG(deviation) AS avg_deviation FROM deviations GROUP BY SEX) SELECT d.ID, d.SEX, d.avg_acl_igm AS `aCL IgM`, d.deviation, d.deviation - s.avg_deviation AS excess_deviation FROM deviations AS d JOIN sex_averages AS s ON d.SEX = s.SEX WHERE d.deviation > s.avg_deviation ORDER BY (d.deviation - s.avg_deviation) IS NULL, excess_deviation DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each patient with a matching examination, average their nonmissing `aCL IgM` values, subtract the overall mean of those patient averages, then subtract the average deviation for patients with exactly the same `SEX`; return the 10 patients whose result is positive, ranked by that result descending with missing values last, showing `ID`, `SEX`, patient-average `aCL IgM`, deviation from the overall mean, and amount above the sex-group average deviation, without rounding",
+  "sql": "WITH patient_averages AS (SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS patient_average FROM Patient AS p JOIN Examination AS e ON e.ID = p.ID GROUP BY p.ID, p.SEX), deviations AS (SELECT ID, SEX, patient_average, patient_average - AVG(patient_average) OVER () AS deviation_from_overall_mean FROM patient_averages), results AS (SELECT ID, SEX, patient_average, deviation_from_overall_mean, deviation_from_overall_mean - AVG(deviation_from_overall_mean) OVER (PARTITION BY SEX) AS amount_above_sex_group_average_deviation FROM deviations) SELECT ID, SEX, patient_average AS `patient-average aCL IgM`, deviation_from_overall_mean, amount_above_sex_group_average_deviation FROM results WHERE amount_above_sex_group_average_deviation > 0 ORDER BY amount_above_sex_group_average_deviation IS NULL, amount_above_sex_group_average_deviation DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Link examinations to patients by `ID`, dropping examinations with no matching patient. First, average `aCL IgM` for each patient (`ID`, `SEX`), ignoring missing values. Compute each patient\u2019s deviation from the overall mean of those patient averages, then calculate the average deviation within each sex group. Match `SEX` by exact text: blank is its own group, and missing matches nothing. Show the top 10 patients whose deviation exceeds their sex group\u2019s average deviation, ranked by the amount of that excess, largest first and missing last. Include `ID`, `SEX`, average `aCL IgM`, deviation from the overall mean, and excess over the sex group\u2019s average deviation. Do not round.",
+  "sql": "WITH patient_averages AS (SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS avg_acl_igm FROM Examination AS e JOIN Patient AS p ON p.ID = e.ID GROUP BY p.ID, p.SEX), deviations AS (SELECT ID, SEX, avg_acl_igm, avg_acl_igm - (SELECT AVG(avg_acl_igm) FROM patient_averages) AS deviation FROM patient_averages), sex_averages AS (SELECT SEX, AVG(deviation) AS avg_deviation FROM deviations GROUP BY SEX) SELECT d.ID, d.SEX, d.avg_acl_igm, d.deviation, d.deviation - s.avg_deviation AS excess FROM deviations AS d JOIN sex_averages AS s ON d.SEX = s.SEX WHERE d.deviation > s.avg_deviation ORDER BY (excess IS NULL), excess DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

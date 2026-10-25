@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "Count inventory copies for each rating; return the total copies in ratings above the mean copy count per rating and their average excess in copies",
+  "Count inventory copies for each rating; return the total copies in ratings above the mean copy count per rating and their average percentage excess",
+  "Count distinct film titles stocked for each rating; return the total distinct titles in ratings above the mean title count per rating and their average excess in titles",
+  "Count distinct film titles stocked for each rating; return the total distinct titles in ratings above the mean title count per rating and their average percentage excess",
+  "Count copies currently available for rental for each rating, excluding copies on unreturned rentals; return the total available copies in ratings above the mean available-copy count per rating and their average excess in copies",
+  "Count copies currently available for rental for each rating, excluding copies on unreturned rentals; return the total available copies in ratings above the mean available-copy count per rating and their average percentage excess",
+  "Count distinct film titles with at least one copy currently available for rental for each rating; return the total available titles in ratings above the mean available-title count per rating and their average excess in titles",
+  "Count distinct film titles with at least one copy currently available for rental for each rating; return the total available titles in ratings above the mean available-title count per rating and their average percentage excess"
+ ],
+ "queries": [
+  "WITH rating_copies AS (\n  SELECT f.rating, COUNT(i.inventory_id) AS copies\n  FROM film AS f\n  LEFT JOIN inventory AS i ON i.film_id = f.film_id\n  GROUP BY f.rating\n),\nmean_copies AS (\n  SELECT AVG(copies) AS mean_copies\n  FROM rating_copies\n)\nSELECT\n  SUM(rc.copies) AS total_copies,\n  AVG(rc.copies - mc.mean_copies) AS average_excess_copies\nFROM rating_copies AS rc\nCROSS JOIN mean_copies AS mc\nWHERE rc.copies > mc.mean_copies",
+  "WITH rating_copies AS (\n  SELECT f.rating, COUNT(*) AS copies\n  FROM inventory AS i\n  JOIN film AS f ON f.film_id = i.film_id\n  GROUP BY f.rating\n),\nmean_copies AS (\n  SELECT AVG(copies) AS mean_count\n  FROM rating_copies\n)\nSELECT\n  SUM(rc.copies) AS total_copies,\n  AVG(100.0 * (rc.copies - mc.mean_count) / mc.mean_count) AS average_percentage_excess\nFROM rating_copies AS rc\nCROSS JOIN mean_copies AS mc\nWHERE rc.copies > mc.mean_count",
+  "WITH rating_counts AS (\n  SELECT f.rating, COUNT(DISTINCT f.title) AS title_count\n  FROM inventory AS i\n  JOIN film AS f ON f.film_id = i.film_id\n  GROUP BY f.rating\n),\nrating_mean AS (\n  SELECT AVG(title_count) AS mean_title_count\n  FROM rating_counts\n)\nSELECT\n  SUM(rc.title_count) AS total_distinct_titles,\n  AVG(rc.title_count - rm.mean_title_count) AS average_excess_titles\nFROM rating_counts AS rc\nCROSS JOIN rating_mean AS rm\nWHERE rc.title_count > rm.mean_title_count",
+  "WITH title_counts AS (\n  SELECT f.rating, COUNT(DISTINCT f.title) AS title_count\n  FROM film AS f\n  JOIN inventory AS i ON i.film_id = f.film_id\n  GROUP BY f.rating\n),\nrating_mean AS (\n  SELECT AVG(title_count) AS mean_title_count\n  FROM title_counts\n)\nSELECT\n  SUM(tc.title_count) AS total_distinct_titles,\n  AVG(100.0 * (tc.title_count - rm.mean_title_count) / rm.mean_title_count) AS average_percentage_excess\nFROM title_counts AS tc\nCROSS JOIN rating_mean AS rm\nWHERE tc.title_count > rm.mean_title_count",
+  "WITH available_by_rating AS (\n  SELECT f.rating, COUNT(*) AS available_copies\n  FROM inventory AS i\n  JOIN film AS f ON f.film_id = i.film_id\n  WHERE NOT EXISTS (\n    SELECT 1\n    FROM rental AS r\n    WHERE r.inventory_id = i.inventory_id\n      AND r.return_date IS NULL\n  )\n  GROUP BY f.rating\n),\nrating_mean AS (\n  SELECT AVG(available_copies) AS mean_copies\n  FROM available_by_rating\n)\nSELECT SUM(a.available_copies) AS total_available_copies,\n       AVG(a.available_copies - m.mean_copies) AS average_excess_copies\nFROM available_by_rating AS a\nCROSS JOIN rating_mean AS m\nWHERE a.available_copies > m.mean_copies",
+  "WITH available_by_rating AS (\n  SELECT f.rating, COUNT(*) AS available_copies\n  FROM inventory AS i\n  JOIN film AS f ON f.film_id = i.film_id\n  WHERE NOT EXISTS (\n    SELECT 1\n    FROM rental AS r\n    WHERE r.inventory_id = i.inventory_id\n      AND r.return_date IS NULL\n  )\n  GROUP BY f.rating\n),\nrating_mean AS (\n  SELECT AVG(available_copies) AS mean_copies\n  FROM available_by_rating\n)\nSELECT\n  SUM(a.available_copies) AS total_available_copies,\n  AVG(100.0 * (a.available_copies - m.mean_copies) / m.mean_copies) AS average_percentage_excess\nFROM available_by_rating AS a\nCROSS JOIN rating_mean AS m\nWHERE a.available_copies > m.mean_copies"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5fd7aa9aff",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 111332,
+  "chars_out": 4672
+ }
+}

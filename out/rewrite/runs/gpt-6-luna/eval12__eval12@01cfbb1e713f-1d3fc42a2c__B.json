@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1d3fc42a2c",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "A project's ratio is its total boxx divided by its total boxz.",
+ "b": {
+  "request": "For each project with a matching project record, sum its non-null `scanspatial.boxx` values and divide by the sum of its non-null `scanspatial.boxz` values; compare that ratio with the simple average of the ratios for projects in the same `fundflux`, then return the 10 projects with the largest positive differences, showing project ID, funding source, ratio, and margin, sorted by margin descending with missing values last and no rounding",
+  "sql": "WITH project_ratios AS (\n  SELECT\n    p.arcregistry AS project_id,\n    p.fundflux AS funding_source,\n    SUM(ss.boxx) / NULLIF(SUM(ss.boxz), 0) AS ratio\n  FROM projects AS p\n  LEFT JOIN scanspatial AS ss\n    ON ss.arcref = p.arcregistry\n  GROUP BY p.arcregistry, p.fundflux\n),\nwith_margins AS (\n  SELECT\n    project_id,\n    funding_source,\n    ratio,\n    ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS margin\n  FROM project_ratios\n)\nSELECT\n  project_id,\n  funding_source,\n  ratio,\n  margin\nFROM with_margins\nWHERE margin > 0\nORDER BY margin DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Match each spatial record (`scanspatial`) to the project whose `arcregistry` equals its `arcref`, and drop records with no matching project. What is each project's bounding-box X-to-Z ratio (`boxx` to `boxz`), ignoring missing values? Which 10 projects beat the simple average ratio of the projects in their own funding source (`projects.fundflux`) by the widest margin? Show the project ID, funding source, ratio and margin, sorted by margin from largest to smallest (missing last), with no rounding. A project's ratio is its total boxx divided by its total boxz.",
+  "sql": "WITH project_ratios AS (\n  SELECT\n    p.arcregistry AS project_id,\n    p.fundflux AS funding_source,\n    SUM(s.boxx) / NULLIF(SUM(s.boxz), 0) AS ratio\n  FROM projects AS p\n  JOIN scanspatial AS s ON s.arcref = p.arcregistry\n  GROUP BY p.arcregistry, p.fundflux\n), ranked AS (\n  SELECT\n    project_id,\n    funding_source,\n    ratio,\n    ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS margin\n  FROM project_ratios\n)\nSELECT project_id, funding_source, ratio, margin\nFROM ranked\nORDER BY margin DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match each spatial record (`scanspatial`) to the project whose `arcregistry` equals its `arcref`, and drop records with no matching project. For each project ID and its funding source (`projects.fundflux`), work out the project's X-to-Z ratio like this: add up all of its `boxx` values and, separately, all of its `boxz` values (ignoring missing ones), then divide the `boxx` total by the `boxz` total. Within each funding source, take the simple average of its projects' ratios. Then return the 10 projects whose ratio is above their funding source's average by the most. Sort them by that excess from largest to smallest, with missing values last. Show the project ID, funding source, ratio and excess, with no rounding.",
+  "sql": "WITH project_ratios AS (\n    SELECT p.arcregistry AS project_id,\n           p.fundflux AS funding_source,\n           SUM(s.boxx) / NULLIF(SUM(s.boxz), 0) AS ratio\n    FROM scanspatial AS s\n    JOIN projects AS p ON p.arcregistry = s.arcref\n    GROUP BY p.arcregistry, p.fundflux\n),\nproject_excesses AS (\n    SELECT project_id,\n           funding_source,\n           ratio,\n           ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS excess\n    FROM project_ratios\n)\nSELECT project_id, funding_source, ratio, excess\nFROM project_excesses\nWHERE excess > 0\nORDER BY excess DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each project, calculate its bounding-box X-to-Z ratio as the sum of its `scanspatial.boxx` values divided by the sum of its `scanspatial.boxz` values, ignoring missing values. Match each spatial record to the project whose `arcregistry` matches its `arcref`, and exclude records without a matching project. For each project, compare its ratio with the simple average ratio of projects sharing the same `projects.fundflux`. Return the 10 projects with the largest margins above that average, showing project ID, funding source, ratio, and margin. Sort by margin descending, with missing values last, and do not round.",
+  "sql": "WITH project_ratios AS (\n  SELECT p.arcregistry,\n         p.fundflux,\n         SUM(s.boxx) / NULLIF(SUM(s.boxz), 0) AS ratio\n  FROM projects p\n  JOIN scanspatial s ON s.arcref = p.arcregistry\n  GROUP BY p.arcregistry, p.fundflux\n),\nproject_margins AS (\n  SELECT arcregistry,\n         fundflux,\n         ratio,\n         ratio - AVG(ratio) OVER (PARTITION BY fundflux) AS margin\n  FROM project_ratios\n)\nSELECT arcregistry AS project_id,\n       fundflux AS funding_source,\n       ratio,\n       margin\nFROM project_margins\nORDER BY margin DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

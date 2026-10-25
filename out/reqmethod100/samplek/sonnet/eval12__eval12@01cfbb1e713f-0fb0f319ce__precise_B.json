@@ -1,0 +1,84 @@
+{
+ "queries": [
+  "WITH inv AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS avg_unit_price FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), dev AS (SELECT InvoiceId, Country, avg_unit_price, avg_unit_price - AVG(avg_unit_price) OVER () AS deviation FROM inv), cd AS (SELECT InvoiceId, Country, avg_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_minus_country_avg FROM dev), r AS (SELECT *, RANK() OVER (ORDER BY (deviation_minus_country_avg IS NULL), deviation_minus_country_avg DESC) AS rk FROM cd) SELECT InvoiceId, Country, avg_unit_price, deviation, deviation_minus_country_avg FROM r WHERE rk <= 10 ORDER BY rk, InvoiceId",
+  "WITH inv AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS avg_unit_price FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), dev AS (SELECT InvoiceId, Country, avg_unit_price, avg_unit_price - (SELECT AVG(avg_unit_price) FROM inv) AS deviation FROM inv), cd AS (SELECT InvoiceId, Country, avg_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_minus_country_avg FROM dev), ranked AS (SELECT *, RANK() OVER (ORDER BY (deviation_minus_country_avg IS NULL), deviation_minus_country_avg DESC) AS rk FROM cd) SELECT InvoiceId, Country, avg_unit_price, deviation, deviation_minus_country_avg FROM ranked WHERE rk <= 10 ORDER BY rk, InvoiceId;",
+  "WITH inv AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS avg_price FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), dev AS (SELECT InvoiceId, Country, avg_price, avg_price - (SELECT AVG(avg_price) FROM inv) AS deviation FROM inv), fin AS (SELECT InvoiceId, Country, avg_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS dev_minus_country_avg FROM dev), ranked AS (SELECT *, RANK() OVER (ORDER BY (dev_minus_country_avg IS NULL), dev_minus_country_avg DESC) AS rnk FROM fin) SELECT InvoiceId, Country, avg_price, deviation, dev_minus_country_avg FROM ranked WHERE rnk <= 10 ORDER BY rnk, InvoiceId;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH inv AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS avg_unit_price FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), dev AS (SELECT InvoiceId, Country, avg_unit_price, avg_unit_price - AVG(avg_unit_price) OVER () AS deviation FROM inv), cd AS (SELECT InvoiceId, Country, avg_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_minus_country_avg FROM dev), r AS (SELECT *, RANK() OVER (ORDER BY (deviation_minus_country_avg IS NULL), deviation_minus_country_avg DESC) AS rk FROM cd) SELECT InvoiceId, Country, avg_unit_price, deviation, deviation_minus_country_avg FROM r WHERE rk <= 10 ORDER BY rk, InvoiceId",
+   "assumptions": [
+    {
+     "assumption": "Country means Customer.Country (the customer's country, as the request states), not Invoice.BillingCountry.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Invoices with no invoice lines are kept with a NULL average. NULLs are ignored in the overall and country averages and sorted last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The invoice average is the plain average of line UnitPrice, not weighted by Quantity.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties with the 10th row are included using RANK(). Rows with a NULL country form their own group for the country average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH inv AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS avg_unit_price FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), dev AS (SELECT InvoiceId, Country, avg_unit_price, avg_unit_price - (SELECT AVG(avg_unit_price) FROM inv) AS deviation FROM inv), cd AS (SELECT InvoiceId, Country, avg_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_minus_country_avg FROM dev), ranked AS (SELECT *, RANK() OVER (ORDER BY (deviation_minus_country_avg IS NULL), deviation_minus_country_avg DESC) AS rk FROM cd) SELECT InvoiceId, Country, avg_unit_price, deviation, deviation_minus_country_avg FROM ranked WHERE rk <= 10 ORDER BY rk, InvoiceId;",
+   "assumptions": [
+    {
+     "assumption": "The average unit price of an invoice is the plain AVG(InvoiceLine.UnitPrice) over its lines, not weighted by Quantity.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The country is the customer's Customer.Country, not Invoice.BillingCountry.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Invoices with no lines are kept with a NULL average (LEFT JOIN). The overall and country averages ignore NULLs, and these invoices sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties with the 10th row are included by using RANK() <= 10.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH inv AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS avg_price FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), dev AS (SELECT InvoiceId, Country, avg_price, avg_price - (SELECT AVG(avg_price) FROM inv) AS deviation FROM inv), fin AS (SELECT InvoiceId, Country, avg_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS dev_minus_country_avg FROM dev), ranked AS (SELECT *, RANK() OVER (ORDER BY (dev_minus_country_avg IS NULL), dev_minus_country_avg DESC) AS rnk FROM fin) SELECT InvoiceId, Country, avg_price, deviation, dev_minus_country_avg FROM ranked WHERE rnk <= 10 ORDER BY rnk, InvoiceId;",
+   "assumptions": [
+    {
+     "assumption": "Country is the customer's Customer.Country, not Invoice.BillingCountry, since the request says the customer's country.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The invoice average is the simple average of InvoiceLine.UnitPrice per line, not weighted by Quantity.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Invoices with no lines are kept with a NULL average. They are ignored in the overall and country averages and sort last. This matches the 'blanks last' wording.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties with the 10th row are included by using RANK() and keeping rank <= 10.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0fb0f319ce",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 17202,
+  "chars_out": 4322
+ }
+}

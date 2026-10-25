@@ -1,0 +1,34 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-6ed1b9b523",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Count races at each circuit using a date window that excludes both end dates, 1978-03-04 and 2003-03-09. Then compare each circuit's count with its country's average count per circuit.",
+ "d": {
+  "request": "Count races at each listed circuit with dates strictly after 1978-03-04 and strictly before 2003-03-09, then report each circuit\u2019s ID, country, race count, and its count divided by the average count among circuits in that country; sort by this ratio descending, put missing ratios last, and return the top 10.",
+  "sql": "WITH circuit_counts AS (\n  SELECT\n    c.circuitId,\n    c.country,\n    COUNT(r.raceId) AS race_count\n  FROM circuits AS c\n  LEFT JOIN races AS r\n    ON r.circuitId = c.circuitId\n   AND r.date > '1978-03-04'\n   AND r.date < '2003-03-09'\n  GROUP BY c.circuitId, c.country\n),\nratios AS (\n  SELECT\n    circuitId,\n    country,\n    race_count,\n    1.0 * race_count / NULLIF(AVG(race_count) OVER (PARTITION BY country), 0) AS ratio\n  FROM circuit_counts\n)\nSELECT circuitId, country, race_count, ratio\nFROM ratios\nORDER BY (ratio IS NULL), ratio DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "For races held between 1978-03-04 and 2003-03-09 (comparing the `date` text directly), counting only races whose circuit is listed in the circuits table: how many races did each circuit host, grouped by circuit ID and country? For each circuit, show its circuit ID, its country, its race count, and that count divided by the average race count of circuits in the same country (unrounded). Sort by that ratio from highest to lowest, with missing values last, and give the top 10. Count races at each circuit using a date window that excludes both end dates, 1978-03-04 and 2003-03-09. Then compare each circuit's count with its country's average count per circuit.",
+  "sql": "WITH circuit_race_counts AS (\n  SELECT\n    c.\"circuitId\",\n    c.\"country\",\n    COUNT(r.\"raceId\") AS race_count\n  FROM \"circuits\" AS c\n  LEFT JOIN \"races\" AS r\n    ON r.\"circuitId\" = c.\"circuitId\"\n   AND r.\"date\" > '1978-03-04'\n   AND r.\"date\" < '2003-03-09'\n  GROUP BY c.\"circuitId\", c.\"country\"\n)\nSELECT\n  \"circuitId\",\n  \"country\",\n  race_count,\n  CAST(race_count AS REAL) / NULLIF(AVG(race_count) OVER (PARTITION BY \"country\"), 0) AS count_to_country_average_ratio\nFROM circuit_race_counts\nORDER BY count_to_country_average_ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Count races dated strictly after 1978-03-04 and strictly before 2003-03-09 at circuits listed in the circuits table; group by circuit ID and country, and for each circuit report its race count divided by the average race count across circuits in the same country. Sort by this ratio descending, place missing ratios last, and return the top 10 circuits.",
+  "sql": "WITH circuit_race_counts AS (\n  SELECT\n    c.\"circuitId\",\n    c.\"country\",\n    COUNT(r.\"raceId\") AS race_count\n  FROM \"circuits\" AS c\n  LEFT JOIN \"races\" AS r\n    ON r.\"circuitId\" = c.\"circuitId\"\n   AND r.\"date\" > '1978-03-04'\n   AND r.\"date\" < '2003-03-09'\n  GROUP BY c.\"circuitId\", c.\"country\"\n), ranked AS (\n  SELECT\n    \"circuitId\",\n    \"country\",\n    1.0 * race_count / NULLIF(AVG(race_count) OVER (PARTITION BY \"country\"), 0) AS ratio\n  FROM circuit_race_counts\n)\nSELECT \"circuitId\", \"country\", ratio\nFROM ranked\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [],
+  "raw": "Count races dated strictly after 1978-03-04 and strictly before 2003-03-09 at circuits listed in the circuits table; group by circuit ID and country, and for each circuit report its race count divided by the average race count across circuits in the same country. Sort by this ratio descending, place missing ratios last, and return the top 10 circuits."
+ },
+ "a": {
+  "request": "Looking only at races dated strictly after 1978-03-04 and strictly before 2003-03-09, with both of those dates excluded (comparing the `date` text directly), and only at races whose circuit appears in the circuits table: count the races held at each circuit, grouped by circuit ID and the circuit's country. Then, for each country, average these per-circuit race counts. For each circuit, give its circuit ID, its country, its race count, and its race count divided by its country's average (unrounded). Sort by that ratio from highest to lowest, with missing values last, and show the top 10.",
+  "sql": "WITH circuit_counts AS (\n  SELECT c.\"circuitId\", c.\"country\", COUNT(r.\"raceId\") AS race_count\n  FROM \"circuits\" AS c\n  JOIN \"races\" AS r ON r.\"circuitId\" = c.\"circuitId\"\n  WHERE r.\"date\" > '1978-03-04'\n    AND r.\"date\" < '2003-03-09'\n  GROUP BY c.\"circuitId\", c.\"country\"\n),\ncountry_averages AS (\n  SELECT \"country\", AVG(race_count) AS avg_race_count\n  FROM circuit_counts\n  GROUP BY \"country\"\n)\nSELECT cc.\"circuitId\", cc.\"country\", cc.race_count,\n       cc.race_count * 1.0 / ca.avg_race_count AS ratio\nFROM circuit_counts AS cc\nJOIN country_averages AS ca ON ca.\"country\" = cc.\"country\"\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

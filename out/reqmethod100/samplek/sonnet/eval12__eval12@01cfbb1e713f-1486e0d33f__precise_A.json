@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH per AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId) SELECT MediaTypeId, avg_price, avg_price / (SELECT AVG(avg_price) FROM per) AS ratio FROM per ORDER BY ratio DESC, MediaTypeId LIMIT 10",
+  "WITH per AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId) SELECT MediaTypeId, avg_price AS average_unit_price, avg_price / (SELECT AVG(avg_price) FROM per) AS ratio_to_baseline FROM per ORDER BY ratio_to_baseline DESC NULLS LAST LIMIT 10",
+  "WITH per AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId) SELECT MediaTypeId, avg_price, avg_price / (SELECT AVG(avg_price) FROM per) AS ratio FROM per ORDER BY ratio DESC NULLS LAST LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId) SELECT MediaTypeId, avg_price, avg_price / (SELECT AVG(avg_price) FROM per) AS ratio FROM per ORDER BY ratio DESC, MediaTypeId LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Only media types that have at least one track appear (derived from Track), and the baseline is the unweighted mean of those per-type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Missing ratios (NULL) sort last explicitly is not needed in practice since averages are non-null, but ties are broken by MediaTypeId for determinism. Division uses the database's native numeric division (no rounding).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId) SELECT MediaTypeId, avg_price AS average_unit_price, avg_price / (SELECT AVG(avg_price) FROM per) AS ratio_to_baseline FROM per ORDER BY ratio_to_baseline DESC NULLS LAST LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Only media types that have at least one track are included (grouping is over Track), so media types with no tracks do not appear and do not count toward the baseline.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ratio is computed as a decimal division without rounding; if the baseline is 0, the ratio is NULL or undefined depending on the dialect, and such rows are sorted last. Ties in the ratio are ordered arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price FROM Track GROUP BY MediaTypeId) SELECT MediaTypeId, avg_price, avg_price / (SELECT AVG(avg_price) FROM per) AS ratio FROM per ORDER BY ratio DESC NULLS LAST LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Only media types that have at least one track appear (derived from Track), so every per-type average is non-null; the baseline is the unweighted mean of those per-type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If the baseline is 0, the ratio would be a division by zero; prices are assumed positive so this does not occur.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1486e0d33f",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16383,
+  "chars_out": 2119
+ }
+}

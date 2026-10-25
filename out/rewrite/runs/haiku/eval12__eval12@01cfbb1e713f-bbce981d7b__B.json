@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bbce981d7b",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Shares and their average cover all accounts, with zero-order accounts given share 0.",
+ "c": {
+  "request": "For each account, work out its share of all orders: its order count divided by the total number of orders (`order`). For the accounts whose share is above the average share, give one row with the total number of orders they have, their average share, and on average how far above the average share they are. Do not round. Shares and their average cover all accounts, with zero-order accounts given share 0.",
+  "sql": "WITH total AS (SELECT COUNT(*) AS n FROM `order`), counts AS (SELECT a.account_id, COUNT(o.order_id) AS cnt FROM account a LEFT JOIN `order` o ON o.account_id = a.account_id GROUP BY a.account_id), shares AS (SELECT c.account_id, c.cnt, CAST(c.cnt AS REAL) / (SELECT n FROM total) AS share FROM counts c), avg_share AS (SELECT AVG(share) AS avg_s FROM shares) SELECT SUM(s.cnt) AS total_orders, AVG(s.share) AS avg_share, AVG(s.share - a.avg_s) AS avg_above_average FROM shares s, avg_share a WHERE s.share > a.avg_s;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For all accounts (zero-order accounts counted with share 0), compute share = orders per account / total rows in `order`, take the mean share over all accounts, then return one row for accounts with share above that mean: the sum of their order counts, the mean of their shares, and the mean of (share \u2212 overall mean share) for them, unrounded",
+  "sql": "WITH order_counts AS (SELECT a.account_id, COUNT(o.order_id) AS order_cnt FROM account a LEFT JOIN `order` o ON o.account_id = a.account_id GROUP BY a.account_id), total AS (SELECT COUNT(*) AS total_orders FROM `order`), shares AS (SELECT oc.account_id, oc.order_cnt, CAST(oc.order_cnt AS REAL) / t.total_orders AS share FROM order_counts oc CROSS JOIN total t), overall AS (SELECT AVG(share) AS overall_mean FROM shares), above AS (SELECT s.order_cnt, s.share FROM shares s CROSS JOIN overall ov WHERE s.share > ov.overall_mean) SELECT SUM(ab.order_cnt) AS sum_order_count, AVG(ab.share) AS mean_share, AVG(ab.share - ov.overall_mean) AS mean_share_deviation FROM above ab CROSS JOIN overall ov;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Looking at every account in `account`, including accounts with no orders (`order`), which count as 0 orders and a share of 0, find each account's number of orders and its share of all orders (its order count divided by the total number of orders). Average the shares over these accounts and take the accounts whose share is above that average. In a single row, give the total number of orders of those accounts, their average share, and on average how far their share is above the average share. Do not round.",
+  "sql": "WITH oc AS (SELECT a.account_id, COUNT(o.order_id) AS cnt FROM account a LEFT JOIN `order` o ON o.account_id = a.account_id GROUP BY a.account_id), tot AS (SELECT COUNT(*) AS total FROM `order`), sh AS (SELECT oc.account_id, oc.cnt, CAST(oc.cnt AS REAL) / tot.total AS share FROM oc, tot), avg_sh AS (SELECT AVG(share) AS avg_share FROM sh), above AS (SELECT sh.cnt, sh.share FROM sh, avg_sh WHERE sh.share > avg_sh.avg_share) SELECT SUM(above.cnt) AS total_orders, AVG(above.share) AS avg_share, AVG(above.share - avg_sh.avg_share) AS avg_excess_over_average FROM above, avg_sh;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For every account, compute its share of all orders as its order count divided by the total number of orders in the `order` table, and treat accounts with zero orders as having a share of 0. Then compute the average share across all accounts, including those zero-order accounts. Among the accounts whose share is above that average, return a single row containing the total number of orders those accounts have, their average share, and the average amount by which their share exceeds the overall average. Do not round any values.",
+  "sql": "WITH total AS (SELECT COUNT(*) AS total_orders FROM `order`), counts AS (SELECT a.account_id, COALESCE(c.cnt, 0) AS cnt FROM account a LEFT JOIN (SELECT account_id, COUNT(*) AS cnt FROM `order` GROUP BY account_id) c ON a.account_id = c.account_id), shares AS (SELECT account_id, cnt, CAST(cnt AS REAL) / (SELECT total_orders FROM total) AS share FROM counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.cnt, s.share, s.share - a.avg_share AS excess FROM shares s, avg_share a WHERE s.share > a.avg_share) SELECT SUM(cnt) AS total_orders, AVG(share) AS avg_share, AVG(excess) AS avg_excess_over_average FROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

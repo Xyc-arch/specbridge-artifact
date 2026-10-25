@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-156f4616e3",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH city_counts AS (SELECT city_id, COUNT(*) AS address_count FROM address GROUP BY city_id), totals AS (SELECT SUM(address_count) AS total_addresses, COUNT(*) AS num_cities FROM city_counts), metrics AS (SELECT cc.city_id, cc.address_count, CAST(cc.address_count AS DOUBLE) / (CAST(t.total_addresses AS DOUBLE) / t.num_cities) AS count_vs_avg, CAST(cc.address_count AS DOUBLE) / CAST(t.total_addresses AS DOUBLE) AS share FROM city_counts cc CROSS JOIN totals t), ranked AS (SELECT m.*, RANK() OVER (ORDER BY m.share DESC) AS share_rank FROM metrics m) SELECT city_id, address_count, count_vs_avg, share FROM ranked WHERE share_rank <= 10 ORDER BY share DESC, city_id",
+  "assumptions": [
+   {
+    "assumption": "The average addresses per city is total addresses divided by the number of distinct city_ids that appear in the address table, so only cities with at least one address are counted. The request does not say whether cities in the city table with zero addresses should be included.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Ranking uses RANK() on share descending, so every city tied with the 10th-ranked share is returned, which can give more than 10 rows.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Divisions are cast to DOUBLE and no ROUND is applied, so MySQL's decimal division precision does not truncate the results. The dialect is MySQL 8+ (window functions), matching the sakila schema.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The average is taken over every city in the city table, including cities with zero addresses, so the denominator is the total row count of city rather than the number of cities that have addresses.",
+    "sql": "WITH city_counts AS (SELECT city_id, COUNT(*) AS address_count FROM address GROUP BY city_id), totals AS (SELECT (SELECT COUNT(*) FROM address) AS total_addresses, (SELECT COUNT(*) FROM city) AS num_cities), metrics AS (SELECT cc.city_id, cc.address_count, CAST(cc.address_count AS DOUBLE) / (CAST(t.total_addresses AS DOUBLE) / t.num_cities) AS count_vs_avg, CAST(cc.address_count AS DOUBLE) / CAST(t.total_addresses AS DOUBLE) AS share FROM city_counts cc CROSS JOIN totals t), ranked AS (SELECT m.*, RANK() OVER (ORDER BY m.share DESC) AS share_rank FROM metrics m) SELECT city_id, address_count, count_vs_avg, share FROM ranked WHERE share_rank <= 10 ORDER BY share DESC, city_id"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 15.6
+}

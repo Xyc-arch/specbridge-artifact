@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / SUM(derived_total_cost) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT i.invoice_number, i.avg_qty AS average_quantity, i.cost_ratio, i.avg_qty - o.overall_avg AS diff_above_overall FROM inv i CROSS JOIN overall o WHERE i.avg_qty > o.overall_avg ORDER BY diff_above_overall DESC LIMIT 10",
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / SUM(derived_total_cost) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty, inv.cost_ratio, inv.avg_qty - overall.overall_avg AS diff_above_overall FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY diff_above_overall DESC NULLS LAST LIMIT 10",
+  "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT i.invoice_number, i.avg_qty, i.cost_ratio, i.avg_qty - o.overall_avg AS diff_above_overall FROM inv i CROSS JOIN overall o WHERE i.avg_qty > o.overall_avg ORDER BY diff_above_overall DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / SUM(derived_total_cost) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT i.invoice_number, i.avg_qty AS average_quantity, i.cost_ratio, i.avg_qty - o.overall_avg AS diff_above_overall FROM inv i CROSS JOIN overall o WHERE i.avg_qty > o.overall_avg ORDER BY diff_above_overall DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to REAL for averaging.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-invoice average quantities, as the request states, not the mean over all lines.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If an invoice's total derived_total_cost is 0, the ratio is NULL (division by zero) and the invoice is still listed.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / SUM(derived_total_cost) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty, inv.cost_ratio, inv.avg_qty - overall.overall_avg AS diff_above_overall FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY diff_above_overall DESC NULLS LAST LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to a number before averaging.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the mean of the per-invoice average quantities, so each invoice counts once. It is not the mean over all lines. Invoices whose average is NULL are left out of it.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If an invoice's total derived_total_cost is 0 or NULL, its cost ratio is NULL. The invoice can still appear if its average quantity qualifies.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH inv AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS cost_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT i.invoice_number, i.avg_qty, i.cost_ratio, i.avg_qty - o.overall_avg AS diff_above_overall FROM inv i CROSS JOIN overall o WHERE i.avg_qty > o.overall_avg ORDER BY diff_above_overall DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to a number before averaging.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-invoice average quantities (not the mean over all lines), as the request states. Invoices with a NULL average are left out of it.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If an invoice's total derived_total_cost is 0 or NULL, its cost ratio is NULL rather than an error.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b4231a9afb",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12552,
+  "chars_out": 3182
+ }
+}

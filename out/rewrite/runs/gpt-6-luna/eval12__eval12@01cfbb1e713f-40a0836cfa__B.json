@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-40a0836cfa",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Group only the examinations that have a patient ID; the total and the average share use only those; list up to 10 above-average groups by excess share.",
+ "a": {
+  "request": "Group the examination records by patient `ID`, leaving out examinations that have no patient ID. For each group, count its examinations and work out that count as a fraction of the total over all groups. For the groups whose fraction is above the average fraction across groups, list the ID, the number of examinations, the fraction, and how much the fraction exceeds the average, sorted by that excess from largest to smallest, top 10 only, unrounded.",
+  "sql": "WITH patient_counts AS (\n    SELECT ID, COUNT(*) AS examination_count\n    FROM Examination\n    WHERE ID IS NOT NULL\n    GROUP BY ID\n),\nfractions AS (\n    SELECT ID,\n           examination_count,\n           1.0 * examination_count / SUM(examination_count) OVER () AS fraction\n    FROM patient_counts\n),\nwith_average AS (\n    SELECT ID,\n           examination_count,\n           fraction,\n           AVG(fraction) OVER () AS average_fraction\n    FROM fractions\n)\nSELECT ID,\n       examination_count,\n       fraction,\n       fraction - average_fraction AS excess\nFROM with_average\nWHERE fraction > average_fraction\nORDER BY excess DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group examinations with a non-null patient ID; calculate each ID\u2019s examination count and share of the total examinations with non-null IDs, and the average share across those IDs. Return up to 10 IDs whose share exceeds the average, with their ID, examination count, share, and excess over the average share, ordered by excess descending, without rounding",
+  "sql": "WITH id_counts AS (\n  SELECT ID, COUNT(*) AS examination_count\n  FROM Examination\n  WHERE ID IS NOT NULL\n  GROUP BY ID\n), shares AS (\n  SELECT ID,\n         examination_count,\n         1.0 * examination_count / SUM(examination_count) OVER () AS share\n  FROM id_counts\n), scored AS (\n  SELECT ID,\n         examination_count,\n         share,\n         share - AVG(share) OVER () AS excess_over_average\n  FROM shares\n)\nSELECT ID, examination_count, share, excess_over_average\nFROM scored\nWHERE excess_over_average > 0\nORDER BY excess_over_average DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Break the examination records down by patient ID. Which IDs have an above-average share of the examinations? Show the ID, its number of examinations, its share of the total, and how far above the average share it is, listing the top 10 by that margin from largest to smallest, unrounded. Group only the examinations that have a patient ID; the total and the average share use only those; list up to 10 above-average groups by excess share.",
+  "sql": "WITH counts AS (\n  SELECT ID, COUNT(*) AS examination_count\n  FROM Examination\n  WHERE ID IS NOT NULL\n  GROUP BY ID\n), shares AS (\n  SELECT\n    ID,\n    examination_count,\n    1.0 * examination_count / SUM(examination_count) OVER () AS share_of_total,\n    1.0 / COUNT(*) OVER () AS average_share\n  FROM counts\n)\nSELECT\n  ID,\n  examination_count,\n  share_of_total,\n  share_of_total - average_share AS excess_share\nFROM shares\nWHERE share_of_total > average_share\nORDER BY excess_share DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among examinations with a patient ID, which patient IDs have an above-average share of examinations? Use only those examinations to calculate the total and average share. List up to 10 IDs with the largest excess share, including each ID\u2019s examination count, share of the total, and amount above the average share, unrounded.",
+  "sql": "WITH per_patient AS (\n    SELECT ID, COUNT(*) AS examination_count\n    FROM Examination\n    WHERE ID IS NOT NULL\n    GROUP BY ID\n), shares AS (\n    SELECT ID,\n           examination_count,\n           CAST(examination_count AS REAL) / SUM(examination_count) OVER () AS share_of_total\n    FROM per_patient\n)\nSELECT ID,\n       examination_count,\n       share_of_total,\n       share_of_total - AVG(share_of_total) OVER () AS excess_share\nFROM shares\nWHERE share_of_total > AVG(share_of_total) OVER ()\nORDER BY excess_share DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ }
+}

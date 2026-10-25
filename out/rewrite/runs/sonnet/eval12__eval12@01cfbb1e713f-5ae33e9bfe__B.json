@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-5ae33e9bfe",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Per-film actor counts and every average are taken over all films in the film table, with films that have no actor rows counted as 0.",
+ "c": {
+  "request": "How many actors does each film have, and what is the average of those counts (ignoring missing values)? Keep the films with strictly more actors than that average and note how far above it each one is. Among those films, average their actor counts again, keep only the ones strictly above that, and note how far above it they are too. If either average is missing, keep no films. Give me one row: the total actor count of the films that are left, their average excess over the first average, and their average excess over the second average, ignoring missing values and without rounding. Per-film actor counts and every average are taken over all films in the film table, with films that have no actor rows counted as 0.",
+  "sql": "WITH c AS (SELECT f.film_id, COUNT(fa.actor_id) AS cnt FROM film f LEFT JOIN film_actor fa ON fa.film_id = f.film_id GROUP BY f.film_id), a1 AS (SELECT AVG(cnt) AS m1 FROM c), s1 AS (SELECT c.film_id, c.cnt, a1.m1 FROM c CROSS JOIN a1 WHERE c.cnt > a1.m1), a2 AS (SELECT AVG(cnt) AS m2 FROM s1), s2 AS (SELECT s1.film_id, s1.cnt, s1.m1, a2.m2 FROM s1 CROSS JOIN a2 WHERE s1.cnt > a2.m2) SELECT SUM(cnt) AS total_actor_count, AVG(cnt - m1) AS avg_excess_over_first_avg, AVG(cnt - m2) AS avg_excess_over_second_avg FROM s2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Count the actors of each film, using every film in the `film` table (films with no rows in `film_actor` count as having 0 actors). Take the average of those counts, ignoring missing values. Keep the films with strictly more actors than that average and note how far each is above it. Among those films, average their actor counts again, ignoring missing values. Keep only the films strictly above this second average and note how far each is above it. If either average is missing, keep no films. Return one row: the sum of the remaining films' actor counts, the average of their excess over the first average, and the average of their excess over the second average, all ignoring missing values and unrounded.",
+  "sql": "WITH c AS (SELECT f.film_id, COUNT(fa.actor_id) AS n FROM film f LEFT JOIN film_actor fa ON fa.film_id = f.film_id GROUP BY f.film_id), a1 AS (SELECT AVG(n) AS m1 FROM c), s1 AS (SELECT c.film_id, c.n, c.n - a1.m1 AS ex1 FROM c, a1 WHERE c.n > a1.m1), a2 AS (SELECT AVG(n) AS m2 FROM s1), s2 AS (SELECT s1.film_id, s1.n, s1.ex1, s1.n - a2.m2 AS ex2 FROM s1, a2 WHERE s1.n > a2.m2) SELECT SUM(n) AS total_actors, AVG(ex1) AS avg_excess_first, AVG(ex2) AS avg_excess_second FROM s2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Per-film actor counts and both averages are computed over all films in the film table, with films that have no film_actor rows counted as 0. Keep films whose count is strictly above the first average, then compute the second average over those films and keep only those strictly above it. For the final films, return one row with the sum of their actor counts, the average of (count \u2212 first average), and the average of (count \u2212 second average), ignoring NULLs and not rounding",
+  "sql": "WITH c AS (SELECT f.film_id, COUNT(fa.actor_id) AS cnt FROM film f LEFT JOIN film_actor fa ON fa.film_id = f.film_id GROUP BY f.film_id), a1 AS (SELECT AVG(cnt) AS avg1 FROM c), k AS (SELECT c.film_id, c.cnt FROM c, a1 WHERE c.cnt > a1.avg1), a2 AS (SELECT AVG(cnt) AS avg2 FROM k), fin AS (SELECT k.film_id, k.cnt FROM k, a2 WHERE k.cnt > a2.avg2) SELECT SUM(fin.cnt) AS total_count, AVG(fin.cnt - a1.avg1) AS avg_diff1, AVG(fin.cnt - a2.avg2) AS avg_diff2 FROM fin, a1, a2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "How many actors does each film in the film table have, counting films with no actor rows as 0, and what is the average of those counts across all films (ignoring missing values)? Keep the films with strictly more actors than that average and note how far above it each one is. Among those films, average their actor counts again, keep only the ones strictly above that second average, and note how far above it each one is. If either average is missing, keep no films. Give me one row: the total actor count of the films that are left, their average excess over the first average, and their average excess over the second average, ignoring missing values and without rounding.",
+  "sql": "WITH counts AS (SELECT f.film_id, COUNT(fa.actor_id) AS c FROM film f LEFT JOIN film_actor fa ON fa.film_id = f.film_id GROUP BY f.film_id), a1 AS (SELECT AVG(c) AS avg1 FROM counts), s1 AS (SELECT counts.film_id, counts.c, counts.c - a1.avg1 AS ex1 FROM counts CROSS JOIN a1 WHERE a1.avg1 IS NOT NULL AND counts.c > a1.avg1), a2 AS (SELECT AVG(c) AS avg2 FROM s1), s2 AS (SELECT s1.film_id, s1.c, s1.ex1, s1.c - a2.avg2 AS ex2 FROM s1 CROSS JOIN a2 WHERE a2.avg2 IS NOT NULL AND s1.c > a2.avg2) SELECT SUM(c) AS total_actor_count, AVG(ex1) AS avg_excess_over_first_avg, AVG(ex2) AS avg_excess_over_second_avg FROM s2",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

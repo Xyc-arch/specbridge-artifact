@@ -1,0 +1,39 @@
+{
+ "interpretations": [
+  "Per-patient average HGB is taken over all of that patient's Laboratory records with non-null HGB. The overall average is the pooled mean over all non-null HGB records. Keep patients with a strictly greater average. Show ID, average, average minus overall average, and average minus the mean of the kept patients' averages. Sort by the last value descending and show the top 10 with no rounding.",
+  "Same as 1, but \"above\" is read as greater than or equal to the overall average.",
+  "Same as 1, but the mean of the kept patients' averages is an unweighted mean of the per-patient averages, one value per kept patient. This is the literal reading. The alternative is a pooled mean over all lab records of the kept patients.",
+  "Same as 1, but the overall average is the mean of the per-patient averages (each patient counts once). This contradicts the stated pooled definition.",
+  "Same as 1, but the patient population comes from the Patient table, which would include patients with no lab records. The question says \"each patient ID in the Laboratory table\", so this is unlikely.",
+  "Same as 1, but patients whose HGB values are all null are handled differently. They could be excluded (the NULL average fails the comparison), or they could be treated as 0.",
+  "Same as 1, but ties in the final sort are broken in some way: by ID ascending, by ID descending, or arbitrarily.",
+  "Same as 1, but the output has four columns in this order: ID, average HGB, difference from the overall average, difference from the kept-patient mean. An alternative is to also include the overall average and the kept mean as extra columns.",
+  "Same as 1, but \"top 10\" is read as the 10 highest values of the last column. Since that column is just the average minus a constant, this is the same as the top 10 by average HGB. The alternative reading is the top 10 after some other ordering, such as by the difference from the overall average. That gives the same result, so only the tie-breaking differs.",
+  "Same as 1, but \"unrounded\" means raw floating-point output with no ROUND call. The alternative is full-precision decimal display.",
+  "Missing interpretations:",
+  "Same as 1, but the pooled overall average is computed only over lab records of patients who have at least one non-null HGB. This gives the same result as 1, since null HGB records are ignored either way.",
+  "Same as 1, but the pooled overall average counts only records with non-null HGB. The per-patient average then uses the count of all of that patient's records as the denominator, which treats nulls as 0 in the sum.",
+  "Same as 1, but the \"mean of the kept patients' averages\" is a record-weighted pooled mean over the kept patients' lab records. Interpretation 3 already mentions this as an alternative, but it is not listed as its own interpretation.",
+  "Same as 1, but the sort is ascending, so the lowest values come first. This is a misreading of \"highest to lowest\".",
+  "Same as 1, but the top 10 is taken before the \"kept\" filter is applied and before the kept-patient mean is computed. The mean of the kept patients would then be computed over only the top 10 patients.",
+  "Same as 1, but the Laboratory table is restricted to records with valid dates, or to one record per patient and date. Duplicates are not possible because (ID, Date) is the primary key, so this has no effect."
+ ],
+ "queries": [
+  "WITH p AS (\n    SELECT ID, AVG(HGB) AS avg_hgb\n    FROM Laboratory\n    WHERE HGB IS NOT NULL\n    GROUP BY ID\n),\no AS (\n    SELECT AVG(HGB) AS overall FROM Laboratory WHERE HGB IS NOT NULL\n),\nk AS (\n    SELECT p.ID, p.avg_hgb\n    FROM p, o\n    WHERE p.avg_hgb > o.overall\n)\nSELECT k.ID,\n       k.avg_hgb,\n       k.avg_hgb - o.overall AS diff_overall,\n       k.avg_hgb - (SELECT AVG(avg_hgb) FROM k) AS diff_kept_mean\nFROM k, o\nORDER BY diff_kept_mean DESC\nLIMIT 10;\n",
+  "SELECT AVG(patient_avg)\nFROM (\n    SELECT ID, AVG(<col>) AS patient_avg\n    FROM Laboratory\n    GROUP BY ID\n    HAVING <keep condition>\n);\n",
+  "SELECT ID FROM Laboratory GROUP BY ID HAVING AVG(HGB) <= 10;\n"
+ ],
+ "raw": [
+  "1. Per-patient average HGB is taken over all of that patient's Laboratory records with non-null HGB. The overall average is the pooled mean over all non-null HGB records. Keep patients with a strictly greater average. Show ID, average, average minus overall average, and average minus the mean of the kept patients' averages. Sort by the last value descending and show the top 10 with no rounding.\n\n2. Same as 1, but \"above\" is read as greater than or equal to the overall average.\n\n3. Same as 1, but the mean of the kept patients' averages is an unweighted mean of the per-patient averages, one value per kept patient. This is the literal reading. The alternative is a pooled mean over all lab records of the kept patients.\n\n4. Same as 1, but the overall average is the mean of the per-patient averages (each patient counts once). This contradicts the stated pooled definition.\n\n5. Same as 1, but the patient population comes from the Patient table, which would include patients with no lab records. The question says \"each patient ID in the Laboratory table\", so this is unlikely.\n\n6. Same as 1, but patients whose HGB values are all null are handled differently. They could be excluded (the NULL average fails the comparison), or they could be treated as 0.\n\n7. Same as 1, but ties in the final sort are broken in some way: by ID ascending, by ID descending, or arbitrarily.\n\n8. Same as 1, but the output has four columns in this order: ID, average HGB, difference from the overall average, difference from the kept-patient mean. An alternative is to also include the overall average and the kept mean as extra columns.\n\n9. Same as 1, but \"top 10\" is read as the 10 highest values of the last column. Since that column is just the average minus a constant, this is the same as the top 10 by average HGB. The alternative reading is the top 10 after some other ordering, such as by the difference from the overall average. That gives the same result, so only the tie-breaking differs.\n\n10. Same as 1, but \"unrounded\" means raw floating-point output with no ROUND call. The alternative is full-precision decimal display.",
+  "Missing interpretations:\n\nSame as 1, but the pooled overall average is computed only over lab records of patients who have at least one non-null HGB. This gives the same result as 1, since null HGB records are ignored either way.\n\nSame as 1, but the pooled overall average counts only records with non-null HGB. The per-patient average then uses the count of all of that patient's records as the denominator, which treats nulls as 0 in the sum.\n\nSame as 1, but the \"mean of the kept patients' averages\" is a record-weighted pooled mean over the kept patients' lab records. Interpretation 3 already mentions this as an alternative, but it is not listed as its own interpretation.\n\nSame as 1, but the sort is ascending, so the lowest values come first. This is a misreading of \"highest to lowest\".\n\nSame as 1, but the top 10 is taken before the \"kept\" filter is applied and before the kept-patient mean is computed. The mean of the kept patients would then be computed over only the top 10 patients.\n\nSame as 1, but the Laboratory table is restricted to records with valid dates, or to one record per patient and date. Duplicates are not possible because (ID, Date) is the primary key, so this has no effect."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4a2d376afa",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68219,
+  "chars_out": 5475
+ }
+}

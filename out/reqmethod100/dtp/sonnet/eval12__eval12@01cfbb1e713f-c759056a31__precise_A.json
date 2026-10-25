@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Per-country average of per-race averages: for each race, average constructorStandings.points and wins over all constructor rows for that race. Then average those per-race values across all races held in the country. Return the country, average points, average wins, and average wins minus the mean of the country averages.",
+  "Same as 1, but the comparison value is the simple mean of the countries' average wins, with each country counted once. Countries are the distinct circuits.country values, not circuits.",
+  "Same as 1, but the comparison value is the average of wins across all races, so each race counts equally and countries with more races weigh more. This reading ignores \"each country counted once.\"",
+  "Same as 1, but the comparison value is the average of wins across all constructor standing rows, weighted by rows.",
+  "Races with no constructorStandings rows are excluded from the country average because their values are missing. A country with no standings at all gets NULL values or is dropped.",
+  "Races with no constructorStandings rows still count as races but contribute NULL. Because NULLs are ignored, the result is the same as excluding them.",
+  "Races with no standings rows are counted as 0 in the per-race average, so they pull the country average down.",
+  "NULL points or wins within a row are ignored when averaging. Points and wins may have different sets of non-null rows within a race.",
+  "Only constructor rows with both points and wins non-null are used in the per-race averages.",
+  "The per-race average is taken over constructors with a standing in that race (the standings rows). It is not taken over all constructors in the database.",
+  "A \"constructor\" in the per-race average is a standings row. If a constructor appears more than once in a race, each row counts. Alternatively, it is deduplicated by distinct constructorId.",
+  "Countries are grouped by circuits.country, joined via races.circuitId. Countries are not grouped by constructor nationality or driver nationality.",
+  "The result has one row per country. Each row has country, avg_points, avg_wins, and wins_minus_mean. The same global mean is repeated on every row.",
+  "The output keeps full floating-point precision with no rounding, as stated. The difference is computed from unrounded averages.",
+  "The \"simple mean of all countries' average wins\" is the unweighted AVG over the per-country average wins. Countries with NULL average wins are either excluded from this mean or counted as 0.",
+  "Per-race averages are not split by season. Races from all years in a country are pooled equally. Alternatively, the season is a further grouping level, with a mean taken within each season first.",
+  "The season-to-date values are used as stored, without converting to per-race increments. Each race's value is the running total at that race, not the points scored in that race.",
+  "The result may be ordered by country name, by average points, or by wins difference, or left unordered.",
+  "The \"difference\" can be read as a signed value (country avg minus mean), which can be negative. A less likely reading is the absolute difference."
+ ],
+ "queries": [
+  "WITH race_avg AS (\n  SELECT cs.raceId, AVG(cs.points) AS avg_points, AVG(cs.wins) AS avg_wins\n  FROM constructorStandings cs\n  GROUP BY cs.raceId\n),\ncountry_avg AS (\n  SELECT c.country AS country, AVG(ra.avg_points) AS avg_points, AVG(ra.avg_wins) AS avg_wins\n  FROM race_avg ra\n  JOIN races r ON r.raceId = ra.raceId\n  JOIN circuits c ON c.circuitId = r.circuitId\n  GROUP BY c.country\n)\nSELECT country, avg_points, avg_wins,\n       avg_wins - (SELECT AVG(avg_wins) FROM country_avg) AS wins_minus_mean_of_country_avgs\nFROM country_avg;\n",
+  "SELECT DISTINCT c.name\nFROM constructorStandings cs\nJOIN constructors c ON c.constructorId = cs.constructorId\nWHERE cs.wins > (SELECT AVG(wins) FROM constructorStandings);\n",
+  "SELECT c.country, AVG(cs.points)\nFROM circuits c\nJOIN races r ON r.circuitId = c.circuitId\nJOIN constructorStandings cs ON cs.raceId = r.raceId\nGROUP BY c.country;\n"
+ ],
+ "raw": [
+  "1. Per-country average of per-race averages: for each race, average constructorStandings.points and wins over all constructor rows for that race. Then average those per-race values across all races held in the country. Return the country, average points, average wins, and average wins minus the mean of the country averages.\n2. Same as 1, but the comparison value is the simple mean of the countries' average wins, with each country counted once. Countries are the distinct circuits.country values, not circuits.\n3. Same as 1, but the comparison value is the average of wins across all races, so each race counts equally and countries with more races weigh more. This reading ignores \"each country counted once.\"\n4. Same as 1, but the comparison value is the average of wins across all constructor standing rows, weighted by rows.\n5. Races with no constructorStandings rows are excluded from the country average because their values are missing. A country with no standings at all gets NULL values or is dropped.\n6. Races with no constructorStandings rows still count as races but contribute NULL. Because NULLs are ignored, the result is the same as excluding them.\n7. Races with no standings rows are counted as 0 in the per-race average, so they pull the country average down.\n8. NULL points or wins within a row are ignored when averaging. Points and wins may have different sets of non-null rows within a race.\n9. Only constructor rows with both points and wins non-null are used in the per-race averages.\n10. The per-race average is taken over constructors with a standing in that race (the standings rows). It is not taken over all constructors in the database.\n11. A \"constructor\" in the per-race average is a standings row. If a constructor appears more than once in a race, each row counts. Alternatively, it is deduplicated by distinct constructorId.\n12. Countries are grouped by circuits.country, joined via races.circuitId. Countries are not grouped by constructor nationality or driver nationality.\n13. The result has one row per country. Each row has country, avg_points, avg_wins, and wins_minus_mean. The same global mean is repeated on every row.\n14. The output keeps full floating-point precision with no rounding, as stated. The difference is computed from unrounded averages.\n15. The \"simple mean of all countries' average wins\" is the unweighted AVG over the per-country average wins. Countries with NULL average wins are either excluded from this mean or counted as 0.\n16. Per-race averages are not split by season. Races from all years in a country are pooled equally. Alternatively, the season is a further grouping level, with a mean taken within each season first.\n17. The season-to-date values are used as stored, without converting to per-race increments. Each race's value is the running total at that race, not the points scored in that race.\n18. The result may be ordered by country name, by average points, or by wins difference, or left unordered.\n19. The \"difference\" can be read as a signed value (country avg minus mean), which can be negative. A less likely reading is the absolute difference.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c759056a31",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 101116,
+  "chars_out": 5917
+ }
+}

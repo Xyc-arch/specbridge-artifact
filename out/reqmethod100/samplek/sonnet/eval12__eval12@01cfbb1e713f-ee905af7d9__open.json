@@ -1,0 +1,76 @@
+{
+ "queries": [
+  "WITH joined AS (\n  SELECT t.ordertypedist\n  FROM advancedbehavior a\n  JOIN transactionrecord t ON a.translink = t.transreg\n), grp AS (\n  SELECT ordertypedist, COUNT(*) AS cnt\n  FROM joined\n  GROUP BY ordertypedist\n), shares AS (\n  SELECT ordertypedist, cnt,\n         cnt::numeric / SUM(cnt) OVER () AS share\n  FROM grp\n), withavg AS (\n  SELECT ordertypedist, cnt, share,\n         AVG(share) OVER () AS avg_share\n  FROM shares\n)\nSELECT ordertypedist AS order_type_mix,\n       cnt AS record_count,\n       share,\n       share - avg_share AS share_above_average\nFROM withavg\nWHERE share > avg_share\nORDER BY share DESC;",
+  "WITH g AS (SELECT t.ordertypedist AS mix, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), s AS (SELECT mix, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), c AS (SELECT mix, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT mix, cnt, share, share - avg_share AS excess_over_avg FROM c WHERE share > avg_share ORDER BY share DESC",
+  "WITH mix AS (SELECT t.ordertypedist, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, cnt, cnt::numeric / SUM(cnt) OVER () AS share FROM mix), avg_share AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT ordertypedist, cnt AS analysis_count, share, share - avg_share AS excess_over_avg_share FROM avg_share WHERE share > avg_share ORDER BY share DESC"
+ ],
+ "responses": [
+  {
+   "sql": "WITH joined AS (\n  SELECT t.ordertypedist\n  FROM advancedbehavior a\n  JOIN transactionrecord t ON a.translink = t.transreg\n), grp AS (\n  SELECT ordertypedist, COUNT(*) AS cnt\n  FROM joined\n  GROUP BY ordertypedist\n), shares AS (\n  SELECT ordertypedist, cnt,\n         cnt::numeric / SUM(cnt) OVER () AS share\n  FROM grp\n), withavg AS (\n  SELECT ordertypedist, cnt, share,\n         AVG(share) OVER () AS avg_share\n  FROM shares\n)\nSELECT ordertypedist AS order_type_mix,\n       cnt AS record_count,\n       share,\n       share - avg_share AS share_above_average\nFROM withavg\nWHERE share > avg_share\nORDER BY share DESC;",
+   "assumptions": [
+    {
+     "assumption": "Only advancedbehavior rows with a matching transactionrecord are counted (inner join). The overall total is the count of those joined rows. The translink column is NOT NULL and a foreign key, so in practice every row matches.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL ordertypedist is kept as its own group, and it counts as one of the mixes when the plain average share is taken. That average is the unweighted mean of the per-mix shares, which equals 1 divided by the number of mixes.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Shares are fractions between 0 and 1, not percentages. Nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT t.ordertypedist AS mix, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), s AS (SELECT mix, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), c AS (SELECT mix, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT mix, cnt, share, share - avg_share AS excess_over_avg FROM c WHERE share > avg_share ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "Only advancedbehavior rows that match a transactionrecord via translink = transreg are counted. This is an inner join, and the foreign key guarantees every row matches.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL ordertypedist forms its own group. GROUP BY already puts NULLs together, so the group appears with a NULL mix label.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The plain average share is the unweighted mean of the per-mix shares, which equals 1 divided by the number of mixes. The excess is the absolute difference in share (share minus average share), not a ratio.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH mix AS (SELECT t.ordertypedist, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, cnt, cnt::numeric / SUM(cnt) OVER () AS share FROM mix), avg_share AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT ordertypedist, cnt AS analysis_count, share, share - avg_share AS excess_over_avg_share FROM avg_share WHERE share > avg_share ORDER BY share DESC",
+   "assumptions": [
+    {
+     "assumption": "The population is advancedbehavior rows that match a transactionrecord via an inner join on translink = transreg. Every row should match because of the foreign key, so none are dropped.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL ordertypedist is kept as its own group. GROUP BY puts all NULLs in one group, and that group counts toward the number of mixes in the average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Share is the mix's count divided by the total count of analyses. The 'plain average share across mixes' is the unweighted mean of the per-mix shares, which equals 1 divided by the number of mixes. 'How far above' is share minus that average, as a fraction, not a percentage.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The query is written for PostgreSQL (the schema uses JSONB). Values are not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52710,
+  "chars_out": 3870
+ }
+}

@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Per-track rate is Bytes/Milliseconds. Each media type's rate is the average of those per-track ratios. The overall average is the simple (unweighted) mean of the per-type rates. Output is each media type whose rate is above that mean, with name, rate, and rate minus mean.",
+  "Same as 1, but the per-track ratio is computed with integer division (Bytes/Milliseconds truncated), not floating-point division.",
+  "Each media type's rate is total Bytes divided by total Milliseconds, not the average of per-track ratios. The overall average is the simple mean of those rates.",
+  "Same as 1, but the overall average is a weighted mean: all qualifying tracks pooled, or weighted by track count per media type.",
+  "Same as 1, but \"grouped by name\" means media types sharing the same name are merged into one group. Duplicate names are combined before averaging. The overall average then runs across distinct names.",
+  "Same as 1, but groups are by MediaTypeId, with names shown alongside. Media types with the same name stay separate and each counts in the overall average.",
+  "Tracks with NULL Bytes are excluded from the numerator and denominator of each type's average, so only tracks with a size count. Media types with no tracks that have a size are excluded from the overall average.",
+  "Tracks with NULL Bytes are excluded as in 7, but media types left with no sized tracks are kept in the overall average with a rate of 0 or NULL.",
+  "Media types with no tracks at all are excluded, because only tracks linked to a media type count. Tracks with a NULL MediaTypeId are dropped (not possible here, since the column is NOT NULL).",
+  "Media types with no tracks are included in the overall average with a rate of 0 or NULL. This is the case where the media type table is the driving table.",
+  "\"Above\" means strictly greater than the overall average. Media types exactly equal to it are excluded.",
+  "\"Above\" means greater than or equal to the overall average, so ties are included.",
+  "Tracks with Milliseconds equal to 0 are excluded, to avoid division by zero. They are not excluded under 1 unless the data has them.",
+  "\"Without rounding\" means full floating-point precision for the rate and the difference. No ROUND is applied.",
+  "The difference column is rate minus average, as an absolute difference. It is not a percentage or ratio above the average.",
+  "The difference is shown as a percentage above the average, ((rate \u2212 average) / average) \u00d7 100. The question's \"rate minus average\" wording makes this less likely.",
+  "Rate is expressed per second (Bytes per Millisecond \u00d7 1000) rather than per millisecond. The question implies raw Bytes/Milliseconds, so this is unlikely.",
+  "Results are ordered by rate descending, by difference descending, or by media type name. Or there is no ordering specified.",
+  "Output columns are exactly: media type name, rate, difference. The overall average is not shown as a separate column.",
+  "Output columns are name, rate, difference, plus the overall average repeated on each row.",
+  "Bytes equal to 0 is treated as \"no size\", so those tracks are excluded as well as tracks with NULL Bytes."
+ ],
+ "queries": [
+  "WITH type_rates AS (\n  SELECT m.MediaTypeId, m.Name, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS rate\n  FROM MediaType m\n  JOIN Track t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n),\noverall AS (\n  SELECT AVG(rate) AS mean_rate FROM type_rates\n)\nSELECT tr.Name, tr.rate, tr.rate - o.mean_rate AS rate_minus_mean\nFROM type_rates tr, overall o\nWHERE tr.rate > o.mean_rate;\n",
+  "SELECT AVG(Bytes / Milliseconds) FROM Track",
+  "SELECT AVG(rate) FROM (SELECT CAST(SUM(Bytes) AS REAL) / SUM(Milliseconds) AS rate FROM Track GROUP BY MediaTypeId)",
+  "SELECT SUM(avg_ms * cnt) * 1.0 / SUM(cnt) AS weighted_avg_milliseconds\nFROM (\n  SELECT MediaTypeId, AVG(Milliseconds) AS avg_ms, COUNT(*) AS cnt\n  FROM Track\n  GROUP BY MediaTypeId\n);\n",
+  "SELECT AVG(avg_ms) FROM (SELECT AVG(T.Milliseconds) AS avg_ms FROM Track T JOIN MediaType M ON T.MediaTypeId = M.MediaTypeId GROUP BY M.Name);\n",
+  "WITH counts AS (\n  SELECT m.MediaTypeId, m.Name, COUNT(t.TrackId) AS cnt\n  FROM MediaType m\n  LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT MediaTypeId, Name\nFROM counts\nWHERE cnt > (SELECT AVG(cnt) FROM counts);\n"
+ ],
+ "raw": [
+  "1. Per-track rate is Bytes/Milliseconds. Each media type's rate is the average of those per-track ratios. The overall average is the simple (unweighted) mean of the per-type rates. Output is each media type whose rate is above that mean, with name, rate, and rate minus mean.\n2. Same as 1, but the per-track ratio is computed with integer division (Bytes/Milliseconds truncated), not floating-point division.\n3. Each media type's rate is total Bytes divided by total Milliseconds, not the average of per-track ratios. The overall average is the simple mean of those rates.\n4. Same as 1, but the overall average is a weighted mean: all qualifying tracks pooled, or weighted by track count per media type.\n5. Same as 1, but \"grouped by name\" means media types sharing the same name are merged into one group. Duplicate names are combined before averaging. The overall average then runs across distinct names.\n6. Same as 1, but groups are by MediaTypeId, with names shown alongside. Media types with the same name stay separate and each counts in the overall average.\n7. Tracks with NULL Bytes are excluded from the numerator and denominator of each type's average, so only tracks with a size count. Media types with no tracks that have a size are excluded from the overall average.\n8. Tracks with NULL Bytes are excluded as in 7, but media types left with no sized tracks are kept in the overall average with a rate of 0 or NULL.\n9. Media types with no tracks at all are excluded, because only tracks linked to a media type count. Tracks with a NULL MediaTypeId are dropped (not possible here, since the column is NOT NULL).\n10. Media types with no tracks are included in the overall average with a rate of 0 or NULL. This is the case where the media type table is the driving table.\n11. \"Above\" means strictly greater than the overall average. Media types exactly equal to it are excluded.\n12. \"Above\" means greater than or equal to the overall average, so ties are included.\n13. Tracks with Milliseconds equal to 0 are excluded, to avoid division by zero. They are not excluded under 1 unless the data has them.\n14. \"Without rounding\" means full floating-point precision for the rate and the difference. No ROUND is applied.\n15. The difference column is rate minus average, as an absolute difference. It is not a percentage or ratio above the average.\n16. The difference is shown as a percentage above the average, ((rate \u2212 average) / average) \u00d7 100. The question's \"rate minus average\" wording makes this less likely.\n17. Rate is expressed per second (Bytes per Millisecond \u00d7 1000) rather than per millisecond. The question implies raw Bytes/Milliseconds, so this is unlikely.\n18. Results are ordered by rate descending, by difference descending, or by media type name. Or there is no ordering specified.\n19. Output columns are exactly: media type name, rate, difference. The overall average is not shown as a separate column.\n20. Output columns are name, rate, difference, plus the overall average repeated on each row.",
+  "Bytes equal to 0 is treated as \"no size\", so those tracks are excluded as well as tracks with NULL Bytes."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1adc54e3cf",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 43784,
+  "chars_out": 5401
+ }
+}

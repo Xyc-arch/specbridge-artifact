@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1380d1a24f",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Each above-average rep's share is their customer count divided by the total number of customers assigned to any support rep.",
+ "c": {
+  "request": "For each support rep, count their customers (matching `SupportRepId` to the employee, ignoring customers without a matching rep), and keep only reps whose count is above the average for reps in the same city. Then, by city, give the city, the total customers of those reps, how far on average they are above their city's average, and the average of each rep's share of the overall customer total. No rounding. Each above-average rep's share is their customer count divided by the total number of customers assigned to any support rep.",
+  "sql": "WITH rep_counts AS (\n  SELECT e.EmployeeId, e.City, COUNT(c.CustomerId) AS cnt\n  FROM Employee e\n  JOIN Customer c ON c.SupportRepId = e.EmployeeId\n  GROUP BY e.EmployeeId, e.City\n),\ncity_stats AS (\n  SELECT EmployeeId, City, cnt,\n         AVG(cnt) OVER (PARTITION BY City) AS city_avg,\n         SUM(cnt) OVER () AS total_assigned\n  FROM rep_counts\n),\nabove_avg AS (\n  SELECT City, cnt, city_avg, total_assigned,\n         cnt - city_avg AS excess,\n         CAST(cnt AS REAL) / total_assigned AS share\n  FROM city_stats\n  WHERE cnt > city_avg\n)\nSELECT City AS city,\n       SUM(cnt) AS total_customers,\n       AVG(excess) AS avg_above_city_avg,\n       AVG(share) AS avg_share\nFROM above_avg\nGROUP BY City;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match customers to their support rep (the employee whose `EmployeeId` equals the customer's `SupportRepId`), dropping customers with no matching employee, and count customers per rep and rep city. For each city, compare each rep's count with the average count of reps in that city and keep only reps strictly above it. For each city, return the city, the total customers of those kept reps, the average amount by which their counts exceed the city average, and the average of their shares, where a rep's share is their customer count divided by the total number of customers matched to any rep across every city. Don't round anything.",
+  "sql": "WITH matched AS (SELECT e.EmployeeId AS rep_id, e.City AS city, COUNT(*) AS cnt FROM Customer c JOIN Employee e ON c.SupportRepId = e.EmployeeId GROUP BY e.EmployeeId, e.City), total AS (SELECT SUM(cnt) AS total_customers FROM matched), city_avg AS (SELECT city, AVG(cnt) AS avg_cnt FROM matched GROUP BY city), kept AS (SELECT m.rep_id, m.city, m.cnt, a.avg_cnt FROM matched m JOIN city_avg a ON m.city IS a.city WHERE m.cnt > a.avg_cnt) SELECT k.city, SUM(k.cnt) AS total_customers, AVG(k.cnt - k.avg_cnt) AS avg_excess, AVG(CAST(k.cnt AS REAL) / t.total_customers) AS avg_share FROM kept k CROSS JOIN total t GROUP BY k.city",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each support rep, count customers whose SupportRepId matches the rep's EmployeeId (ignoring unmatched customers); keep reps whose count exceeds the average count of reps in their city; group by city and return the city, the sum of the kept reps' customer counts, the average amount by which those reps exceed their city's average, and the average of each kept rep's count divided by the total number of customers assigned to any support rep, unrounded",
+  "sql": "WITH rep_counts AS (SELECT e.EmployeeId, e.City, COUNT(c.CustomerId) AS cnt FROM Employee e JOIN Customer c ON c.SupportRepId = e.EmployeeId GROUP BY e.EmployeeId, e.City), city_avg AS (SELECT City, AVG(cnt) AS avg_cnt FROM rep_counts GROUP BY City), kept AS (SELECT r.EmployeeId, r.City, r.cnt, a.avg_cnt FROM rep_counts r JOIN city_avg a ON a.City IS r.City WHERE r.cnt > a.avg_cnt), total AS (SELECT COUNT(*) AS total_assigned FROM Customer WHERE SupportRepId IN (SELECT EmployeeId FROM Employee)) SELECT k.City AS city, SUM(k.cnt) AS total_customers, AVG(k.cnt - k.avg_cnt) AS avg_excess, AVG(CAST(k.cnt AS REAL) / t.total_assigned) AS avg_share FROM kept k CROSS JOIN total t GROUP BY k.City;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each support rep, count the customers whose `SupportRepId` matches the employee, ignoring customers with no matching rep. Keep only reps whose count is above the average count of reps in their city. For each city, report the city, the total customers of those reps, the average amount by which they exceed their city's average, and the average of their shares, where each rep's share is their customer count divided by the total number of customers assigned to any support rep. Do not round any values.",
+  "sql": "WITH rep_counts AS (\n  SELECT e.EmployeeId, e.City AS City, COUNT(c.CustomerId) AS cnt\n  FROM Employee e\n  JOIN Customer c ON c.SupportRepId = e.EmployeeId\n  GROUP BY e.EmployeeId, e.City\n),\ncity_avg AS (\n  SELECT City, AVG(cnt) AS avg_cnt\n  FROM rep_counts\n  GROUP BY City\n),\ntotal AS (\n  SELECT SUM(cnt) AS total_cust FROM rep_counts\n),\nabove AS (\n  SELECT r.City, r.cnt, a.avg_cnt\n  FROM rep_counts r\n  JOIN city_avg a ON r.City = a.City\n  WHERE r.cnt > a.avg_cnt\n)\nSELECT ab.City AS City,\n  SUM(ab.cnt) AS total_customers,\n  AVG(ab.cnt - ab.avg_cnt) AS avg_excess,\n  AVG(ab.cnt * 1.0 / t.total_cust) AS avg_share\nFROM above ab\nCROSS JOIN total t\nGROUP BY ab.City;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

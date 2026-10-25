@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Rank eligible accounts by their count of financial transaction rows divided by the average row count across all accounts, including accounts with zero transactions; use each account\u2019s share of the transactions recorded for accounts in the same `town_city`.",
+  "Rank eligible accounts by that ratio, but calculate the average only across accounts with at least one financial transaction.",
+  "Rank eligible accounts by that ratio, but calculate the average only across accounts whose customer exists and has a town.",
+  "Rank eligible accounts by that ratio, but calculate the average only across eligible accounts with at least one financial transaction.",
+  "Divide each account\u2019s count by the average count for eligible accounts in its own `town_city`, rather than by a database-wide average.",
+  "Treat a town as the `town_city` value alone when calculating its transaction total.",
+  "Treat a town as the combination of `town_city`, `state_county_province`, and `country` when calculating its transaction total.",
+  "Report the town share as a fraction of its town\u2019s financial transactions.",
+  "Report the town share as a percentage of its town\u2019s financial transactions.",
+  "Count financial transaction rows for each account, even if multiple rows have the same `transaction_id`.",
+  "Count distinct `transaction_id` values for each account.",
+  "Return exactly 10 accounts, resolving a tie at tenth place with an additional ordering rule.",
+  "Return all accounts tied at tenth place, even if that produces more than 10 rows.",
+  "Exclude accounts whose customer\u2019s `town_city` is `NULL`.",
+  "Exclude accounts whose customer\u2019s `town_city` is `NULL`, empty, or only whitespace.",
+  "Calculate the database-wide average across accounts whose customer is on file, including customers with no town and accounts with zero transactions.",
+  "Calculate that average across accounts whose customer is on file and that have at least one transaction, including customers with no town.",
+  "Calculate the town-specific average using only accounts in that town with at least one transaction.",
+  "Return any 10 accounts when counts tie at tenth place, without a further tie-breaking rule.",
+  "For an account in a town with no transactions, report its town share as zero, `NULL`, or omit the account."
+ ],
+ "queries": [
+  "WITH account_counts AS (\n    SELECT\n        a.account_id,\n        c.town_city,\n        COUNT(ft.account_id) AS transaction_count\n    FROM Accounts AS a\n    JOIN Customers AS c ON c.customer_id = a.customer_id\n    LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id\n    GROUP BY a.account_id, c.town_city\n),\nmetrics AS (\n    SELECT\n        account_id,\n        transaction_count * 1.0 / NULLIF(AVG(transaction_count) OVER (), 0) AS transaction_ratio,\n        transaction_count * 1.0\n            / NULLIF(SUM(transaction_count) OVER (PARTITION BY town_city), 0) AS city_share\n    FROM account_counts\n)\nSELECT\n    account_id,\n    RANK() OVER (ORDER BY transaction_ratio DESC, city_share DESC) AS account_rank,\n    transaction_ratio,\n    city_share\nFROM metrics\nORDER BY account_rank, account_id",
+  "WITH account_counts AS (\n  SELECT a.account_id,\n         c.town_city,\n         COUNT(*) AS transaction_count\n  FROM Accounts AS a\n  JOIN Customers AS c ON c.customer_id = a.customer_id\n  JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id\n  GROUP BY a.account_id, c.town_city\n)\nSELECT account_id,\n       1.0 * transaction_count\n         / AVG(transaction_count) OVER (PARTITION BY town_city) AS count_ratio\nFROM account_counts",
+  "SELECT c.town_city, SUM(ft.transaction_amount) AS transaction_total\nFROM Customers AS c\nJOIN Accounts AS a ON a.customer_id = c.customer_id\nJOIN Financial_Transactions AS ft ON ft.account_id = a.account_id\nGROUP BY c.town_city"
+ ],
+ "raw": [
+  "- Rank eligible accounts by their count of financial transaction rows divided by the average row count across all accounts, including accounts with zero transactions; use each account\u2019s share of the transactions recorded for accounts in the same `town_city`.\n- Rank eligible accounts by that ratio, but calculate the average only across accounts with at least one financial transaction.\n- Rank eligible accounts by that ratio, but calculate the average only across accounts whose customer exists and has a town.\n- Rank eligible accounts by that ratio, but calculate the average only across eligible accounts with at least one financial transaction.\n- Divide each account\u2019s count by the average count for eligible accounts in its own `town_city`, rather than by a database-wide average.\n- Treat a town as the `town_city` value alone when calculating its transaction total.\n- Treat a town as the combination of `town_city`, `state_county_province`, and `country` when calculating its transaction total.\n- Report the town share as a fraction of its town\u2019s financial transactions.\n- Report the town share as a percentage of its town\u2019s financial transactions.\n- Count financial transaction rows for each account, even if multiple rows have the same `transaction_id`.\n- Count distinct `transaction_id` values for each account.\n- Return exactly 10 accounts, resolving a tie at tenth place with an additional ordering rule.\n- Return all accounts tied at tenth place, even if that produces more than 10 rows.\n- Exclude accounts whose customer\u2019s `town_city` is `NULL`.\n- Exclude accounts whose customer\u2019s `town_city` is `NULL`, empty, or only whitespace.",
+  "Calculate the database-wide average across accounts whose customer is on file, including customers with no town and accounts with zero transactions.\nCalculate that average across accounts whose customer is on file and that have at least one transaction, including customers with no town.\nCalculate the town-specific average using only accounts in that town with at least one transaction.\nReturn any 10 accounts when counts tie at tenth place, without a further tie-breaking rule.\nFor an account in a town with no transactions, report its town share as zero, `NULL`, or omit the account."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30003,
+  "chars_out": 3914
+ }
+}

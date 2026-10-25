@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH t AS (SELECT production_type_code, AVG(unit_price) AS a FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), o AS (SELECT AVG(unit_price) AS v FROM Products), k1 AS (SELECT production_type_code, a FROM t WHERE a > (SELECT v FROM o)), m AS (SELECT AVG(a) AS v FROM k1), k2 AS (SELECT production_type_code, a FROM k1 WHERE a > (SELECT v FROM m)) SELECT AVG(a) AS avg_type_average_price, AVG(a - (SELECT v FROM o)) AS avg_above_overall_average, AVG(a - (SELECT v FROM m)) AS avg_above_kept_types_mean FROM k2;",
+  "WITH overall AS (SELECT AVG(unit_price) AS overall_avg FROM Products), type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), kept AS (SELECT t.production_type_code, t.avg_price FROM type_avg t JOIN overall o ON t.avg_price > o.overall_avg), kept_mean AS (SELECT AVG(avg_price) AS mean_avg FROM kept), final AS (SELECT k.production_type_code, k.avg_price FROM kept k JOIN kept_mean m ON k.avg_price > m.mean_avg) SELECT AVG(f.avg_price) AS avg_type_average_price, AVG(f.avg_price - o.overall_avg) AS avg_above_overall_average, AVG(f.avg_price - m.mean_avg) AS avg_above_kept_mean FROM final f CROSS JOIN overall o CROSS JOIN kept_mean m;",
+  "WITH type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), overall AS (SELECT AVG(unit_price) AS overall_avg FROM Products), kept AS (SELECT t.production_type_code, t.avg_price FROM type_avg t CROSS JOIN overall o WHERE t.avg_price > o.overall_avg), kept_mean AS (SELECT AVG(avg_price) AS mean_kept FROM kept), final AS (SELECT k.production_type_code, k.avg_price FROM kept k CROSS JOIN kept_mean m WHERE k.avg_price > m.mean_kept) SELECT AVG(f.avg_price) AS avg_type_average_price, AVG(f.avg_price - o.overall_avg) AS avg_above_overall_avg, AVG(f.avg_price - m.mean_kept) AS avg_above_kept_mean FROM final f CROSS JOIN overall o CROSS JOIN kept_mean m;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH t AS (SELECT production_type_code, AVG(unit_price) AS a FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), o AS (SELECT AVG(unit_price) AS v FROM Products), k1 AS (SELECT production_type_code, a FROM t WHERE a > (SELECT v FROM o)), m AS (SELECT AVG(a) AS v FROM k1), k2 AS (SELECT production_type_code, a FROM k1 WHERE a > (SELECT v FROM m)) SELECT AVG(a) AS avg_type_average_price, AVG(a - (SELECT v FROM o)) AS avg_above_overall_average, AVG(a - (SELECT v FROM m)) AS avg_above_kept_types_mean FROM k2;",
+   "assumptions": [
+    {
+     "assumption": "The overall average price is the average of unit_price across all Products rows with a non-null price, not the mean of the per-type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Types whose prices are all NULL have no average and are dropped. If no types survive both filters, the query returns one row of NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH overall AS (SELECT AVG(unit_price) AS overall_avg FROM Products), type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), kept AS (SELECT t.production_type_code, t.avg_price FROM type_avg t JOIN overall o ON t.avg_price > o.overall_avg), kept_mean AS (SELECT AVG(avg_price) AS mean_avg FROM kept), final AS (SELECT k.production_type_code, k.avg_price FROM kept k JOIN kept_mean m ON k.avg_price > m.mean_avg) SELECT AVG(f.avg_price) AS avg_type_average_price, AVG(f.avg_price - o.overall_avg) AS avg_above_overall_average, AVG(f.avg_price - m.mean_avg) AS avg_above_kept_mean FROM final f CROSS JOIN overall o CROSS JOIN kept_mean m;",
+   "assumptions": [
+    {
+     "assumption": "The overall average price is the row-level AVG(unit_price) over all Products with non-null prices, not the mean of the type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Types whose prices are all NULL have no average and are excluded. If no types remain, the query returns one row of NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), overall AS (SELECT AVG(unit_price) AS overall_avg FROM Products), kept AS (SELECT t.production_type_code, t.avg_price FROM type_avg t CROSS JOIN overall o WHERE t.avg_price > o.overall_avg), kept_mean AS (SELECT AVG(avg_price) AS mean_kept FROM kept), final AS (SELECT k.production_type_code, k.avg_price FROM kept k CROSS JOIN kept_mean m WHERE k.avg_price > m.mean_kept) SELECT AVG(f.avg_price) AS avg_type_average_price, AVG(f.avg_price - o.overall_avg) AS avg_above_overall_avg, AVG(f.avg_price - m.mean_kept) AS avg_above_kept_mean FROM final f CROSS JOIN overall o CROSS JOIN kept_mean m;",
+   "assumptions": [
+    {
+     "assumption": "The overall average price is the average of unit_price over all Products rows with a non-null price (a product-level average, not a mean of the type averages).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Types whose prices are all NULL have no average and are excluded. If no types survive either filter, the query returns one row of NULLs.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The mean of the kept types is the simple, unweighted mean of their type averages, as the request says.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The final 'above' differences are computed as type average minus the reference value, then averaged over the remaining types.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ed587ea981",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12294,
+  "chars_out": 3575
+ }
+}

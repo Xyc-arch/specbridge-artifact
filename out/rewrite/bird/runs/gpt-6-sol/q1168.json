@@ -1,0 +1,32 @@
+{
+ "id": "q1168",
+ "db": "thrombosis_prediction",
+ "path": "dev_unzipped/dev_20240627/dev_databases/thrombosis_prediction/thrombosis_prediction.sqlite",
+ "question": "The oldest SJS patient's medical laboratory work was completed on what date, and what age was the patient when they initially arrived at the hospital?",
+ "evidence": "The larger the birthday value, the younger the person is, and vice versa; 'SJS' refers to diagnosis; (SUBTRACT(year(`First Date`)), year(Birthday)); age of the patients when they initially arrived at the hospital refers to year(Birthday)",
+ "rule": "ties",
+ "clarification": "If several rows tie at the cut-off, return all of them.",
+ "gold": "SELECT c0, c1, c2 FROM (SELECT T1.Date AS c0, STRFTIME('%Y', T2.\"First Date\") - STRFTIME('%Y', T2.Birthday) AS c1, T2.Birthday AS c2, RANK() OVER (ORDER BY T2.Birthday ASC) AS __r FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE T2.Diagnosis = 'SJS' AND NOT T2.Birthday IS NULL) AS __t WHERE __r <= 1",
+ "gold0": "SELECT T1.Date, STRFTIME('%Y', T2.`First Date`) - STRFTIME('%Y', T2.Birthday),T2.Birthday FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE T2.Diagnosis = 'SJS' AND T2.Birthday IS NOT NULL ORDER BY T2.Birthday ASC LIMIT 1",
+ "d": {
+  "request": "Among patients diagnosed with SJS, when was the oldest patient\u2019s medical laboratory work completed, and how old were they when they first arrived at the hospital? If several rows tie for oldest, return all of them.",
+  "sql": "WITH sjs_patients AS (SELECT ID, CAST(strftime('%Y', `First Date`) AS INTEGER) - CAST(strftime('%Y', Birthday) AS INTEGER) - (strftime('%m-%d', `First Date`) < strftime('%m-%d', Birthday)) AS age_at_first_arrival FROM Patient WHERE Diagnosis LIKE '%SJS%' AND Birthday IS NOT NULL AND `First Date` IS NOT NULL) SELECT p.ID, l.Date AS laboratory_date, p.age_at_first_arrival FROM sjs_patients AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.age_at_first_arrival = (SELECT MAX(age_at_first_arrival) FROM sjs_patients) ORDER BY p.ID, l.Date;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "c": {
+  "request": "The oldest SJS patient's medical laboratory work was completed on what date, and what age was the patient when they initially arrived at the hospital?\nEvidence: The larger the birthday value, the younger the person is, and vice versa; 'SJS' refers to diagnosis; (SUBTRACT(year(`First Date`)), year(Birthday)); age of the patients when they initially arrived at the hospital refers to year(Birthday)\nIf several rows tie at the cut-off, return all of them.",
+  "sql": "SELECT p.ID, l.Date AS laboratory_date, CAST(strftime('%Y', p.`First Date`) AS INTEGER) - CAST(strftime('%Y', p.Birthday) AS INTEGER) AS age_at_first_arrival FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.Diagnosis LIKE '%SJS%' AND p.Birthday = (SELECT MIN(Birthday) FROM Patient WHERE Diagnosis LIKE '%SJS%') ORDER BY p.ID, l.Date;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "b": {
+  "request": "For every SJS patient tied for the earliest Birthday, report each Laboratory.Date and the patient\u2019s age at first hospital arrival, calculated as year(First Date) \u2212 year(Birthday)",
+  "sql": "SELECT p.ID, l.Date, CAST(strftime('%Y', p.`First Date`) AS INTEGER) - CAST(strftime('%Y', p.Birthday) AS INTEGER) AS age_at_first_arrival FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.Diagnosis = 'SJS' AND p.Birthday = (SELECT MIN(Birthday) FROM Patient WHERE Diagnosis = 'SJS') ORDER BY p.ID, l.Date;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ }
+}

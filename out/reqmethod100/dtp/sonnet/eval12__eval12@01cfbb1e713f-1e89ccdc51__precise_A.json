@@ -1,0 +1,38 @@
+{
+ "interpretations": [
+  "Inner join results to races on raceId and group by races.name, so each race name combines every year it was held. Total points is SUM(results.points) and average laps is AVG(CAST(results.laps AS number)) over that name's result rows. The threshold is the mean of the totals across the race names that appear in the join. Keep names with total strictly greater than the threshold. Return SUM(total), AVG(per-name avg laps) with each name weighted equally, and AVG(total \u2212 threshold) over the kept names.",
+  "Same as 1, but the threshold is the mean total over all race names in the races table. Race names with no results count as a total of 0.",
+  "Same as 1, but \"average laps\" is the average of laps per race (raceId) within each name. Those per-race values are then averaged to get the per-name figure.",
+  "Same as 1, but the second output is the pooled average of laps over all result rows in the kept names. Names with more result rows count more, instead of each name counting equally.",
+  "Same as 1, but rows with NULL or non-numeric laps (such as '\\N') are treated as 0 in the average. In 1 they are excluded.",
+  "Same as 1, but rows with NULL points are treated as 0 in the totals, and the rows still count toward average laps.",
+  "Same as 1, but the \"average amount by which totals exceed the average total\" is computed as the mean of the kept totals minus the threshold. The value is the same as in 1 but derived differently.",
+  "Same as 1, but the excess is averaged over all race names, with non-kept names contributing 0. In 1 it is averaged over the kept names only.",
+  "Same as 1, but grouping is by race name and year, so each edition is its own group. The threshold and averages are then over those editions.",
+  "Same as 1, but the threshold is the mean of per-name totals weighted by result count, which is the overall mean points per result row. Names are compared against that value instead.",
+  "Same as 1, but names whose total equals the threshold are also kept (\u2265 instead of >).",
+  "Missing interpretations:",
+  "Same as 1, but the threshold is the average total points per individual race (per `raceId`) instead of per race name. Names are still compared on their combined totals across all years.",
+  "Same as 1, but the second output is the average laps over the kept names' distinct races (one value per `raceId`), pooled with each race counting equally."
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT r.name AS name,\n         SUM(res.points) AS total,\n         AVG(CAST(res.laps AS NUMERIC)) AS avg_laps\n  FROM results res\n  JOIN races r ON res.raceId = r.raceId\n  GROUP BY r.name\n),\nth AS (\n  SELECT AVG(total) AS threshold FROM t\n)\nSELECT SUM(t.total) AS sum_total,\n       AVG(t.avg_laps) AS avg_avg_laps,\n       AVG(t.total - th.threshold) AS avg_diff\nFROM t, th\nWHERE t.total > th.threshold;\n",
+  "WITH t AS (\n  SELECT r.name, COALESCE(SUM(res.points), 0) AS total\n  FROM races r\n  LEFT JOIN results res ON r.raceId = res.raceId\n  GROUP BY r.name\n)\nSELECT name FROM t WHERE total > (SELECT AVG(total) FROM t);\n",
+  "SELECT name, AVG(race_laps) AS average_laps\nFROM (\n  SELECT r.name AS name, r.raceId AS raceId, AVG(CAST(res.laps AS REAL)) AS race_laps\n  FROM races r\n  JOIN results res ON res.raceId = r.raceId\n  GROUP BY r.name, r.raceId\n)\nGROUP BY name;\n",
+  "SELECT r.name, AVG(CAST(res.laps AS REAL))\nFROM results res\nJOIN races r ON res.raceId = r.raceId\nGROUP BY r.name\nHAVING COUNT(*) > 0;\n",
+  "SELECT AVG(CASE WHEN laps IS NOT NULL AND laps NOT GLOB '*[^0-9]*' AND laps <> '' THEN CAST(laps AS INTEGER) ELSE 0 END) FROM results;\n"
+ ],
+ "raw": [
+  "1. Inner join results to races on raceId and group by races.name, so each race name combines every year it was held. Total points is SUM(results.points) and average laps is AVG(CAST(results.laps AS number)) over that name's result rows. The threshold is the mean of the totals across the race names that appear in the join. Keep names with total strictly greater than the threshold. Return SUM(total), AVG(per-name avg laps) with each name weighted equally, and AVG(total \u2212 threshold) over the kept names.\n\n2. Same as 1, but the threshold is the mean total over all race names in the races table. Race names with no results count as a total of 0.\n\n3. Same as 1, but \"average laps\" is the average of laps per race (raceId) within each name. Those per-race values are then averaged to get the per-name figure.\n\n4. Same as 1, but the second output is the pooled average of laps over all result rows in the kept names. Names with more result rows count more, instead of each name counting equally.\n\n5. Same as 1, but rows with NULL or non-numeric laps (such as '\\N') are treated as 0 in the average. In 1 they are excluded.\n\n6. Same as 1, but rows with NULL points are treated as 0 in the totals, and the rows still count toward average laps.\n\n7. Same as 1, but the \"average amount by which totals exceed the average total\" is computed as the mean of the kept totals minus the threshold. The value is the same as in 1 but derived differently.\n\n8. Same as 1, but the excess is averaged over all race names, with non-kept names contributing 0. In 1 it is averaged over the kept names only.\n\n9. Same as 1, but grouping is by race name and year, so each edition is its own group. The threshold and averages are then over those editions.\n\n10. Same as 1, but the threshold is the mean of per-name totals weighted by result count, which is the overall mean points per result row. Names are compared against that value instead.\n\n11. Same as 1, but names whose total equals the threshold are also kept (\u2265 instead of >).",
+  "Missing interpretations:\n\nSame as 1, but the threshold is the average total points per individual race (per `raceId`) instead of per race name. Names are still compared on their combined totals across all years.\n\nSame as 1, but the second output is the average laps over the kept names' distinct races (one value per `raceId`), pooled with each race counting equally."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 100060,
+  "chars_out": 4616
+ }
+}

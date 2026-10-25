@@ -1,0 +1,49 @@
+{
+ "interpretations": [
+  "Use only `player_award_vote`. Inner join to `player` on `player_id`, exclude NULL or empty `death_country`, and group by `death_country`. For each group, output the average `points_won` and its signed difference (group average minus the mean of all group averages). The mean of group averages is taken over every non-blank death-country group, including the current one.",
+  "Same as 1, but the difference is absolute, `ABS(group average \u2212 mean of group averages)`, with the mean taken over all non-blank groups including the current one.",
+  "Use only `player_award_vote`. \"Remaining groups\" means the other groups, so the mean of group averages for each row excludes that row's own group. The difference is the signed group average minus the mean of the other groups' averages.",
+  "Same as 3, but the difference is absolute.",
+  "Use `player_award_vote` and `manager_award_vote` combined (UNION ALL), joined to `player` on `player_id`. Then group by `death_country`, with the signed difference from the mean of all group averages, including the current group.",
+  "Same as 5, but the difference is absolute.",
+  "Same as 5, but the mean of group averages excludes the current group, with a signed difference.",
+  "Same as 7, but the difference is absolute.",
+  "Use only `manager_award_vote`. Join to `player` on `player_id`, exclude blank death countries, and group by `death_country`. Output the signed difference from the mean of all group averages.",
+  "Same as 9, but the mean of group averages excludes the current group, or the difference is absolute.",
+  "\"Blank\" means only NULL `death_country`. Empty-string values form their own group and are kept.",
+  "\"Blank\" means only empty-string `death_country`. NULL values are kept as a group, or are dropped by the join or grouping.",
+  "\"Blank\" means both NULL and empty or whitespace-only strings, and both are excluded.",
+  "Groups whose `points_won` values are all NULL have a NULL average. They are excluded from the mean of group averages, and their rows are shown with a NULL average and NULL difference.",
+  "Groups with a NULL average are dropped entirely from the output, so they are neither shown nor counted in the mean of group averages.",
+  "The difference is expressed as a ratio or percentage of the mean of group averages, not as a raw subtraction.",
+  "The \"simple average of the group averages\" is a single overall value, computed once across all non-blank groups. Each row's difference is its average minus that constant, which is the same reading as 1.",
+  "The \"simple average\" is weighted by vote count, meaning the overall average of `points_won` across all matched non-blank records. The difference is the group average minus that overall average.",
+  "Some interpretations are missing. The existing list bundles several variants together (for example #10 and #15), and a few readings aren't covered at all.",
+  "Use only `manager_award_vote`, with the absolute difference from the mean of all group averages, including the current group.",
+  "Use only `manager_award_vote`, with the signed difference from the mean of the other groups' averages, excluding the current group.",
+  "Use only `manager_award_vote`, with the absolute difference from the mean of the other groups' averages, excluding the current group.",
+  "Combine `player_award_vote` and `manager_award_vote` with UNION (not UNION ALL), so duplicate rows are removed before averaging.",
+  "The difference is the ratio of the group average to the mean of group averages (average / mean), not a subtraction.",
+  "The difference is the percentage change relative to the mean of group averages, ((average \u2212 mean) / mean \u00d7 100), not a raw subtraction.",
+  "The difference is the signed group average minus the mean of the other groups' averages, where \"other groups\" are computed with the weighted overall average of the remaining records (the weighted reading combined with exclusion of the current group).",
+  "Group averages are computed per award table separately, and the \"simple average\" is the mean of the player-table and manager-table averages for each country."
+ ],
+ "queries": [
+  "SELECT death_country,\n       AVG(points_won) AS avg_points_won,\n       AVG(points_won) - (SELECT AVG(avg_pw) FROM (\n           SELECT AVG(pav2.points_won) AS avg_pw\n           FROM player_award_vote pav2\n           JOIN player p2 ON pav2.player_id = p2.player_id\n           WHERE p2.death_country IS NOT NULL AND p2.death_country <> ''\n           GROUP BY p2.death_country\n       )) AS diff_from_mean\nFROM (\n    SELECT p.death_country AS death_country, pav.points_won AS points_won\n    FROM player_award_vote pav\n    JOIN player p ON pav.player_id = p.player_id\n    WHERE p.death_country IS NOT NULL AND p.death_country <> ''\n)\nGROUP BY death_country;\n",
+  "WITH g AS (\n  SELECT award_id, AVG(points_won) AS avg_points\n  FROM player_award_vote\n  GROUP BY award_id\n)\nSELECT award_id,\n       avg_points - (SUM(avg_points) OVER () - avg_points) / (COUNT(*) OVER () - 1) AS difference\nFROM g;\n",
+  "WITH v AS (\n  SELECT player_id, points_won FROM player_award_vote\n  UNION ALL\n  SELECT player_id, points_won FROM manager_award_vote\n),\ng AS (\n  SELECT p.death_country, AVG(v.points_won) AS avg_points\n  FROM v\n  JOIN player p ON v.player_id = p.player_id\n  GROUP BY p.death_country\n)\nSELECT death_country,\n       avg_points - (SELECT AVG(avg_points) FROM g) AS diff_from_mean\nFROM g"
+ ],
+ "raw": [
+  "1. Use only `player_award_vote`. Inner join to `player` on `player_id`, exclude NULL or empty `death_country`, and group by `death_country`. For each group, output the average `points_won` and its signed difference (group average minus the mean of all group averages). The mean of group averages is taken over every non-blank death-country group, including the current one.\n2. Same as 1, but the difference is absolute, `ABS(group average \u2212 mean of group averages)`, with the mean taken over all non-blank groups including the current one.\n3. Use only `player_award_vote`. \"Remaining groups\" means the other groups, so the mean of group averages for each row excludes that row's own group. The difference is the signed group average minus the mean of the other groups' averages.\n4. Same as 3, but the difference is absolute.\n5. Use `player_award_vote` and `manager_award_vote` combined (UNION ALL), joined to `player` on `player_id`. Then group by `death_country`, with the signed difference from the mean of all group averages, including the current group.\n6. Same as 5, but the difference is absolute.\n7. Same as 5, but the mean of group averages excludes the current group, with a signed difference.\n8. Same as 7, but the difference is absolute.\n9. Use only `manager_award_vote`. Join to `player` on `player_id`, exclude blank death countries, and group by `death_country`. Output the signed difference from the mean of all group averages.\n10. Same as 9, but the mean of group averages excludes the current group, or the difference is absolute.\n11. \"Blank\" means only NULL `death_country`. Empty-string values form their own group and are kept.\n12. \"Blank\" means only empty-string `death_country`. NULL values are kept as a group, or are dropped by the join or grouping.\n13. \"Blank\" means both NULL and empty or whitespace-only strings, and both are excluded.\n14. Groups whose `points_won` values are all NULL have a NULL average. They are excluded from the mean of group averages, and their rows are shown with a NULL average and NULL difference.\n15. Groups with a NULL average are dropped entirely from the output, so they are neither shown nor counted in the mean of group averages.\n16. The difference is expressed as a ratio or percentage of the mean of group averages, not as a raw subtraction.\n17. The \"simple average of the group averages\" is a single overall value, computed once across all non-blank groups. Each row's difference is its average minus that constant, which is the same reading as 1.\n18. The \"simple average\" is weighted by vote count, meaning the overall average of `points_won` across all matched non-blank records. The difference is the group average minus that overall average.",
+  "Some interpretations are missing. The existing list bundles several variants together (for example #10 and #15), and a few readings aren't covered at all.\n\nUse only `manager_award_vote`, with the absolute difference from the mean of all group averages, including the current group.\nUse only `manager_award_vote`, with the signed difference from the mean of the other groups' averages, excluding the current group.\nUse only `manager_award_vote`, with the absolute difference from the mean of the other groups' averages, excluding the current group.\nCombine `player_award_vote` and `manager_award_vote` with UNION (not UNION ALL), so duplicate rows are removed before averaging.\nThe difference is the ratio of the group average to the mean of group averages (average / mean), not a subtraction.\nThe difference is the percentage change relative to the mean of group averages, ((average \u2212 mean) / mean \u00d7 100), not a raw subtraction.\nThe difference is the signed group average minus the mean of the other groups' averages, where \"other groups\" are computed with the weighted overall average of the remaining records (the weighted reading combined with exclusion of the current group).\nGroup averages are computed per award table separately, and the \"simple average\" is the mean of the player-table and manager-table averages for each country."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-f74c2bad9d",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 73323,
+  "chars_out": 6361
+ }
+}

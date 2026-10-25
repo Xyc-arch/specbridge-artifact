@@ -1,0 +1,37 @@
+{
+ "interpretations": [
+  "Baseline is the average length over all films with a non-null length. Ratings are kept if their average is strictly above it. The stage-1 mean is the unweighted mean of the kept ratings' averages. Ratings strictly above that mean remain. The output is the mean of the remaining averages, the mean of (average \u2212 baseline) over the remaining ratings, and the mean of (average \u2212 stage-1 mean) over the remaining ratings.",
+  "Same as 1, but the third value subtracts the mean of the remaining ratings' own averages. That mean is the first output value, so the third value comes out as 0.",
+  "Same as 1, but the stage-1 mean is weighted by film count, so it is the average length over all films in the kept ratings.",
+  "Same as 1, but ratings are kept if their average is greater than or equal to the baseline, and later if it is greater than or equal to the stage-1 mean.",
+  "Same as 1, but the baseline is the unweighted mean of the five rating averages, not the film-level average.",
+  "Same as 1, but the \"amount exceeded\" values are absolute differences. Because every remaining rating is above both thresholds, this gives the same numbers as 1.",
+  "Same as 1, but films with a NULL rating form their own group, or are excluded from the rating grouping but still counted in the baseline.",
+  "Same as 1, but a film with a NULL length is dropped before any averaging, so the baseline uses only films with a length. This matches 1 if no lengths are null.",
+  "The \"remaining ratings\" are only those that pass both filters. The three outputs are computed over that set, and the result is a single row with three columns.",
+  "Same as 1, but the second filter's \"mean\" is the mean of the stage-1 kept ratings' averages. The third output subtracts that same stage-1 mean, not the mean of the remaining ratings.",
+  "Missing interpretations:",
+  "Same as 1, but the three output means are weighted by film count rather than being simple means over the remaining ratings.",
+  "Same as 1, but \"the kept ratings' mean\" in the third output is the mean of the final remaining ratings. The \"exceed\" amounts then use the final mean as the reference, so the third value is 0.",
+  "Same as 1, but both the baseline and the stage-1 mean are unweighted means of rating averages, and the stage-1 mean is taken over all five ratings, not just the kept ones.",
+  "Same as 1, but if no rating survives the filters, the query returns a single row of NULLs, or no row at all."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT rating, AVG(length) AS a FROM film WHERE length IS NOT NULL GROUP BY rating\n),\nb AS (SELECT AVG(length) AS base FROM film WHERE length IS NOT NULL),\ns1 AS (\n  SELECT AVG(a) AS m FROM r, b WHERE r.a > b.base\n),\nf AS (\n  SELECT r.a FROM r, b, s1 WHERE r.a > b.base AND r.a > s1.m\n)\nSELECT AVG(f.a), AVG(f.a - b.base), AVG(f.a - s1.m)\nFROM f, b, s1;\n",
+  "WITH rating_avg AS (\n  SELECT rating, AVG(length) AS avg_len\n  FROM film\n  GROUP BY rating\n),\nstage1 AS (\n  SELECT rating, avg_len\n  FROM rating_avg\n  WHERE avg_len >= (SELECT AVG(length) FROM film)\n)\nSELECT rating\nFROM stage1\nWHERE avg_len >= (SELECT AVG(avg_len) FROM stage1);\n",
+  "SELECT rating\nFROM film\nGROUP BY rating\nHAVING AVG(length) > (SELECT AVG(avg_len) FROM (SELECT AVG(length) AS avg_len FROM film GROUP BY rating));\n"
+ ],
+ "raw": [
+  "1. Baseline is the average length over all films with a non-null length. Ratings are kept if their average is strictly above it. The stage-1 mean is the unweighted mean of the kept ratings' averages. Ratings strictly above that mean remain. The output is the mean of the remaining averages, the mean of (average \u2212 baseline) over the remaining ratings, and the mean of (average \u2212 stage-1 mean) over the remaining ratings.\n2. Same as 1, but the third value subtracts the mean of the remaining ratings' own averages. That mean is the first output value, so the third value comes out as 0.\n3. Same as 1, but the stage-1 mean is weighted by film count, so it is the average length over all films in the kept ratings.\n4. Same as 1, but ratings are kept if their average is greater than or equal to the baseline, and later if it is greater than or equal to the stage-1 mean.\n5. Same as 1, but the baseline is the unweighted mean of the five rating averages, not the film-level average.\n6. Same as 1, but the \"amount exceeded\" values are absolute differences. Because every remaining rating is above both thresholds, this gives the same numbers as 1.\n7. Same as 1, but films with a NULL rating form their own group, or are excluded from the rating grouping but still counted in the baseline.\n8. Same as 1, but a film with a NULL length is dropped before any averaging, so the baseline uses only films with a length. This matches 1 if no lengths are null.\n9. The \"remaining ratings\" are only those that pass both filters. The three outputs are computed over that set, and the result is a single row with three columns.\n10. Same as 1, but the second filter's \"mean\" is the mean of the stage-1 kept ratings' averages. The third output subtracts that same stage-1 mean, not the mean of the remaining ratings.",
+  "Missing interpretations:\n\nSame as 1, but the three output means are weighted by film count rather than being simple means over the remaining ratings.\nSame as 1, but \"the kept ratings' mean\" in the third output is the mean of the final remaining ratings. The \"exceed\" amounts then use the final mean as the reference, so the third value is 0.\nSame as 1, but both the baseline and the stage-1 mean are unweighted means of rating averages, and the stage-1 mean is taken over all five ratings, not just the kept ones.\nSame as 1, but if no rating survives the filters, the query returns a single row of NULLs, or no row at all."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6d0476914f",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 112565,
+  "chars_out": 4802
+ }
+}

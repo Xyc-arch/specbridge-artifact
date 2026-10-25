@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-d3a162e8c3",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "List the events with the largest share of attendance records down to the 10th place, including every event tied with the 10th.",
+ "a": {
+  "request": "For each event in the attendance records (`attendance.link_to_event`), how many attendance records does it have, and what share of all attendance records is that (its count divided by the total of all per-event counts, unrounded; nothing is returned if that total is missing)? Return the event id, its count and its share, sorted by share from highest to lowest with missing values last. Keep the first 10 rows plus any further events whose share ties with the 10th one.",
+  "sql": "WITH event_counts AS (\n  SELECT link_to_event AS event_id, COUNT(*) AS attendance_count\n  FROM attendance\n  GROUP BY link_to_event\n),\nshares AS (\n  SELECT event_id, attendance_count,\n         1.0 * attendance_count / NULLIF(SUM(attendance_count) OVER (), 0) AS share\n  FROM event_counts\n),\nranked AS (\n  SELECT event_id, attendance_count, share,\n         RANK() OVER (ORDER BY share DESC) AS share_rank\n  FROM shares\n)\nSELECT event_id, attendance_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC NULLS LAST;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "What are the top 10 events by share of total attendance? For each one, give the event id, its number of attendance records, and its share of all attendance records (its count divided by the total, unrounded), from the largest share down, and return nothing if there's no total to divide by. List the events with the largest share of attendance records down to the 10th place, including every event tied with the 10th.",
+  "sql": "WITH event_attendance AS (\n    SELECT e.event_id, COUNT(a.link_to_member) AS attendance_count\n    FROM event AS e\n    JOIN attendance AS a ON a.link_to_event = e.event_id\n    GROUP BY e.event_id\n), total_attendance AS (\n    SELECT SUM(attendance_count) AS total_count\n    FROM event_attendance\n), ranked AS (\n    SELECT\n        event_id,\n        attendance_count,\n        CAST(attendance_count AS REAL) / total_count AS attendance_share,\n        RANK() OVER (ORDER BY attendance_count DESC) AS place\n    FROM event_attendance\n    CROSS JOIN total_attendance\n    WHERE total_count > 0\n)\nSELECT event_id, attendance_count, attendance_share\nFROM ranked\nWHERE place <= 10\nORDER BY attendance_count DESC, event_id;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Return each event\u2019s ID and attendance-record count, plus its count divided by the total attendance-record count, ordered by share descending; include all events tied at 10th place and return no rows if the total attendance-record count is zero",
+  "sql": "WITH attendance_counts AS (\n    SELECT e.event_id, COUNT(a.link_to_member) AS attendance_count\n    FROM event AS e\n    LEFT JOIN attendance AS a ON a.link_to_event = e.event_id\n    GROUP BY e.event_id\n), ranked AS (\n    SELECT event_id,\n           attendance_count,\n           1.0 * attendance_count / SUM(attendance_count) OVER () AS attendance_share,\n           RANK() OVER (ORDER BY attendance_count DESC) AS place\n    FROM attendance_counts\n)\nSELECT event_id, attendance_count, attendance_share\nFROM ranked\nWHERE place <= 10\n  AND (SELECT SUM(attendance_count) FROM attendance_counts) > 0\nORDER BY attendance_share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "List the top 10 events by share of all attendance records, including every event tied for 10th place. For each event, provide its event ID, number of attendance records, and share of all attendance records (event count divided by the total, unrounded). Return nothing if there is no total to divide by.",
+  "sql": "WITH event_counts AS (\n    SELECT event.event_id, COUNT(attendance.link_to_member) AS attendance_count\n    FROM event\n    JOIN attendance ON attendance.link_to_event = event.event_id\n    GROUP BY event.event_id\n), ranked AS (\n    SELECT event_id,\n           attendance_count,\n           attendance_count * 1.0 / SUM(attendance_count) OVER () AS attendance_share,\n           RANK() OVER (ORDER BY attendance_count DESC) AS attendance_rank\n    FROM event_counts\n)\nSELECT event_id, attendance_count, attendance_share\nFROM ranked\nWHERE attendance_rank <= 10\nORDER BY attendance_count DESC, event_id",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

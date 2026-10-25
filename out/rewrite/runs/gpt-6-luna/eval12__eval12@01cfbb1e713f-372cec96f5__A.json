@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-372cec96f5",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "A budget line with `spent` = 0 is a real zero, so it adds a rate of 0 to the averages.",
+ "a": {
+  "request": "Using budget lines matched to their event (drop lines with no matching event), work out for each event its average spending rate, `spent` \u00f7 `amount`, across its lines, counting lines where `spent` is 0 as a rate of 0. Then, for each event `type`, average those event-level rates. Return the type, its average spending rate, and that rate divided by the simple mean of the per-type average rates. Ignore missing values in the averages, and don't round.",
+  "sql": "WITH event_rates AS (\n    SELECT\n        e.event_id,\n        e.type,\n        AVG(CAST(b.spent AS REAL) / NULLIF(b.amount, 0)) AS event_avg_spending_rate\n    FROM event AS e\n    JOIN budget AS b\n        ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.type\n),\ntype_rates AS (\n    SELECT\n        type,\n        AVG(event_avg_spending_rate) AS average_spending_rate\n    FROM event_rates\n    GROUP BY type\n),\nwith_mean AS (\n    SELECT\n        type,\n        average_spending_rate,\n        AVG(average_spending_rate) OVER () AS mean_type_rate\n    FROM type_rates\n)\nSELECT\n    type,\n    average_spending_rate,\n    average_spending_rate / NULLIF(mean_type_rate, 0) AS rate_divided_by_mean\nFROM with_mean;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Match each budget line to its event and exclude lines without a matching event. For each event, average `spent \u00f7 amount` across its budget lines, treating `spent = 0` as a rate of zero and ignoring missing rates. Then, for each event type, average the event-level rates, ignoring missing values. Return each type, its average rate, and that rate divided by the simple mean of the per-type average rates, without rounding",
+  "sql": "WITH event_rates AS (\n    SELECT e.event_id, e.type,\n           AVG(CASE WHEN b.spent = 0 THEN 0.0\n                    WHEN b.spent IS NOT NULL AND b.amount IS NOT NULL AND b.amount != 0\n                    THEN CAST(b.spent AS REAL) / b.amount\n               END) AS event_rate\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.type\n), type_rates AS (\n    SELECT type, AVG(event_rate) AS average_rate\n    FROM event_rates\n    GROUP BY type\n)\nSELECT type, average_rate,\n       average_rate / AVG(average_rate) OVER () AS rate_divided_by_mean\nFROM type_rates;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Using budget lines matched to their event (drop lines with no matching event), work out for each event its average spending rate, `spent` \u00f7 `amount`, across its lines. Then, for each event `type`, average those event-level rates. Show the type, its average spending rate, and that rate divided by the simple mean of the per-type average rates. Ignore missing values in the averages, and don't round. A budget line with `spent` = 0 is a real zero, so it adds a rate of 0 to the averages.",
+  "sql": "WITH event_rates AS (\n    SELECT b.link_to_event,\n           AVG(1.0 * b.spent / NULLIF(b.amount, 0)) AS average_spending_rate\n    FROM budget AS b\n    JOIN event AS e ON e.event_id = b.link_to_event\n    GROUP BY b.link_to_event\n),\ntype_rates AS (\n    SELECT e.type,\n           AVG(er.average_spending_rate) AS average_spending_rate\n    FROM event_rates AS er\n    JOIN event AS e ON e.event_id = er.link_to_event\n    GROUP BY e.type\n)\nSELECT type,\n       average_spending_rate,\n       average_spending_rate / AVG(average_spending_rate) OVER () AS relative_to_mean\nFROM type_rates;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "When averaging spending rates, treat a budget line with `spent = 0` as a real zero, so it contributes a rate of 0.",
+  "sql": "SELECT AVG(CAST(spent AS REAL) / NULLIF(amount, 0)) AS average_spending_rate\nFROM budget\nWHERE amount <> 0;",
+  "executes": true,
+  "matches": []
+ }
+}

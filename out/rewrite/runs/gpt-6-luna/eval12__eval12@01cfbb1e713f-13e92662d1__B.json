@@ -1,0 +1,40 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "The order-type baseline is the mean of short interest over the raw matched snapshot records of that order type.",
+ "b": {
+  "request": "For each sentiment snapshot matched to a transaction record, group the matched rows by transaction reference and order type mix; report the transaction reference, order type mix, average short-interest ratio and option-volume ratio across non-null snapshot values, and the ratio of that transaction\u2019s average short interest to the mean short interest across all raw matched snapshot records with the same order type mix; order by this ratio descending with null ratios last and return 10 rows.",
+  "sql": "WITH matched AS (\n  SELECT\n    t.transreg AS transaction_reference,\n    t.ordertypedist AS order_type_mix,\n    s.shortintrt,\n    s.optvolrt\n  FROM transactionrecord AS t\n  JOIN sentimentandfundamentals AS s\n    ON s.transref = t.transreg\n), grouped AS (\n  SELECT\n    transaction_reference,\n    order_type_mix,\n    AVG(shortintrt) AS avg_short_interest_ratio,\n    AVG(optvolrt) AS avg_option_volume_ratio\n  FROM matched\n  GROUP BY transaction_reference, order_type_mix\n)\nSELECT\n  g.transaction_reference,\n  g.order_type_mix,\n  g.avg_short_interest_ratio,\n  g.avg_option_volume_ratio,\n  g.avg_short_interest_ratio / NULLIF(mix.mean_short_interest_ratio, 0) AS short_interest_ratio_to_mix_mean\nFROM grouped AS g\nLEFT JOIN (\n  SELECT order_type_mix, AVG(shortintrt) AS mean_short_interest_ratio\n  FROM matched\n  GROUP BY order_type_mix\n) AS mix\n  ON mix.order_type_mix IS NOT DISTINCT FROM g.order_type_mix\nORDER BY short_interest_ratio_to_mix_mean DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For each sentiment snapshot matched to a transaction record, group the matched rows by transaction reference and order type mix; report the transaction reference, order type mix, average short-interest ratio and option-volume ratio across non-null snapshot values, and the ratio of that transaction\u2019s average short interest to the mean short interest across all raw matched snapshot records with the same order type mix; order by this ratio descending with null ratios last and return 10 rows."
+ },
+ "d": {
+  "request": "For each transaction record with at least one sentiment snapshot matching its `transreg`, report its transaction reference, order type mix, mean non-null `shortintrt`, mean non-null `optvolrt`, and the ratio of that transaction\u2019s mean `shortintrt` to the mean `shortintrt` across all raw matched snapshot records sharing its order type mix; order-type means use matched snapshots without transaction-level aggregation. Return the 10 highest ratios first, with null ratios last, and do not round values.",
+  "sql": "WITH transaction_means AS (\n  SELECT\n    t.transreg,\n    t.ordertypedist,\n    AVG(s.shortintrt) AS mean_shortintrt,\n    AVG(s.optvolrt) AS mean_optvolrt\n  FROM transactionrecord AS t\n  JOIN sentimentandfundamentals AS s\n    ON s.transref = t.transreg\n  GROUP BY t.transreg, t.ordertypedist\n),\norder_type_means AS (\n  SELECT\n    t.ordertypedist,\n    AVG(s.shortintrt) AS mean_shortintrt\n  FROM transactionrecord AS t\n  JOIN sentimentandfundamentals AS s\n    ON s.transref = t.transreg\n  GROUP BY t.ordertypedist\n)\nSELECT\n  tm.transreg,\n  tm.ordertypedist,\n  tm.mean_shortintrt,\n  tm.mean_optvolrt,\n  tm.mean_shortintrt / NULLIF(otm.mean_shortintrt, 0) AS shortintrt_ratio\nFROM transaction_means AS tm\nJOIN order_type_means AS otm\n  ON tm.ordertypedist IS NOT DISTINCT FROM otm.ordertypedist\nORDER BY shortintrt_ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each transaction that has sentiment data (matching `transref` to `transactionrecord.transreg`, dropping anything unmatched), along with its order type mix, show the transaction reference, the order type mix, its average short interest days to cover and average option volume ratio (ignoring missing values), and how its average short interest compares with the average short interest for its order type mix, as a ratio. Do not round. List the 10 highest ratios first, with missing ratios last. The order-type baseline is the mean of short interest over the raw matched snapshot records of that order type.",
+  "sql": "WITH matched AS (\n  SELECT\n    t.transreg,\n    t.ordertypedist,\n    s.shortintrt,\n    s.optvolrt\n  FROM transactionrecord AS t\n  INNER JOIN sentimentandfundamentals AS s\n    ON s.transref = t.transreg\n), transaction_averages AS (\n  SELECT\n    transreg,\n    ordertypedist,\n    AVG(shortintrt) AS avg_short_interest_days_to_cover,\n    AVG(optvolrt) AS avg_option_volume_ratio\n  FROM matched\n  GROUP BY transreg, ordertypedist\n), order_type_baselines AS (\n  SELECT\n    ordertypedist,\n    AVG(shortintrt) AS baseline_avg_short_interest\n  FROM matched\n  GROUP BY ordertypedist\n)\nSELECT\n  a.transreg AS transaction_reference,\n  a.ordertypedist AS order_type_mix,\n  a.avg_short_interest_days_to_cover,\n  a.avg_option_volume_ratio,\n  a.avg_short_interest_days_to_cover / NULLIF(b.baseline_avg_short_interest, 0) AS short_interest_ratio_to_order_type_average\nFROM transaction_averages AS a\nJOIN order_type_baselines AS b\n  ON b.ordertypedist IS NOT DISTINCT FROM a.ordertypedist\nORDER BY short_interest_ratio_to_order_type_average DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each transaction with sentiment snapshots (match `sentimentandfundamentals.transref` to `transactionrecord.transreg`, dropping unmatched records), together with its order type mix (`ordertypedist`), compute the average short interest days to cover (`shortintrt`) and the average option volume ratio (`optvolrt`) across its snapshots, ignoring missing values. Compare each transaction's average short interest with a baseline for its order type mix, computed as the average `shortintrt` over all matched sentiment snapshots within that mix (each snapshot counted once). List the transaction reference, order type mix, average short interest, average option volume ratio, and the ratio of the transaction's average short interest to that baseline. Do not round. Sort by the ratio from highest to lowest with missing ratios last, and show the top 10.",
+  "sql": "WITH transaction_averages AS (\n  SELECT\n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.shortintrt) AS avg_short_interest,\n    AVG(sf.optvolrt) AS avg_option_volume_ratio\n  FROM transactionrecord AS tr\n  JOIN sentimentandfundamentals AS sf\n    ON sf.transref = tr.transreg\n  GROUP BY tr.transreg, tr.ordertypedist\n),\norder_type_baselines AS (\n  SELECT\n    tr.ordertypedist,\n    AVG(sf.shortintrt) AS baseline_short_interest\n  FROM transactionrecord AS tr\n  JOIN sentimentandfundamentals AS sf\n    ON sf.transref = tr.transreg\n  GROUP BY tr.ordertypedist\n)\nSELECT\n  ta.transreg AS transaction_reference,\n  ta.ordertypedist AS order_type_mix,\n  ta.avg_short_interest,\n  ta.avg_option_volume_ratio,\n  ta.avg_short_interest / NULLIF(otb.baseline_short_interest, 0) AS short_interest_ratio\nFROM transaction_averages AS ta\nJOIN order_type_baselines AS otb\n  ON ta.ordertypedist = otb.ordertypedist\nORDER BY short_interest_ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

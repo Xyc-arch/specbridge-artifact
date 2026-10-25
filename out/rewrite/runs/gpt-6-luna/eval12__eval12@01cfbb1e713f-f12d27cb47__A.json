@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f12d27cb47",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The overall baseline is the average of the per-site average face counts, with each site weighted equally.",
+ "c": {
+  "request": "Using mesh records (`scanmesh`) that match a site (`sites.zoneregistry` = `scanmesh.zoneref`), find each site's average number of mesh faces (`facetfaces`, ignoring missing values) along with its access status (`sites.entrystat`). Within each access status, take the simple average of its sites' averages, and focus on the sites strictly above their status's average; sites with no recorded access status are left out of this comparison. In a single row, give the average face count of those sites, how far on average they sit above the overall average number of mesh faces across all the matched data (sites without an access status included; if there is no such overall average, no sites count), and how far on average they sit above their status's average. No rounding. The overall baseline is the average of the per-site average face counts, with each site weighted equally.",
+  "sql": "WITH site_averages AS (\n  SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_faces\n  FROM sites AS s\n  JOIN scanmesh AS m ON m.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.entrystat\n), status_averages AS (\n  SELECT entrystat, AVG(avg_faces) AS status_avg_faces\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n), baselines AS (\n  SELECT AVG(avg_faces) AS overall_avg_faces\n  FROM site_averages\n), qualifying_sites AS (\n  SELECT sa.avg_faces, sta.status_avg_faces, b.overall_avg_faces\n  FROM site_averages AS sa\n  JOIN status_averages AS sta ON sta.entrystat = sa.entrystat\n  CROSS JOIN baselines AS b\n  WHERE sa.avg_faces > sta.status_avg_faces\n    AND b.overall_avg_faces IS NOT NULL\n)\nSELECT AVG(avg_faces) AS average_face_count,\n       AVG(avg_faces - overall_avg_faces) AS average_above_overall,\n       AVG(avg_faces - status_avg_faces) AS average_above_status\nFROM qualifying_sites;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Calculate each matched site\u2019s average `facetfaces`, ignoring null values, and classify sites by `sites.entrystat`. For each non-null access status, calculate the unweighted average of its sites\u2019 per-site averages; retain sites whose per-site average is strictly greater than that status average. Return one row with the retained sites\u2019 average per-site face count, the average difference between each retained site\u2019s per-site average and the unweighted average of per-site averages across all matched sites (including sites without an access status), and the average difference between each retained site\u2019s per-site average and its status\u2019s average. If the overall baseline is null, retain no sites. Do not round",
+  "sql": "WITH site_averages AS (\n  SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_facetfaces\n  FROM sites AS s\n  JOIN scanmesh AS m ON m.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.entrystat\n), status_averages AS (\n  SELECT entrystat, AVG(avg_facetfaces) AS status_avg\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n), overall_average AS (\n  SELECT AVG(avg_facetfaces) AS overall_avg\n  FROM site_averages\n), retained AS (\n  SELECT sa.avg_facetfaces, sta.status_avg, oa.overall_avg\n  FROM site_averages AS sa\n  JOIN status_averages AS sta ON sta.entrystat = sa.entrystat\n  CROSS JOIN overall_average AS oa\n  WHERE oa.overall_avg IS NOT NULL\n    AND sa.avg_facetfaces > sta.status_avg\n)\nSELECT AVG(avg_facetfaces) AS avg_retained_site_facetfaces,\n       AVG(avg_facetfaces - overall_avg) AS avg_difference_from_overall,\n       AVG(avg_facetfaces - status_avg) AS avg_difference_from_status\nFROM retained;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Using mesh records (`scanmesh`) that match a site (`sites.zoneregistry` = `scanmesh.zoneref`), compute each site's average number of mesh faces (`facetfaces`, ignoring missing values) together with its access status (`sites.entrystat`). Set an overall baseline equal to the average of these per-site averages over all sites (including those with no recorded access status), each site counting once no matter how many mesh records it has; if no baseline can be computed, no sites qualify. Within each access status, take the simple average of its sites' averages, and keep the sites whose average is strictly above their status's average; sites with no recorded access status are left out at this step. Return a single row with: the average of the kept sites' face averages; the average amount by which they exceed the overall baseline; and the average amount by which they exceed their status's average. No rounding.",
+  "sql": "WITH site_averages AS (\n  SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_faces\n  FROM sites AS s\n  LEFT JOIN scanmesh AS m ON m.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.entrystat\n), baseline AS (\n  SELECT AVG(avg_faces) AS overall_avg\n  FROM site_averages\n), status_averages AS (\n  SELECT entrystat, AVG(avg_faces) AS status_avg\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n), kept AS (\n  SELECT sa.avg_faces, sta.status_avg, b.overall_avg\n  FROM site_averages AS sa\n  JOIN status_averages AS sta ON sta.entrystat = sa.entrystat\n  CROSS JOIN baseline AS b\n  WHERE sa.entrystat IS NOT NULL\n    AND sa.avg_faces > sta.status_avg\n    AND b.overall_avg IS NOT NULL\n)\nSELECT AVG(avg_faces) AS avg_kept_site_faces,\n       AVG(avg_faces - overall_avg) AS avg_excess_overall_baseline,\n       AVG(avg_faces - status_avg) AS avg_excess_over_status_average\nFROM kept;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using mesh records (`scanmesh`) that match a site (`sites.zoneregistry` = `scanmesh.zoneref`), calculate each site's average number of mesh faces (`facetfaces`), ignoring missing values. For sites with a recorded access status (`sites.entrystat`), compare each site's average with the simple average of site averages within its status, and select only sites strictly above that status average. In one row, report the selected sites' average face count, their average difference from the overall baseline, and their average difference from their status averages. Use the average of the per-site averages as the overall baseline, weighting each site equally and including sites without a recorded access status. If no overall baseline exists, select no sites. Do not round.",
+  "sql": "WITH site_averages AS (\n  SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_faces\n  FROM sites AS s\n  JOIN scanmesh AS m ON m.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.entrystat\n), status_averages AS (\n  SELECT entrystat, AVG(avg_faces) AS status_avg\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n), baseline AS (\n  SELECT AVG(avg_faces) AS overall_avg\n  FROM site_averages\n), selected AS (\n  SELECT sa.avg_faces, sa.avg_faces - b.overall_avg AS overall_diff,\n         sa.avg_faces - sta.status_avg AS status_diff\n  FROM site_averages AS sa\n  JOIN status_averages AS sta ON sta.entrystat = sa.entrystat\n  CROSS JOIN baseline AS b\n  WHERE b.overall_avg IS NOT NULL\n    AND sa.avg_faces > sta.status_avg\n)\nSELECT AVG(avg_faces) AS avg_face_count,\n       AVG(overall_diff) AS avg_difference_from_overall_baseline,\n       AVG(status_diff) AS avg_difference_from_status_average\nFROM selected;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

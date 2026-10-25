@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Media types are grouped by MediaType.Name via an inner join, so tracks without a media type are excluded. The rate is SUM(Bytes)/SUM(Milliseconds), the track count is COUNT(*), and the result is one row with three averages (rate, track count, rate minus the overall average) over the media types whose rate exceeds the simple average of all media types' rates.",
+  "Same as 1, but the track count is COUNT(Bytes), so tracks with NULL Bytes are not counted.",
+  "Same as 1, but SUM(Bytes) ignores NULL Bytes while SUM(Milliseconds) still includes the milliseconds of those tracks. The rate is therefore lowered by tracks with NULL Bytes.",
+  "Same as 1, but tracks with NULL Bytes are excluded from both the numerator and the denominator, and from the count.",
+  "Media types are grouped by MediaTypeId instead of by name. Distinct media types that share a name would be kept separate.",
+  "Media types with no tracks are included, using a left join from MediaType. Their rate is NULL or zero, and their track count is 0.",
+  "Media types with no tracks are excluded, using only media types that have linked tracks. This matches 1.",
+  "The overall average is the simple average of per-media-type rates, not the pooled rate (total Bytes over total Milliseconds across all tracks). This is the reading the question states.",
+  "The overall average is the pooled rate across all tracks. This is an alternative reading of \"overall average\".",
+  "The overall average includes all media types, and the filter keeps only those strictly above it, so equal rates are excluded. Under the other reading, rates equal to the average are kept (>=).",
+  "The \"average amount by which their rate exceeds the overall average\" is AVG(rate \u2212 overall_avg) over the kept media types. This equals the kept types' average rate minus the overall average.",
+  "The \"average amount by which their rate exceeds the overall average\" is a percentage or ratio excess, (rate \u2212 avg)/avg, instead of an absolute difference.",
+  "The byte rate is Bytes per millisecond (the unit as stated). Converting to bytes per second (\u00d71000) is an alternative scale.",
+  "Integer division could truncate the rate if Bytes and Milliseconds are both integers. The question says \"without rounding\", so the rate is computed in floating-point or decimal arithmetic.",
+  "The output is one row with three columns: average rate, average track count, and average excess. If no media type exceeds the average, the result is a row of NULLs, or no row at all.",
+  "The track count could be the number of distinct tracks (COUNT(DISTINCT TrackId)) rather than COUNT(*). The two are the same here because TrackId is the primary key.",
+  "Missing interpretations:",
+  "The rate is the average of per-track rates (AVG(Bytes/Milliseconds)) instead of SUM(Bytes)/SUM(Milliseconds).",
+  "Tracks with NULL Bytes are counted in the track count but the rate uses only tracks with non-NULL Bytes in the numerator and all milliseconds in the denominator (mixed handling of NULLs).",
+  "The average of the track counts is taken over the kept media types with integer division, truncating it, instead of being a decimal average.",
+  "The filter is applied to rates compared to the average computed only over media types that have a non-NULL rate (media types with zero total Milliseconds or no tracks are excluded from the overall average).",
+  "Media types with the same name are merged into a single group, so the overall average is taken over distinct names, not distinct MediaTypeIds. This is the name-grouping reading from interpretation 1, but with tracks whose MediaType name is NULL either grouped together as one group or excluded."
+ ],
+ "queries": [
+  "WITH mt AS (\n  SELECT m.Name, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate, COUNT(*) AS cnt\n  FROM Track t\n  JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.Name\n),\noverall AS (\n  SELECT AVG(rate) AS avg_rate FROM mt\n)\nSELECT AVG(mt.rate) AS avg_rate,\n       AVG(mt.cnt) AS avg_track_count,\n       AVG(mt.rate - overall.avg_rate) AS avg_rate_diff\nFROM mt, overall\nWHERE mt.rate > overall.avg_rate;\n",
+  "SELECT Album.Title, COUNT(Track.Bytes) FROM Album JOIN Track ON Album.AlbumId = Track.AlbumId GROUP BY Album.AlbumId;\n",
+  "SELECT SUM(Bytes) * 1.0 / SUM(Milliseconds) FROM Track",
+  "SELECT T2.Name, COUNT(*) FROM Track AS T1 JOIN MediaType AS T2 ON T1.MediaTypeId = T2.MediaTypeId GROUP BY T1.MediaTypeId",
+  "SELECT m.Name, COUNT(t.TrackId) AS TrackCount, AVG(t.UnitPrice) AS Rate\nFROM MediaType m\nLEFT JOIN Track t ON m.MediaTypeId = t.MediaTypeId\nGROUP BY m.MediaTypeId, m.Name;\n"
+ ],
+ "raw": [
+  "1. Media types are grouped by MediaType.Name via an inner join, so tracks without a media type are excluded. The rate is SUM(Bytes)/SUM(Milliseconds), the track count is COUNT(*), and the result is one row with three averages (rate, track count, rate minus the overall average) over the media types whose rate exceeds the simple average of all media types' rates.\n2. Same as 1, but the track count is COUNT(Bytes), so tracks with NULL Bytes are not counted.\n3. Same as 1, but SUM(Bytes) ignores NULL Bytes while SUM(Milliseconds) still includes the milliseconds of those tracks. The rate is therefore lowered by tracks with NULL Bytes.\n4. Same as 1, but tracks with NULL Bytes are excluded from both the numerator and the denominator, and from the count.\n5. Media types are grouped by MediaTypeId instead of by name. Distinct media types that share a name would be kept separate.\n6. Media types with no tracks are included, using a left join from MediaType. Their rate is NULL or zero, and their track count is 0.\n7. Media types with no tracks are excluded, using only media types that have linked tracks. This matches 1.\n8. The overall average is the simple average of per-media-type rates, not the pooled rate (total Bytes over total Milliseconds across all tracks). This is the reading the question states.\n9. The overall average is the pooled rate across all tracks. This is an alternative reading of \"overall average\".\n10. The overall average includes all media types, and the filter keeps only those strictly above it, so equal rates are excluded. Under the other reading, rates equal to the average are kept (>=).\n11. The \"average amount by which their rate exceeds the overall average\" is AVG(rate \u2212 overall_avg) over the kept media types. This equals the kept types' average rate minus the overall average.\n12. The \"average amount by which their rate exceeds the overall average\" is a percentage or ratio excess, (rate \u2212 avg)/avg, instead of an absolute difference.\n13. The byte rate is Bytes per millisecond (the unit as stated). Converting to bytes per second (\u00d71000) is an alternative scale.\n14. Integer division could truncate the rate if Bytes and Milliseconds are both integers. The question says \"without rounding\", so the rate is computed in floating-point or decimal arithmetic.\n15. The output is one row with three columns: average rate, average track count, and average excess. If no media type exceeds the average, the result is a row of NULLs, or no row at all.\n16. The track count could be the number of distinct tracks (COUNT(DISTINCT TrackId)) rather than COUNT(*). The two are the same here because TrackId is the primary key.",
+  "Missing interpretations:\n\nThe rate is the average of per-track rates (AVG(Bytes/Milliseconds)) instead of SUM(Bytes)/SUM(Milliseconds).\nTracks with NULL Bytes are counted in the track count but the rate uses only tracks with non-NULL Bytes in the numerator and all milliseconds in the denominator (mixed handling of NULLs).\nThe average of the track counts is taken over the kept media types with integer division, truncating it, instead of being a decimal average.\nThe filter is applied to rates compared to the average computed only over media types that have a non-NULL rate (media types with zero total Milliseconds or no tracks are excluded from the overall average).\nMedia types with the same name are merged into a single group, so the overall average is taken over distinct names, not distinct MediaTypeIds. This is the name-grouping reading from interpretation 1, but with tracks whose MediaType name is NULL either grouped together as one group or excluded."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6f949de77e",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 43454,
+  "chars_out": 5206
+ }
+}

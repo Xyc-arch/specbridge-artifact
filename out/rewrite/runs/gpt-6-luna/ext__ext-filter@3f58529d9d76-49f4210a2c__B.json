@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-49f4210a2c",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Patients who have had a negative urine protein result on some lab test and a negative rheumatoid factor result on some lab test, not necessarily the same one.",
+ "b": {
+  "request": "For patients present in the Patient table who have at least one lab record with `U-PRO = '-'` and at least one lab record with `RA = '-'` (the results may be from different lab records), return each patient's ID, sex, average `ALP`, and average `HCT` across all their lab records, ignoring missing values and without rounding; group by patient ID and sex, sort by average `HCT` descending with missing averages last, and return the top 10.",
+  "sql": "SELECT p.ID, p.SEX, AVG(l.ALP) AS average_ALP, AVG(l.HCT) AS average_HCT\nFROM Patient AS p\nJOIN Laboratory AS l ON l.ID = p.ID\nWHERE EXISTS (SELECT 1 FROM Laboratory AS u WHERE u.ID = p.ID AND u.`U-PRO` = '-')\n  AND EXISTS (SELECT 1 FROM Laboratory AS r WHERE r.ID = p.ID AND r.RA = '-')\nGROUP BY p.ID, p.SEX\nORDER BY average_HCT IS NULL ASC, average_HCT DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For patients present in the Patient table who have at least one lab record with `U-PRO = '-'` and at least one lab record with `RA = '-'` (the results may be from different lab records), return each patient's ID, sex, average `ALP`, and average `HCT` across all their lab records, ignoring missing values and without rounding; group by patient ID and sex, sort by average `HCT` descending with missing averages last, and return the top 10."
+ },
+ "d": {
+  "request": "List the top 10 patients present in the Patient table who have at least one lab record with `U-PRO = '-'` and at least one lab record with `RA = '-'`, which may be different records; report each patient\u2019s ID, sex, and the unrounded averages of `ALP` and `HCT` across all their lab records, ignoring missing values, grouped by ID and sex and sorted by average `HCT` descending with missing averages last.",
+  "sql": "SELECT p.ID, p.SEX, AVG(l.ALP) AS avg_ALP, AVG(l.HCT) AS avg_HCT\nFROM Patient AS p\nJOIN Laboratory AS l ON l.ID = p.ID\nWHERE EXISTS (\n    SELECT 1 FROM Laboratory AS u\n    WHERE u.ID = p.ID AND u.`U-PRO` = '-'\n)\nAND EXISTS (\n    SELECT 1 FROM Laboratory AS r\n    WHERE r.ID = p.ID AND r.RA = '-'\n)\nGROUP BY p.ID, p.SEX\nORDER BY avg_HCT IS NULL, avg_HCT DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For patients who have a laboratory record with `U-PRO` of '-' and a laboratory record (possibly a different one) with `RA` of '-', list each patient's ID, their sex (from the Patient table, only patients present there), and the average `ALP` and average `HCT` across all of their lab records (ignoring missing values, unrounded). Group by patient ID and sex, sort by average `HCT` from highest to lowest with missing averages last, and show the top 10.",
+  "sql": "SELECT p.ID, p.SEX, AVG(l.ALP) AS avg_ALP, AVG(l.HCT) AS avg_HCT\nFROM Patient AS p\nLEFT JOIN Laboratory AS l ON l.ID = p.ID\nWHERE p.ID IN (\n    SELECT ID FROM Laboratory WHERE `U-PRO` = '-'\n)\nAND p.ID IN (\n    SELECT ID FROM Laboratory WHERE RA = '-'\n)\nGROUP BY p.ID, p.SEX\nORDER BY avg_HCT IS NULL ASC, avg_HCT DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For patients who have tested '-' for both urine protein (`U-PRO`) and rheumatoid factor (`RA`), list each patient's ID, their sex (from the Patient table, only patients present there), and the average `ALP` and average `HCT` across all of their lab records (ignoring missing values, unrounded). Group by patient ID and sex, sort by average `HCT` from highest to lowest with missing averages last, and show the top 10. Patients who have had a negative urine protein result on some lab test and a negative rheumatoid factor result on some lab test, not necessarily the same one.",
+  "sql": "WITH eligible_patients AS (\n    SELECT ID\n    FROM Laboratory\n    GROUP BY ID\n    HAVING SUM(CASE WHEN `U-PRO` = '-' THEN 1 ELSE 0 END) > 0\n       AND SUM(CASE WHEN RA = '-' THEN 1 ELSE 0 END) > 0\n)\nSELECT p.ID, p.SEX,\n       AVG(l.ALP) AS avg_ALP,\n       AVG(l.HCT) AS avg_HCT\nFROM eligible_patients e\nJOIN Patient p ON p.ID = e.ID\nJOIN Laboratory l ON l.ID = p.ID\nGROUP BY p.ID, p.SEX\nORDER BY avg_HCT DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

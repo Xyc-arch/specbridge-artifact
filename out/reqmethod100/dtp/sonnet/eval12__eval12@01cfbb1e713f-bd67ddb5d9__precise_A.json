@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Per event, average `spent` and average `remaining` over its budget lines (NULLs ignored, i.e., SQL AVG). The difference is the event's average remaining minus the mean of the per-event average remaining values, where the mean is taken over all events that have a non-null average remaining. Sort by the difference descending with NULLs last, then take the top 10. No rounding.",
+  "Same as 1, but the mean of per-event averages is taken over all events in the budget table, including events whose average remaining is NULL. Those events count as 0 in the mean or are excluded, depending on how they are handled.",
+  "Same as 1, but the mean is taken over all events in the `event` table, including events with no budget lines.",
+  "Same as 1, but the mean of per-event averages is computed only over the events that appear in the top 10 or in the output.",
+  "Same as 1, but with events grouped by `budget.link_to_event` only, so budget lines with NULL `link_to_event` form their own group (a NULL event row).",
+  "Same as 1, but budget lines with NULL `link_to_event` are excluded from the grouping and from the mean.",
+  "Same as 1, but \"missing values\" covers both NULL and empty-string values in `spent` and `remaining`, and these are ignored in the averages.",
+  "Same as 1, but the difference is computed against the overall average of `remaining` across all budget lines (a line-weighted mean) instead of the mean of per-event averages. This reading conflicts with the \"each event counted once\" wording.",
+  "Same as 1, but events are identified by `event.event_name` from a join to the `event` table, and events with no matching `event` row are dropped.",
+  "Same as 1, but the output includes the event name or other event details alongside `link_to_event`.",
+  "Same as 1, but ties in the difference are broken arbitrarily or by `link_to_event`, and the top 10 may then cut through a tie.",
+  "Same as 1, but \"missing values last\" refers only to events where the difference is NULL (average remaining is NULL), placed after all non-null rows even when sorted descending.",
+  "Same as 1, but only events with non-null average `spent` are included.",
+  "Same as 1, but the \"top 10\" is taken by highest average remaining rather than by the difference. Because the difference is a constant shift, the order is the same.",
+  "Missing interpretations:",
+  "Same as 1, but the mean of per-event averages is computed over only the events shown in the top 10 (this is a different reading from interpretation 4 only if \"output\" means the displayed rows). The mean is over the returned rows after the limit, not before.",
+  "Same as 1, but \"average remaining\" is recomputed as average `amount` minus average `spent` rather than taken directly from the `remaining` column.",
+  "Same as 1, but a budget line with NULL `spent` or NULL `remaining` is excluded from both averages (the row is dropped if either is missing), so the two averages use the same set of lines.",
+  "Same as 1, but \"missing values last\" is applied with the NULL-last ordering on the difference, and ties are broken by highest average `spent`.",
+  "Same as 1, but the mean of per-event averages is computed over all events, including those whose `event_status` is Planning, Open, or Closed. The mean is restricted to a single status."
+ ],
+ "queries": [
+  "WITH per_event AS (\n    SELECT link_to_event,\n           AVG(spent) AS avg_spent,\n           AVG(remaining) AS avg_remaining\n    FROM budget\n    GROUP BY link_to_event\n)\nSELECT link_to_event,\n       avg_spent,\n       avg_remaining,\n       avg_remaining - (SELECT AVG(avg_remaining) FROM per_event WHERE avg_remaining IS NOT NULL) AS difference\nFROM per_event\nORDER BY difference DESC NULLS LAST\nLIMIT 10;\n",
+  "SELECT AVG(COALESCE(avg_remaining, 0))\nFROM (\n    SELECT link_to_event, AVG(remaining) AS avg_remaining\n    FROM budget\n    GROUP BY link_to_event\n);\n",
+  "SELECT AVG(total_amount) FROM (SELECT e.event_id, COALESCE(SUM(b.amount), 0) AS total_amount FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id)",
+  "SELECT link_to_event, SUM(spent) AS total_spent\nFROM budget\nGROUP BY link_to_event;\n",
+  "SELECT link_to_event, AVG(spent) FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event;\n"
+ ],
+ "raw": [
+  "1. Per event, average `spent` and average `remaining` over its budget lines (NULLs ignored, i.e., SQL AVG). The difference is the event's average remaining minus the mean of the per-event average remaining values, where the mean is taken over all events that have a non-null average remaining. Sort by the difference descending with NULLs last, then take the top 10. No rounding.\n2. Same as 1, but the mean of per-event averages is taken over all events in the budget table, including events whose average remaining is NULL. Those events count as 0 in the mean or are excluded, depending on how they are handled.\n3. Same as 1, but the mean is taken over all events in the `event` table, including events with no budget lines.\n4. Same as 1, but the mean of per-event averages is computed only over the events that appear in the top 10 or in the output.\n5. Same as 1, but with events grouped by `budget.link_to_event` only, so budget lines with NULL `link_to_event` form their own group (a NULL event row).\n6. Same as 1, but budget lines with NULL `link_to_event` are excluded from the grouping and from the mean.\n7. Same as 1, but \"missing values\" covers both NULL and empty-string values in `spent` and `remaining`, and these are ignored in the averages.\n8. Same as 1, but the difference is computed against the overall average of `remaining` across all budget lines (a line-weighted mean) instead of the mean of per-event averages. This reading conflicts with the \"each event counted once\" wording.\n9. Same as 1, but events are identified by `event.event_name` from a join to the `event` table, and events with no matching `event` row are dropped.\n10. Same as 1, but the output includes the event name or other event details alongside `link_to_event`.\n11. Same as 1, but ties in the difference are broken arbitrarily or by `link_to_event`, and the top 10 may then cut through a tie.\n12. Same as 1, but \"missing values last\" refers only to events where the difference is NULL (average remaining is NULL), placed after all non-null rows even when sorted descending.\n13. Same as 1, but only events with non-null average `spent` are included.\n14. Same as 1, but the \"top 10\" is taken by highest average remaining rather than by the difference. Because the difference is a constant shift, the order is the same.",
+  "Missing interpretations:\n\nSame as 1, but the mean of per-event averages is computed over only the events shown in the top 10 (this is a different reading from interpretation 4 only if \"output\" means the displayed rows). The mean is over the returned rows after the limit, not before.\nSame as 1, but \"average remaining\" is recomputed as average `amount` minus average `spent` rather than taken directly from the `remaining` column.\nSame as 1, but a budget line with NULL `spent` or NULL `remaining` is excluded from both averages (the row is dropped if either is missing), so the two averages use the same set of lines.\nSame as 1, but \"missing values last\" is applied with the NULL-last ordering on the difference, and ties are broken by highest average `spent`.\nSame as 1, but the mean of per-event averages is computed over all events, including those whose `event_status` is Planning, Open, or Closed. The mean is restricted to a single status."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd67ddb5d9",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 61561,
+  "chars_out": 5217
+ }
+}

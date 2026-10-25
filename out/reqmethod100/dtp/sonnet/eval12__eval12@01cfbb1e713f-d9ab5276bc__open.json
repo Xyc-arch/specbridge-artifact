@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Site-level feature count is the sum of `traitcount` over each site's `scanfeatures` rows with non-null `traitcount`. Share is that sum divided by the grand total of `traitcount`. The average share is 1 divided by the number of sites that have at least one non-null `traitcount`. Show the 10 sites with the largest (share \u2212 average share), as site code, sum, share (fraction) and margin, unrounded.",
+  "Same as above, but the share and margin are shown as percentages (\u00d7100), unrounded.",
+  "Same as the first, but the average share is 1 divided by the total number of sites in `sites`, including sites with no feature records or only null `traitcount`.",
+  "Same as the first, but the average share is 1 divided by the number of distinct `zoneref` values in `scanfeatures`, including sites whose `traitcount` values are all null (their sum counts as 0).",
+  "Feature count is the number of `scanfeatures` records per site with non-null `traitcount` (COUNT, not SUM). Share is that count divided by the total number of such records. The average share is 1 divided by the number of sites.",
+  "Site-level feature count is the sum of `traitcount`, but the average share is the mean of each record's share of the grand total, not the mean of the site shares.",
+  "Margin is the ratio of share to average share (a multiple of the average) rather than the difference. Sites are still ranked largest first, and the top 10 are shown.",
+  "Only sites with share strictly above the average are considered before the top 10 is taken. If fewer than 10 sites qualify, fewer rows are returned.",
+  "The top 10 is taken among all sites by margin, and sites with an above-average share are flagged. Sites below average (negative margin) could appear if fewer than 10 are above average.",
+  "Grouping is by `scanfeatures.zoneref` only, with no join to `sites`. Alternatively, it joins to `sites` and uses `zoneregistry`, which drops any feature records whose site code is missing from `sites`.",
+  "Ties in margin are broken arbitrarily. Alternatively, ties are broken by site code ascending.",
+  "Missing interpretations:",
+  "Feature count is the number of distinct artifacts, using `articount` instead of `traitcount`. Share and average share are computed from that column.",
+  "The average share is the mean of the site shares across all sites in `scanfeatures`, with null-`traitcount` sites counted as 0 share. This differs from 1/N only if the grand total is computed over a different set of rows.",
+  "The ranking is by absolute margin of share over the average, with both values expressed as percentages. The share and margin are shown as percentages, and the feature count is shown unscaled.",
+  "The average share is computed as the average of the site-level sums divided by the grand total. This equals 1/N, but N is counted after excluding sites whose summed `traitcount` is 0 or null.",
+  "\"Ignoring missing counts\" is read as treating null `traitcount` as 0 rather than excluding the rows. Sites with only null values then stay in the site count and the average share."
+ ],
+ "queries": [
+  "WITH s AS (\n  SELECT zoneref, SUM(traitcount) AS total\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n),\ng AS (\n  SELECT SUM(total) AS grand, COUNT(*) AS n FROM s\n)\nSELECT s.zoneref AS site_code,\n       s.total AS sum,\n       CAST(s.total AS REAL) / g.grand AS share,\n       CAST(s.total AS REAL) / g.grand - 1.0 / g.n AS margin\nFROM s, g\nORDER BY margin DESC\nLIMIT 10;\n",
+  "SELECT s.zoneregistry\nFROM sites s\nJOIN scanfeatures f ON f.zoneref = s.zoneregistry\nGROUP BY s.zoneregistry\nHAVING SUM(f.traitcount) * 1.0 / (SELECT SUM(traitcount) FROM scanfeatures) > 1.0 / (SELECT COUNT(*) FROM sites);\n",
+  "SELECT zoneref\nFROM (\n  SELECT zoneref, COALESCE(SUM(traitcount), 0) AS s\n  FROM scanfeatures\n  GROUP BY zoneref\n) z\nWHERE z.s * 1.0 / (SELECT SUM(traitcount) FROM scanfeatures) > 1.0 / (SELECT COUNT(DISTINCT zoneref) FROM scanfeatures);\n",
+  "SELECT zoneref\nFROM scanfeatures\nWHERE traitcount IS NOT NULL\nGROUP BY zoneref\nHAVING COUNT(*) * 1.0 / (SELECT COUNT(*) FROM scanfeatures WHERE traitcount IS NOT NULL) > 1.0 / (SELECT COUNT(DISTINCT zoneref) FROM scanfeatures WHERE traitcount IS NOT NULL);\n",
+  "SELECT zoneref,\n       SUM(traitcount) AS feature_count,\n       AVG(traitcount * 1.0 / (SELECT SUM(traitcount) FROM scanfeatures)) AS avg_share\nFROM scanfeatures\nGROUP BY zoneref;\n"
+ ],
+ "raw": [
+  "Site-level feature count is the sum of `traitcount` over each site's `scanfeatures` rows with non-null `traitcount`. Share is that sum divided by the grand total of `traitcount`. The average share is 1 divided by the number of sites that have at least one non-null `traitcount`. Show the 10 sites with the largest (share \u2212 average share), as site code, sum, share (fraction) and margin, unrounded.\n\nSame as above, but the share and margin are shown as percentages (\u00d7100), unrounded.\n\nSame as the first, but the average share is 1 divided by the total number of sites in `sites`, including sites with no feature records or only null `traitcount`.\n\nSame as the first, but the average share is 1 divided by the number of distinct `zoneref` values in `scanfeatures`, including sites whose `traitcount` values are all null (their sum counts as 0).\n\nFeature count is the number of `scanfeatures` records per site with non-null `traitcount` (COUNT, not SUM). Share is that count divided by the total number of such records. The average share is 1 divided by the number of sites.\n\nSite-level feature count is the sum of `traitcount`, but the average share is the mean of each record's share of the grand total, not the mean of the site shares.\n\nMargin is the ratio of share to average share (a multiple of the average) rather than the difference. Sites are still ranked largest first, and the top 10 are shown.\n\nOnly sites with share strictly above the average are considered before the top 10 is taken. If fewer than 10 sites qualify, fewer rows are returned.\n\nThe top 10 is taken among all sites by margin, and sites with an above-average share are flagged. Sites below average (negative margin) could appear if fewer than 10 are above average.\n\nGrouping is by `scanfeatures.zoneref` only, with no join to `sites`. Alternatively, it joins to `sites` and uses `zoneregistry`, which drops any feature records whose site code is missing from `sites`.\n\nTies in margin are broken arbitrarily. Alternatively, ties are broken by site code ascending.",
+  "Missing interpretations:\n\nFeature count is the number of distinct artifacts, using `articount` instead of `traitcount`. Share and average share are computed from that column.\n\nThe average share is the mean of the site shares across all sites in `scanfeatures`, with null-`traitcount` sites counted as 0 share. This differs from 1/N only if the grand total is computed over a different set of rows.\n\nThe ranking is by absolute margin of share over the average, with both values expressed as percentages. The share and margin are shown as percentages, and the feature count is shown unscaled.\n\nThe average share is computed as the average of the site-level sums divided by the grand total. This equals 1/N, but N is counted after excluding sites whose summed `traitcount` is 0 or null.\n\n\"Ignoring missing counts\" is read as treating null `traitcount` as 0 rather than excluding the rows. Sites with only null values then stay in the site count and the average share."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-d9ab5276bc",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327294,
+  "chars_out": 5347
+ }
+}

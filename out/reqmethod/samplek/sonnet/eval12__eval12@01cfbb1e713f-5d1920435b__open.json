@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH per_type AS (SELECT e.type AS event_type, AVG(b.spent * 1.0 / b.amount) AS avg_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.amount IS NOT NULL AND b.amount <> 0 GROUP BY e.type) SELECT event_type, avg_ratio, avg_ratio - (SELECT AVG(avg_ratio) FROM per_type) AS diff_from_mean_of_averages FROM per_type ORDER BY event_type;",
+  "WITH per_type AS (SELECT e.type AS type, AVG(b.spent * 1.0 / b.amount) AS avg_spent_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.amount IS NOT NULL AND b.amount <> 0 GROUP BY e.type) SELECT type, avg_spent_ratio, avg_spent_ratio - AVG(avg_spent_ratio) OVER () AS diff_from_mean_of_averages FROM per_type ORDER BY type;",
+  "WITH per_type AS (SELECT e.type AS type, AVG(b.spent * 1.0 / b.amount) AS avg_spent_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event GROUP BY e.type) SELECT type, avg_spent_ratio, avg_spent_ratio - AVG(avg_spent_ratio) OVER () AS diff_from_mean_of_averages FROM per_type ORDER BY type"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_type AS (SELECT e.type AS event_type, AVG(b.spent * 1.0 / b.amount) AS avg_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.amount IS NOT NULL AND b.amount <> 0 GROUP BY e.type) SELECT event_type, avg_ratio, avg_ratio - (SELECT AVG(avg_ratio) FROM per_type) AS diff_from_mean_of_averages FROM per_type ORDER BY event_type;",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with NULL spent or NULL amount are excluded, and lines with amount = 0 are excluded to avoid division by zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'mean of the per-type averages' is the unweighted average of the per-type average ratios (each type counts equally), and the difference is signed (type average minus that mean).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Budget lines whose link_to_event has no matching event are dropped (inner join); events with a NULL type form their own group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_type AS (SELECT e.type AS type, AVG(b.spent * 1.0 / b.amount) AS avg_spent_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.amount IS NOT NULL AND b.amount <> 0 GROUP BY e.type) SELECT type, avg_spent_ratio, avg_spent_ratio - AVG(avg_spent_ratio) OVER () AS diff_from_mean_of_averages FROM per_type ORDER BY type;",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with amount = 0 are excluded because the ratio is undefined, along with lines where spent or amount is NULL. Budget lines with no matching event are dropped by the inner join.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'mean of the per-type averages' is the unweighted mean across event types, so each type counts equally regardless of its number of budget lines. Distance is signed (type average minus that mean).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_type AS (SELECT e.type AS type, AVG(b.spent * 1.0 / b.amount) AS avg_spent_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event GROUP BY e.type) SELECT type, avg_spent_ratio, avg_spent_ratio - AVG(avg_spent_ratio) OVER () AS diff_from_mean_of_averages FROM per_type ORDER BY type",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with a zero amount give a NULL ratio in SQLite (division by zero), so they are ignored along with lines where spent or amount is NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Budget lines are joined to events with an inner join, so lines without a matching event are excluded. Events with a NULL type, if any, form their own group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The mean of the per-type averages is an unweighted mean over the types that have a non-NULL average, and each type's difference is its average minus that mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5d1920435b",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23190,
+  "chars_out": 2836
+ }
+}

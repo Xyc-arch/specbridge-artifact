@@ -1,0 +1,44 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-91cfb4e1db",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH linked_data AS (\n  SELECT \n    sf.transref,\n    sf.optvolrt,\n    trd.tradekind\n  FROM sentimentandfundamentals sf\n  INNER JOIN transactionrecord tr ON sf.transref = tr.transreg\n  INNER JOIN trader trd ON tr.trdref = trd.tradereg\n),\npair_averages AS (\n  SELECT \n    transref,\n    tradekind,\n    AVG(optvolrt) as pair_avg_optvolrt\n  FROM linked_data\n  GROUP BY transref, tradekind\n),\noverall_average AS (\n  SELECT AVG(optvolrt) as overall_avg_optvolrt\n  FROM linked_data\n),\npair_with_deviations AS (\n  SELECT \n    pa.transref,\n    pa.tradekind,\n    pa.pair_avg_optvolrt,\n    pa.pair_avg_optvolrt - oa.overall_avg_optvolrt as deviation\n  FROM pair_averages pa\n  CROSS JOIN overall_average oa\n  WHERE oa.overall_avg_optvolrt IS NOT NULL\n),\ntype_avg_deviation AS (\n  SELECT \n    tradekind,\n    AVG(deviation) as type_avg_deviation\n  FROM pair_with_deviations\n  WHERE tradekind IS NOT NULL\n  GROUP BY tradekind\n),\nfiltered_pairs AS (\n  SELECT \n    pwd.transref,\n    pwd.tradekind,\n    pwd.pair_avg_optvolrt,\n    pwd.deviation,\n    pwd.deviation - tad.type_avg_deviation as excess\n  FROM pair_with_deviations pwd\n  INNER JOIN type_avg_deviation tad ON pwd.tradekind = tad.tradekind\n  WHERE pwd.deviation > tad.type_avg_deviation\n)\nSELECT \n  tradekind,\n  AVG(pair_avg_optvolrt) as avg_optvolrt,\n  AVG(deviation) as avg_deviation,\n  AVG(excess) as avg_excess\nFROM filtered_pairs\nGROUP BY tradekind\nORDER BY tradekind;",
+  "assumptions": [
+   {
+    "assumption": "\"Deviation beats the type's average deviation\" means the pair's deviation is numerically greater than the type's average deviation (deviation > type_avg_deviation), not a magnitude comparison. The request's phrase \"note by how much\" (excess = deviation - type_avg_deviation) supports this interpretation.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Pairs with multiple sentiment snapshots linked to the same (transref, tradekind) combination contribute all their optvolrt values to the pair average. Since each transaction has one trader with one trader type, (transref, tradekind) pairs are effectively transaction-level, but grouped as specified by the request.",
+    "unresolved": false
+   },
+   {
+    "assumption": "\"No rows if that's missing\" refers to the overall average being NULL. If all optvolrt values are NULL or no sentiment snapshots link to transactions/traders, the query returns empty results.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"Beats\" could mean the absolute magnitude of deviation exceeds the absolute magnitude of the type's average deviation, comparing |deviation| > |type_avg_deviation| rather than the signed comparison.",
+    "sql": "WHERE ABS(pwd.deviation) > ABS(tad.type_avg_deviation)"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"Beats\" could mean the absolute magnitude of deviation exceeds the absolute magnitude of the type's average deviation, comparing |deviation| > |type_avg_deviation| rather than the signed comparison.",
+   "sql": "WHERE ABS(pwd.deviation) > ABS(tad.type_avg_deviation)",
+   "executes": false,
+   "matches": []
+  }
+ ],
+ "seconds": 93.7,
+ "chars_out": 2858
+}

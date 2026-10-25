@@ -1,0 +1,50 @@
+{
+ "interpretations": [
+  "Per media type name, compute SUM(Bytes)/SUM(Milliseconds) over its tracks (ratio of totals). Also give that ratio divided by the simple average of those per-media-type ratios, where each media type counts once.",
+  "Per media type name, compute AVG(Bytes/Milliseconds) over its tracks (average of per-track ratios). Also give that divided by the simple average of those per-media-type averages.",
+  "Per media type name, compute AVG(Bytes)/AVG(Milliseconds). Also give that divided by the simple average across media types.",
+  "Group by MediaTypeId, with the name shown. Media types sharing a name are kept separate, so the average counts each MediaTypeId once.",
+  "Group by media type Name, so media types sharing a name are merged. The average counts each distinct name once.",
+  "Inner join Track to MediaType, so tracks with no matching media type are excluded and media types with no tracks do not appear. The overall average is taken over media types that have tracks.",
+  "Same inner join, but the overall average includes media types with no tracks, counted with a null or zero figure.",
+  "Tracks with NULL Bytes are excluded, so they do not affect the numerator or the denominator.",
+  "Tracks with NULL Bytes are counted as zero bytes, but their milliseconds are still included in the denominator.",
+  "The \"figure divided by the average\" is a ratio to the overall average (1.0 means average). It is shown as a second column next to the bytes-per-millisecond figure.",
+  "The average in the denominator is the simple average of the per-media-type figures, not weighted by tracks or bytes. The \"all media types\" set is the same set as the output rows, which are those with matching tracks.",
+  "The average in the denominator is taken across all media types in the MediaType table, including those with no tracks. The matching-tracks restriction applies only to the numerator figures.",
+  "The figures are unrounded, so there is no ROUND and the full floating-point or decimal precision is kept. Integer division is avoided so the result is not truncated.",
+  "Integer division is applied as written (Bytes/Milliseconds on integers), so the per-track or per-group results are truncated.",
+  "Missing interpretations:",
+  "Group by media type Name, but compute the average over MediaTypeId-level figures (rows are merged by name, while the denominator average counts each MediaTypeId once).",
+  "Group by MediaTypeId, but compute the denominator average over distinct names (rows are per id, while the average counts each name once).",
+  "Compute the figure as SUM(Bytes)/SUM(Milliseconds), where SUM(Milliseconds) covers only the tracks with non-NULL Bytes. This is the same as dropping NULL-Bytes tracks from both sums.",
+  "Compute the figure as SUM(Bytes)/SUM(Milliseconds), where NULL-Bytes tracks still contribute their Milliseconds to the denominator. This is the default SQL behavior when each sum is taken independently.",
+  "The denominator average is the weighted overall figure, SUM(Bytes)/SUM(Milliseconds) across all matching tracks, not the simple average of the per-media-type figures.",
+  "The figure is the average of per-track Bytes/Milliseconds. Tracks with NULL Bytes are excluded, because the per-track ratio is NULL and AVG skips it.",
+  "The second column is the figure minus the average, or the difference from it, instead of the ratio.",
+  "The second column is shown as a percentage of the average, such as \u00d7100.",
+  "The figure is Milliseconds per Byte, the inverse of the one asked for. This reads \"bytes per millisecond\" the wrong way round.",
+  "Matching media type is defined by joining on MediaTypeId, with tracks excluded if their MediaTypeId has no row in MediaType. A left join from MediaType then keeps media types with no tracks, showing a NULL figure in the output rows."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT m.Name AS Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS ratio\n  FROM MediaType m\n  JOIN Track t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT Name, ratio, ratio / (SELECT AVG(ratio) FROM r) AS ratio_to_avg\nFROM r;\n",
+  "WITH per_type AS (\n  SELECT m.Name AS Name, AVG(t.Bytes * 1.0 / t.Milliseconds) AS avg_ratio\n  FROM Track t\n  JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT Name, avg_ratio, avg_ratio / (SELECT AVG(avg_ratio) FROM per_type) AS ratio_to_mean\nFROM per_type;\n",
+  "WITH r AS (\n  SELECT m.Name AS Name, AVG(t.Bytes) * 1.0 / AVG(t.Milliseconds) AS ratio\n  FROM MediaType m\n  JOIN Track t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT Name, ratio, ratio / (SELECT AVG(ratio) FROM r) AS ratio_vs_avg\nFROM r;\n",
+  "SELECT m.Name, AVG(t.Milliseconds)\nFROM MediaType m\nJOIN Track t ON m.MediaTypeId = t.MediaTypeId\nGROUP BY m.MediaTypeId;\n",
+  "SELECT m.Name, AVG(t.Milliseconds)\nFROM MediaType m\nJOIN Track t ON t.MediaTypeId = m.MediaTypeId\nGROUP BY m.Name;\n",
+  "SELECT AVG(track_count) FROM (SELECT COUNT(*) AS track_count FROM Track INNER JOIN MediaType ON Track.MediaTypeId = MediaType.MediaTypeId GROUP BY MediaType.MediaTypeId)"
+ ],
+ "raw": [
+  "1. Per media type name, compute SUM(Bytes)/SUM(Milliseconds) over its tracks (ratio of totals). Also give that ratio divided by the simple average of those per-media-type ratios, where each media type counts once.\n2. Per media type name, compute AVG(Bytes/Milliseconds) over its tracks (average of per-track ratios). Also give that divided by the simple average of those per-media-type averages.\n3. Per media type name, compute AVG(Bytes)/AVG(Milliseconds). Also give that divided by the simple average across media types.\n4. Group by MediaTypeId, with the name shown. Media types sharing a name are kept separate, so the average counts each MediaTypeId once.\n5. Group by media type Name, so media types sharing a name are merged. The average counts each distinct name once.\n6. Inner join Track to MediaType, so tracks with no matching media type are excluded and media types with no tracks do not appear. The overall average is taken over media types that have tracks.\n7. Same inner join, but the overall average includes media types with no tracks, counted with a null or zero figure.\n8. Tracks with NULL Bytes are excluded, so they do not affect the numerator or the denominator.\n9. Tracks with NULL Bytes are counted as zero bytes, but their milliseconds are still included in the denominator.\n10. The \"figure divided by the average\" is a ratio to the overall average (1.0 means average). It is shown as a second column next to the bytes-per-millisecond figure.\n11. The average in the denominator is the simple average of the per-media-type figures, not weighted by tracks or bytes. The \"all media types\" set is the same set as the output rows, which are those with matching tracks.\n12. The average in the denominator is taken across all media types in the MediaType table, including those with no tracks. The matching-tracks restriction applies only to the numerator figures.\n13. The figures are unrounded, so there is no ROUND and the full floating-point or decimal precision is kept. Integer division is avoided so the result is not truncated.\n14. Integer division is applied as written (Bytes/Milliseconds on integers), so the per-track or per-group results are truncated.",
+  "Missing interpretations:\n\nGroup by media type Name, but compute the average over MediaTypeId-level figures (rows are merged by name, while the denominator average counts each MediaTypeId once).\nGroup by MediaTypeId, but compute the denominator average over distinct names (rows are per id, while the average counts each name once).\nCompute the figure as SUM(Bytes)/SUM(Milliseconds), where SUM(Milliseconds) covers only the tracks with non-NULL Bytes. This is the same as dropping NULL-Bytes tracks from both sums.\nCompute the figure as SUM(Bytes)/SUM(Milliseconds), where NULL-Bytes tracks still contribute their Milliseconds to the denominator. This is the default SQL behavior when each sum is taken independently.\nThe denominator average is the weighted overall figure, SUM(Bytes)/SUM(Milliseconds) across all matching tracks, not the simple average of the per-media-type figures.\nThe figure is the average of per-track Bytes/Milliseconds. Tracks with NULL Bytes are excluded, because the per-track ratio is NULL and AVG skips it.\nThe second column is the figure minus the average, or the difference from it, instead of the ratio.\nThe second column is shown as a percentage of the average, such as \u00d7100.\nThe figure is Milliseconds per Byte, the inverse of the one asked for. This reads \"bytes per millisecond\" the wrong way round.\nMatching media type is defined by joining on MediaTypeId, with tracks excluded if their MediaTypeId has no row in MediaType. A left join from MediaType then keeps media types with no tracks, showing a NULL figure in the output rows."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5a20154d84",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42520,
+  "chars_out": 5504
+ }
+}

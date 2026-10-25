@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-30b46b4254",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Each risk group's rate is the mean of the individual scans' size-to-duration ratios.",
+ "b": {
+  "request": "For scans joined to a matching site, group by the site\u2019s `riskeval`, with NULL statuses forming one group; calculate each group\u2019s rate as `AVG(gbsize / spanmin)`, then calculate the unweighted average of those group rates as the benchmark. Return one row containing the unrounded average group rate and unrounded average amount above the benchmark for groups whose rates strictly exceed it; if the benchmark is NULL, no groups qualify",
+  "sql": "WITH group_rates AS (SELECT s.riskeval, AVG(sc.gbsize / sc.spanmin) AS group_rate FROM scans AS sc JOIN sites AS s ON s.zoneregistry = sc.zoneref GROUP BY s.riskeval), benchmark AS (SELECT AVG(group_rate) AS benchmark_rate FROM group_rates) SELECT AVG(CASE WHEN g.group_rate > b.benchmark_rate THEN g.group_rate END) AS avg_group_rate, AVG(CASE WHEN g.group_rate > b.benchmark_rate THEN g.group_rate - b.benchmark_rate END) AS avg_amount_above_benchmark FROM group_rates AS g CROSS JOIN benchmark AS b",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Looking only at scans that match a site, what's the GB-per-minute rate of file size (`gbsize`) to scan duration (`spanmin`) for each site risk evaluation status (`riskeval`), treating scans at sites with no recorded status as a group of their own? Use the plain average of those group rates as a benchmark, with each group counting once. For the groups strictly above the benchmark (none if there's no benchmark), give me one row: their average rate and their average margin above the benchmark, unrounded. Each risk group's rate is the mean of the individual scans' size-to-duration ratios.",
+  "sql": "WITH risk_rates AS (SELECT s.riskeval, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate FROM scans AS sc JOIN sites AS s ON s.zoneregistry = sc.zoneref GROUP BY s.riskeval), benchmark AS (SELECT AVG(rate) AS rate FROM risk_rates) SELECT AVG(r.rate) AS average_rate, AVG(r.rate - b.rate) AS average_margin_above_benchmark FROM risk_rates AS r CROSS JOIN benchmark AS b WHERE r.rate > b.rate;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Join each scan to its site by site code, dropping scans that have no matching site, and group the scans by the site's risk evaluation status (`riskeval`), with scans whose site has no recorded risk evaluation status forming a group of their own. Work out each group's GB-per-minute rate as the average, over its scans, of file size (`gbsize`) divided by scan duration (`spanmin`), ignoring scans where that ratio is missing. Next, take the simple average of these group rates, with each group counting once, as a benchmark. Using only the groups whose rate is strictly above that benchmark (none if there is no benchmark), return one row with two values: the average of their rates, and the average amount by which their rates exceed the benchmark. Don't round anything.",
+  "sql": "WITH group_rates AS (SELECT si.riskeval, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate FROM scans AS sc INNER JOIN sites AS si ON sc.zoneref = si.zoneregistry GROUP BY si.riskeval), benchmark AS (SELECT AVG(rate) AS value FROM group_rates) SELECT AVG(g.rate) AS average_rate, AVG(g.rate - b.value) AS average_excess FROM group_rates AS g CROSS JOIN benchmark AS b WHERE g.rate > b.value;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For scans that match a site, calculate each site risk evaluation status (`riskeval`) group\u2019s rate as the mean of its scans\u2019 individual `gbsize / spanmin` ratios. Treat sites with no recorded status as a separate group. Use the unweighted average of the group rates as the benchmark. For groups strictly above that benchmark, return one row with their average rate and average margin above the benchmark, both unrounded; include no groups if the benchmark does not exist.",
+  "sql": "WITH group_rates AS (SELECT si.riskeval, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS average_rate FROM scans AS sc JOIN sites AS si ON si.zoneregistry = sc.zoneref GROUP BY si.riskeval), benchmark AS (SELECT AVG(average_rate) AS rate FROM group_rates) SELECT g.riskeval, g.average_rate, g.average_rate - b.rate AS average_margin FROM group_rates AS g CROSS JOIN benchmark AS b WHERE b.rate IS NOT NULL AND g.average_rate > b.rate",
+  "executes": true,
+  "matches": []
+ }
+}

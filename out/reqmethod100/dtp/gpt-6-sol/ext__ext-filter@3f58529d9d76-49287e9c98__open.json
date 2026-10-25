@@ -1,0 +1,31 @@
+{
+ "interpretations": [
+  "Return exactly 10 playlists with the highest track-count-to-average ratio, where the average includes every playlist, including empty playlists.",
+  "Return exactly 10 playlists with the highest track-count-to-average ratio, where the average includes only playlists that contain at least one track.",
+  "Return all playlists tied at the tenth-highest ratio, using an average that includes empty playlists.",
+  "Return all playlists tied at the tenth-highest ratio, using an average that excludes empty playlists.",
+  "Select the 10 playlists with the most tracks, then display each count divided by the average across all playlists; place undefined ratios last.",
+  "Select the 10 playlists with the most tracks, then display each count divided by the average across nonempty playlists; place undefined ratios last."
+ ],
+ "queries": [
+  "WITH playlist_counts AS (\n  SELECT p.PlaylistId, p.Name, COUNT(pt.TrackId) AS track_count\n  FROM Playlist AS p\n  LEFT JOIN PlaylistTrack AS pt ON pt.PlaylistId = p.PlaylistId\n  GROUP BY p.PlaylistId, p.Name\n)\nSELECT PlaylistId, Name,\n       track_count * 1.0 / (SELECT AVG(track_count) FROM playlist_counts) AS track_count_to_average_ratio\nFROM playlist_counts\nORDER BY track_count_to_average_ratio DESC, PlaylistId\nLIMIT 10",
+  "WITH track_counts AS (\n  SELECT PlaylistId, COUNT(*) AS track_count\n  FROM PlaylistTrack\n  GROUP BY PlaylistId\n)\nSELECT p.PlaylistId, p.Name,\n       tc.track_count * 1.0 / (SELECT AVG(track_count) FROM track_counts) AS ratio\nFROM Playlist AS p\nJOIN track_counts AS tc ON tc.PlaylistId = p.PlaylistId\nORDER BY ratio DESC, p.PlaylistId\nLIMIT 10",
+  "WITH playlist_counts AS (\n  SELECT p.PlaylistId, p.Name, COUNT(pt.TrackId) AS track_count\n  FROM Playlist AS p\n  LEFT JOIN PlaylistTrack AS pt ON pt.PlaylistId = p.PlaylistId\n  GROUP BY p.PlaylistId, p.Name\n),\nranked AS (\n  SELECT\n    PlaylistId,\n    Name,\n    DENSE_RANK() OVER (\n      ORDER BY track_count * 1.0 / NULLIF(AVG(track_count) OVER (), 0) DESC\n    ) AS ratio_rank\n  FROM playlist_counts\n)\nSELECT PlaylistId, Name\nFROM ranked\nWHERE ratio_rank = 10",
+  "WITH playlist_counts AS (\n    SELECT p.PlaylistId, COUNT(pt.TrackId) AS track_count\n    FROM Playlist AS p\n    JOIN PlaylistTrack AS pt ON pt.PlaylistId = p.PlaylistId\n    GROUP BY p.PlaylistId\n),\nranked AS (\n    SELECT\n        PlaylistId,\n        DENSE_RANK() OVER (\n            ORDER BY track_count * 1.0 / (SELECT AVG(track_count) FROM playlist_counts) DESC\n        ) AS ratio_rank\n    FROM playlist_counts\n)\nSELECT p.*\nFROM Playlist AS p\nJOIN ranked AS r ON r.PlaylistId = p.PlaylistId\nWHERE r.ratio_rank = 10;\n",
+  "WITH playlist_counts AS (\n    SELECT p.PlaylistId, p.Name, COUNT(pt.TrackId) AS track_count\n    FROM Playlist AS p\n    LEFT JOIN PlaylistTrack AS pt ON pt.PlaylistId = p.PlaylistId\n    GROUP BY p.PlaylistId\n),\ntop_playlists AS (\n    SELECT PlaylistId, Name, track_count\n    FROM playlist_counts\n    ORDER BY track_count DESC, PlaylistId\n    LIMIT 10\n)\nSELECT\n    Name,\n    track_count * 1.0 / NULLIF((SELECT AVG(track_count) FROM playlist_counts), 0) AS ratio\nFROM top_playlists\nORDER BY ratio IS NULL, ratio DESC, PlaylistId",
+  "WITH playlist_counts AS (\n  SELECT p.PlaylistId, p.Name, COUNT(pt.TrackId) AS track_count\n  FROM Playlist AS p\n  LEFT JOIN PlaylistTrack AS pt ON pt.PlaylistId = p.PlaylistId\n  GROUP BY p.PlaylistId, p.Name\n),\ntop_playlists AS (\n  SELECT PlaylistId, Name, track_count\n  FROM playlist_counts\n  ORDER BY track_count DESC, PlaylistId\n  LIMIT 10\n)\nSELECT\n  Name,\n  track_count * 1.0 / (\n    SELECT AVG(track_count)\n    FROM playlist_counts\n    WHERE track_count > 0\n  ) AS ratio\nFROM top_playlists\nORDER BY ratio IS NULL, ratio DESC, PlaylistId"
+ ],
+ "raw": [
+  "- Return exactly 10 playlists with the highest track-count-to-average ratio, where the average includes every playlist, including empty playlists.\n- Return exactly 10 playlists with the highest track-count-to-average ratio, where the average includes only playlists that contain at least one track.\n- Return all playlists tied at the tenth-highest ratio, using an average that includes empty playlists.\n- Return all playlists tied at the tenth-highest ratio, using an average that excludes empty playlists.\n- Select the 10 playlists with the most tracks, then display each count divided by the average across all playlists; place undefined ratios last.\n- Select the 10 playlists with the most tracks, then display each count divided by the average across nonempty playlists; place undefined ratios last.",
+  "All possible interpretations are covered."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-49287e9c98",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 40980,
+  "chars_out": 3664
+ }
+}

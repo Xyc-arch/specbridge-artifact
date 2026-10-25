@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Group by ReportsTo including the NULL group (the top-level employee with no manager) as its own group. Share = group count / total employees. Difference = share \u2212 average share across all groups (including NULL). Top 10 by difference descending.",
+  "Group by ReportsTo excluding the NULL group (only employees who have a manager). Share = count / total employees in the non-NULL groups. Average share is across non-NULL groups only.",
+  "Include the NULL group in the groups, but compute the total as the number of all employees (so the shares sum to 1). The average share is 1 / number of groups.",
+  "Include the NULL group, but compute the total as only employees with non-NULL ReportsTo, so the NULL group's share is undefined or excluded from the total while the group is still shown.",
+  "\"Share\" as a fraction (0\u20131) versus as a percentage (0\u2013100). The difference is in the same unit as the share.",
+  "\"Average share\" as the mean of the group shares, which is the same as 1 / number of groups, versus an average computed as the overall count divided by the number of groups, expressed as a share.",
+  "\"Average share\" as the average of the group shares, where the NULL group is counted as a group because GROUP BY treats NULL as a group, versus where it is dropped because AVG ignores NULL ReportsTo.",
+  "Difference as a signed value (share \u2212 average), sorted from highest (most above average) to lowest, versus difference as an absolute value.",
+  "\"Don't round\" means output the raw, unrounded decimal values. In integer-division engines, this means casting to a float or decimal so shares are not truncated to 0.",
+  "Ties in the difference are broken arbitrarily versus broken by ReportsTo or by another deterministic rule.",
+  "\"Top 10\" is limited to 10 rows, and if there are fewer than 10 groups, all groups are returned.",
+  "\"How many employees it has\" counts employee rows per ReportsTo value (COUNT(*)) versus counts of distinct EmployeeId, which gives the same result because EmployeeId is the primary key.",
+  "\"ReportsTo value\" is shown as the manager's EmployeeId versus the manager's name, joined from the Employee table.",
+  "Missing interpretations:",
+  "Share computed with the denominator as the count of all employees (including NULL) but with the NULL group hidden from the output rows, while the average share is still computed over all groups including NULL.",
+  "Average share defined as the mean of the per-group shares computed over the non-NULL groups only, but with the share's denominator taken as all employees including the NULL one.",
+  "Difference computed as the share minus the average count (rather than the average share), mixing units.",
+  "Difference expressed as a ratio or relative percentage of the average (share / average share \u2212 1) rather than an absolute subtraction.",
+  "Average share computed as a window average (AVG over the grouped shares) versus a fixed 1/(number of distinct groups), where the group count could differ if the NULL group is handled separately.",
+  "Sort with NULL difference values placed first or last, depending on the engine's NULL ordering, if the NULL group's share or difference is left undefined."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT ReportsTo, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM Employee) AS share\n  FROM Employee\n  GROUP BY ReportsTo\n)\nSELECT ReportsTo, share - (SELECT AVG(share) FROM g) AS difference\nFROM g\nORDER BY difference DESC\nLIMIT 10;\n",
+  "SELECT AVG(share) AS average_share\nFROM (\n  SELECT CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM Employee WHERE ReportsTo IS NOT NULL) AS share\n  FROM Employee\n  WHERE ReportsTo IS NOT NULL\n  GROUP BY ReportsTo\n);\n",
+  "SELECT ReportsTo\nFROM Employee\nGROUP BY ReportsTo\nHAVING CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM Employee) > 1.0 / (SELECT COUNT(DISTINCT COALESCE(ReportsTo, -1)) FROM Employee);\n",
+  "SELECT ReportsTo,\n       CASE WHEN ReportsTo IS NULL THEN NULL\n            ELSE COUNT(*) * 100.0 / (SELECT COUNT(*) FROM Employee WHERE ReportsTo IS NOT NULL)\n       END AS share\nFROM Employee\nGROUP BY ReportsTo;\n",
+  "WITH g AS (\n  SELECT GenreId, COUNT(*) AS c\n  FROM Track\n  GROUP BY GenreId\n)\nSELECT\n  AVG(1.0 * c / (SELECT SUM(c) FROM g)) AS avg_of_group_shares,\n  (1.0 * SUM(c) / COUNT(*)) / SUM(c) AS overall_count_over_groups_share\nFROM g;\n"
+ ],
+ "raw": [
+  "1. Group by ReportsTo including the NULL group (the top-level employee with no manager) as its own group. Share = group count / total employees. Difference = share \u2212 average share across all groups (including NULL). Top 10 by difference descending.\n2. Group by ReportsTo excluding the NULL group (only employees who have a manager). Share = count / total employees in the non-NULL groups. Average share is across non-NULL groups only.\n3. Include the NULL group in the groups, but compute the total as the number of all employees (so the shares sum to 1). The average share is 1 / number of groups.\n4. Include the NULL group, but compute the total as only employees with non-NULL ReportsTo, so the NULL group's share is undefined or excluded from the total while the group is still shown.\n5. \"Share\" as a fraction (0\u20131) versus as a percentage (0\u2013100). The difference is in the same unit as the share.\n6. \"Average share\" as the mean of the group shares, which is the same as 1 / number of groups, versus an average computed as the overall count divided by the number of groups, expressed as a share.\n7. \"Average share\" as the average of the group shares, where the NULL group is counted as a group because GROUP BY treats NULL as a group, versus where it is dropped because AVG ignores NULL ReportsTo.\n8. Difference as a signed value (share \u2212 average), sorted from highest (most above average) to lowest, versus difference as an absolute value.\n9. \"Don't round\" means output the raw, unrounded decimal values. In integer-division engines, this means casting to a float or decimal so shares are not truncated to 0.\n10. Ties in the difference are broken arbitrarily versus broken by ReportsTo or by another deterministic rule.\n11. \"Top 10\" is limited to 10 rows, and if there are fewer than 10 groups, all groups are returned.\n12. \"How many employees it has\" counts employee rows per ReportsTo value (COUNT(*)) versus counts of distinct EmployeeId, which gives the same result because EmployeeId is the primary key.\n13. \"ReportsTo value\" is shown as the manager's EmployeeId versus the manager's name, joined from the Employee table.",
+  "Missing interpretations:\n\nShare computed with the denominator as the count of all employees (including NULL) but with the NULL group hidden from the output rows, while the average share is still computed over all groups including NULL.\nAverage share defined as the mean of the per-group shares computed over the non-NULL groups only, but with the share's denominator taken as all employees including the NULL one.\nDifference computed as the share minus the average count (rather than the average share), mixing units.\nDifference expressed as a ratio or relative percentage of the average (share / average share \u2212 1) rather than an absolute subtraction.\nAverage share computed as a window average (AVG over the grouped shares) versus a fixed 1/(number of distinct groups), where the group count could differ if the NULL group is handled separately.\nSort with NULL difference values placed first or last, depending on the engine's NULL ordering, if the NULL group's share or difference is left undefined."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-70ea90e305",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42619,
+  "chars_out": 4733
+ }
+}

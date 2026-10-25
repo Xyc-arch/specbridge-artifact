@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9a9ca0e90a",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "The benchmark is the average net fee rate over all individual fee records, so orders with more fee records weigh more.",
+ "b": {
+  "request": "Group fees by `orderslink` (null-link fee records forming one group), compute each group's average net fee rate (`feerate` \u2212 `rebrate`, ignoring nulls), compare it to the overall average net fee rate computed across all individual fee records (so orders with more fee records weigh more), and for groups above that benchmark return one row with the mean of their average `rebtotal`, the mean of their average net fee rate, and the mean of their excess over the benchmark, all unrounded",
+  "sql": "WITH g AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), b AS (SELECT AVG(feerate - rebrate) AS bench FROM fees) SELECT AVG(g.avg_reb) AS mean_avg_rebtotal, AVG(g.avg_net) AS mean_avg_net_fee_rate, AVG(g.avg_net - b.bench) AS mean_excess FROM g CROSS JOIN b WHERE g.avg_net > b.bench",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Group the fee records by order (`orderslink`); fee records with no order form one group of their own. For each order, work out the average total rebate (`rebtotal`) and the average net fee rate (`feerate` minus `rebrate`). For the benchmark, take the average net fee rate over all fee records directly, so an order counts once for each fee record it has. For the orders whose average net fee rate is above this benchmark, return a single row with: the average of their average total rebates, the average of their average net fee rates, and the average amount by which their average net fee rate exceeds the benchmark. Skip missing values in every average, and don't round the results.",
+  "sql": "WITH per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_reb, AVG(feerate - rebrate) AS avg_net FROM fees GROUP BY orderslink), bench AS (SELECT AVG(feerate - rebrate) AS b FROM fees) SELECT AVG(p.avg_reb) AS avg_of_avg_rebtotal, AVG(p.avg_net) AS avg_of_avg_net_fee_rate, AVG(p.avg_net - bench.b) AS avg_excess_over_benchmark FROM per_order p CROSS JOIN bench WHERE p.avg_net > bench.b",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Looking at fees per order (`orderslink`, with fee records that have no order treated as one group), which orders have an average net fee rate (`feerate` minus `rebrate`) above the overall average net fee rate? For those orders, give me one row: the mean of their average total rebate (`rebtotal`), the mean of their average net fee rate, and the mean amount by which they exceed the overall average net fee rate. Skip missing values in the averages and don't round anything. The benchmark is the average net fee rate over all individual fee records, so orders with more fee records weigh more.",
+  "sql": "WITH per AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), bench AS (SELECT AVG(feerate - rebrate) AS b FROM fees) SELECT AVG(per.avg_reb) AS mean_avg_rebtotal, AVG(per.avg_net) AS mean_avg_net_fee_rate, AVG(per.avg_net - bench.b) AS mean_excess FROM per CROSS JOIN bench WHERE per.avg_net > bench.b",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Looking at fees per order (`orderslink`, with fee records that have no order treated as one group), which orders have an average net fee rate (`feerate` minus `rebrate`) above the overall average net fee rate, where the overall average net fee rate is computed across all individual fee records (so orders with more fee records weigh more)? For those orders, give me one row with: the mean of their average total rebate (`rebtotal`), the mean of their average net fee rate, and the mean amount by which their average net fee rate exceeds the overall average net fee rate. Skip missing values in the averages and don't round anything.",
+  "sql": "WITH overall AS (SELECT AVG(feerate - rebrate) AS overall_avg FROM fees), per_order AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink) SELECT AVG(p.avg_reb) AS mean_avg_rebtotal, AVG(p.avg_net) AS mean_avg_net_fee_rate, AVG(p.avg_net - o.overall_avg) AS mean_excess_over_overall FROM per_order p CROSS JOIN overall o WHERE p.avg_net > o.overall_avg",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

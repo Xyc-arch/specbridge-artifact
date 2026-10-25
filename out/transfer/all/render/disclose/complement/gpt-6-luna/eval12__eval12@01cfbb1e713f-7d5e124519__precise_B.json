@@ -1,0 +1,22 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "wording": "precise_B",
+ "model": "gpt-6-luna",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH order_averages AS (\n  SELECT\n    oe.ordersmark,\n    o.timespan,\n    AVG(oe.fillcount) AS avg_fill\n  FROM orderexecutions AS oe\n  JOIN orders AS o\n    ON oe.ordersmark = o.recordvault\n  GROUP BY oe.ordersmark, o.timespan\n), execution_baselines AS (\n  SELECT\n    oa.timespan,\n    AVG(oe.fillcount) AS avg_execution_fill\n  FROM orderexecutions AS oe\n  JOIN order_averages AS oa\n    ON oe.ordersmark = oa.ordersmark\n  GROUP BY oa.timespan\n), ranked_orders AS (\n  SELECT\n    oa.ordersmark,\n    oa.timespan,\n    oa.avg_fill,\n    oa.avg_fill - eb.avg_execution_fill AS excess_fill,\n    RANK() OVER (\n      PARTITION BY oa.timespan\n      ORDER BY oa.avg_fill DESC NULLS LAST\n    ) AS fill_rank\n  FROM order_averages AS oa\n  JOIN execution_baselines AS eb\n    ON oa.timespan = eb.timespan\n  WHERE oa.avg_fill > eb.avg_execution_fill\n)\nSELECT\n  ordersmark,\n  timespan,\n  avg_fill,\n  excess_fill,\n  fill_rank\nFROM ranked_orders\nWHERE fill_rank <= 3;",
+  "assumptions": [
+   {
+    "assumption": "The time-in-force comparison figure is the average of non-null fillcount values across matched execution records for orders in that time span; orders with no executions are excluded.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 5.5
+}

@@ -1,0 +1,32 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bd9abe3fd9",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH group_stats AS (\n  SELECT\n    sp.zoneref,\n    s.insurstat,\n    AVG(sp.remaingb) as avg_remaingb,\n    AVG(ABS(sp.proccpu - sp.procgpu)) as avg_cpu_gpu_diff\n  FROM scanprocessing sp\n  INNER JOIN sites s ON sp.zoneref = s.zoneregistry\n  GROUP BY sp.zoneref, s.insurstat\n),\noverall_mean AS (\n  SELECT AVG(avg_remaingb) as mean_avg_remaingb\n  FROM group_stats\n  WHERE avg_remaingb IS NOT NULL\n),\nwith_ratio AS (\n  SELECT\n    gs.zoneref,\n    gs.insurstat,\n    gs.avg_remaingb,\n    gs.avg_cpu_gpu_diff,\n    CASE\n      WHEN gs.avg_remaingb IS NULL THEN NULL\n      ELSE gs.avg_remaingb / om.mean_avg_remaingb\n    END as remaingb_ratio\n  FROM group_stats gs\n  CROSS JOIN overall_mean om\n  WHERE om.mean_avg_remaingb IS NOT NULL\n)\nSELECT *\nFROM with_ratio\nORDER BY remaingb_ratio IS NULL, remaingb_ratio DESC\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "Grouping is by (zoneref, insurstat) pairs: each distinct combination of site code and insurance status forms a separate group.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The overall mean is calculated as AVG(group_avg_remaingb) WHERE group_avg_remaingb IS NOT NULL. If all group averages are NULL, this mean is NULL and no rows are returned per the requirement.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Groups with NULL average remaining storage (i.e., all remaingb values NULL for that group) are included in output with NULL ratio, which sort to the bottom per 'missing ratios last'.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [],
+ "seconds": 68.2,
+ "chars_out": 1604
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4bef70d889",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "The average number of orders per account counts all accounts, with zero for accounts that have no orders.",
+ "a": {
+  "request": "For each account with standing orders (`order.account_id`), count its orders. Work out the average number of orders per account, averaging over every account in `account`, with accounts that have no orders counting as zero. Keep the accounts whose order count is above that average. For each, show the account id, its order count, how far the count is above that average, and how far the count is above the average order count of the kept above-average accounts. Sort by this last difference from largest to smallest and return only the first 10 rows. Don't round anything.",
+  "sql": "WITH counts AS (SELECT account_id, COUNT(*) AS cnt FROM \"order\" GROUP BY account_id), overall AS (SELECT CAST((SELECT COUNT(*) FROM \"order\" o JOIN account a ON a.account_id = o.account_id) AS REAL) / (SELECT COUNT(*) FROM account) AS avg_all), kept AS (SELECT c.account_id, c.cnt FROM counts c JOIN account a ON a.account_id = c.account_id, overall WHERE c.cnt > overall.avg_all), kept_avg AS (SELECT AVG(cnt * 1.0) AS avg_kept FROM kept) SELECT k.account_id, k.cnt AS order_count, k.cnt - overall.avg_all AS diff_from_overall_avg, k.cnt - kept_avg.avg_kept AS diff_from_kept_avg FROM kept k, overall, kept_avg ORDER BY diff_from_kept_avg DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For every account in the account table (counting accounts with no orders as zero), compute the average number of orders per account. Then, for accounts with more orders than that average, show the account id, its order count, the difference from the all-account average, and the difference from the average order count of those above-average accounts. Sort by the last difference from largest to smallest, return the first 10 rows, and don't round anything",
+  "sql": "WITH counts AS (SELECT a.account_id, COUNT(o.order_id) * 1.0 AS cnt FROM account a LEFT JOIN `order` o ON o.account_id = a.account_id GROUP BY a.account_id), overall AS (SELECT AVG(cnt) AS avg_all FROM counts), above AS (SELECT c.account_id, c.cnt FROM counts c, overall ov WHERE c.cnt > ov.avg_all), above_avg AS (SELECT AVG(cnt) AS avg_above FROM above) SELECT ab.account_id, ab.cnt AS order_count, ab.cnt - ov.avg_all AS diff_from_overall_avg, ab.cnt - aa.avg_above AS diff_from_above_avg FROM above ab, overall ov, above_avg aa ORDER BY diff_from_above_avg DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each account with standing orders (`order.account_id`), count its orders. Which accounts have more orders than the average number of orders per account? For each, show the account id, its order count, how far the count is above that average, and how far the count is above the average order count of those above-average accounts. Sort by this last difference from largest to smallest and give only the first 10. Don't round anything. The average number of orders per account counts all accounts, with zero for accounts that have no orders.",
+  "sql": "WITH oc AS (SELECT account_id, COUNT(*) AS cnt FROM `order` GROUP BY account_id), avg_all AS (SELECT CAST((SELECT COUNT(*) FROM `order`) AS REAL) / (SELECT COUNT(*) FROM account) AS a), above AS (SELECT oc.account_id, oc.cnt FROM oc, avg_all WHERE oc.cnt > avg_all.a), avg_above AS (SELECT AVG(cnt * 1.0) AS b FROM above) SELECT above.account_id AS account_id, above.cnt AS order_count, above.cnt - avg_all.a AS diff_above_overall_avg, above.cnt - avg_above.b AS diff_above_avg_of_above FROM above, avg_all, avg_above ORDER BY diff_above_avg_of_above DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each account that has orders (`order.account_id`), count its orders. Then compute the average number of orders per account across all accounts, including accounts with no orders, which count as zero. Which accounts have more orders than this average? For each of them, show the account id, its order count, how far the count is above that overall average, and how far the count is above the average order count of those above-average accounts. Sort by this last difference from largest to smallest and give only the first 10. Don't round anything.",
+  "sql": "WITH oc AS (SELECT account_id, COUNT(*) AS cnt FROM `order` GROUP BY account_id), overall AS (SELECT (SELECT SUM(cnt) FROM oc) * 1.0 / (SELECT COUNT(*) FROM account) AS avg_all), above AS (SELECT oc.account_id, oc.cnt FROM oc, overall WHERE oc.cnt > overall.avg_all), aa AS (SELECT AVG(cnt * 1.0) AS avg_above FROM above) SELECT a.account_id, a.cnt AS order_count, a.cnt - o.avg_all AS diff_from_overall_avg, a.cnt - aa.avg_above AS diff_from_above_avg FROM above a, overall o, aa ORDER BY diff_from_above_avg DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

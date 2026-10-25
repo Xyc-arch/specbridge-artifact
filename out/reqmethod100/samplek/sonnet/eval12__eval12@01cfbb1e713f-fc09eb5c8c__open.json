@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(1.0 * Bytes / NULLIF(Milliseconds, 0)) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM album_stats) SELECT a.AlbumId, a.avg_unit_price, a.avg_bytes_per_ms, a.avg_bytes_per_ms - o.overall_avg AS diff_from_overall_avg FROM album_stats a CROSS JOIN overall o WHERE a.avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+  "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, 1.0 * SUM(Bytes) / NULLIF(SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END), 0) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM album_stats) SELECT a.AlbumId, a.avg_unit_price, a.avg_bytes_per_ms, a.avg_bytes_per_ms - o.overall_avg AS diff_from_overall_avg FROM album_stats a CROSS JOIN overall o WHERE a.avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+  "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(1.0 * Bytes / NULLIF(Milliseconds, 0)) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), scored AS (SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - AVG(avg_bytes_per_ms) OVER () AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, diff_from_overall_avg FROM scored ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+  "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, 1.0 * SUM(Bytes) / NULLIF(SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END), 0) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), scored AS (SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - AVG(avg_bytes_per_ms) OVER () AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, diff_from_overall_avg FROM scored ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+  "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(Bytes * 1.0 / Milliseconds) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - (SELECT AVG(avg_bytes_per_ms) FROM album_stats) AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10",
+  "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, SUM(Bytes) * 1.0 / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - (SELECT SUM(Bytes) * 1.0 / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) FROM Track) AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(1.0 * Bytes / NULLIF(Milliseconds, 0)) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM album_stats) SELECT a.AlbumId, a.avg_unit_price, a.avg_bytes_per_ms, a.avg_bytes_per_ms - o.overall_avg AS diff_from_overall_avg FROM album_stats a CROSS JOIN overall o WHERE a.avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "An album's bytes-per-millisecond rate is the average of each track's Bytes/Milliseconds, and tracks with NULL Bytes are excluded from that rate (zero Milliseconds is treated as missing).",
+     "unresolved": true
+    },
+    {
+     "assumption": "The all-album average is the unweighted mean of the per-album averages. The group of tracks with no AlbumId counts as one album in that mean and can appear in the results. Albums with no computable rate are left out.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Average UnitPrice is taken over all tracks in the album, including tracks with NULL Bytes. Nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "An album's rate is total Bytes divided by total Milliseconds (a weighted ratio), not the average of per-track ratios. The all-album average is the mean of those album rates. Only tracks with non-NULL Bytes count toward the rate.",
+     "sql": "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, 1.0 * SUM(Bytes) / NULLIF(SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END), 0) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM album_stats) SELECT a.AlbumId, a.avg_unit_price, a.avg_bytes_per_ms, a.avg_bytes_per_ms - o.overall_avg AS diff_from_overall_avg FROM album_stats a CROSS JOIN overall o WHERE a.avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(1.0 * Bytes / NULLIF(Milliseconds, 0)) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), scored AS (SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - AVG(avg_bytes_per_ms) OVER () AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, diff_from_overall_avg FROM scored ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "An album's bytes-per-millisecond is the average of each track's Bytes/Milliseconds. Tracks with NULL Bytes or zero Milliseconds are ignored for that rate.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The all-album average is the unweighted mean of the per-album averages. Tracks with no AlbumId form one group (NULL AlbumId) that counts as one album in this mean.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Groups whose rate is entirely missing are left out of the ranking and the overall mean. The average UnitPrice covers all tracks in the group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "An album's rate is its total bytes divided by its total milliseconds, using only tracks that have Bytes. The overall average is still the mean of the album rates.",
+     "sql": "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, 1.0 * SUM(Bytes) / NULLIF(SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END), 0) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId), scored AS (SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - AVG(avg_bytes_per_ms) OVER () AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, diff_from_overall_avg FROM scored ORDER BY diff_from_overall_avg DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(Bytes * 1.0 / Milliseconds) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - (SELECT AVG(avg_bytes_per_ms) FROM album_stats) AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "An album's 'average bytes per millisecond' is the mean of each track's Bytes/Milliseconds ratio. Tracks with NULL Bytes are ignored for this rate. They still count toward the album's average UnitPrice.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The 'all-album average' is the unweighted mean of the per-album averages, with the NULL-AlbumId group counted as one album. It is not a per-track average.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Albums whose rate is entirely missing (all Bytes NULL) are excluded. Values are not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Album rate is total bytes divided by total milliseconds, and the baseline is the same ratio over all tracks. Tracks with NULL Bytes are excluded from both sums.",
+     "sql": "WITH album_stats AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, SUM(Bytes) * 1.0 / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) AS avg_bytes_per_ms FROM Track GROUP BY AlbumId) SELECT AlbumId, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms - (SELECT SUM(Bytes) * 1.0 / SUM(CASE WHEN Bytes IS NOT NULL THEN Milliseconds END) FROM Track) AS diff_from_overall_avg FROM album_stats WHERE avg_bytes_per_ms IS NOT NULL ORDER BY diff_from_overall_avg DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fc09eb5c8c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16638,
+  "chars_out": 5545
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-e7ceb527cb",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Members without a major are treated as one extra group in every step.",
+ "c": {
+  "request": "Group members by `link_to_major` and count the members in each group, then give each group its share of the total count. For the groups whose share is above the average share across groups, return one row with the total number of members in them, their average share, and on average how far their shares are above the average share. No rounding. Members without a major are treated as one extra group in every step.",
+  "sql": "WITH major_groups AS (SELECT link_to_major, COUNT(*) AS member_count FROM member GROUP BY link_to_major), shares AS (SELECT member_count, member_count * 1.0 / (SELECT SUM(member_count) FROM major_groups) AS share FROM major_groups), average_share AS (SELECT AVG(share) AS value FROM shares) SELECT SUM(s.member_count) AS total_members, AVG(s.share) AS average_share, AVG(s.share - a.value) AS average_excess_share FROM shares AS s CROSS JOIN average_share AS a WHERE s.share > a.value;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Group members by their major (`link_to_major`), with all members whose major is missing forming one extra group of their own that counts like any other group (in the total, in the average share, and in the comparison), and count the members in each group. Give each group a share: its count divided by the total count across all groups. Take the groups whose share is above the average share across groups, and return a single row with the total number of members in those groups, the average of their shares, and the average amount by which their shares exceed the average share. Do not round.",
+  "sql": "WITH major_groups AS (SELECT link_to_major, COUNT(*) AS member_count FROM member GROUP BY link_to_major), shares AS (SELECT member_count, 1.0 * member_count / SUM(member_count) OVER () AS share FROM major_groups), compared AS (SELECT member_count, share, AVG(share) OVER () AS average_share FROM shares) SELECT COALESCE(SUM(member_count), 0) AS total_members, AVG(share) AS average_share, AVG(share - average_share) AS average_excess_share FROM compared WHERE share > average_share",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Treat NULL `link_to_major` values as one group; count members in each group and divide each count by the total member count to get its share; calculate the average share across all groups; then return one row containing the sum of member counts, the average share, and the average amount by which share exceeds the overall average for groups whose share is strictly above that average, without rounding",
+  "sql": "WITH group_counts AS (SELECT link_to_major, COUNT(*) AS member_count FROM member GROUP BY link_to_major), shares AS (SELECT member_count, 1.0 * member_count / SUM(member_count) OVER () AS share FROM group_counts), overall AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.member_count) AS member_count_sum, AVG(s.share) AS average_share, AVG(s.share - o.average_share) AS average_excess FROM shares AS s CROSS JOIN overall AS o WHERE s.share > o.average_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Group members by `link_to_major`, treating members without a major as one additional group. Count the members in each group and calculate each group\u2019s share of the total. For groups whose share exceeds the average share across all groups, return one row containing their combined member count, average share, and average amount by which their shares exceed the overall average share. Do not round.",
+  "sql": "WITH major_counts AS (SELECT link_to_major, COUNT(*) AS member_count FROM member GROUP BY link_to_major), shares AS (SELECT member_count, member_count * 1.0 / SUM(member_count) OVER () AS share FROM major_counts), compared AS (SELECT member_count, share, AVG(share) OVER () AS overall_average_share FROM shares) SELECT SUM(member_count) AS combined_member_count, AVG(share) AS average_share, AVG(share - overall_average_share) AS average_excess_share FROM compared WHERE share > overall_average_share;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

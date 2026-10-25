@@ -1,0 +1,34 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-05bfdc3a55",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH transaction_regions AS (\n  SELECT \n    t.amount,\n    d.A3 as region\n  FROM trans t\n  JOIN account a ON t.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n),\noverall_avg AS (\n  SELECT AVG(amount) as cross_region_average\n  FROM transaction_regions\n),\nregion_stats AS (\n  SELECT \n    region,\n    AVG(amount) as avg_amount,\n    COUNT(*) as transaction_count\n  FROM transaction_regions\n  GROUP BY region\n),\nfiltered_regions AS (\n  SELECT \n    r.avg_amount,\n    r.transaction_count,\n    (r.avg_amount - o.cross_region_average) as above_average\n  FROM region_stats r\n  CROSS JOIN overall_avg o\n  WHERE r.avg_amount > o.cross_region_average\n)\nSELECT \n  AVG(avg_amount) as avg_transaction_amount,\n  AVG(transaction_count) as avg_transaction_count,\n  AVG(above_average) as avg_above_cross_region\nFROM filtered_regions;",
+  "assumptions": [
+   {
+    "assumption": "Transaction amounts are interpreted as unsigned (trans.amount values as stored in the database). Since trans.amount is stored unsigned with direction indicated separately in trans.type, \"average transaction amount\" could mean either the average magnitude or the average net value after applying transaction direction.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Apply signs to transaction amounts based on trans.type: PRIJEM (credit) adds the amount, VYDAJ (withdrawal) subtracts it, and VYBER (undocumented direction) is treated as unsigned. This yields average net transaction flow by region rather than average magnitude.",
+    "sql": "WITH transaction_regions AS (\n  SELECT \n    CASE \n      WHEN t.type = 'PRIJEM' THEN t.amount\n      WHEN t.type = 'VYDAJ' THEN -t.amount\n      ELSE t.amount\n    END as signed_amount,\n    d.A3 as region\n  FROM trans t\n  JOIN account a ON t.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n),\noverall_avg AS (\n  SELECT AVG(signed_amount) as cross_region_average\n  FROM transaction_regions\n),\nregion_stats AS (\n  SELECT \n    region,\n    AVG(signed_amount) as avg_amount,\n    COUNT(*) as transaction_count\n  FROM transaction_regions\n  GROUP BY region\n),\nfiltered_regions AS (\n  SELECT \n    r.avg_amount,\n    r.transaction_count,\n    (r.avg_amount - o.cross_region_average) as above_average\n  FROM region_stats r\n  CROSS JOIN overall_avg o\n  WHERE r.avg_amount > o.cross_region_average\n)\nSELECT \n  AVG(avg_amount) as avg_transaction_amount,\n  AVG(transaction_count) as avg_transaction_count,\n  AVG(above_average) as avg_above_cross_region\nFROM filtered_regions;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [],
+ "alternatives": [
+  {
+   "interpretation": "Apply signs to transaction amounts based on trans.type: PRIJEM (credit) adds the amount, VYDAJ (withdrawal) subtracts it, and VYBER (undocumented direction) is treated as unsigned. This yields average net transaction flow by region rather than average magnitude.",
+   "sql": "WITH transaction_regions AS (\n  SELECT \n    CASE \n      WHEN t.type = 'PRIJEM' THEN t.amount\n      WHEN t.type = 'VYDAJ' THEN -t.amount\n      ELSE t.amount\n    END as signed_amount,\n    d.A3 as region\n  FROM trans t\n  JOIN account a ON t.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n),\noverall_avg AS (\n  SELECT AVG(signed_amount) as cross_region_average\n  FROM transaction_regions\n),\nregion_stats AS (\n  SELECT \n    region,\n    AVG(signed_amount) as avg_amount,\n    COUNT(*) as transaction_count\n  FROM transaction_regions\n  GROUP BY region\n),\nfiltered_regions AS (\n  SELECT \n    r.avg_amount,\n    r.transaction_count,\n    (r.avg_amount - o.cross_region_average) as above_average\n  FROM region_stats r\n  CROSS JOIN overall_avg o\n  WHERE r.avg_amount > o.cross_region_average\n)\nSELECT \n  AVG(avg_amount) as avg_transaction_amount,\n  AVG(transaction_count) as avg_transaction_count,\n  AVG(above_average) as avg_above_cross_region\nFROM filtered_regions;",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 62.5,
+ "chars_out": 2668
+}

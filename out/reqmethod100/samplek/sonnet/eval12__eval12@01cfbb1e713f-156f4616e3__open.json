@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "SELECT city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT city_id) FROM address) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_total FROM address GROUP BY city_id ORDER BY share_of_total DESC, city_id LIMIT 10",
+  "SELECT a.city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM address) * 1.0 / (SELECT COUNT(*) FROM city)) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_total FROM address a GROUP BY a.city_id ORDER BY share_of_total DESC, a.city_id LIMIT 10",
+  "SELECT city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT city_id) FROM address) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all FROM address GROUP BY city_id ORDER BY share_of_all DESC, city_id ASC LIMIT 10",
+  "SELECT city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM address) * 1.0 / (SELECT COUNT(*) FROM city)) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all FROM address GROUP BY city_id ORDER BY share_of_all DESC, city_id ASC LIMIT 10",
+  "SELECT city_id,\n       COUNT(*) AS address_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT city_id) FROM address) AS ratio_to_avg_per_city,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all_addresses\nFROM address\nGROUP BY city_id\nORDER BY share_of_all_addresses DESC, city_id\nLIMIT 10;",
+  "SELECT a.city_id,\n       COUNT(*) AS address_count,\n       COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM address) * 1.0 / (SELECT COUNT(*) FROM city)) AS ratio_to_avg_per_city,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all_addresses\nFROM address a\nGROUP BY a.city_id\nORDER BY share_of_all_addresses DESC, a.city_id\nLIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT city_id) FROM address) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_total FROM address GROUP BY city_id ORDER BY share_of_total DESC, city_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "\"Each city in the address table\" means cities that appear in address (grouped by address.city_id), so the average addresses per city is total addresses divided by the number of distinct cities in address, not counting cities with zero addresses.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in share are broken by city_id ascending, since the request does not say how to order them.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Share is returned as a fraction (0 to 1), not a percentage, and nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is taken over all cities in the city table, including those with no addresses. Only cities that have addresses are listed.",
+     "sql": "SELECT a.city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM address) * 1.0 / (SELECT COUNT(*) FROM city)) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_total FROM address a GROUP BY a.city_id ORDER BY share_of_total DESC, a.city_id LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT city_id) FROM address) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all FROM address GROUP BY city_id ORDER BY share_of_all DESC, city_id ASC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The request says 'each city in the address table', so I grouped by address.city_id. Only cities that have at least one address appear, and the average is addresses per such city (total addresses / distinct city_ids in address). Cities with no addresses are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in share are broken by city_id ascending. The request doesn't specify a tie-break, so the top 10 may differ if ties straddle the cutoff.",
+     "unresolved": true
+    },
+    {
+     "assumption": "'Share' is a fraction between 0 and 1, not a percentage. Nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is taken over all cities in the city table, including cities with no addresses. Cities with no addresses still don't appear in the output.",
+     "sql": "SELECT city_id, COUNT(*) AS address_count, COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM address) * 1.0 / (SELECT COUNT(*) FROM city)) AS ratio_to_avg, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all FROM address GROUP BY city_id ORDER BY share_of_all DESC, city_id ASC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT city_id,\n       COUNT(*) AS address_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT city_id) FROM address) AS ratio_to_avg_per_city,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all_addresses\nFROM address\nGROUP BY city_id\nORDER BY share_of_all_addresses DESC, city_id\nLIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "Cities are taken from the address table only (grouped by address.city_id), so cities with no addresses are excluded. The average addresses per city is therefore total addresses divided by the number of distinct cities that appear in address.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in share are broken by city_id ascending, so the top 10 is deterministic. Values are left unrounded.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Average addresses per city is computed over all rows in the city table, including cities that have no addresses.",
+     "sql": "SELECT a.city_id,\n       COUNT(*) AS address_count,\n       COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM address) * 1.0 / (SELECT COUNT(*) FROM city)) AS ratio_to_avg_per_city,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) FROM address) AS share_of_all_addresses\nFROM address a\nGROUP BY a.city_id\nORDER BY share_of_all_addresses DESC, a.city_id\nLIMIT 10;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-156f4616e3",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42264,
+  "chars_out": 4000
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c078054b47",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Return exactly ten rows. Ties at the cut are broken arbitrarily.",
+ "b": {
+  "request": "Return exactly ten `transref` rows: average each transaction\u2019s non-null `anlycount` values, retain averages strictly above the unweighted mean of all non-null transaction averages, and show each average, its difference from that overall mean, and its difference from the unweighted mean of retained averages; order by the last difference descending with nulls last, break cutoff ties arbitrarily, and do not round",
+  "sql": "WITH transaction_averages AS (SELECT transref, AVG(anlycount) AS avg_anlycount FROM sentimentandfundamentals GROUP BY transref HAVING COUNT(anlycount) > 0), overall_mean AS (SELECT AVG(avg_anlycount) AS mean_anlycount FROM transaction_averages), retained AS (SELECT ta.transref, ta.avg_anlycount, om.mean_anlycount FROM transaction_averages ta CROSS JOIN overall_mean om WHERE ta.avg_anlycount > om.mean_anlycount), retained_mean AS (SELECT AVG(avg_anlycount) AS mean_anlycount FROM retained) SELECT r.transref, r.avg_anlycount, r.avg_anlycount - r.mean_anlycount AS difference_from_overall_mean, r.avg_anlycount - rm.mean_anlycount AS difference_from_retained_mean FROM retained r CROSS JOIN retained_mean rm ORDER BY difference_from_retained_mean DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "For each transaction in `sentimentandfundamentals` (`transref`), take the average analyst coverage count (`anlycount`, ignoring missing values). Keep only the transactions whose average is above the overall average of those per-transaction averages. For each one, show `transref`, its average, how far it is above that overall average, and how far it is above the average among just the kept transactions. Give me the top 10 by that last difference, highest first (missing last). Don't round. Return exactly ten rows. Ties at the cut are broken arbitrarily.",
+  "sql": "WITH transaction_averages AS (SELECT transref, AVG(anlycount) AS avg_anlycount FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_anlycount) AS overall_avg FROM transaction_averages), kept AS (SELECT t.transref, t.avg_anlycount, o.overall_avg FROM transaction_averages t CROSS JOIN overall o WHERE t.avg_anlycount > o.overall_avg), kept_average AS (SELECT AVG(avg_anlycount) AS kept_avg FROM kept) SELECT k.transref, k.avg_anlycount, k.avg_anlycount - k.overall_avg AS above_overall_avg, k.avg_anlycount - a.kept_avg AS above_kept_avg FROM kept k CROSS JOIN kept_average a ORDER BY above_kept_avg DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each transaction in `sentimentandfundamentals` (`transref`), take the average analyst coverage count (`anlycount`, ignoring missing values). Keep only the transactions whose average is above the overall average of those per-transaction averages. For each one, show `transref`, its average, how far it is above that overall average, and how far it is above the average among just the kept transactions. Sort by that last difference, highest first (missing last), and return exactly 10 rows, cutting any ties at 10th place arbitrarily. Don't round.",
+  "sql": "WITH transaction_averages AS (SELECT transref, AVG(anlycount) AS avg_anlycount FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_anlycount) AS overall_avg FROM transaction_averages), kept AS (SELECT t.transref, t.avg_anlycount, o.overall_avg FROM transaction_averages t CROSS JOIN overall o WHERE t.avg_anlycount > o.overall_avg) SELECT transref, avg_anlycount, avg_anlycount - overall_avg AS above_overall_avg, avg_anlycount - AVG(avg_anlycount) OVER () AS above_kept_avg FROM kept ORDER BY above_kept_avg DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each transaction (`transref`) in `sentimentandfundamentals`, calculate the average analyst coverage count (`anlycount`), ignoring missing values. Keep transactions whose average exceeds the overall average of the per-transaction averages. Return `transref`, its average, its difference from the overall average, and its difference from the average among the kept transactions. Sort by the last difference in descending order, with missing values last, and return exactly ten rows. Break ties at the cutoff arbitrarily. Do not round.",
+  "sql": "WITH per_transaction AS (SELECT transref, AVG(anlycount) AS avg_anlycount FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_anlycount) AS overall_avg FROM per_transaction), kept AS (SELECT p.transref, p.avg_anlycount, o.overall_avg FROM per_transaction p CROSS JOIN overall o WHERE p.avg_anlycount > o.overall_avg), results AS (SELECT transref, avg_anlycount, avg_anlycount - overall_avg AS difference_from_overall, avg_anlycount - AVG(avg_anlycount) OVER () AS difference_from_kept FROM kept) SELECT * FROM results ORDER BY difference_from_kept DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

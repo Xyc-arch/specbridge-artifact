@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f7b50ba44b",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Count distinct executed orders per order type, so each order counts once however many fills it has, and then compute shares and the above-average summary from those counts.",
+ "b": {
+  "request": "Count distinct orders with at least one matching execution for each `ordertune`, grouping missing types together; compute each type\u2019s share of all such distinct orders, then return the sum of counts, average share, and average excess over the overall average share for types whose share is strictly above that average",
+  "sql": "WITH type_counts AS (\n  SELECT COALESCE(o.ordertune, 'Missing') AS ordertune, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM orders o\n  JOIN orderexecutions e ON e.ordersmark = o.recordvault\n  GROUP BY COALESCE(o.ordertune, 'Missing')\n), type_shares AS (\n  SELECT ordertune, order_count, order_count::numeric / SUM(order_count) OVER () AS share\n  FROM type_counts\n), overall AS (\n  SELECT SUM(order_count) AS total_orders, AVG(share) AS average_share\n  FROM type_shares\n)\nSELECT SUM(ts.order_count) AS sum_counts,\n       AVG(ts.share) AS average_share,\n       AVG(ts.share - ov.average_share) FILTER (WHERE ts.share > ov.average_share) AS average_excess\nFROM type_shares ts\nCROSS JOIN overall ov;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Link each order execution to its order (where `recordvault` matches `ordersmark`), and drop any execution without a matching order. Count distinct orders per order type (`ordertune`); an order with several executions counts only once, and a missing order type forms its own group. Then work out each type's share of the total count as a fraction. Looking only at the order types whose share is strictly above the average share across all order types, return a single unrounded row with: the sum of their counts, their average share, and the average amount by which their share exceeds that overall average share.",
+  "sql": "WITH type_counts AS (\n  SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM orderexecutions oe\n  JOIN orders o ON o.recordvault = oe.ordersmark\n  GROUP BY o.ordertune\n), shares AS (\n  SELECT order_count, order_count::numeric / SUM(order_count) OVER () AS share\n  FROM type_counts\n), overall AS (\n  SELECT AVG(share) AS average_share FROM shares\n)\nSELECT SUM(s.order_count) AS sum_counts,\n       AVG(s.share) AS average_share,\n       AVG(s.share - x.average_share) AS average_excess_share\nFROM shares s\nCROSS JOIN overall x\nWHERE s.share > x.average_share",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Link each order execution to its order (where `recordvault` matches `ordersmark`), and ignore executions without a matching order. Find how many executed orders each order type (`ordertune`) has, with a missing order type treated as its own group. Then work out each type's share of the total as a fraction. Looking only at the order types whose share is strictly above the average share across all order types, return a single unrounded row with: the sum of their counts, their average share, and the average amount by which their share exceeds that overall average share. Count distinct executed orders per order type, so each order counts once however many fills it has, and then compute shares and the above-average summary from those counts.",
+  "sql": "WITH executed_orders AS (\n  SELECT DISTINCT o.orderspivot, o.ordertune\n  FROM orders AS o\n  INNER JOIN orderexecutions AS oe\n    ON oe.ordersmark = o.recordvault\n), type_counts AS (\n  SELECT ordertune, COUNT(*) AS order_count\n  FROM executed_orders\n  GROUP BY ordertune\n), shares AS (\n  SELECT ordertune,\n         order_count,\n         order_count::numeric / SUM(order_count) OVER () AS share\n  FROM type_counts\n), overall AS (\n  SELECT AVG(share) AS average_share\n  FROM shares\n)\nSELECT SUM(s.order_count) AS sum_counts,\n       AVG(s.share) AS average_share,\n       AVG(s.share - o.average_share) AS average_excess_share\nFROM shares AS s\nCROSS JOIN overall AS o\nWHERE s.share > o.average_share",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Link each order execution to its order where `recordvault` matches `ordersmark`, ignoring executions without a matching order. For each order type (`ordertune`), count distinct executed orders so each order is counted once regardless of how many fills it has; treat a missing order type as its own group. Calculate each type\u2019s share of the total count. Among types whose share is strictly above the average share across all order types, return one unrounded row containing the sum of their counts, their average share, and the average amount by which their shares exceed the overall average share.",
+  "sql": "WITH type_counts AS (\n  SELECT COALESCE(o.ordertune, '<missing>') AS order_type,\n         COUNT(DISTINCT o.recordvault) AS order_count\n  FROM orderexecutions AS e\n  JOIN orders AS o ON o.recordvault = e.ordersmark\n  GROUP BY COALESCE(o.ordertune, '<missing>')\n),\nshares AS (\n  SELECT order_type,\n         order_count,\n         order_count::numeric / SUM(order_count) OVER () AS share\n  FROM type_counts\n),\nscored AS (\n  SELECT *, AVG(share) OVER () AS overall_avg_share\n  FROM shares\n)\nSELECT SUM(order_count) AS total_order_count,\n       AVG(share) AS average_share,\n       AVG(share - overall_avg_share) AS average_excess_share\nFROM scored\nWHERE share > overall_avg_share;",
+  "executes": false,
+  "matches": []
+ }
+}

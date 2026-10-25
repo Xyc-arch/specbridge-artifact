@@ -1,0 +1,76 @@
+{
+ "queries": [
+  "WITH ev AS (SELECT link_to_event AS event_id, AVG(spent * 1.0 / amount) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(spend_ratio) AS avg_ratio FROM ev) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / overall.avg_ratio AS relative_ratio FROM ev CROSS JOIN overall ORDER BY (ev.spend_ratio / overall.avg_ratio) IS NULL, relative_ratio DESC, ev.event_id LIMIT 10",
+  "WITH ev AS (SELECT link_to_event AS event_id, AVG(spent / amount) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event) SELECT event_id, spend_ratio, spend_ratio / (SELECT AVG(spend_ratio) FROM ev) AS relative_ratio FROM ev ORDER BY (spend_ratio / (SELECT AVG(spend_ratio) FROM ev)) IS NULL, relative_ratio DESC LIMIT 10",
+  "WITH ev AS (SELECT link_to_event AS event_id, AVG(spent * 1.0 / NULLIF(amount, 0)) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(spend_ratio) AS avg_ratio FROM ev) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / overall.avg_ratio AS relative_ratio FROM ev CROSS JOIN overall ORDER BY (ev.spend_ratio / overall.avg_ratio) IS NULL, relative_ratio DESC LIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH ev AS (SELECT link_to_event AS event_id, AVG(spent * 1.0 / amount) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(spend_ratio) AS avg_ratio FROM ev) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / overall.avg_ratio AS relative_ratio FROM ev CROSS JOIN overall ORDER BY (ev.spend_ratio / overall.avg_ratio) IS NULL, relative_ratio DESC, ev.event_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with amount = 0 (division by zero gives NULL in SQLite) or NULL spent/amount are treated as missing and skipped in the per-event average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events whose ratio is entirely missing are still included in the event list but are skipped by the overall average (AVG ignores NULL) and sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Budget rows with a NULL link_to_event are not counted as an event.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the relative figure are broken by event_id for a deterministic top 10.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH ev AS (SELECT link_to_event AS event_id, AVG(spent / amount) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event) SELECT event_id, spend_ratio, spend_ratio / (SELECT AVG(spend_ratio) FROM ev) AS relative_ratio FROM ev ORDER BY (spend_ratio / (SELECT AVG(spend_ratio) FROM ev)) IS NULL, relative_ratio DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with amount = 0 give a NULL line ratio (SQLite returns NULL on division by zero), and NULL spent or amount are likewise ignored, so they are skipped in the event average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events whose lines all have NULL ratios keep a NULL spend ratio. They stay in the list but are excluded from the overall average (AVG ignores NULLs), and they sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Budget rows with a NULL link_to_event are excluded because they do not belong to any event.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH ev AS (SELECT link_to_event AS event_id, AVG(spent * 1.0 / NULLIF(amount, 0)) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(spend_ratio) AS avg_ratio FROM ev) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / overall.avg_ratio AS relative_ratio FROM ev CROSS JOIN overall ORDER BY (ev.spend_ratio / overall.avg_ratio) IS NULL, relative_ratio DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with amount = 0 or NULL, or with NULL spent, have no line-level ratio. They are ignored in the event average. Zero amounts are treated as missing, not as errors.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events whose lines all lack a ratio keep a NULL spend ratio. They are left out of the overall average and sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only events that appear in budget.link_to_event are included. Budget rows with a NULL event link are excluded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0d34b6c962",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23805,
+  "chars_out": 3004
+ }
+}

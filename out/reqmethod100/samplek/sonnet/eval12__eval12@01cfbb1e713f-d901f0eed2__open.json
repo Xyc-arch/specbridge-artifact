@@ -1,0 +1,82 @@
+{
+ "queries": [
+  "WITH t AS (SELECT CustomerId, SUM(Total) AS total FROM Invoice GROUP BY CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s), k AS (SELECT s.total, s.share, a.avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM k",
+  "WITH t AS (SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s), k AS (SELECT s.total, s.share, a.avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM k",
+  "WITH t AS (SELECT CustomerId, SUM(Total) AS total FROM Invoice GROUP BY CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / (SELECT SUM(total) FROM t) AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT AVG(s.total) AS avg_spent, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_share_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+  "WITH t AS (SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / (SELECT SUM(total) FROM t) AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT AVG(s.total) AS avg_spent, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_share_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+  "WITH t AS (SELECT CustomerId, SUM(Total) AS total FROM Invoice GROUP BY CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM s) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_share_excess FROM a WHERE share > avg_share",
+  "WITH t AS (SELECT c.CustomerId, COALESCE(SUM(i.Total),0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM s) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_share_excess FROM a WHERE share > avg_share"
+ ],
+ "responses": [
+  {
+   "sql": "WITH t AS (SELECT CustomerId, SUM(Total) AS total FROM Invoice GROUP BY CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s), k AS (SELECT s.total, s.share, a.avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM k",
+   "assumptions": [
+    {
+     "assumption": "Only customers with at least one invoice are counted. The average share is taken over those customers, so it equals 1 divided by their count.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The 'average share' is the plain mean of the per-customer shares. 'Beats the average share' means share minus that mean, averaged over the kept customers.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Customers with no invoices are included with a total of 0 and a share of 0. This lowers the average share, so more customers may qualify.",
+     "sql": "WITH t AS (SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s), k AS (SELECT s.total, s.share, a.avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM k"
+    }
+   ]
+  },
+  {
+   "sql": "WITH t AS (SELECT CustomerId, SUM(Total) AS total FROM Invoice GROUP BY CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / (SELECT SUM(total) FROM t) AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT AVG(s.total) AS avg_spent, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_share_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+   "assumptions": [
+    {
+     "assumption": "The average share is taken over customers who have at least one invoice. Customers with no invoices are not counted as zero-spend customers.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The share is a decimal fraction (0 to 1) of the sum of all invoice totals. The result is not rounded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'average share' to beat is the mean of all customers' shares. The two output averages are taken over the kept customers only.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Every customer in the Customer table counts, including those with no invoices, who get a total of 0. This lowers the average share.",
+     "sql": "WITH t AS (SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / (SELECT SUM(total) FROM t) AS share FROM t), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT AVG(s.total) AS avg_spent, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_share_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH t AS (SELECT CustomerId, SUM(Total) AS total FROM Invoice GROUP BY CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM s) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_share_excess FROM a WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "Customers are those with at least one invoice. Customers with no invoices are left out of the share average. The average share is the mean of per-customer shares across those customers.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The output's average share is the mean share of the kept customers (above-average ones), not the overall average share used as the cutoff.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include every customer in the Customer table, counting customers with no invoices as total 0. This lowers the average share to 1 divided by the number of all customers.",
+     "sql": "WITH t AS (SELECT c.CustomerId, COALESCE(SUM(i.Total),0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), s AS (SELECT CustomerId, total, total * 1.0 / SUM(total) OVER () AS share FROM t), a AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM s) SELECT AVG(total) AS avg_spent, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_share_excess FROM a WHERE share > avg_share"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-d901f0eed2",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16413,
+  "chars_out": 4428
+ }
+}

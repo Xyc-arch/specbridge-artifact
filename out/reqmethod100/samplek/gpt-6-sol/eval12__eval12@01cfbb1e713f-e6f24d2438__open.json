@@ -1,0 +1,79 @@
+{
+ "queries": [
+  "WITH analysed_trades AS (SELECT DISTINCT tr.transreg, t.tradekind FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref) SELECT tradekind, COUNT(*) AS analysed_trade_records, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS overall_share FROM analysed_trades GROUP BY tradekind ORDER BY tradekind;",
+  "SELECT t.tradekind, COUNT(*) AS analysed_trade_records, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS overall_share FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind ORDER BY t.tradekind;",
+  "WITH analysed_trades AS (SELECT DISTINCT t.transreg, r.tradekind FROM advancedbehavior AS a JOIN transactionrecord AS t ON t.transreg = a.translink JOIN trader AS r ON r.tradereg = t.trdref), counts AS (SELECT tradekind, COUNT(*) AS trade_count FROM analysed_trades GROUP BY tradekind) SELECT tradekind, trade_count, trade_count::numeric / SUM(trade_count) OVER () AS share_of_total FROM counts ORDER BY tradekind",
+  "WITH counts AS (SELECT r.tradekind, COUNT(*) AS analysis_count FROM advancedbehavior AS a JOIN transactionrecord AS t ON t.transreg = a.translink JOIN trader AS r ON r.tradereg = t.trdref GROUP BY r.tradekind) SELECT tradekind, analysis_count, analysis_count::numeric / SUM(analysis_count) OVER () AS share_of_total FROM counts ORDER BY tradekind",
+  "WITH type_counts AS (SELECT t.tradekind AS trader_type, COUNT(DISTINCT tr.transreg) AS analysed_trade_records FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind) SELECT trader_type, analysed_trade_records, analysed_trade_records::numeric / SUM(analysed_trade_records) OVER () AS share_of_total FROM type_counts ORDER BY trader_type;",
+  "WITH type_counts AS (SELECT t.tradekind AS trader_type, COUNT(*) AS analysed_records FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind) SELECT trader_type, analysed_records, analysed_records::numeric / SUM(analysed_records) OVER () AS share_of_total FROM type_counts ORDER BY trader_type;",
+  "WITH type_counts AS (SELECT t.tradekind AS trader_type, COUNT(DISTINCT tr.transreg) AS analysed_trade_records FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind) SELECT trader_type, analysed_trade_records, analysed_trade_records::numeric / SUM(analysed_trade_records) OVER () AS share_of_total FROM type_counts ORDER BY trader_type;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH analysed_trades AS (SELECT DISTINCT tr.transreg, t.tradekind FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref) SELECT tradekind, COUNT(*) AS analysed_trade_records, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS overall_share FROM analysed_trades GROUP BY tradekind ORDER BY tradekind;",
+   "assumptions": [
+    {
+     "assumption": "Each trade record is counted once even if it has multiple advanced behaviour records; the schema does not require translink to be unique.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count advanced behaviour analysis records, so multiple analyses of one trade count separately.",
+     "sql": "SELECT t.tradekind, COUNT(*) AS analysed_trade_records, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS overall_share FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind ORDER BY t.tradekind;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH analysed_trades AS (SELECT DISTINCT t.transreg, r.tradekind FROM advancedbehavior AS a JOIN transactionrecord AS t ON t.transreg = a.translink JOIN trader AS r ON r.tradereg = t.trdref), counts AS (SELECT tradekind, COUNT(*) AS trade_count FROM analysed_trades GROUP BY tradekind) SELECT tradekind, trade_count, trade_count::numeric / SUM(trade_count) OVER () AS share_of_total FROM counts ORDER BY tradekind",
+   "assumptions": [
+    {
+     "assumption": "Each qualifying trade record is counted once, even if it has multiple advanced behaviour records.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Traders with a missing type appear in a NULL group.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count advanced behaviour analysis records, including multiple analyses of the same trade.",
+     "sql": "WITH counts AS (SELECT r.tradekind, COUNT(*) AS analysis_count FROM advancedbehavior AS a JOIN transactionrecord AS t ON t.transreg = a.translink JOIN trader AS r ON r.tradereg = t.trdref GROUP BY r.tradekind) SELECT tradekind, analysis_count, analysis_count::numeric / SUM(analysis_count) OVER () AS share_of_total FROM counts ORDER BY tradekind"
+    }
+   ]
+  },
+  {
+   "sql": "WITH type_counts AS (SELECT t.tradekind AS trader_type, COUNT(DISTINCT tr.transreg) AS analysed_trade_records FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind) SELECT trader_type, analysed_trade_records, analysed_trade_records::numeric / SUM(analysed_trade_records) OVER () AS share_of_total FROM type_counts ORDER BY trader_type;",
+   "assumptions": [
+    {
+     "assumption": "Each trade record is counted once, even if it has multiple advanced behaviour records.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A found trader with a NULL type appears as a separate, unclassified group.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count advanced behaviour records rather than distinct trade records.",
+     "sql": "WITH type_counts AS (SELECT t.tradekind AS trader_type, COUNT(*) AS analysed_records FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind) SELECT trader_type, analysed_records, analysed_records::numeric / SUM(analysed_records) OVER () AS share_of_total FROM type_counts ORDER BY trader_type;"
+    },
+    {
+     "interpretation": "Report only named trader types, with the overall total limited to those types.",
+     "sql": "WITH type_counts AS (SELECT t.tradekind AS trader_type, COUNT(DISTINCT tr.transreg) AS analysed_trade_records FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind) SELECT trader_type, analysed_trade_records, analysed_trade_records::numeric / SUM(analysed_trade_records) OVER () AS share_of_total FROM type_counts ORDER BY trader_type;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e6f24d2438",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 51936,
+  "chars_out": 4098
+ }
+}

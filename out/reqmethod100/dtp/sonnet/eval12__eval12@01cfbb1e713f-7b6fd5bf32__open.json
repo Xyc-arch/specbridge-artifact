@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Count distinct orders (distinct `recordvault`) with at least one matching risk/margin record, per `ordertune`. Then take the average of those counts across all order types that have matches. Keep the types whose count is above that average. Return one row with the average of their counts and the average of their excess over the overall average.",
+  "Count joined rows (one per risk/margin record and order pair, so an order with several risk/margin records is counted several times), per `ordertune`. The rest is as in 1.",
+  "Count distinct `orderspivot` values per `ordertune` instead of distinct `recordvault`. The rest is as in 1.",
+  "The overall average is taken over all order types that exist in `orders`, with unmatched types counted as 0. Types above that average are kept. The rest is as in 1.",
+  "The overall average is taken only over order types that have at least one matched order, which is the reading in 1 and 2. Types with no match are excluded from the average.",
+  "\"Average amount by which they exceed that average\" is the mean of (count \u2212 overall average) over the above-average types. This equals the above-average types' mean count minus the overall average.",
+  "\"Average amount by which they exceed\" is the mean absolute deviation of the above-average types' counts from the overall average. Because those types are all above the average, this gives the same value as 6.",
+  "\"Average amount by which they exceed\" is the mean of (count \u2212 overall average) taken over all types, with types at or below the average counting as 0 excess.",
+  "\"Average of their counts\" is the mean of the above-average types' counts. Alternatively, it is the total of those counts divided by the number of all types.",
+  "Output has one row with two columns: the average count of above-average types, and the average excess. The values are unrounded.",
+  "If no type is above the average (all counts equal), the result is an empty set. Alternatively, it is one row with NULL values.",
+  "`ordertune` null values are treated as their own group, or excluded from the grouping.",
+  "Orders count as \"risk/margin-matched\" only when `risk_margin_profile` is non-null. Otherwise any matching `riskandmargin` row suffices.",
+  "Missing interpretations:",
+  "Average of the above-average types' counts is computed over only the types that pass the filter, and the excess average is computed over the same set. Counts are over matched orders only, so unmatched orders never enter any count.",
+  "The \"average count across types\" is the average over the per-type counts weighted by orders instead of by types, which is the total matched orders divided by the number of types. This is the pooled average, not the average of the per-type counts.",
+  "Orders with a matching `riskandmargin` row whose `ordertune` is null are excluded from the types entirely, so they never enter the overall average.",
+  "The \"average amount by which they exceed\" is the average excess expressed as a ratio or percentage of the overall average, not as an absolute count difference.",
+  "The \"average amount by which they exceed that average\" is computed relative to the minimum or median count, not the mean. This reads \"average\" in \"above the average count\" as a different central measure.",
+  "Matching is performed on `riskandmargin.ordervault` = `orders.recordvault` with trimming or case normalization of the CHAR(36) values before comparing."
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS cnt\n  FROM orders o\n  WHERE EXISTS (SELECT 1 FROM riskandmargin r WHERE r.ordervault = o.recordvault)\n  GROUP BY o.ordertune\n),\navg_c AS (\n  SELECT AVG(cnt) AS a FROM counts\n)\nSELECT AVG(c.cnt) AS avg_count, AVG(c.cnt - a.a) AS avg_excess\nFROM counts c, avg_c a\nWHERE c.cnt > a.a;\n",
+  "SELECT o.ordertune, COUNT(*) AS joined_rows\nFROM riskandmargin r\nJOIN orders o ON r.ordervault = o.recordvault\nGROUP BY o.ordertune;\n",
+  "SELECT ordertune, COUNT(DISTINCT orderspivot) AS order_count FROM orders GROUP BY ordertune",
+  "WITH type_avg AS (\n  SELECT o.ordertune, COALESCE(AVG(f.feetotal), 0) AS avg_fee\n  FROM orders o\n  LEFT JOIN fees f ON f.orderslink = o.recordvault\n  GROUP BY o.ordertune\n)\nSELECT ordertune, avg_fee\nFROM type_avg\nWHERE avg_fee > (SELECT AVG(avg_fee) FROM type_avg);\n",
+  "WITH c AS (\n  SELECT ordertune, COUNT(*) AS cnt\n  FROM orders\n  GROUP BY ordertune\n)\nSELECT AVG(cnt) - (SELECT AVG(cnt) FROM c) AS avg_excess\nFROM c\nWHERE cnt > (SELECT AVG(cnt) FROM c);\n"
+ ],
+ "raw": [
+  "1. Count distinct orders (distinct `recordvault`) with at least one matching risk/margin record, per `ordertune`. Then take the average of those counts across all order types that have matches. Keep the types whose count is above that average. Return one row with the average of their counts and the average of their excess over the overall average.\n\n2. Count joined rows (one per risk/margin record and order pair, so an order with several risk/margin records is counted several times), per `ordertune`. The rest is as in 1.\n\n3. Count distinct `orderspivot` values per `ordertune` instead of distinct `recordvault`. The rest is as in 1.\n\n4. The overall average is taken over all order types that exist in `orders`, with unmatched types counted as 0. Types above that average are kept. The rest is as in 1.\n\n5. The overall average is taken only over order types that have at least one matched order, which is the reading in 1 and 2. Types with no match are excluded from the average.\n\n6. \"Average amount by which they exceed that average\" is the mean of (count \u2212 overall average) over the above-average types. This equals the above-average types' mean count minus the overall average.\n\n7. \"Average amount by which they exceed\" is the mean absolute deviation of the above-average types' counts from the overall average. Because those types are all above the average, this gives the same value as 6.\n\n8. \"Average amount by which they exceed\" is the mean of (count \u2212 overall average) taken over all types, with types at or below the average counting as 0 excess.\n\n9. \"Average of their counts\" is the mean of the above-average types' counts. Alternatively, it is the total of those counts divided by the number of all types.\n\n10. Output has one row with two columns: the average count of above-average types, and the average excess. The values are unrounded.\n\n11. If no type is above the average (all counts equal), the result is an empty set. Alternatively, it is one row with NULL values.\n\n12. `ordertune` null values are treated as their own group, or excluded from the grouping.\n\n13. Orders count as \"risk/margin-matched\" only when `risk_margin_profile` is non-null. Otherwise any matching `riskandmargin` row suffices.",
+  "Missing interpretations:\n\nAverage of the above-average types' counts is computed over only the types that pass the filter, and the excess average is computed over the same set. Counts are over matched orders only, so unmatched orders never enter any count.\n\nThe \"average count across types\" is the average over the per-type counts weighted by orders instead of by types, which is the total matched orders divided by the number of types. This is the pooled average, not the average of the per-type counts.\n\nOrders with a matching `riskandmargin` row whose `ordertune` is null are excluded from the types entirely, so they never enter the overall average.\n\nThe \"average amount by which they exceed\" is the average excess expressed as a ratio or percentage of the overall average, not as an absolute count difference.\n\nThe \"average amount by which they exceed that average\" is computed relative to the minimum or median count, not the mean. This reads \"average\" in \"above the average count\" as a different central measure.\n\nMatching is performed on `riskandmargin.ordervault` = `orders.recordvault` with trimming or case normalization of the CHAR(36) values before comparing."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7b6fd5bf32",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107391,
+  "chars_out": 5552
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-8ce7840d75",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "List departments whose share is at or above the average share. A department exactly at the average is included.",
+ "b": {
+  "request": "For members linked to a major in `major`, count members per department, calculate each department\u2019s share of all such members, and calculate the average share across departments. List departments whose share is at least the average, showing the department, member count, share, and difference between its share and the average, without rounding",
+  "sql": "WITH department_counts AS (\n    SELECT major.department, COUNT(member.member_id) AS member_count\n    FROM member\n    JOIN major ON member.link_to_major = major.major_id\n    GROUP BY major.department\n), department_shares AS (\n    SELECT department, member_count,\n           CAST(member_count AS REAL) / SUM(member_count) OVER () AS share\n    FROM department_counts\n), shares_with_average AS (\n    SELECT department, member_count, share,\n           AVG(share) OVER () AS average_share\n    FROM department_shares\n)\nSELECT department, member_count, share,\n       share - average_share AS difference_from_average\nFROM shares_with_average\nWHERE share >= average_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For members whose major appears in `major`, count members per department (`major.department`) and work out each department's share of the total. Which departments are on the high side of the average share across departments? Show the department, its member count, its share, and how much its share differs from the average share, without rounding. List departments whose share is at or above the average share. A department exactly at the average is included.",
+  "sql": "WITH department_counts AS (\n    SELECT major.department, COUNT(*) AS member_count\n    FROM member\n    JOIN major ON member.link_to_major = major.major_id\n    GROUP BY major.department\n), department_shares AS (\n    SELECT department, member_count,\n           CAST(member_count AS REAL) / SUM(member_count) OVER () AS share\n    FROM department_counts\n)\nSELECT department, member_count, share,\n       share - AVG(share) OVER () AS difference_from_average\nFROM department_shares\nWHERE share >= AVG(share) OVER ()\nORDER BY department;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "For members whose major appears in `major`, count members per department (`major.department`). Take each department's share as its member count divided by the total of these counts, and compute the average share across departments. List the departments whose share is greater than or equal to the average share, showing the department, its member count, its share, and its share minus the average share, without rounding.",
+  "sql": "WITH department_counts AS (\n    SELECT major.department, COUNT(*) AS member_count\n    FROM member\n    JOIN major ON member.link_to_major = major.major_id\n    GROUP BY major.department\n), shares AS (\n    SELECT department, member_count,\n           CAST(member_count AS REAL) / SUM(member_count) OVER () AS share\n    FROM department_counts\n), scored AS (\n    SELECT department, member_count, share,\n           AVG(share) OVER () AS average_share\n    FROM shares\n)\nSELECT department, member_count, share, share - average_share AS share_minus_average\nFROM scored\nWHERE share >= average_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For members whose major appears in `major`, count members in each department (`major.department`) and calculate each department\u2019s share of the total. List departments whose share is at or above the average share across departments, including departments exactly at the average. Show each department\u2019s member count, share, and difference from the average share, without rounding.",
+  "sql": "WITH department_counts AS (\n    SELECT major.department, COUNT(member.member_id) AS member_count\n    FROM major\n    JOIN member ON member.link_to_major = major.major_id\n    GROUP BY major.department\n), department_shares AS (\n    SELECT department,\n           member_count,\n           CAST(member_count AS REAL) / SUM(member_count) OVER () AS share\n    FROM department_counts\n), average_share AS (\n    SELECT AVG(share) AS avg_share\n    FROM department_shares\n)\nSELECT ds.department,\n       ds.member_count,\n       ds.share,\n       ds.share - av.avg_share AS difference_from_average_share\nFROM department_shares AS ds\nCROSS JOIN average_share AS av\nWHERE ds.share >= av.avg_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

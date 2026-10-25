@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "WITH p AS (SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM p) AS share FROM p), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS avg_share_above_average FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+  "WITH p AS (SELECT product_id, COUNT(*) * 1.0 AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM p) AS share FROM p), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS avg_share_above_average FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+  "WITH v AS (SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_average_share FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+  "WITH v AS (SELECT product_id, COUNT(*) * 1.0 AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_average_share FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+  "WITH v AS (SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS q FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, q, q / (SELECT SUM(q) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.q) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+  "WITH v AS (SELECT product_id, COUNT(*) AS q FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, q, q * 1.0 / (SELECT SUM(q) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.q) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH p AS (SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM p) AS share FROM p), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS avg_share_above_average FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+   "assumptions": [
+    {
+     "assumption": "Order volume means the sum of Order_Items.product_quantity (a VARCHAR column cast to a number) per product. Total volume is the sum over all order items.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Only products that appear in Order_Items are included when computing the plain average of shares. Products never ordered are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Shares are fractions between 0 and 1, not percentages, and are not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Order volume means the number of order item rows per product, ignoring the quantity values.",
+     "sql": "WITH p AS (SELECT product_id, COUNT(*) * 1.0 AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM p) AS share FROM p), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS avg_share_above_average FROM s CROSS JOIN a WHERE s.share > a.avg_share;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH v AS (SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_average_share FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+   "assumptions": [
+    {
+     "assumption": "Order volume is the sum of product_quantity (a text column, cast to a number) per product in Order_Items. Share is a product's quantity divided by the total quantity across all order items.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average share is the plain mean over all products that appear in Order_Items. Products with no order items are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'how far above' figure is the mean of (share - average share) across the above-average products, as a fraction and not a percentage.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Order volume is the number of order item rows per product, ignoring quantities.",
+     "sql": "WITH v AS (SELECT product_id, COUNT(*) * 1.0 AS vol FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, vol, vol / (SELECT SUM(vol) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.vol) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_average_share FROM s CROSS JOIN a WHERE s.share > a.avg_share"
+    }
+   ]
+  },
+  {
+   "sql": "WITH v AS (SELECT product_id, SUM(CAST(product_quantity AS REAL)) AS q FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, q, q / (SELECT SUM(q) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.q) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;",
+   "assumptions": [
+    {
+     "assumption": "Order volume is the sum of product_quantity (a VARCHAR, cast to a number) per product_id in Order_Items; share = product quantity / total quantity across all order items. The average share is the plain, unweighted mean across products that appear in Order_Items.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The 'average share' in the output is the mean share of the above-average products only, and the excess is each such product's share minus the overall mean share across all products.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Order volume means the number of order item rows per product (count of lines), not summed quantities.",
+     "sql": "WITH v AS (SELECT product_id, COUNT(*) AS q FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, q, q * 1.0 / (SELECT SUM(q) FROM v) AS share FROM v), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.q) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-97769b0922",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11838,
+  "chars_out": 4465
+ }
+}

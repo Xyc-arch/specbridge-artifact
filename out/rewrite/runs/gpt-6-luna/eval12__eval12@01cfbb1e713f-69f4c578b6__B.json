@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-69f4c578b6",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "An empty batting hand means unknown: those players (and NULL-hand players) are removed before anything is computed.",
+ "c": {
+  "request": "For each player in the postseason batting data (matched to `player` on `player_id`), take their average postseason doubles per record, ignoring missing values, along with their batting hand. Divide it by the overall average of these per-player averages to get a relative index. Then show how far each player's index sits above the average index for their batting hand. Give the top 10 players by that gap, largest first (missing last), with player id, batting hand, average doubles, index, and the gap, unrounded. An empty batting hand means unknown: those players (and NULL-hand players) are removed before anything is computed.",
+  "sql": "WITH player_averages AS (\n    SELECT\n        bp.player_id,\n        p.bats AS batting_hand,\n        AVG(bp.double) AS avg_doubles\n    FROM batting_postseason AS bp\n    JOIN player AS p ON p.player_id = bp.player_id\n    WHERE p.bats IS NOT NULL\n      AND p.bats <> ''\n    GROUP BY bp.player_id, p.bats\n), indexed_players AS (\n    SELECT\n        player_id,\n        batting_hand,\n        avg_doubles,\n        avg_doubles / AVG(avg_doubles) OVER () AS index\n    FROM player_averages\n)\nSELECT\n    player_id,\n    batting_hand,\n    avg_doubles,\n    index,\n    index - AVG(index) OVER (PARTITION BY batting_hand) AS gap\nFROM indexed_players\nORDER BY gap DESC NULLS LAST\nLIMIT 10",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Matching postseason batting records to players on `player_id`, work out each player's average postseason doubles per record (ignoring missing values), grouped by player and batting hand (`player.bats`). Turn that into a relative index by dividing it by the overall average of these per-player averages. Then compare each player's index with the average index of players who have the same batting hand. List the 10 players whose index is furthest above their batting-hand average. Show the player id, batting hand, average doubles, index, and index minus the hand average, sorted by that difference from highest to lowest (missing values last), unrounded. Leave out players whose batting hand is empty or missing (NULL) entirely, including from the overall average.",
+  "sql": "WITH player_averages AS (\n    SELECT\n        p.player_id,\n        p.bats,\n        AVG(bp.double) AS average_doubles\n    FROM batting_postseason AS bp\n    JOIN player AS p ON p.player_id = bp.player_id\n    WHERE p.bats IS NOT NULL\n      AND p.bats <> ''\n    GROUP BY p.player_id, p.bats\n),\nindexed AS (\n    SELECT\n        player_id,\n        bats,\n        average_doubles,\n        average_doubles / AVG(average_doubles) OVER () AS index_value\n    FROM player_averages\n),\ncompared AS (\n    SELECT\n        player_id,\n        bats,\n        average_doubles,\n        index_value,\n        index_value - AVG(index_value) OVER (PARTITION BY bats) AS difference\n    FROM indexed\n)\nSELECT\n    player_id,\n    bats,\n    average_doubles,\n    index_value,\n    difference\nFROM compared\nORDER BY difference DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Exclude players whose batting hand is empty or NULL before any calculations; for each remaining player with postseason batting records, compute the average of non-NULL postseason doubles per record, then divide by the overall average of those player-level averages to get an index. Subtract the average index among players with the same batting hand from each player\u2019s index, and return the 10 largest gaps first, placing missing gaps last, with player ID, batting hand, average doubles, index, and gap, all unrounded",
+  "sql": "WITH eligible_players AS (\n    SELECT player_id, bats\n    FROM player\n    WHERE bats IS NOT NULL AND bats <> ''\n), player_averages AS (\n    SELECT ep.player_id, ep.bats, AVG(bp.double) AS average_doubles\n    FROM eligible_players ep\n    JOIN batting_postseason bp ON bp.player_id = ep.player_id\n    GROUP BY ep.player_id, ep.bats\n), indexed_players AS (\n    SELECT player_id, bats, average_doubles,\n           average_doubles / NULLIF(AVG(average_doubles) OVER (), 0) AS idx\n    FROM player_averages\n), with_gaps AS (\n    SELECT player_id, bats, average_doubles, idx,\n           idx - AVG(idx) OVER (PARTITION BY bats) AS gap\n    FROM indexed_players\n)\nSELECT player_id, bats, average_doubles, idx AS index, gap\nFROM with_gaps\nORDER BY CASE WHEN gap IS NULL THEN 1 ELSE 0 END, gap DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each player in the postseason batting data, matched to `player` by `player_id`, calculate their average postseason doubles per record, ignoring missing values. Exclude players whose batting hand is empty or NULL before doing any calculations. Divide each remaining player\u2019s average by the overall average of these per-player averages to get a relative index, then subtract the average index for that player\u2019s batting hand to find the gap. Return the 10 players with the largest gaps first, with missing gaps last. Include player ID, batting hand, average doubles, index, and gap, without rounding.",
+  "sql": "WITH player_averages AS (\n    SELECT\n        b.player_id,\n        p.bats,\n        AVG(b.double) AS avg_doubles\n    FROM batting_postseason AS b\n    JOIN player AS p ON p.player_id = b.player_id\n    WHERE p.bats IS NOT NULL\n      AND p.bats <> ''\n    GROUP BY b.player_id, p.bats\n),\nindexed AS (\n    SELECT\n        player_id,\n        bats,\n        avg_doubles,\n        avg_doubles / AVG(avg_doubles) OVER () AS player_index\n    FROM player_averages\n),\nwith_gaps AS (\n    SELECT\n        player_id,\n        bats,\n        avg_doubles,\n        player_index,\n        player_index - AVG(player_index) OVER (PARTITION BY bats) AS gap\n    FROM indexed\n)\nSELECT player_id, bats, avg_doubles, player_index, gap\nFROM with_gaps\nORDER BY gap DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

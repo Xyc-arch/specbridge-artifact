@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fc09eb5c8c",
+ "model": "haiku",
+ "reading": "A",
+ "description": "Each album's rate is the mean of the per-track ratios Bytes/Milliseconds; compare it with the average of these rates across albums and show the top 10 albums by how far above the average they are.",
+ "b": {
+  "request": "Using the mean of per-track Bytes/Milliseconds ratios per album (with the NULL-AlbumId tracks grouped as one group), compare each album's rate to the average of those album rates, and return the top 10 albums ordered by that difference descending, showing AlbumId, average track UnitPrice, the album's mean bytes-per-millisecond, and the difference",
+  "sql": "WITH track_rates AS (\n  SELECT AlbumId, UnitPrice, CAST(Bytes AS REAL) / NULLIF(Milliseconds, 0) AS rate\n  FROM Track\n),\nalbum_stats AS (\n  SELECT AlbumId,\n         AVG(UnitPrice) AS avg_unit_price,\n         AVG(rate) AS album_rate\n  FROM track_rates\n  GROUP BY AlbumId\n)\nSELECT AlbumId,\n       avg_unit_price,\n       album_rate,\n       album_rate - AVG(album_rate) OVER () AS rate_difference\nFROM album_stats\nORDER BY rate_difference DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Which 10 albums have the highest bytes-per-millisecond rate compared with the average across all albums? Group tracks by `AlbumId`, with tracks that have no album id counted together as one group. For each album, show the album id, the average track `UnitPrice`, the album's average bytes per millisecond, and how far it is above the all-album average. Ignore missing values, don't round, and sort by that difference, largest first. Each album's rate is the mean of the per-track ratios Bytes/Milliseconds; compare it with the average of these rates across albums and show the top 10 albums by how far above the average they are.",
+  "sql": "WITH track_stats AS (SELECT AlbumId, UnitPrice, Bytes * 1.0 / Milliseconds AS bpm FROM Track WHERE Bytes IS NOT NULL AND Milliseconds > 0), album_rates AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(bpm) AS avg_bytes_per_ms FROM track_stats GROUP BY AlbumId), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM album_rates) SELECT ar.AlbumId, ar.avg_unit_price, ar.avg_bytes_per_ms, ar.avg_bytes_per_ms - o.overall_avg AS diff_from_overall_avg FROM album_rates ar CROSS JOIN overall o ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Group tracks by `AlbumId` (tracks with no album id together count as one group). For each group, show the album id, the average track `UnitPrice`, the album's bytes-per-millisecond rate (the average of each track's `Bytes` \u00f7 `Milliseconds`), and how far that rate is above the average rate across all albums. Ignore missing values in averages and don't round. List the 10 albums with the largest difference, largest first.",
+  "sql": "WITH album_stats AS (\n  SELECT AlbumId,\n         AVG(UnitPrice) AS avg_unit_price,\n         AVG(Bytes * 1.0 / Milliseconds) AS bytes_per_ms\n  FROM Track\n  GROUP BY AlbumId\n),\noverall AS (\n  SELECT AVG(bytes_per_ms) AS overall_rate\n  FROM album_stats\n)\nSELECT s.AlbumId,\n       s.avg_unit_price,\n       s.bytes_per_ms,\n       s.bytes_per_ms - o.overall_rate AS rate_difference\nFROM album_stats s\nCROSS JOIN overall o\nWHERE s.bytes_per_ms IS NOT NULL\nORDER BY rate_difference DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the albums, which 10 have the highest mean per-track Bytes/Milliseconds ratio above the average of those album means? Group tracks by `AlbumId`, with tracks that have no album id counted together as one group. Ignore missing values, and sort by how far each album's mean ratio exceeds the across-album average, largest first.",
+  "sql": "WITH album_means AS (SELECT AlbumId, AVG(CAST(Bytes AS REAL) / NULLIF(Milliseconds, 0)) AS mean_ratio FROM Track WHERE Bytes IS NOT NULL GROUP BY AlbumId), overall AS (SELECT AVG(mean_ratio) AS avg_mean FROM album_means) SELECT a.AlbumId, a.mean_ratio, a.mean_ratio - o.avg_mean AS excess FROM album_means a CROSS JOIN overall o WHERE a.mean_ratio > o.avg_mean ORDER BY excess DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ }
+}

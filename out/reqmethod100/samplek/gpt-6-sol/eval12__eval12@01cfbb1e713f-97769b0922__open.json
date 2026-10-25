@@ -1,0 +1,75 @@
+{
+ "queries": [
+  "WITH product_volume AS (SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(30, 10))) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS overall_average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - overall_average_share) AS average_share_above_average FROM compared WHERE share > overall_average_share",
+  "WITH product_volume AS (SELECT product_id, COUNT(*) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / SUM(volume) OVER () AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS overall_average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - overall_average_share) AS average_share_above_average FROM compared WHERE share > overall_average_share",
+  "WITH product_volume AS (SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(19,4))) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), benchmark AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.volume) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - b.average_share) AS average_excess_share FROM shares s CROSS JOIN benchmark b WHERE s.share > b.average_share",
+  "WITH product_volume AS (SELECT product_id, COUNT(*) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, CAST(volume AS DECIMAL(19,4)) / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), benchmark AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.volume) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - b.average_share) AS average_excess_share FROM shares s CROSS JOIN benchmark b WHERE s.share > b.average_share",
+  "WITH product_volume AS (SELECT p.product_id, COALESCE(SUM(CAST(oi.product_quantity AS DECIMAL(19,4))), 0) AS volume FROM Products p LEFT JOIN Order_Items oi ON oi.product_id = p.product_id GROUP BY p.product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), benchmark AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.volume) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - b.average_share) AS average_excess_share FROM shares s CROSS JOIN benchmark b WHERE s.share > b.average_share",
+  "WITH product_volume AS (SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(30,10))) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - average_share) AS average_amount_above_average_share FROM compared WHERE share > average_share",
+  "WITH product_volume AS (SELECT product_id, COUNT(*) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume * 1.0 / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - average_share) AS average_amount_above_average_share FROM compared WHERE share > average_share"
+ ],
+ "responses": [
+  {
+   "sql": "WITH product_volume AS (SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(30, 10))) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS overall_average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - overall_average_share) AS average_share_above_average FROM compared WHERE share > overall_average_share",
+   "assumptions": [
+    {
+     "assumption": "Order volume means the sum of product_quantity, whose VARCHAR values contain numeric quantities; products are those present in Order_Items.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Order volume means the number of order-item rows for each product.",
+     "sql": "WITH product_volume AS (SELECT product_id, COUNT(*) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / SUM(volume) OVER () AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS overall_average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - overall_average_share) AS average_share_above_average FROM compared WHERE share > overall_average_share"
+    }
+   ]
+  },
+  {
+   "sql": "WITH product_volume AS (SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(19,4))) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), benchmark AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.volume) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - b.average_share) AS average_excess_share FROM shares s CROSS JOIN benchmark b WHERE s.share > b.average_share",
+   "assumptions": [
+    {
+     "assumption": "Order volume is the sum of product_quantity, whose VARCHAR values contain numeric quantities.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The plain average covers products appearing in Order_Items.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Order volume counts order-item rows rather than quantities.",
+     "sql": "WITH product_volume AS (SELECT product_id, COUNT(*) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, CAST(volume AS DECIMAL(19,4)) / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), benchmark AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.volume) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - b.average_share) AS average_excess_share FROM shares s CROSS JOIN benchmark b WHERE s.share > b.average_share"
+    },
+    {
+     "interpretation": "The plain average includes every catalog product, with zero volume for products absent from Order_Items.",
+     "sql": "WITH product_volume AS (SELECT p.product_id, COALESCE(SUM(CAST(oi.product_quantity AS DECIMAL(19,4))), 0) AS volume FROM Products p LEFT JOIN Order_Items oi ON oi.product_id = p.product_id GROUP BY p.product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), benchmark AS (SELECT AVG(share) AS average_share FROM shares) SELECT SUM(s.volume) AS combined_order_volume, AVG(s.share) AS average_share, AVG(s.share - b.average_share) AS average_excess_share FROM shares s CROSS JOIN benchmark b WHERE s.share > b.average_share"
+    }
+   ]
+  },
+  {
+   "sql": "WITH product_volume AS (SELECT product_id, SUM(CAST(product_quantity AS DECIMAL(30,10))) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - average_share) AS average_amount_above_average_share FROM compared WHERE share > average_share",
+   "assumptions": [
+    {
+     "assumption": "Order volume means the sum of product_quantity, whose text values are numeric; shares are averaged across products present in Order_Items.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Order volume means the number of order-item rows, regardless of product_quantity.",
+     "sql": "WITH product_volume AS (SELECT product_id, COUNT(*) AS volume FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, volume, volume * 1.0 / NULLIF(SUM(volume) OVER (), 0) AS share FROM product_volume), compared AS (SELECT volume, share, AVG(share) OVER () AS average_share FROM shares) SELECT SUM(volume) AS combined_order_volume, AVG(share) AS average_share, AVG(share - average_share) AS average_amount_above_average_share FROM compared WHERE share > average_share"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-97769b0922",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11838,
+  "chars_out": 4991
+ }
+}

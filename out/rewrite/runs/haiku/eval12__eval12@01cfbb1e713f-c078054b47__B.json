@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c078054b47",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Return the top ten plus every row tied with the tenth.",
+ "a": {
+  "request": "For each transaction in `sentimentandfundamentals` (`transref`), take the average analyst coverage count (`anlycount`, ignoring missing values). Keep only the transactions whose average is above the overall average of those per-transaction averages. For each one, show `transref`, its average, how far it is above that overall average, and how far it is above the average among just the kept transactions. Sort by that last difference, highest first (missing last), and return the top 10 rows plus every other row tied with the 10th. Don't round.",
+  "sql": "WITH per_txn AS (\n  SELECT transref, AVG(anlycount) AS avg_cnt\n  FROM sentimentandfundamentals\n  GROUP BY transref\n),\noverall AS (\n  SELECT AVG(avg_cnt) AS overall_avg FROM per_txn\n),\nkept AS (\n  SELECT p.transref, p.avg_cnt\n  FROM per_txn p\n  CROSS JOIN overall o\n  WHERE p.avg_cnt > o.overall_avg\n),\nkept_stats AS (\n  SELECT AVG(avg_cnt) AS kept_avg FROM kept\n),\nscored AS (\n  SELECT k.transref,\n         k.avg_cnt,\n         k.avg_cnt - o.overall_avg AS diff_overall,\n         k.avg_cnt - ks.kept_avg AS diff_kept\n  FROM kept k\n  CROSS JOIN overall o\n  CROSS JOIN kept_stats ks\n),\nranked AS (\n  SELECT s.*,\n         RANK() OVER (ORDER BY s.diff_kept DESC NULLS LAST) AS rnk\n  FROM scored s\n)\nSELECT transref,\n       avg_cnt AS avg_anlycount,\n       diff_overall,\n       diff_kept\nFROM ranked\nWHERE rnk <= 10\nORDER BY diff_kept DESC NULLS LAST;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each transaction in `sentimentandfundamentals` (`transref`), take the average analyst coverage count (`anlycount`, ignoring missing values). Keep only the transactions whose average is above the overall average of those per-transaction averages. For each one, show `transref`, its average, how far it is above that overall average, and how far it is above the average among just the kept transactions. Give me the top 10 by that last difference, highest first (missing last). Don't round. Return the top ten plus every row tied with the tenth.",
+  "sql": "WITH per_txn AS (SELECT transref, AVG(anlycount) AS avg_anlycount FROM sentimentandfundamentals WHERE anlycount IS NOT NULL GROUP BY transref), overall AS (SELECT AVG(avg_anlycount) AS overall_avg FROM per_txn), kept AS (SELECT p.transref, p.avg_anlycount FROM per_txn p CROSS JOIN overall o WHERE p.avg_anlycount > o.overall_avg), kept_avg AS (SELECT AVG(avg_anlycount) AS kept_avg FROM kept), ranked AS (SELECT k.transref, k.avg_anlycount, k.avg_anlycount - o.overall_avg AS diff_overall, k.avg_anlycount - ka.kept_avg AS diff_kept, RANK() OVER (ORDER BY (k.avg_anlycount - ka.kept_avg) DESC NULLS LAST) AS rnk FROM kept k CROSS JOIN overall o CROSS JOIN kept_avg ka) SELECT transref, avg_anlycount, diff_overall, diff_kept FROM ranked WHERE rnk <= 10 ORDER BY diff_kept DESC NULLS LAST;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Return every kept transaction whose above-kept-average difference is greater than or equal to the 10th-highest such difference (NULLs last), with unrounded values, ordered highest first",
+  "sql": "WITH kept AS (\n  -- Assumption: 'kept' rows are those where ordervar is non-null; difference is ordervar minus the kept average\n  SELECT transreg, ordervar\n  FROM transactionrecord\n  WHERE ordervar IS NOT NULL\n),\nstats AS (\n  SELECT AVG(ordervar) AS avg_var FROM kept\n),\ndiffs AS (\n  SELECT k.transreg, k.ordervar, k.ordervar - s.avg_var AS diff\n  FROM kept k\n  CROSS JOIN stats s\n  WHERE k.ordervar > s.avg_var\n),\nthreshold AS (\n  SELECT diff FROM diffs ORDER BY diff DESC LIMIT 1 OFFSET 9\n)\nSELECT d.transreg, d.ordervar, d.diff\nFROM diffs d\nCROSS JOIN threshold t\nWHERE d.diff >= t.diff\nORDER BY d.diff DESC NULLS LAST;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Return the top 10 transactions by that last difference, plus every transaction tied with the 10th-ranked one, from the sentiment-and-fundamentals analysis of per-transaction average analyst coverage (`anlycount`, ignoring missing values), sorted highest first with missing values last, unrounded.",
+  "sql": "WITH per_txn AS (SELECT transref, AVG(anlycount) AS avg_anlycount FROM sentimentandfundamentals WHERE anlycount IS NOT NULL GROUP BY transref), ranked AS (SELECT transref, avg_anlycount, RANK() OVER (ORDER BY avg_anlycount DESC NULLS LAST) AS rnk FROM per_txn) SELECT transref, avg_anlycount FROM ranked WHERE rnk <= 10 ORDER BY avg_anlycount DESC NULLS LAST;",
+  "executes": true,
+  "matches": []
+ }
+}

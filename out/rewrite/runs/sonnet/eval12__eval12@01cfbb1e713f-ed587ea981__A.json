@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ed587ea981",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "The overall baseline price is the mean of the per-type average prices.",
+ "c": {
+  "request": "In `Products`, find each `production_type_code`'s average `unit_price` (ignoring missing prices) and keep the types whose average is above the overall average price, if that average exists. Next, take the simple mean of the kept types' averages, and keep only the types also above that mean. Return one row with three values, each averaged over the remaining types: their type average price, how far their type average is above the overall average price, and how far it is above the mean of the kept types. The overall baseline price is the mean of the per-type average prices.",
+  "sql": "WITH type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code), overall AS (SELECT AVG(avg_price) AS overall_avg FROM type_avg), kept AS (SELECT t.production_type_code, t.avg_price FROM type_avg t, overall o WHERE t.avg_price > o.overall_avg), kept_mean AS (SELECT AVG(avg_price) AS kmean FROM kept), final AS (SELECT k.production_type_code, k.avg_price FROM kept k, kept_mean m WHERE k.avg_price > m.kmean) SELECT AVG(f.avg_price) AS avg_type_price, AVG(f.avg_price - o.overall_avg) AS avg_above_overall, AVG(f.avg_price - m.kmean) AS avg_above_kept_mean FROM final f, overall o, kept_mean m",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Using the mean of the per-type average `unit_price` values (ignoring NULL prices) as the overall baseline, keep the `production_type_code` types whose average is above that baseline. Then keep only those types whose average is also above the simple mean of the kept types' averages. Return one row with the mean type average price, the mean amount by which it exceeds the baseline, and the mean amount by which it exceeds the kept-types mean, each averaged over the remaining types",
+  "sql": "WITH t AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products WHERE unit_price IS NOT NULL GROUP BY production_type_code), b AS (SELECT AVG(avg_price) AS baseline FROM t), k AS (SELECT t.production_type_code, t.avg_price FROM t, b WHERE t.avg_price > b.baseline), m AS (SELECT AVG(avg_price) AS kept_mean FROM k), f AS (SELECT k.production_type_code, k.avg_price FROM k, m WHERE k.avg_price > m.kept_mean) SELECT AVG(f.avg_price) AS mean_type_average_price, AVG(f.avg_price - b.baseline) AS mean_excess_over_baseline, AVG(f.avg_price - m.kept_mean) AS mean_excess_over_kept_mean FROM f, b, m",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "In `Products`, compute each `production_type_code`'s average `unit_price` (ignoring missing prices). Compute an overall baseline by averaging those per-type averages, so each type counts once regardless of how many products it has. Proceed only if the baseline exists. Keep the types whose average is above this baseline. Next, take the simple mean of the kept types' averages, and keep only the types whose average is also above that mean. Return one row with three values, each averaged over the remaining types: their type average price, how far their type average is above the overall baseline, and how far it is above the mean of the kept types.",
+  "sql": "WITH type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code), baseline AS (SELECT AVG(avg_price) AS base FROM type_avg WHERE avg_price IS NOT NULL), kept AS (SELECT t.production_type_code, t.avg_price, b.base FROM type_avg t CROSS JOIN baseline b WHERE b.base IS NOT NULL AND t.avg_price > b.base), kept_mean AS (SELECT AVG(avg_price) AS m FROM kept) SELECT AVG(k.avg_price) AS avg_type_price, AVG(k.avg_price - k.base) AS avg_above_baseline, AVG(k.avg_price - km.m) AS avg_above_kept_mean FROM kept k CROSS JOIN kept_mean km WHERE k.avg_price > km.m",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "In `Products`, find each `production_type_code`'s average `unit_price` (ignoring missing prices), and define the overall baseline price as the simple mean of these per-type averages. Keep the types whose average is above this baseline, if it exists. Next, take the simple mean of the kept types' averages, and keep only the types whose average is also above that mean. Return one row with three values, each averaged over the remaining types: their type average price, how far their type average is above the baseline price (the mean of the per-type averages), and how far it is above the mean of the kept types' averages.",
+  "sql": "WITH type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_price FROM Products GROUP BY production_type_code HAVING AVG(unit_price) IS NOT NULL), baseline AS (SELECT AVG(avg_price) AS base FROM type_avg), kept AS (SELECT t.production_type_code, t.avg_price FROM type_avg t, baseline b WHERE t.avg_price > b.base), kept_mean AS (SELECT AVG(avg_price) AS km FROM kept), final AS (SELECT k.production_type_code, k.avg_price FROM kept k, kept_mean m WHERE k.avg_price > m.km) SELECT AVG(f.avg_price) AS avg_type_price, AVG(f.avg_price - b.base) AS above_baseline, AVG(f.avg_price - m.km) AS above_kept_mean FROM final f, baseline b, kept_mean m",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

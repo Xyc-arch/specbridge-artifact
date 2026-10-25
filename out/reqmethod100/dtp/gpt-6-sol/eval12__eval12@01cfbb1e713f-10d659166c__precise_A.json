@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "Count every invoice with a matching order and customer, group by `Customers.gender` including `NULL` as a group, and average shares over groups with at least one invoice.",
+  "Count every invoice with a matching order and customer, exclude customers whose gender is `NULL`, and average shares over the remaining groups with at least one invoice.",
+  "Count every invoice with a matching order and customer, include recorded gender values with zero invoices when averaging shares, and include `NULL` as a group if present among customers.",
+  "Count every invoice with a matching order and customer, include recorded non-`NULL` gender values with zero invoices when averaging shares, and exclude customers whose gender is `NULL`.",
+  "In each interpretation, return only groups whose share strictly exceeds the average, with the gender, invoice count, unrounded share, and unrounded difference from the average."
+ ],
+ "queries": [
+  "WITH gender_counts AS (\n  SELECT c.gender, COUNT(*) AS invoice_count\n  FROM Invoices AS i\n  JOIN Orders AS o ON o.order_id = i.order_id\n  JOIN Customers AS c ON c.customer_id = o.customer_id\n  GROUP BY c.gender\n)\nSELECT AVG(1.0 * invoice_count / (SELECT SUM(invoice_count) FROM gender_counts)) AS average_share\nFROM gender_counts",
+  "WITH gender_invoice_counts AS (\n    SELECT c.gender, COUNT(*) AS invoice_count\n    FROM Invoices AS i\n    JOIN Orders AS o ON o.order_id = i.order_id\n    JOIN Customers AS c ON c.customer_id = o.customer_id\n    WHERE c.gender IS NOT NULL\n    GROUP BY c.gender\n    HAVING COUNT(*) > 0\n),\ninvoice_shares AS (\n    SELECT invoice_count * 1.0 / SUM(invoice_count) OVER () AS share\n    FROM gender_invoice_counts\n)\nSELECT AVG(share) AS average_share\nFROM invoice_shares",
+  "WITH gender_invoice_counts AS (\n    SELECT c.gender, COUNT(i.invoice_number) AS invoice_count\n    FROM Customers AS c\n    LEFT JOIN Orders AS o ON o.customer_id = c.customer_id\n    LEFT JOIN Invoices AS i ON i.order_id = o.order_id\n    GROUP BY c.gender\n)\nSELECT AVG(\n    1.0 * invoice_count /\n    NULLIF((SELECT SUM(invoice_count) FROM gender_invoice_counts), 0)\n) AS average_invoice_share\nFROM gender_invoice_counts",
+  "WITH invoice_counts AS (\n    SELECT c.gender, COUNT(i.invoice_number) AS invoice_count\n    FROM Customers AS c\n    LEFT JOIN Orders AS o ON o.customer_id = c.customer_id\n    LEFT JOIN Invoices AS i ON i.order_id = o.order_id\n    WHERE c.gender IS NOT NULL\n    GROUP BY c.gender\n)\nSELECT AVG(1.0 * invoice_count / NULLIF(total_invoices, 0)) AS average_share\nFROM invoice_counts\nCROSS JOIN (\n    SELECT SUM(invoice_count) AS total_invoices\n    FROM invoice_counts\n)",
+  "WITH gender_counts AS (\n    SELECT c.gender, COUNT(*) AS invoice_count\n    FROM Invoices AS i\n    JOIN Orders AS o ON o.order_id = i.order_id\n    JOIN Customers AS c ON c.customer_id = o.customer_id\n    GROUP BY c.gender\n),\ngender_shares AS (\n    SELECT\n        gender,\n        invoice_count,\n        1.0 * invoice_count / SUM(invoice_count) OVER () AS share\n    FROM gender_counts\n),\ncompared AS (\n    SELECT\n        gender,\n        invoice_count,\n        share,\n        share - AVG(share) OVER () AS difference_from_average\n    FROM gender_shares\n)\nSELECT gender, invoice_count, share, difference_from_average\nFROM compared\nWHERE difference_from_average > 0;\n"
+ ],
+ "raw": [
+  "Count every invoice with a matching order and customer, group by `Customers.gender` including `NULL` as a group, and average shares over groups with at least one invoice.\n\nCount every invoice with a matching order and customer, exclude customers whose gender is `NULL`, and average shares over the remaining groups with at least one invoice.\n\nCount every invoice with a matching order and customer, include recorded gender values with zero invoices when averaging shares, and include `NULL` as a group if present among customers.\n\nCount every invoice with a matching order and customer, include recorded non-`NULL` gender values with zero invoices when averaging shares, and exclude customers whose gender is `NULL`.\n\nIn each interpretation, return only groups whose share strictly exceeds the average, with the gender, invoice count, unrounded share, and unrounded difference from the average.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-10d659166c",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 7,
+  "chars_in": 26280,
+  "chars_out": 3282
+ }
+}

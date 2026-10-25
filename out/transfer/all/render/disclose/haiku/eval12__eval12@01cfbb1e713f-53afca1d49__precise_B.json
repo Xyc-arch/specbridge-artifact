@@ -1,0 +1,42 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-53afca1d49",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH district_counts AS (\n  SELECT \n    district_id,\n    COUNT(*) as account_count\n  FROM account\n  GROUP BY district_id\n),\ntotal_accounts AS (\n  SELECT COUNT(*) as total FROM account\n),\nwith_share AS (\n  SELECT \n    dc.district_id,\n    dc.account_count,\n    CAST(dc.account_count AS REAL) / CAST(ta.total AS REAL) as share,\n    DENSE_RANK() OVER (ORDER BY CAST(dc.account_count AS REAL) / CAST(ta.total AS REAL) DESC) as dense_rank\n  FROM district_counts dc, total_accounts ta\n)\nSELECT \n  district_id,\n  account_count,\n  share\nFROM with_share\nWHERE dense_rank <= 10\nORDER BY share DESC;",
+  "assumptions": [
+   {
+    "assumption": "\"10th-highest share\" means the 10th distinct share value, not the 10th position. Districts with the same share as any of the top 10 distinct values are included (using DENSE_RANK).",
+    "unresolved": false
+   },
+   {
+    "assumption": "If fewer than 10 distinct share values exist in the data, all districts are returned.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"10th-highest\" refers to the district at the 10th position when sorted by share descending (using ROW_NUMBER). Return the top 10 positions plus any districts whose share ties with the 10th position.",
+    "sql": "WITH district_counts AS (\n  SELECT \n    district_id,\n    COUNT(*) as account_count\n  FROM account\n  GROUP BY district_id\n),\ntotal_accounts AS (\n  SELECT COUNT(*) as total FROM account\n),\nwith_share_and_rank AS (\n  SELECT \n    dc.district_id,\n    dc.account_count,\n    CAST(dc.account_count AS REAL) / CAST(ta.total AS REAL) as share,\n    ROW_NUMBER() OVER (ORDER BY CAST(dc.account_count AS REAL) / CAST(ta.total AS REAL) DESC) as row_num\n  FROM district_counts dc, total_accounts ta\n)\nSELECT \n  district_id,\n  account_count,\n  share\nFROM with_share_and_rank\nWHERE row_num <= 10\n  OR share = (SELECT share FROM with_share_and_rank WHERE row_num = 10)\nORDER BY share DESC;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"10th-highest\" refers to the district at the 10th position when sorted by share descending (using ROW_NUMBER). Return the top 10 positions plus any districts whose share ties with the 10th position.",
+   "sql": "WITH district_counts AS (\n  SELECT \n    district_id,\n    COUNT(*) as account_count\n  FROM account\n  GROUP BY district_id\n),\ntotal_accounts AS (\n  SELECT COUNT(*) as total FROM account\n),\nwith_share_and_rank AS (\n  SELECT \n    dc.district_id,\n    dc.account_count,\n    CAST(dc.account_count AS REAL) / CAST(ta.total AS REAL) as share,\n    ROW_NUMBER() OVER (ORDER BY CAST(dc.account_count AS REAL) / CAST(ta.total AS REAL) DESC) as row_num\n  FROM district_counts dc, total_accounts ta\n)\nSELECT \n  district_id,\n  account_count,\n  share\nFROM with_share_and_rank\nWHERE row_num <= 10\n  OR share = (SELECT share FROM with_share_and_rank WHERE row_num = 10)\nORDER BY share DESC;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 100.9,
+ "chars_out": 2031
+}

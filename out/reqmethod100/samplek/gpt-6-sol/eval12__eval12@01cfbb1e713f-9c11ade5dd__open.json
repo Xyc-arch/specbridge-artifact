@@ -1,0 +1,62 @@
+{
+ "queries": [
+  "WITH sex_averages AS (SELECT p.SEX, AVG(l.CPK * 1.0 / NULLIF(l.GPT, 0)) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS mean_ratio FROM sex_averages), first_pass AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS f WHERE s.avg_ratio > f.mean_ratio), second_mean AS (SELECT AVG(avg_ratio) AS mean_ratio FROM first_pass), second_pass AS (SELECT s.* FROM first_pass AS s CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.mean_ratio) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - f.mean_ratio) AS above_first_mean, AVG(s.avg_ratio - m.mean_ratio) AS above_second_mean FROM second_pass AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m",
+  "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / l.GPT) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_cut AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_cut) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - f.value) AS average_above_first_mean, AVG(s.avg_ratio - m.value) AS average_above_second_mean FROM first_cut AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.value;",
+  "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / l.GPT) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_cut AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_cut) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - f.value) AS average_above_first_mean, AVG(s.avg_ratio - m.value) AS average_above_second_mean FROM first_cut AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.value;",
+  "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / NULLIF(l.GPT, 0)) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID GROUP BY p.SEX HAVING COUNT(CASE WHEN l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 THEN 1 END) > 0), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_kept AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_kept), second_kept AS (SELECT s.* FROM first_kept AS s CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.value) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - m1.value) AS average_above_first_mean, AVG(s.avg_ratio - m2.value) AS average_above_second_mean FROM second_kept AS s CROSS JOIN first_mean AS m1 CROSS JOIN second_mean AS m2;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(l.CPK * 1.0 / NULLIF(l.GPT, 0)) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS mean_ratio FROM sex_averages), first_pass AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS f WHERE s.avg_ratio > f.mean_ratio), second_mean AS (SELECT AVG(avg_ratio) AS mean_ratio FROM first_pass), second_pass AS (SELECT s.* FROM first_pass AS s CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.mean_ratio) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - f.mean_ratio) AS above_first_mean, AVG(s.avg_ratio - m.mean_ratio) AS above_second_mean FROM second_pass AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m",
+   "assumptions": [
+    {
+     "assumption": "Missing SEX values are excluded; a zero GPT makes the ratio missing. The second mean is the mean of the sex averages that passed the first cutoff. If no sex passes both cutoffs, the row contains NULLs.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / l.GPT) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_cut AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_cut) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - f.value) AS average_above_first_mean, AVG(s.avg_ratio - m.value) AS average_above_second_mean FROM first_cut AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.value;",
+   "assumptions": [
+    {
+     "assumption": "The second mean is the mean of the sex averages that passed the first cutoff.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Patients with an unknown SEX are excluded; tests with zero GPT have no defined ratio.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Treat NULL SEX as its own group when calculating the sex averages.",
+     "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / l.GPT) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_cut AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_cut) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - f.value) AS average_above_first_mean, AVG(s.avg_ratio - m.value) AS average_above_second_mean FROM first_cut AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.value;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / NULLIF(l.GPT, 0)) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID GROUP BY p.SEX HAVING COUNT(CASE WHEN l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 THEN 1 END) > 0), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_kept AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_kept), second_kept AS (SELECT s.* FROM first_kept AS s CROSS JOIN second_mean AS m WHERE s.avg_ratio > m.value) SELECT AVG(s.avg_ratio) AS average_ratio, AVG(s.avg_ratio - m1.value) AS average_above_first_mean, AVG(s.avg_ratio - m2.value) AS average_above_second_mean FROM second_kept AS s CROSS JOIN first_mean AS m1 CROSS JOIN second_mean AS m2;",
+   "assumptions": [
+    {
+     "assumption": "A zero GPT makes the ratio undefined, so that test is ignored.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The second mean is the mean of the sex averages retained after the first filter; each sex has equal weight.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9c11ade5dd",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 25905,
+  "chars_out": 4010
+ }
+}

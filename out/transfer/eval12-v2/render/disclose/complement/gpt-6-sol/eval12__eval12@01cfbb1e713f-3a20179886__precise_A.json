@@ -1,0 +1,29 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH type_counts AS (SELECT t.tradekind, COUNT(*) AS analysis_count FROM advancedbehavior AS a JOIN transactionrecord AS tr ON tr.transreg = a.translink JOIN trader AS t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), metrics AS (SELECT analysis_count, analysis_count::numeric / SUM(analysis_count) OVER () AS share, AVG(analysis_count) OVER () AS avg_count FROM type_counts) SELECT SUM(analysis_count) AS sum_counts, AVG(share) AS avg_share, AVG(analysis_count - avg_count) AS avg_excess FROM metrics WHERE analysis_count > avg_count;",
+  "assumptions": [
+   {
+    "assumption": "A trader type must be non-NULL and have at least one qualifying analysis to enter the average across types.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Include NULL trader types as one group of qualifying analyses.",
+    "sql": "WITH type_counts AS (SELECT t.tradekind, COUNT(*) AS analysis_count FROM advancedbehavior AS a JOIN transactionrecord AS tr ON tr.transreg = a.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind), metrics AS (SELECT analysis_count, analysis_count::numeric / SUM(analysis_count) OVER () AS share, AVG(analysis_count) OVER () AS avg_count FROM type_counts) SELECT SUM(analysis_count) AS sum_counts, AVG(share) AS avg_share, AVG(analysis_count - avg_count) AS avg_excess FROM metrics WHERE analysis_count > avg_count;"
+   },
+   {
+    "interpretation": "Include all four documented trader types in the average, including types with zero qualifying analyses.",
+    "sql": "WITH types(tradekind) AS (VALUES ('Market Maker'), ('Broker'), ('Individual'), ('Institution')), observed AS (SELECT t.tradekind, COUNT(*) AS analysis_count FROM advancedbehavior AS a JOIN transactionrecord AS tr ON tr.transreg = a.translink JOIN trader AS t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), type_counts AS (SELECT types.tradekind, COALESCE(observed.analysis_count, 0) AS analysis_count FROM types LEFT JOIN observed ON observed.tradekind = types.tradekind), metrics AS (SELECT analysis_count, analysis_count::numeric / NULLIF(SUM(analysis_count) OVER (), 0) AS share, AVG(analysis_count) OVER () AS avg_count FROM type_counts) SELECT SUM(analysis_count) AS sum_counts, AVG(share) AS avg_share, AVG(analysis_count - avg_count) AS avg_excess FROM metrics WHERE analysis_count > avg_count;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": false,
+ "primary_matches": [],
+ "seconds": 33.6
+}

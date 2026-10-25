@@ -1,0 +1,51 @@
+{
+ "interpretations": [
+  "Per-transaction average is computed by grouping on `transref` and taking AVG(`anlycount`), with NULLs ignored. The overall average is the mean of those per-transaction averages (each transaction weighted equally).",
+  "Same grouping, but the overall average is the mean of all non-null `anlycount` rows across the table (each row weighted equally). This is a different reading of \"overall average of those per-transaction averages.\"",
+  "Same grouping, but transactions whose `anlycount` values are all NULL are kept in the per-transaction set with a NULL average. They are then excluded from the comparison, and the overall average is computed over the non-null averages only.",
+  "Same grouping, but transactions with all-NULL `anlycount` are dropped before computing the overall average.",
+  "\"Above\" is read as strictly greater than (>) the overall average.",
+  "\"Above\" is read as greater than or equal to (>=) the overall average.",
+  "\"How far above the overall average\" is the raw difference (avg \u2212 overall avg).",
+  "\"How far above the overall average\" is a percentage or ratio difference ((avg \u2212 overall avg) / overall avg).",
+  "\"How far above the average among just the kept transactions\" is the raw difference (avg \u2212 kept-group avg). The kept-group avg is the mean of the kept transactions' per-transaction averages. This difference can be negative for kept rows below the kept-group mean.",
+  "The same difference as a percentage or ratio of the kept-group average.",
+  "The kept-group average is the row-weighted mean of `anlycount` over all rows belonging to the kept transactions, not the mean of the per-transaction averages.",
+  "Sorting is by the second difference (vs. the kept-group average) descending, with NULLs last. Under the arithmetic, this order is the same as sorting by the average itself.",
+  "Sorting is by the second difference, with ties broken arbitrarily or by `transref`.",
+  "\"Top 10 rows plus every other row tied with the 10th\" means a limit of 10 with ties included (like RANK() <= 10 or FETCH FIRST 10 ROWS WITH TIES). Ties are determined by equal values of the sort difference.",
+  "\"Top 10 plus ties\" is read as DENSE_RANK() <= 10, so the result includes the top 10 distinct difference values and all rows sharing them. This can return more than 10 rows.",
+  "\"Top 10 plus ties\" is read as exactly 10 rows plus only the rows tied with the 10th row's value. This is the same as the RANK-based reading in 14.",
+  "\"Don't round\" means output the full-precision values with no ROUND() applied. `anlycount` is an integer, so the averages should not be truncated by integer division.",
+  "\"Each transaction\" is read as each distinct `transref` value in `sentimentandfundamentals`. Several `sentreg` snapshot rows may map to one transaction.",
+  "\"Each transaction\" is read as each row (`sentreg`), so no grouping is needed. Each row's `anlycount` is its own average.",
+  "\"Each transaction\" is read as each transaction in `transactionrecord` (joined via `transref`). Transactions without sentiment rows are included with a NULL average, or are excluded.",
+  "The output columns are `transref`, the average, the difference from the overall average, and the difference from the kept-group average, in that order.",
+  "Missing interpretations:",
+  "\"Ties with the 10th\" is determined by equal values of the first difference (vs. the overall average) rather than the sort difference. The two differ only by a constant, so this is equivalent in effect.",
+  "\"Average among just the kept transactions\" is the average of `anlycount` over distinct kept `transref` values, using one representative row each. This differs from both the mean of per-transaction averages and the row-weighted mean.",
+  "\"Each transaction\" is read as each distinct `transref` after first de-duplicating identical `anlycount` values within a transaction.",
+  "\"Each transaction\" is read as grouping by the (`transref`, `trdref2`) pair, so a transaction with different analyst or insider references would be split into separate groups.",
+  "\"Missing values\" is read to include zero or empty values of `anlycount`, so these are also excluded from the average.",
+  "\"Overall average\" is computed over all rows in `sentimentandfundamentals`, including transactions that have no non-null `anlycount`. These are treated as 0 rather than ignored."
+ ],
+ "queries": [
+  "SELECT AVG(avg_anly) FROM (SELECT AVG(anlycount) AS avg_anly FROM sentimentandfundamentals GROUP BY transref)",
+  "SELECT transref, AVG(anlycount) AS avg_anlycount, (SELECT AVG(anlycount) FROM sentimentandfundamentals WHERE anlycount IS NOT NULL) AS overall_avg_anlycount\nFROM sentimentandfundamentals\nWHERE anlycount IS NOT NULL\nGROUP BY transref",
+  "SELECT transref\nFROM (\n  SELECT transref, AVG(anlycount) AS avg_a\n  FROM sentimentandfundamentals\n  GROUP BY transref\n) t\nWHERE avg_a IS NOT NULL\n  AND avg_a > (\n    SELECT AVG(avg_a)\n    FROM (\n      SELECT AVG(anlycount) AS avg_a\n      FROM sentimentandfundamentals\n      GROUP BY transref\n    )\n    WHERE avg_a IS NOT NULL\n  );\n",
+  "SELECT AVG(avg_anly) FROM (SELECT transref, AVG(anlycount) AS avg_anly FROM sentimentandfundamentals GROUP BY transref HAVING COUNT(anlycount) > 0)"
+ ],
+ "raw": [
+  "1. Per-transaction average is computed by grouping on `transref` and taking AVG(`anlycount`), with NULLs ignored. The overall average is the mean of those per-transaction averages (each transaction weighted equally).\n2. Same grouping, but the overall average is the mean of all non-null `anlycount` rows across the table (each row weighted equally). This is a different reading of \"overall average of those per-transaction averages.\"\n3. Same grouping, but transactions whose `anlycount` values are all NULL are kept in the per-transaction set with a NULL average. They are then excluded from the comparison, and the overall average is computed over the non-null averages only.\n4. Same grouping, but transactions with all-NULL `anlycount` are dropped before computing the overall average.\n5. \"Above\" is read as strictly greater than (>) the overall average.\n6. \"Above\" is read as greater than or equal to (>=) the overall average.\n7. \"How far above the overall average\" is the raw difference (avg \u2212 overall avg).\n8. \"How far above the overall average\" is a percentage or ratio difference ((avg \u2212 overall avg) / overall avg).\n9. \"How far above the average among just the kept transactions\" is the raw difference (avg \u2212 kept-group avg). The kept-group avg is the mean of the kept transactions' per-transaction averages. This difference can be negative for kept rows below the kept-group mean.\n10. The same difference as a percentage or ratio of the kept-group average.\n11. The kept-group average is the row-weighted mean of `anlycount` over all rows belonging to the kept transactions, not the mean of the per-transaction averages.\n12. Sorting is by the second difference (vs. the kept-group average) descending, with NULLs last. Under the arithmetic, this order is the same as sorting by the average itself.\n13. Sorting is by the second difference, with ties broken arbitrarily or by `transref`.\n14. \"Top 10 rows plus every other row tied with the 10th\" means a limit of 10 with ties included (like RANK() <= 10 or FETCH FIRST 10 ROWS WITH TIES). Ties are determined by equal values of the sort difference.\n15. \"Top 10 plus ties\" is read as DENSE_RANK() <= 10, so the result includes the top 10 distinct difference values and all rows sharing them. This can return more than 10 rows.\n16. \"Top 10 plus ties\" is read as exactly 10 rows plus only the rows tied with the 10th row's value. This is the same as the RANK-based reading in 14.\n17. \"Don't round\" means output the full-precision values with no ROUND() applied. `anlycount` is an integer, so the averages should not be truncated by integer division.\n18. \"Each transaction\" is read as each distinct `transref` value in `sentimentandfundamentals`. Several `sentreg` snapshot rows may map to one transaction.\n19. \"Each transaction\" is read as each row (`sentreg`), so no grouping is needed. Each row's `anlycount` is its own average.\n20. \"Each transaction\" is read as each transaction in `transactionrecord` (joined via `transref`). Transactions without sentiment rows are included with a NULL average, or are excluded.\n21. The output columns are `transref`, the average, the difference from the overall average, and the difference from the kept-group average, in that order.",
+  "Missing interpretations:\n\n\"Ties with the 10th\" is determined by equal values of the first difference (vs. the overall average) rather than the sort difference. The two differ only by a constant, so this is equivalent in effect.\n\"Average among just the kept transactions\" is the average of `anlycount` over distinct kept `transref` values, using one representative row each. This differs from both the mean of per-transaction averages and the row-weighted mean.\n\"Each transaction\" is read as each distinct `transref` after first de-duplicating identical `anlycount` values within a transaction.\n\"Each transaction\" is read as grouping by the (`transref`, `trdref2`) pair, so a transaction with different analyst or insider references would be split into separate groups.\n\"Missing values\" is read to include zero or empty values of `anlycount`, so these are also excluded from the average.\n\"Overall average\" is computed over all rows in `sentimentandfundamentals`, including transactions that have no non-null `anlycount`. These are treated as 0 rather than ignored."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c078054b47",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 139717,
+  "chars_out": 5489
+ }
+}

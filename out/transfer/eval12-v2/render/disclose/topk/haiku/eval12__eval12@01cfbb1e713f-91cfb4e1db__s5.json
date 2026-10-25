@@ -1,0 +1,13 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-91cfb4e1db",
+ "sample": 5,
+ "model": "haiku",
+ "response": {
+  "sql": "WITH joined AS (\n  SELECT s.transref, t.trdref, tr.tradekind, s.optvolrt\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord t ON s.transref = t.transreg\n  JOIN trader tr ON t.trdref = tr.tradereg\n),\noverall AS (\n  SELECT AVG(optvolrt) AS overall_avg FROM joined\n),\npairs AS (\n  SELECT j.transref, j.tradekind, AVG(j.optvolrt) AS pair_avg\n  FROM joined j\n  GROUP BY j.transref, j.tradekind\n),\ndev AS (\n  SELECT p.transref, p.tradekind, p.pair_avg, p.pair_avg - o.overall_avg AS deviation\n  FROM pairs p\n  CROSS JOIN overall o\n),\ntyped AS (\n  SELECT d.tradekind, d.pair_avg, d.deviation,\n         AVG(d.deviation) OVER (PARTITION BY d.tradekind) AS type_avg_dev\n  FROM dev d\n  WHERE d.tradekind IS NOT NULL\n),\nkept AS (\n  SELECT t.tradekind, t.pair_avg, t.deviation, t.deviation - t.type_avg_dev AS excess\n  FROM typed t\n  WHERE t.deviation > t.type_avg_dev\n)\nSELECT k.tradekind,\n       AVG(k.pair_avg) AS avg_optvolrt,\n       AVG(k.deviation) AS avg_deviation,\n       AVG(k.excess) AS avg_excess\nFROM kept k\nGROUP BY k.tradekind\nORDER BY k.tradekind;"
+ },
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 13.0
+}

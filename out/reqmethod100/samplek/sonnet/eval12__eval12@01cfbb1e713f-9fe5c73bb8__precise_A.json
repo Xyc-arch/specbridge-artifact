@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT *, AVG(share) OVER () AS avg_share FROM s) SELECT AVG(cnt * 1.0) AS avg_telescope_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_average_share FROM a WHERE share > avg_share",
+  "WITH counts AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), shares AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT AVG(s.cnt) AS avg_telescope_count, AVG(s.share) AS avg_share, AVG(s.share - av.a) AS avg_excess_over_average_share FROM shares s CROSS JOIN avg_share av WHERE s.share > av.a",
+  "WITH counts AS (SELECT o.observstation, COUNT(t.telescregistry) AS cnt FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), shares AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT AVG(s.cnt) AS avg_telescope_count, AVG(s.share) AS avg_share, AVG(s.share - av.a) AS avg_excess_over_average_share FROM shares s CROSS JOIN avg_share av WHERE s.share > av.a",
+  "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT AVG(s.cnt) AS avg_telescope_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT *, AVG(share) OVER () AS avg_share FROM s) SELECT AVG(cnt * 1.0) AS avg_telescope_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_average_share FROM a WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "Observatories are those appearing in the telescopes table (observatories with no telescopes are excluded from the average share, since the request defines the count by telescopes.observstation).",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average share across all observatories is the unweighted mean of per-observatory shares (equal to 1/number of observatories).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH counts AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), shares AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT AVG(s.cnt) AS avg_telescope_count, AVG(s.share) AS avg_share, AVG(s.share - av.a) AS avg_excess_over_average_share FROM shares s CROSS JOIN avg_share av WHERE s.share > av.a",
+   "assumptions": [
+    {
+     "assumption": "Observatories are those that appear in the telescopes table (observatories with zero telescopes are not included in the count, share, or average-share baseline).",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'average share across all observatories' is the simple mean of per-observatory shares (equal to 1 divided by the number of observatories), and the summary averages are computed only over observatories whose share is strictly above it.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include observatories from the observatories table that have no telescopes (count 0) when computing the shares' average baseline.",
+     "sql": "WITH counts AS (SELECT o.observstation, COUNT(t.telescregistry) AS cnt FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), shares AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT AVG(s.cnt) AS avg_telescope_count, AVG(s.share) AS avg_share, AVG(s.share - av.a) AS avg_excess_over_average_share FROM shares s CROSS JOIN avg_share av WHERE s.share > av.a"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT AVG(s.cnt) AS avg_telescope_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+   "assumptions": [
+    {
+     "assumption": "Observatories are those appearing in the telescopes table (observatories with no telescopes are excluded from the average share). The average share is taken across these observatories.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If no observatory is above average (all equal), the query returns a row of NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9fe5c73bb8",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 121980,
+  "chars_out": 3249
+ }
+}

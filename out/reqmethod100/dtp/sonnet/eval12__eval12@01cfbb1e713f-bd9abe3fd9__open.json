@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Group by site code and insurance status, where only processing records with a matching site count. Each group's average CPU\u2013GPU gap is the average of per-row (proccpu \u2212 procgpu), skipping rows where either value is missing. The ratio is the group's average remaining storage divided by the mean of all groups' average remaining storage.",
+  "Same as 1, but the average CPU\u2013GPU gap is the average proccpu minus the average procgpu. Each average is computed separately, so a row missing one value can still contribute to the other.",
+  "Same as 1, but the gap is the absolute difference, |proccpu \u2212 procgpu|, averaged per row.",
+  "Same as 2, but the gap is the absolute value of (average proccpu \u2212 average procgpu).",
+  "The matching is an inner join between scanprocessing and sites. Processing records with no matching site are dropped, and so are sites with no processing records.",
+  "Since the group key is site code plus insurance status, and site code is the primary key of sites, each site code gives exactly one group.",
+  "The denominator is the unweighted mean of the per-group average remaining storage values. Groups with a missing average are skipped. Each group counts once regardless of its record count.",
+  "The denominator is instead the overall average remaining storage across all matching processing records, weighted by record count.",
+  "If the denominator is missing (no group has a non-missing average remaining storage), return no rows.",
+  "If a group's average remaining storage is missing but the denominator exists, the group stays in the result with a missing ratio. These rows sort last.",
+  "The ratio is group average divided by overall mean, so a value above 1 means above average. It is not a percentage difference from the mean.",
+  "A zero denominator is possible. It could be treated as missing and return no rows, or it could produce null or undefined ratios.",
+  "Sort by ratio descending with missing ratios last, and keep the top 10 rows. Ties could be left in arbitrary order or broken by site code.",
+  "Insurance status can be missing for a site. Those groups either stay with a null status or are excluded.",
+  "The output columns are site code, insurance status, average remaining storage, average CPU\u2013GPU gap and ratio. The ratio may or may not be included as a displayed column.",
+  "\"Don't round anything\" means full precision is returned, with no rounding in any computed value.",
+  "The CPU\u2013GPU gap is signed (CPU minus GPU). Alternatively it is GPU minus CPU, if \"CPU\u2013GPU\" is read as GPU relative to CPU."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT s.zoneregistry AS site_code,\n         s.insurstat AS insurance_status,\n         AVG(p.proccpu - p.procgpu) AS avg_cpu_gpu_gap,\n         AVG(p.remaingb) AS avg_remaining\n  FROM scanprocessing p\n  JOIN sites s ON p.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.insurstat\n)\nSELECT site_code,\n       insurance_status,\n       avg_cpu_gpu_gap,\n       avg_remaining / (SELECT AVG(avg_remaining) FROM g) AS storage_ratio\nFROM g;\n",
+  "SELECT AVG(proccpu) - AVG(procgpu) AS avg_cpu_gpu_gap FROM scanprocessing;\n",
+  "SELECT AVG(ABS(proccpu - procgpu)) FROM scanprocessing",
+  "SELECT flowsoft, ABS(AVG(proccpu) - AVG(procgpu)) AS gap\nFROM scanprocessing\nGROUP BY flowsoft\nORDER BY gap DESC\nLIMIT 1;\n",
+  "SELECT ...\nFROM scanprocessing\nJOIN sites ON scanprocessing.zoneref = sites.zoneregistry\n"
+ ],
+ "raw": [
+  "1. Group by site code and insurance status, where only processing records with a matching site count. Each group's average CPU\u2013GPU gap is the average of per-row (proccpu \u2212 procgpu), skipping rows where either value is missing. The ratio is the group's average remaining storage divided by the mean of all groups' average remaining storage.\n2. Same as 1, but the average CPU\u2013GPU gap is the average proccpu minus the average procgpu. Each average is computed separately, so a row missing one value can still contribute to the other.\n3. Same as 1, but the gap is the absolute difference, |proccpu \u2212 procgpu|, averaged per row.\n4. Same as 2, but the gap is the absolute value of (average proccpu \u2212 average procgpu).\n5. The matching is an inner join between scanprocessing and sites. Processing records with no matching site are dropped, and so are sites with no processing records.\n6. Since the group key is site code plus insurance status, and site code is the primary key of sites, each site code gives exactly one group.\n7. The denominator is the unweighted mean of the per-group average remaining storage values. Groups with a missing average are skipped. Each group counts once regardless of its record count.\n8. The denominator is instead the overall average remaining storage across all matching processing records, weighted by record count.\n9. If the denominator is missing (no group has a non-missing average remaining storage), return no rows.\n10. If a group's average remaining storage is missing but the denominator exists, the group stays in the result with a missing ratio. These rows sort last.\n11. The ratio is group average divided by overall mean, so a value above 1 means above average. It is not a percentage difference from the mean.\n12. A zero denominator is possible. It could be treated as missing and return no rows, or it could produce null or undefined ratios.\n13. Sort by ratio descending with missing ratios last, and keep the top 10 rows. Ties could be left in arbitrary order or broken by site code.\n14. Insurance status can be missing for a site. Those groups either stay with a null status or are excluded.\n15. The output columns are site code, insurance status, average remaining storage, average CPU\u2013GPU gap and ratio. The ratio may or may not be included as a displayed column.\n16. \"Don't round anything\" means full precision is returned, with no rounding in any computed value.\n17. The CPU\u2013GPU gap is signed (CPU minus GPU). Alternatively it is GPU minus CPU, if \"CPU\u2013GPU\" is read as GPU relative to CPU.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd9abe3fd9",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 328109,
+  "chars_out": 4190
+ }
+}

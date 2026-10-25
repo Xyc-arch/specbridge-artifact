@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ab1cedcf3f",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Per-city address counts and their share of all addresses, sorted by share in descending order. Return the top 10 plus every city whose count ties with the 10th-ranked city's count.",
+ "b": {
+  "request": "List each city\u2019s address count and its fraction of all addresses, ordered by descending fraction; return the top 10 cities by count, including all cities tied with the 10th-ranked city",
+  "sql": "WITH city_address_counts AS (\n  SELECT ci.city, COUNT(*) AS address_count\n  FROM address a\n  JOIN city ci ON ci.city_id = a.city_id\n  GROUP BY ci.city_id, ci.city\n), ranked_cities AS (\n  SELECT city, address_count,\n         RANK() OVER (ORDER BY address_count DESC) AS city_rank\n  FROM city_address_counts\n)\nSELECT city,\n       address_count,\n       address_count * 1.0 / (SELECT COUNT(*) FROM address) AS fraction_of_all_addresses\nFROM ranked_cities\nWHERE city_rank <= 10\nORDER BY address_count DESC, city;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Which are the top 10 cities by share of addresses? For each `city_id`, show how many addresses it has and what fraction of all addresses that is (its count divided by the total number of addresses, as an unrounded fraction rather than a percentage), sorted from the highest fraction to the lowest. Per-city address counts and their share of all addresses, sorted by share in descending order. Return the top 10 plus every city whose count ties with the 10th-ranked city's count.",
+  "sql": "WITH city_address_counts AS (\n  SELECT city_id, COUNT(*) AS address_count\n  FROM address\n  GROUP BY city_id\n), ranked_cities AS (\n  SELECT city_id, address_count,\n         RANK() OVER (ORDER BY address_count DESC) AS city_rank\n  FROM city_address_counts\n)\nSELECT city_id,\n       address_count,\n       address_count / (SELECT COUNT(*) FROM address) AS address_fraction\nFROM ranked_cities\nWHERE city_rank <= 10\nORDER BY address_fraction DESC, city_id;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each `city_id` in the address table, how many addresses does it have, and what fraction of all addresses is that (its count divided by the total number of addresses, as an unrounded fraction rather than a percentage)? List `city_id`, the address count and the fraction, sorted by fraction from highest to lowest, and show the top 10 cities, also including every city whose address count ties with the 10th-place city, even if that gives more than 10 rows.",
+  "sql": "WITH city_counts AS (\n  SELECT city_id, COUNT(*) AS address_count\n  FROM address\n  GROUP BY city_id\n), ranked AS (\n  SELECT city_id, address_count,\n         address_count * 1.0 / (SELECT COUNT(*) FROM address) AS fraction,\n         RANK() OVER (ORDER BY address_count DESC) AS position\n  FROM city_counts\n)\nSELECT city_id, address_count, fraction\nFROM ranked\nWHERE position <= 10\nORDER BY fraction DESC, city_id;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Which cities have the highest share of all addresses? For each city, show its address count and its unrounded fraction of the total number of addresses. Sort by share in descending order and return the top 10 cities, including any additional cities tied with the 10th-ranked city by address count.",
+  "sql": "WITH city_address_counts AS (\n  SELECT ci.city_id, ci.city, COUNT(*) AS address_count\n  FROM address a\n  JOIN city ci ON ci.city_id = a.city_id\n  GROUP BY ci.city_id, ci.city\n), ranked_cities AS (\n  SELECT city_id, city, address_count,\n         RANK() OVER (ORDER BY address_count DESC) AS address_rank\n  FROM city_address_counts\n)\nSELECT city, address_count,\n       address_count / (SELECT COUNT(*) FROM address) AS address_share\nFROM ranked_cities\nWHERE address_rank <= 10\nORDER BY address_share DESC;",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "interpretations": [
+  "Count matched risk/margin records by non-null `ordertune`, calculate the mean across types with at least one matched record, then return one row containing the mean count of types above that mean and their mean excess over it.",
+  "Treat a null `ordertune` as its own type when calculating both means from matched risk/margin records.",
+  "Include every non-null `ordertune` found in `orders`, assigning a count of zero to types with no matched risk/margin records, then calculate both means.",
+  "Include null `ordertune` as a type alongside every other type found in `orders`, assigning zero counts where applicable, then calculate both means.",
+  "Include all four documented order types (`Stop`, `Market`, `Limit`, `StopLimit`), assigning zero counts to types with no matched risk/margin records, then calculate both means.",
+  "Include all four documented order types, assigning zero counts where needed, and also treat a null `ordertune` found in `orders` as a type when calculating both means."
+ ],
+ "queries": [
+  "WITH type_counts AS (\n    SELECT o.ordertune, COUNT(*) AS record_count\n    FROM riskandmargin AS r\n    JOIN orders AS o ON o.recordvault = r.ordervault\n    WHERE o.ordertune IS NOT NULL\n    GROUP BY o.ordertune\n),\noverall_mean AS (\n    SELECT AVG(record_count) AS mean_count\n    FROM type_counts\n)\nSELECT\n    AVG(t.record_count) AS mean_count,\n    AVG(t.record_count - m.mean_count) AS mean_excess\nFROM type_counts AS t\nCROSS JOIN overall_mean AS m\nWHERE t.record_count > m.mean_count",
+  "SELECT\n    ordertune,\n    SUM(CASE WHEN dealedge = 'Buy' THEN 1 ELSE 0 END) AS buy_count,\n    SUM(CASE WHEN dealedge = 'Sell' THEN 1 ELSE 0 END) AS sell_count,\n    AVG(dealquote) AS mean_dealquote,\n    AVG(dealcount) AS mean_dealcount\nFROM orders\nGROUP BY ordertune",
+  "WITH order_types(ordertune) AS (\n    VALUES ('Stop'), ('Market'), ('Limit'), ('StopLimit')\n),\ntypes AS (\n    SELECT ordertune FROM order_types\n    UNION ALL\n    SELECT NULL\n    WHERE EXISTS (SELECT 1 FROM orders WHERE ordertune IS NULL)\n)\nSELECT\n    t.ordertune,\n    COUNT(o.orderspivot) AS order_count,\n    AVG(o.dealquote) AS mean_dealquote,\n    AVG(o.dealcount) AS mean_dealcount\nFROM types AS t\nLEFT JOIN orders AS o ON o.ordertune IS t.ordertune\nGROUP BY t.ordertune"
+ ],
+ "raw": [
+  "- Count matched risk/margin records by non-null `ordertune`, calculate the mean across types with at least one matched record, then return one row containing the mean count of types above that mean and their mean excess over it.\n- Treat a null `ordertune` as its own type when calculating both means from matched risk/margin records.\n- Include every non-null `ordertune` found in `orders`, assigning a count of zero to types with no matched risk/margin records, then calculate both means.\n- Include null `ordertune` as a type alongside every other type found in `orders`, assigning zero counts where applicable, then calculate both means.\n- Include all four documented order types (`Stop`, `Market`, `Limit`, `StopLimit`), assigning zero counts to types with no matched risk/margin records, then calculate both means.",
+  "Include all four documented order types, assigning zero counts where needed, and also treat a null `ordertune` found in `orders` as a type when calculating both means."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7b6fd5bf32",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 105980,
+  "chars_out": 2390
+ }
+}

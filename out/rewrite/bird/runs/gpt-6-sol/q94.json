@@ -1,0 +1,32 @@
+{
+ "id": "q94",
+ "db": "financial",
+ "path": "dev_unzipped/dev_20240627/dev_databases/financial/financial.sqlite",
+ "question": "List out the account numbers of female clients who are oldest and has lowest average salary, calculate the gap between this lowest average salary with the highest average salary?",
+ "evidence": "Female means gender = 'F'; A11 refers to average salary; Gap = highest average salary - lowest average salary; If the person A's birthdate > B's birthdate, it means that person B is order than person A.",
+ "rule": "ties",
+ "clarification": "If several rows tie at the cut-off, return all of them.",
+ "gold": "SELECT c0, c1 FROM (SELECT T1.account_id AS c0, (SELECT MAX(A11) - MIN(A11) FROM district) AS c1, RANK() OVER (ORDER BY T2.A11 DESC) AS __r FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id INNER JOIN client AS T4 ON T3.client_id = T4.client_id WHERE T2.district_id = (SELECT district_id FROM client WHERE gender = 'F' ORDER BY birth_date ASC LIMIT 1)) AS __t WHERE __r <= 1",
+ "gold0": "SELECT T1.account_id , ( SELECT MAX(A11) - MIN(A11) FROM district ) FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id INNER JOIN client AS T4 ON T3.client_id = T4.client_id WHERE T2.district_id = ( SELECT district_id FROM client WHERE gender = 'F' ORDER BY birth_date ASC LIMIT 1 ) ORDER BY T2.A11 DESC LIMIT 1",
+ "d": {
+  "request": "Among female clients (gender = 'F'), list the account numbers of those who are oldest and have the lowest average salary (A11). Include all rows tied at either cutoff. What is the gap between the highest and lowest average salary?",
+  "sql": "WITH female_clients AS (SELECT c.client_id, c.birth_date, d.A11 AS average_salary FROM client AS c JOIN district AS d ON d.district_id = c.district_id WHERE c.gender = 'F'), cutoffs AS (SELECT MIN(birth_date) AS oldest_birth_date, MIN(average_salary) AS lowest_salary, MAX(average_salary) - MIN(average_salary) AS salary_gap FROM female_clients) SELECT DISTINCT disp.account_id, cutoffs.salary_gap FROM female_clients JOIN disp ON disp.client_id = female_clients.client_id CROSS JOIN cutoffs WHERE female_clients.birth_date = cutoffs.oldest_birth_date OR female_clients.average_salary = cutoffs.lowest_salary ORDER BY disp.account_id",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "b": {
+  "request": "Return the account IDs of every female client who is tied for the earliest birth date and whose district is tied for the lowest A11 average salary; also calculate the highest A11 average salary minus the lowest A11 average salary",
+  "sql": "SELECT DISTINCT d.account_id, (SELECT MAX(A11) - MIN(A11) FROM district) AS salary_difference FROM client AS c JOIN disp AS d ON d.client_id = c.client_id JOIN district AS dist ON dist.district_id = c.district_id WHERE c.gender = 'F' AND c.birth_date = (SELECT MIN(birth_date) FROM client WHERE gender = 'F') AND dist.A11 = (SELECT MIN(A11) FROM district);",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "c": {
+  "request": "List out the account numbers of female clients who are oldest and has lowest average salary, calculate the gap between this lowest average salary with the highest average salary?\nEvidence: Female means gender = 'F'; A11 refers to average salary; Gap = highest average salary - lowest average salary; If the person A's birthdate > B's birthdate, it means that person B is order than person A.\nIf several rows tie at the cut-off, return all of them.",
+  "sql": "WITH ranked AS (SELECT disp.account_id, c.birth_date, d.A11 AS average_salary, DENSE_RANK() OVER (ORDER BY c.birth_date ASC, d.A11 ASC) AS rank_no FROM client AS c JOIN disp ON disp.client_id = c.client_id JOIN district AS d ON d.district_id = c.district_id WHERE c.gender = 'F') SELECT DISTINCT account_id, (SELECT MAX(A11) - MIN(A11) FROM district) AS salary_gap FROM ranked WHERE rank_no = 1;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ }
+}

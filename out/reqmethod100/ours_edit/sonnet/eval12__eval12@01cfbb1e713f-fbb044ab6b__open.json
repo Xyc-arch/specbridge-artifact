@@ -1,0 +1,26 @@
+{
+ "clauses": [
+  "Compute each invoice's ratio as the average of its per-line total-cost-to-price ratios, and the overall average as the mean of invoice ratios.",
+  "Compute each invoice's ratio as its summed (or averaged) total cost divided by its summed (or averaged) product price, and the overall average as the mean of invoice ratios.",
+  "Compute per-line total-cost-to-price ratios, take the overall average across all lines pooled, and compare each invoice's average line ratio to it."
+ ],
+ "readings": [
+  "For each invoice, look at its average line product cost (`derived_product_cost`) and its ratio of total cost (`derived_total_cost`) to unit price (`product_price`), ignoring missing values. Take the invoices whose ratio is above the average ratio across all invoices. In a single row, what are their average product cost, their average ratio, and on average how far their ratio sits above that overall average? No rounding. Compute each invoice's ratio as the average of its per-line total-cost-to-price ratios, and the overall average as the mean of invoice ratios.",
+  "For each invoice, look at its average line product cost (`derived_product_cost`) and its ratio of total cost (`derived_total_cost`) to unit price (`product_price`), ignoring missing values. Take the invoices whose ratio is above the average ratio across all invoices. In a single row, what are their average product cost, their average ratio, and on average how far their ratio sits above that overall average? No rounding. Compute each invoice's ratio as its summed (or averaged) total cost divided by its summed (or averaged) product price, and the overall average as the mean of invoice ratios.",
+  "For each invoice, look at its average line product cost (`derived_product_cost`) and its ratio of total cost (`derived_total_cost`) to unit price (`product_price`), ignoring missing values. Take the invoices whose ratio is above the average ratio across all invoices. In a single row, what are their average product cost, their average ratio, and on average how far their ratio sits above that overall average? No rounding. Compute per-line total-cost-to-price ratios, take the overall average across all lines pooled, and compare each invoice's average line ratio to it."
+ ],
+ "queries": [
+  "WITH inv AS (\n  SELECT invoice_number,\n         AVG(derived_product_cost) AS avg_cost,\n         AVG(derived_total_cost * 1.0 / product_price) AS ratio\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n  HAVING AVG(derived_total_cost * 1.0 / product_price) IS NOT NULL\n),\noverall AS (\n  SELECT AVG(ratio) AS avg_ratio FROM inv\n)\nSELECT AVG(inv.avg_cost) AS avg_product_cost,\n       AVG(inv.ratio) AS avg_ratio,\n       AVG(inv.ratio - overall.avg_ratio) AS avg_diff\nFROM inv, overall\nWHERE inv.ratio > overall.avg_ratio;\n",
+  "WITH inv AS (\n  SELECT invoice_number,\n         AVG(derived_product_cost) AS avg_cost,\n         SUM(derived_total_cost) * 1.0 / NULLIF(SUM(product_price), 0) AS ratio\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n),\no AS (\n  SELECT AVG(ratio) AS avg_ratio FROM inv\n)\nSELECT AVG(inv.avg_cost) AS avg_product_cost,\n       AVG(inv.ratio) AS avg_ratio,\n       AVG(inv.ratio - o.avg_ratio) AS avg_ratio_above_overall\nFROM inv, o\nWHERE inv.ratio > o.avg_ratio;\n",
+  "WITH lines AS (\n  SELECT invoice_number,\n         derived_product_cost AS cost,\n         CAST(derived_total_cost AS REAL) / product_price AS ratio\n  FROM Invoice_Line_Items\n),\noverall AS (\n  SELECT AVG(ratio) AS r FROM lines\n),\ninv AS (\n  SELECT invoice_number,\n         AVG(cost) AS avg_cost,\n         AVG(ratio) AS avg_ratio\n  FROM lines\n  GROUP BY invoice_number\n)\nSELECT AVG(avg_cost) AS avg_product_cost,\n       AVG(avg_ratio) AS avg_ratio,\n       AVG(avg_ratio - (SELECT r FROM overall)) AS avg_ratio_above_overall\nFROM inv\nWHERE avg_ratio > (SELECT r FROM overall);\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fbb044ab6b",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 4,
+  "chars_in": 15509,
+  "chars_out": 2072
+ }
+}

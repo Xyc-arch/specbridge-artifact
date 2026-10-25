@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b6c13c0329",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "For each sex, count the examination records.",
+ "a": {
+  "request": "Matching examinations to their patients, count the examination records for each `SEX` value (blank and missing sexes are their own groups) and work out each sex's share of the combined count. Among the sexes whose count is above the average count per sex, give one row with the total of their counts, the average of their shares, and the average amount by which their counts exceed that per-sex average.",
+  "sql": "WITH sex_counts AS (\n  SELECT p.SEX, COUNT(*) AS examination_count\n  FROM Examination e\n  JOIN Patient p ON p.ID = e.ID\n  GROUP BY p.SEX\n),\nsex_shares AS (\n  SELECT SEX,\n         examination_count,\n         1.0 * examination_count / SUM(examination_count) OVER () AS share_of_total,\n         AVG(1.0 * examination_count) OVER () AS average_count_per_sex\n  FROM sex_counts\n)\nSELECT SUM(examination_count) AS total_count,\n       AVG(share_of_total) AS average_share,\n       AVG(examination_count - average_count_per_sex) AS average_excess_count\nFROM sex_shares\nWHERE examination_count > average_count_per_sex;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Looking at the examination data by patient sex (blank and missing sexes as their own groups), how many were examined in each sex, and what share of the overall total is that? For the sexes above the per-sex average, give one row with their combined total, their average share, and on average how far above the per-sex average they are. For each sex, count the examination records.",
+  "sql": "WITH per_sex AS (\n    SELECT\n        CASE\n            WHEN p.ID IS NULL THEN 'missing patient'\n            WHEN p.SEX IS NULL THEN 'missing sex'\n            WHEN TRIM(p.SEX) = '' THEN 'blank sex'\n            ELSE p.SEX\n        END AS sex_group,\n        COUNT(*) AS examination_count\n    FROM Examination e\n    LEFT JOIN Patient p ON p.ID = e.ID\n    GROUP BY sex_group\n), totals AS (\n    SELECT\n        SUM(examination_count) AS overall_total,\n        AVG(examination_count) AS per_sex_average\n    FROM per_sex\n), summary AS (\n    SELECT\n        SUM(ps.examination_count) AS combined_total,\n        AVG(1.0 * ps.examination_count / t.overall_total) AS average_share,\n        AVG(ps.examination_count - t.per_sex_average) AS average_above_per_sex_average\n    FROM per_sex ps\n    CROSS JOIN totals t\n    WHERE ps.examination_count > t.per_sex_average\n)\nSELECT\n    ps.sex_group,\n    ps.examination_count,\n    1.0 * ps.examination_count / t.overall_total AS share_of_overall_total,\n    s.combined_total AS above_average_combined_total,\n    s.average_share AS above_average_average_share,\n    s.average_above_per_sex_average\nFROM per_sex ps\nCROSS JOIN totals t\nCROSS JOIN summary s\nORDER BY ps.sex_group;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Group Examination records by Patient.SEX, treating blank and NULL sex values as separate groups, and report each group\u2019s record count and percentage of all Examination records. For sex groups with counts above the average count per sex group, report one combined row with their total count, their average share of all records, and their average count above the per-sex average",
+  "sql": "WITH sex_counts AS (\n    SELECT p.SEX, COUNT(*) AS record_count\n    FROM Examination e\n    JOIN Patient p ON p.ID = e.ID\n    GROUP BY p.SEX\n),\nall_stats AS (\n    SELECT SUM(record_count) AS total_records,\n           AVG(record_count * 1.0) AS avg_count\n    FROM sex_counts\n)\nSELECT SUM(sc.record_count) AS total_count,\n       AVG(sc.record_count * 100.0 / ast.total_records) AS average_share_percent,\n       AVG(sc.record_count - ast.avg_count) AS average_count_above_sex_average\nFROM sex_counts sc\nCROSS JOIN all_stats ast\nWHERE sc.record_count > ast.avg_count;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each patient sex, treating blank and missing sex values as separate groups, how many examination records are there?",
+  "sql": "SELECT COALESCE(NULLIF(TRIM(p.SEX), ''), '(missing)') AS sex, COUNT(e.ID) AS examination_record_count FROM Patient p LEFT JOIN Examination e ON e.ID = p.ID GROUP BY COALESCE(NULLIF(TRIM(p.SEX), ''), '(missing)')",
+  "executes": true,
+  "matches": []
+ }
+}

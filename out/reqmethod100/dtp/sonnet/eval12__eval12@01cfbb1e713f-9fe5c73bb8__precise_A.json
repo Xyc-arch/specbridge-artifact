@@ -1,0 +1,35 @@
+{
+ "interpretations": [
+  "Observatories are the distinct `observstation` values in the telescopes table, so observatories with no telescopes are excluded. Each share is its telescope count divided by the total number of telescopes. The \"average share\" is the mean of those shares across observatories, which equals 1 \u00f7 the number of observatories. Observatories with a share strictly above that are kept. The row gives the average telescope count of the kept observatories, the average share of the kept observatories, and the average of (share \u2212 overall average share) over the kept observatories",
+  "This is the same as interpretation 1, except the observatories come from the observatories table. Observatories with zero telescopes count in the average share (the denominator is the number of all observatories) and have a count of 0. They can never be above average, so they never appear in the kept set",
+  "The same as interpretation 1, except the \"average share\" is the average over the kept (above-average) observatories only, with the excess measured against the overall average share. The three output columns are then: the average count of the kept observatories, the average share of the kept observatories, and the average excess over the overall average",
+  "The same as interpretation 1, except the excess is measured against the average share of the kept observatories themselves rather than the overall average. The average excess would then be 0 (or near 0)",
+  "The same as interpretation 1, except \"above the average\" is read as greater than or equal to the average. Observatories exactly at the average share, where all counts are equal, would be included",
+  "The same as interpretation 1, except \"average telescope count\" is the average count across all observatories, not just the kept ones. The average share is also the overall average, and the average excess is taken over the kept observatories",
+  "The same as interpretation 1, except the output is the average excess over the whole set of observatories, with the excess floored at 0 for observatories below average. This is the average of max(share \u2212 average share, 0) over all observatories",
+  "The output is one row with three separate columns, as in interpretation 1. Alternatively it is one row per metric (a long format), or the three averages are returned as a single combined value",
+  "The telescope count is the number of distinct `telescregistry` values per `observstation`. Alternatively it is the number of rows in the telescopes table per `observstation`. These match because `telescregistry` is the primary key",
+  "The share is a fraction from 0 to 1 and is not shown as a percentage. All values are unrounded, as requested",
+  "Missing interpretations:",
+  "The \"average share\" is the average of the shares of only the observatories that have telescopes, and the observatory set comes from the observatories table with zero-telescope observatories included in the count. The kept set is then the observatories above that average, with the denominator of the share still being total telescopes",
+  "The average excess is the average over the kept observatories of (share \u2212 average share), where the average share is the average of the telescope counts divided by the total telescopes. This is numerically the same as interpretation 1, but computed via the average count",
+  "The total telescope count used as the denominator includes only telescopes whose observatory exists in the observatories table. Alternatively, it includes all telescope rows",
+  "The share is computed with the denominator as the total number of signals or of telescopes linked to signals, rather than the total telescopes. The count is then the number of telescopes used in signals per observatory"
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT observstation, COUNT(*) AS cnt\n  FROM telescopes\n  GROUP BY observstation\n),\ntot AS (\n  SELECT SUM(cnt) * 1.0 AS total, COUNT(*) * 1.0 AS n FROM t\n),\ns AS (\n  SELECT t.observstation, t.cnt, t.cnt / tot.total AS share, 1.0 / tot.n AS avg_share\n  FROM t, tot\n)\nSELECT AVG(cnt) AS avg_telescope_count,\n       AVG(share) AS avg_share,\n       AVG(share - avg_share) AS avg_share_diff\nFROM s\nWHERE share > avg_share;\n",
+  "SELECT o.observstation, COUNT(t.telescregistry) AS telescope_count\nFROM observatories o\nLEFT JOIN telescopes t ON t.observstation = o.observstation\nGROUP BY o.observstation\nHAVING COUNT(t.telescregistry) > (\n  SELECT CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM observatories) FROM telescopes\n);\n",
+  "WITH c AS (\n  SELECT t.observstation, COUNT(*) AS cnt\n  FROM signals s\n  JOIN telescopes t ON s.telescref = t.telescregistry\n  GROUP BY t.observstation\n),\nsh AS (\n  SELECT observstation, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM c) AS share\n  FROM c\n),\nov AS (\n  SELECT AVG(share) AS a FROM sh\n)\nSELECT AVG(cnt) AS avg_count,\n       AVG(share) AS avg_share,\n       AVG(share - (SELECT a FROM ov)) AS avg_excess\nFROM sh\nWHERE cnt > (SELECT AVG(cnt) FROM c);\n",
+  "WITH obs_share AS (\n  SELECT t.observstation,\n         COUNT(*) * 1.0 / (SELECT COUNT(*) FROM signals) AS share\n  FROM signals s\n  JOIN telescopes t ON s.telescref = t.telescregistry\n  GROUP BY t.observstation\n),\nkept AS (\n  SELECT observstation, share\n  FROM obs_share\n  WHERE share > (SELECT AVG(share) FROM obs_share)\n)\nSELECT AVG(share - (SELECT AVG(share) FROM kept)) AS avg_excess\nFROM kept;\n",
+  "SELECT observstation\nFROM telescopes\nGROUP BY observstation\nHAVING COUNT(*) >= (\n  SELECT AVG(cnt)\n  FROM (\n    SELECT COUNT(*) AS cnt\n    FROM telescopes\n    GROUP BY observstation\n  )\n);\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9fe5c73bb8",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 324816,
+  "chars_out": 6533
+ }
+}

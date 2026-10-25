@@ -1,0 +1,43 @@
+{
+ "interpretations": [
+  "Count the invoices per order with a LEFT JOIN from Orders to Invoices, so orders with no invoice get 0. Share = the order's count divided by the sum of counts over all orders. The average share is the mean of shares over all orders, zero-invoice ones included. Keep orders whose share is strictly greater than that average. Return one row with SUM(invoice count) over the kept orders, AVG(share) over the kept orders, and AVG(share \u2212 overall average share) over the kept orders. Shares are computed as real (non-integer) division and nothing is rounded.",
+  "Same as 1, but the \"total number of invoices\" is the number of distinct invoice_numbers belonging to the kept orders. This is the same as the sum of counts, since invoice_number is a primary key.",
+  "Same as 1, but the \"total number of invoices\" is the number of kept orders. This reads \"their total number\" as a count of orders, not of invoices.",
+  "Same as 1, but the \"average share\" in the output is the overall average share across all orders, not the average over the kept orders.",
+  "Same as 1, but the \"average amount by which their share exceeds the average share\" is computed as AVG(share) \u2212 overall average share over the kept orders. Numerically this equals interpretation 1.",
+  "Same as 1, but the \"average amount by which their share exceeds the average share\" is a ratio (share \u00f7 average share) instead of a difference.",
+  "Same as 1, but the output has three columns in the order total invoices, average share, average excess. The column names are unspecified or arbitrary.",
+  "Same as 1, but integer division is used for the share, so shares truncate to 0. This is the unintended SQL reading.",
+  "Same as 1, but when the total invoice count is 0, shares are undefined (NULL or division by zero), so the result is NULL or an empty row.",
+  "Same as 1, but \"total invoice count across those orders\" counts only invoices of orders that have at least one invoice. This gives the same total as 1, because zero-invoice orders add 0.",
+  "Same as 1, but the invoice count per order is the number of Invoice_Line_Items rows for the order, not the number of Invoices.",
+  "Same as 1, but the invoice count per order is the number of Financial_Transactions linked through the order's invoices.",
+  "Same as 1, but orders are limited to those with a customer in Customers. Every order has one by the foreign key, so this gives the same result as 1.",
+  "Same as 1, but the average share is weighted. It is the sum of the kept shares divided by the number of all orders, not the mean over the kept orders.",
+  "Missing interpretations:",
+  "Same as 1, but the zero-invoice orders are excluded from the average share, so the mean is taken only over orders that have at least one invoice. The \"including orders with no invoice\" clause is ignored.",
+  "Same as 1, but \"strictly above\" is read as \"at or above\", so orders whose share equals the average are kept.",
+  "Same as 1, but the \"average amount by which their share exceeds the average share\" is the average absolute difference, or the average of the excess over all orders (with 0 for orders that aren't kept), rather than over the kept orders only.",
+  "Same as 1, but the \"total number of invoices\" is the total across all orders, not only the kept ones.",
+  "Same as 1, but the output has the average share expressed as a percentage, or the shares are scaled by 100.",
+  "Same as 1, but the invoice count per order is the number of Order_Items rows for the order, not the number of Invoices.",
+  "Same as 1, but the output has one row per kept order, rather than a single aggregate row."
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT o.order_id, COUNT(i.invoice_number) AS cnt\n  FROM Orders o\n  LEFT JOIN Invoices i ON o.order_id = i.order_id\n  GROUP BY o.order_id\n),\nshares AS (\n  SELECT order_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM counts) AS share\n  FROM counts\n),\navg_share AS (\n  SELECT AVG(share) AS a FROM shares\n)\nSELECT SUM(cnt) AS total_invoice_count,\n       AVG(share) AS avg_share,\n       AVG(share - (SELECT a FROM avg_share)) AS avg_share_diff\nFROM shares\nWHERE share > (SELECT a FROM avg_share);\n",
+  "SELECT COUNT(DISTINCT invoice_number) FROM Invoices;\n"
+ ],
+ "raw": [
+  "1. Count the invoices per order with a LEFT JOIN from Orders to Invoices, so orders with no invoice get 0. Share = the order's count divided by the sum of counts over all orders. The average share is the mean of shares over all orders, zero-invoice ones included. Keep orders whose share is strictly greater than that average. Return one row with SUM(invoice count) over the kept orders, AVG(share) over the kept orders, and AVG(share \u2212 overall average share) over the kept orders. Shares are computed as real (non-integer) division and nothing is rounded.\n\n2. Same as 1, but the \"total number of invoices\" is the number of distinct invoice_numbers belonging to the kept orders. This is the same as the sum of counts, since invoice_number is a primary key.\n\n3. Same as 1, but the \"total number of invoices\" is the number of kept orders. This reads \"their total number\" as a count of orders, not of invoices.\n\n4. Same as 1, but the \"average share\" in the output is the overall average share across all orders, not the average over the kept orders.\n\n5. Same as 1, but the \"average amount by which their share exceeds the average share\" is computed as AVG(share) \u2212 overall average share over the kept orders. Numerically this equals interpretation 1.\n\n6. Same as 1, but the \"average amount by which their share exceeds the average share\" is a ratio (share \u00f7 average share) instead of a difference.\n\n7. Same as 1, but the output has three columns in the order total invoices, average share, average excess. The column names are unspecified or arbitrary.\n\n8. Same as 1, but integer division is used for the share, so shares truncate to 0. This is the unintended SQL reading.\n\n9. Same as 1, but when the total invoice count is 0, shares are undefined (NULL or division by zero), so the result is NULL or an empty row.\n\n10. Same as 1, but \"total invoice count across those orders\" counts only invoices of orders that have at least one invoice. This gives the same total as 1, because zero-invoice orders add 0.\n\n11. Same as 1, but the invoice count per order is the number of Invoice_Line_Items rows for the order, not the number of Invoices.\n\n12. Same as 1, but the invoice count per order is the number of Financial_Transactions linked through the order's invoices.\n\n13. Same as 1, but orders are limited to those with a customer in Customers. Every order has one by the foreign key, so this gives the same result as 1.\n\n14. Same as 1, but the average share is weighted. It is the sum of the kept shares divided by the number of all orders, not the mean over the kept orders.",
+  "Missing interpretations:\n\nSame as 1, but the zero-invoice orders are excluded from the average share, so the mean is taken only over orders that have at least one invoice. The \"including orders with no invoice\" clause is ignored.\n\nSame as 1, but \"strictly above\" is read as \"at or above\", so orders whose share equals the average are kept.\n\nSame as 1, but the \"average amount by which their share exceeds the average share\" is the average absolute difference, or the average of the excess over all orders (with 0 for orders that aren't kept), rather than over the kept orders only.\n\nSame as 1, but the \"total number of invoices\" is the total across all orders, not only the kept ones.\n\nSame as 1, but the output has the average share expressed as a percentage, or the shares are scaled by 100.\n\nSame as 1, but the invoice count per order is the number of Order_Items rows for the order, not the number of Invoices.\n\nSame as 1, but the output has one row per kept order, rather than a single aggregate row."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69c4bd1cc2",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31555,
+  "chars_out": 5407
+ }
+}

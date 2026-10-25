@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Treat each patient's ratio as average HGB divided by average HCT, averaging over only rows where each is non-null.",
+  "Compute each patient's ratio as the average of per-row HGB/HCT, using only rows where both HGB and HCT are present.",
+  "Include only patients with a non-null average PIC and ratio in the all-patient average, excluding patients lacking PIC data.",
+  "Include every patient with a computable ratio in the all-patient average, even if their average PIC is null."
+ ],
+ "readings": [
+  "For each patient in the Laboratory table, compute their average PIC and their hemoglobin-to-hematocrit ratio, taken as their average `HGB` divided by their average `HCT` (ignoring missing values). Keep the patients whose ratio is above the average of all patients' ratios, and give one summary row for them: the average of their average PIC values, the average of their ratios, and the average amount by which their ratios exceed that all-patient average. Treat each patient's ratio as average HGB divided by average HCT, averaging over only rows where each is non-null.",
+  "For each patient in the Laboratory table, compute their average PIC and their hemoglobin-to-hematocrit ratio, taken as their average `HGB` divided by their average `HCT` (ignoring missing values). Keep the patients whose ratio is above the average of all patients' ratios, and give one summary row for them: the average of their average PIC values, the average of their ratios, and the average amount by which their ratios exceed that all-patient average. Compute each patient's ratio as the average of per-row HGB/HCT, using only rows where both HGB and HCT are present.",
+  "For each patient in the Laboratory table, compute their average PIC and their hemoglobin-to-hematocrit ratio, taken as their average `HGB` divided by their average `HCT` (ignoring missing values). Keep the patients whose ratio is above the average of all patients' ratios, and give one summary row for them: the average of their average PIC values, the average of their ratios, and the average amount by which their ratios exceed that all-patient average. Include only patients with a non-null average PIC and ratio in the all-patient average, excluding patients lacking PIC data.",
+  "For each patient in the Laboratory table, compute their average PIC and their hemoglobin-to-hematocrit ratio, taken as their average `HGB` divided by their average `HCT` (ignoring missing values). Keep the patients whose ratio is above the average of all patients' ratios, and give one summary row for them: the average of their average PIC values, the average of their ratios, and the average amount by which their ratios exceed that all-patient average. Include every patient with a computable ratio in the all-patient average, even if their average PIC is null."
+ ],
+ "queries": [
+  "WITH p AS (\n  SELECT ID,\n         AVG(PIC) AS avg_pic,\n         AVG(HGB) * 1.0 / AVG(HCT) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n),\nm AS (\n  SELECT AVG(ratio) AS avg_ratio FROM p WHERE ratio IS NOT NULL\n)\nSELECT AVG(p.avg_pic) AS avg_pic,\n       AVG(p.ratio) AS avg_ratio,\n       AVG(p.ratio - m.avg_ratio) AS avg_excess\nFROM p, m\nWHERE p.ratio > m.avg_ratio;\n",
+  "WITH p AS (\n  SELECT ID,\n         AVG(PIC) AS avg_pic,\n         AVG(CASE WHEN HGB IS NOT NULL AND HCT IS NOT NULL THEN HGB / HCT END) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n),\nm AS (\n  SELECT AVG(ratio) AS overall_avg FROM p\n)\nSELECT AVG(p.avg_pic) AS avg_of_avg_pic,\n       AVG(p.ratio) AS avg_ratio,\n       AVG(p.ratio - m.overall_avg) AS avg_excess\nFROM p, m\nWHERE p.ratio > m.overall_avg;\n",
+  "WITH p AS (\n    SELECT ID,\n           AVG(PIC) AS avg_pic,\n           AVG(HGB) * 1.0 / AVG(HCT) AS ratio\n    FROM Laboratory\n    GROUP BY ID\n    HAVING AVG(PIC) IS NOT NULL AND AVG(HGB) IS NOT NULL AND AVG(HCT) IS NOT NULL AND AVG(HCT) <> 0\n),\nt AS (\n    SELECT AVG(ratio) AS overall FROM p\n)\nSELECT AVG(p.avg_pic) AS avg_of_avg_pic,\n       AVG(p.ratio) AS avg_ratio,\n       AVG(p.ratio - t.overall) AS avg_excess\nFROM p, t\nWHERE p.ratio > t.overall;\n",
+  "WITH p AS (\n  SELECT ID, AVG(PIC) AS avg_pic, AVG(HGB) * 1.0 / AVG(HCT) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n  HAVING AVG(HGB) IS NOT NULL AND AVG(HCT) IS NOT NULL AND AVG(HCT) <> 0\n),\no AS (\n  SELECT AVG(ratio) AS overall FROM p\n)\nSELECT AVG(p.avg_pic) AS avg_pic,\n       AVG(p.ratio) AS avg_ratio,\n       AVG(p.ratio - o.overall) AS avg_excess\nFROM p, o\nWHERE p.ratio > o.overall;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-568a31721e",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 5,
+  "chars_in": 42500,
+  "chars_out": 2125
+ }
+}

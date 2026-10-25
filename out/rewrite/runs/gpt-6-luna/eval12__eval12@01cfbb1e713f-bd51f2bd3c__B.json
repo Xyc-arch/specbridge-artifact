@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bd51f2bd3c",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Each invoice's cost ratio is its summed product cost \u00f7 its summed total cost.",
+ "b": {
+  "request": "For each invoice in `Invoice_Line_Items`, show its invoice number, the ratio of the sum of its `derived_product_cost` values to the sum of its `derived_total_cost` values, the number of its line items, and its ratio divided by the average of the ratios across all invoices. Ignore missing values throughout, and return rows only if that overall average exists. Sort by the relative figure in descending order, with missing values last, return the top 10 rows, and do not round any values",
+  "sql": "WITH invoice_ratios AS (\n  SELECT\n    invoice_number,\n    SUM(derived_product_cost) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS cost_ratio,\n    COUNT(*) AS line_item_count\n  FROM Invoice_Line_Items\n  WHERE derived_product_cost IS NOT NULL\n    AND derived_total_cost IS NOT NULL\n  GROUP BY invoice_number\n),\noverall_average AS (\n  SELECT AVG(cost_ratio) AS average_ratio\n  FROM invoice_ratios\n  WHERE cost_ratio IS NOT NULL\n)\nSELECT\n  ir.invoice_number,\n  ir.cost_ratio,\n  ir.line_item_count,\n  ir.cost_ratio / NULLIF(oa.average_ratio, 0) AS relative_figure\nFROM invoice_ratios ir\nCROSS JOIN overall_average oa\nWHERE oa.average_ratio IS NOT NULL\nORDER BY relative_figure DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each invoice number in `Invoice_Line_Items`, give the invoice number, the invoice's cost ratio, its number of line items, and its relative ratio. To get the invoice's cost ratio, add up `derived_product_cost` over its lines and divide by the sum of `derived_total_cost` over its lines, ignoring missing values in each sum. The relative ratio is the invoice's cost ratio divided by the average of all invoices' cost ratios (ignoring missing values). Return rows only when that overall average exists. Sort by the relative ratio from highest to lowest, with missing values last, show the top 10, and don't round anything.",
+  "sql": "WITH invoice_ratios AS (\n    SELECT invoice_number,\n           SUM(derived_product_cost) / NULLIF(SUM(derived_total_cost), 0) AS cost_ratio,\n           COUNT(*) AS number_of_line_items\n    FROM Invoice_Line_Items\n    GROUP BY invoice_number\n),\nratios_with_average AS (\n    SELECT invoice_number,\n           cost_ratio,\n           number_of_line_items,\n           AVG(cost_ratio) OVER () AS average_cost_ratio\n    FROM invoice_ratios\n)\nSELECT invoice_number,\n       cost_ratio,\n       number_of_line_items,\n       cost_ratio / NULLIF(average_cost_ratio, 0) AS relative_ratio\nFROM ratios_with_average\nWHERE average_cost_ratio IS NOT NULL\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each invoice in `Invoice_Line_Items`, show the invoice number, the invoice's ratio of product cost (`derived_product_cost`) to total cost (`derived_total_cost`), how many line items it has, and that ratio divided by the average ratio across all invoices. Ignore missing values throughout, and return rows only when that overall average exists. Sort by the relative figure from highest to lowest, with missing values last, show the top 10, and don't round anything. Each invoice's cost ratio is its summed product cost \u00f7 its summed total cost.",
+  "sql": "WITH invoice_totals AS (\n  SELECT invoice_number,\n         SUM(derived_product_cost) AS product_cost,\n         SUM(derived_total_cost) AS total_cost,\n         COUNT(*) AS line_item_count\n  FROM Invoice_Line_Items\n  WHERE derived_product_cost IS NOT NULL\n    AND derived_total_cost IS NOT NULL\n  GROUP BY invoice_number\n), invoice_ratios AS (\n  SELECT invoice_number,\n         product_cost / NULLIF(total_cost, 0) AS cost_ratio,\n         line_item_count\n  FROM invoice_totals\n), overall_average AS (\n  SELECT AVG(cost_ratio) AS average_ratio\n  FROM invoice_ratios\n  WHERE cost_ratio IS NOT NULL\n)\nSELECT r.invoice_number,\n       r.cost_ratio,\n       r.line_item_count,\n       r.cost_ratio / NULLIF(a.average_ratio, 0) AS relative_figure\nFROM invoice_ratios r\nCROSS JOIN overall_average a\nWHERE a.average_ratio IS NOT NULL\nORDER BY relative_figure DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each invoice in `Invoice_Line_Items`, calculate its cost ratio as the sum of `derived_product_cost` divided by the sum of `derived_total_cost`. Show the invoice number, this ratio, its number of line items, and the ratio divided by the average ratio across all invoices. Ignore missing values throughout, and return rows only if the overall average exists. Sort by the relative figure from highest to lowest, with missing values last. Show the top 10 and don\u2019t round anything.",
+  "sql": "WITH invoice_ratios AS (\n    SELECT\n        invoice_number,\n        SUM(derived_product_cost) / NULLIF(SUM(derived_total_cost), 0) AS cost_ratio,\n        COUNT(*) AS line_item_count\n    FROM Invoice_Line_Items\n    WHERE derived_product_cost IS NOT NULL\n       OR derived_total_cost IS NOT NULL\n    GROUP BY invoice_number\n), ratios_with_average AS (\n    SELECT\n        invoice_number,\n        cost_ratio,\n        line_item_count,\n        AVG(cost_ratio) OVER () AS average_cost_ratio\n    FROM invoice_ratios\n)\nSELECT\n    invoice_number,\n    cost_ratio,\n    line_item_count,\n    cost_ratio / NULLIF(average_cost_ratio, 0) AS relative_ratio\nFROM ratios_with_average\nWHERE average_cost_ratio IS NOT NULL\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

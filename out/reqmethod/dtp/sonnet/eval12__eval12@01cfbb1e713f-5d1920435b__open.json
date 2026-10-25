@@ -1,0 +1,55 @@
+{
+ "interpretations": [
+  "Per-type average of the row-level ratio spent/amount (each budget line's ratio averaged), skipping lines where spent or amount is NULL. The deviation is each type's average minus the mean of those per-type averages (signed).",
+  "Same as 1, but the deviation is the absolute value of the difference from the mean of the per-type averages.",
+  "Same as 1, but the deviation is expressed as a percentage or relative ratio of the mean of the per-type averages.",
+  "Same as 1, but \"ignoring missing values\" also excludes budget lines where amount = 0, to avoid division by zero.",
+  "Same as 1, but the ratio is computed with integer division, since amount is INTEGER and spent is REAL. This is only an issue if both were integers, so the ratio is treated as real division.",
+  "Ratio of sums instead of average of ratios: total spent divided by total amount per type, with the deviation measured from the mean of those per-type ratios.",
+  "The mean of the per-type averages is an unweighted mean across event types (each type counts equally), not the overall average across all budget lines.",
+  "The mean of the per-type averages is a weighted mean, or the overall average across all budget lines, rather than the mean of the type averages.",
+  "Event types are included only if they have at least one matching budget line (inner join). Event types with no budget lines are excluded.",
+  "Event types with no budget lines are included, with a NULL or 0 average, via a left join from event. Their averages are then either excluded from or included in the mean of the per-type averages.",
+  "Budget lines with NULL link_to_event, or links that match no event, are excluded because they cannot be assigned to a type.",
+  "Events with NULL type are grouped as their own group, or excluded.",
+  "\"Ignoring missing values\" applies to the ratio only, so lines with NULL spent or amount are dropped. Alternatively, it applies to the event type only, so lines with a missing type are dropped.",
+  "The output has one row per event type with columns for type, average ratio and difference from the mean. Alternatively, the output includes the overall mean of the per-type averages as an extra column or row.",
+  "The deviation is the difference between the type's average and the mean of the per-type averages, computed as a window function over the per-type results. Alternatively, it is computed with a separate subquery.",
+  "The ratio uses the stored `spent` and `amount` columns directly. Alternatively, it is recomputed from `amount` and `remaining` (spent = amount \u2212 remaining) or from summed expenses in the expense table.",
+  "Results are ordered by event type, by average ratio, or by deviation, or are left unordered.",
+  "Rounding is applied to the averages and deviations, or the values are shown at full precision.",
+  "Missing interpretations:",
+  "The mean of the per-type averages is computed only over event types that have at least one non-NULL ratio, so a type whose lines are all NULL is dropped from both the output and the mean.",
+  "Budget lines with amount = 0 are kept, and the division returns NULL (as in SQLite) or an error. These lines are then ignored in the average automatically.",
+  "The deviation is the ratio of a type's average to the mean of the per-type averages (average / mean), not a difference.",
+  "The deviation is the squared difference from the mean, or a standardized score (z-score) using the standard deviation of the per-type averages.",
+  "The average is weighted by `amount` (equivalent to a ratio of sums), while the deviation is still measured from the unweighted mean of the per-type averages.",
+  "\"Ignoring missing values\" also covers empty-string or non-numeric values in `spent` or `amount`, not just NULLs.",
+  "Event types are distinguished case-sensitively or after trimming whitespace, so variants of the same type are merged or kept separate.",
+  "The \"mean of the per-type averages\" excludes the type itself (leave-one-out mean), so each type is compared with the mean of the other types.",
+  "The mean of the per-type averages is computed from rounded per-type averages instead of full-precision ones.",
+  "The ratio is expressed as a percentage (multiplied by 100) rather than a fraction.",
+  "Budget lines are restricted to a specific `event_status` or to events with a particular status (such as closed events only)."
+ ],
+ "queries": [
+  "WITH t AS (\n    SELECT e.type AS type,\n           AVG(b.spent * 1.0 / b.amount) AS avg_ratio\n    FROM budget b\n    JOIN event e ON b.link_to_event = e.event_id\n    WHERE b.spent IS NOT NULL AND b.amount IS NOT NULL\n    GROUP BY e.type\n)\nSELECT type,\n       avg_ratio,\n       avg_ratio - (SELECT AVG(avg_ratio) FROM t) AS deviation\nFROM t;\n",
+  "WITH t AS (\n    SELECT e.type, AVG(b.amount) AS avg_amount\n    FROM event e\n    JOIN budget b ON b.link_to_event = e.event_id\n    GROUP BY e.type\n)\nSELECT type, ABS(avg_amount - (SELECT AVG(avg_amount) FROM t)) AS deviation\nFROM t;\n",
+  "WITH type_avg AS (\n    SELECT e.type AS type, AVG(b.amount) AS avg_amount\n    FROM event e\n    JOIN budget b ON b.link_to_event = e.event_id\n    GROUP BY e.type\n)\nSELECT (MAX(avg_amount) - MIN(avg_amount)) * 100.0 / AVG(avg_amount) AS deviation_percentage\nFROM type_avg;\n",
+  "SELECT budget_id, spent * 1.0 / amount AS spent_ratio\nFROM budget\nWHERE spent IS NOT NULL AND amount IS NOT NULL AND amount <> 0;\n",
+  "SELECT CAST(spent AS REAL) / amount FROM budget;\n",
+  "WITH t AS (\n  SELECT e.type AS type, SUM(b.spent) * 1.0 / SUM(b.amount) AS ratio\n  FROM budget b\n  JOIN event e ON b.link_to_event = e.event_id\n  GROUP BY e.type\n)\nSELECT type, ratio - (SELECT AVG(ratio) FROM t) AS deviation\nFROM t"
+ ],
+ "raw": [
+  "1. Per-type average of the row-level ratio spent/amount (each budget line's ratio averaged), skipping lines where spent or amount is NULL. The deviation is each type's average minus the mean of those per-type averages (signed).\n2. Same as 1, but the deviation is the absolute value of the difference from the mean of the per-type averages.\n3. Same as 1, but the deviation is expressed as a percentage or relative ratio of the mean of the per-type averages.\n4. Same as 1, but \"ignoring missing values\" also excludes budget lines where amount = 0, to avoid division by zero.\n5. Same as 1, but the ratio is computed with integer division, since amount is INTEGER and spent is REAL. This is only an issue if both were integers, so the ratio is treated as real division.\n6. Ratio of sums instead of average of ratios: total spent divided by total amount per type, with the deviation measured from the mean of those per-type ratios.\n7. The mean of the per-type averages is an unweighted mean across event types (each type counts equally), not the overall average across all budget lines.\n8. The mean of the per-type averages is a weighted mean, or the overall average across all budget lines, rather than the mean of the type averages.\n9. Event types are included only if they have at least one matching budget line (inner join). Event types with no budget lines are excluded.\n10. Event types with no budget lines are included, with a NULL or 0 average, via a left join from event. Their averages are then either excluded from or included in the mean of the per-type averages.\n11. Budget lines with NULL link_to_event, or links that match no event, are excluded because they cannot be assigned to a type.\n12. Events with NULL type are grouped as their own group, or excluded.\n13. \"Ignoring missing values\" applies to the ratio only, so lines with NULL spent or amount are dropped. Alternatively, it applies to the event type only, so lines with a missing type are dropped.\n14. The output has one row per event type with columns for type, average ratio and difference from the mean. Alternatively, the output includes the overall mean of the per-type averages as an extra column or row.\n15. The deviation is the difference between the type's average and the mean of the per-type averages, computed as a window function over the per-type results. Alternatively, it is computed with a separate subquery.\n16. The ratio uses the stored `spent` and `amount` columns directly. Alternatively, it is recomputed from `amount` and `remaining` (spent = amount \u2212 remaining) or from summed expenses in the expense table.\n17. Results are ordered by event type, by average ratio, or by deviation, or are left unordered.\n18. Rounding is applied to the averages and deviations, or the values are shown at full precision.",
+  "Missing interpretations:\n\nThe mean of the per-type averages is computed only over event types that have at least one non-NULL ratio, so a type whose lines are all NULL is dropped from both the output and the mean.\nBudget lines with amount = 0 are kept, and the division returns NULL (as in SQLite) or an error. These lines are then ignored in the average automatically.\nThe deviation is the ratio of a type's average to the mean of the per-type averages (average / mean), not a difference.\nThe deviation is the squared difference from the mean, or a standardized score (z-score) using the standard deviation of the per-type averages.\nThe average is weighted by `amount` (equivalent to a ratio of sums), while the deviation is still measured from the unweighted mean of the per-type averages.\n\"Ignoring missing values\" also covers empty-string or non-numeric values in `spent` or `amount`, not just NULLs.\nEvent types are distinguished case-sensitively or after trimming whitespace, so variants of the same type are merged or kept separate.\nThe \"mean of the per-type averages\" excludes the type itself (leave-one-out mean), so each type is compared with the mean of the other types.\nThe mean of the per-type averages is computed from rounded per-type averages instead of full-precision ones.\nThe ratio is expressed as a percentage (multiplied by 100) rather than a fraction.\nBudget lines are restricted to a specific `event_status` or to events with a particular status (such as closed events only)."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5d1920435b",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 61599,
+  "chars_out": 6368
+ }
+}

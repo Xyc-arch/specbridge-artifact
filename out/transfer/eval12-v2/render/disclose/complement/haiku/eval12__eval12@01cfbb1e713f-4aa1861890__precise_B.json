@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH scope_counts AS (\n  SELECT u.acctscope AS scope,\n         COUNT(DISTINCT o.recordvault) AS order_count\n  FROM riskandmargin rm\n  JOIN orders o ON rm.ordervault = o.recordvault\n  JOIN users u ON o.userlink = u.userstamp\n  WHERE u.acctscope IS NOT NULL\n  GROUP BY u.acctscope\n)\nSELECT scope,\n       order_count,\n       order_count * 1.0 / SUM(order_count) OVER () AS fraction_of_total,\n       order_count * 1.0 / AVG(order_count) OVER () AS ratio_to_scope_average\nFROM scope_counts\nORDER BY scope;",
+  "assumptions": [
+   {
+    "assumption": "Inner joins implement 'dropping anything without a match': orders with no risk/margin record, risk/margin records with no order, and orders whose userlink has no matching user are all excluded.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Users with a NULL acctscope are excluded, since NULL is not an account scope.",
+    "unresolved": true
+   },
+   {
+    "assumption": "'Average of those numbers across scopes' is the unweighted mean of the per-scope distinct-order counts, and the fraction's denominator is the sum of those counts. Each order has one user and therefore one scope, so the sum equals the total number of distinct matched orders.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Keep users with a NULL acctscope as their own group, treating the NULL value as a scope rather than dropping it. The NULL group then takes part in the total and the average.",
+    "sql": "WITH scope_counts AS (\n  SELECT u.acctscope AS scope,\n         COUNT(DISTINCT o.recordvault) AS order_count\n  FROM riskandmargin rm\n  JOIN orders o ON rm.ordervault = o.recordvault\n  JOIN users u ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n)\nSELECT scope,\n       order_count,\n       order_count * 1.0 / SUM(order_count) OVER () AS fraction_of_total,\n       order_count * 1.0 / AVG(order_count) OVER () AS ratio_to_scope_average\nFROM scope_counts\nORDER BY scope;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 11.6
+}

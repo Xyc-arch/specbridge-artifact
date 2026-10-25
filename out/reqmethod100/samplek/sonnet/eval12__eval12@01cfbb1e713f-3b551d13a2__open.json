@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "SELECT account_id, AVG(amount) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio_to_avg FROM trans GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10",
+  "SELECT account_id, AVG(CASE WHEN type IN ('PRIJEM','VYDAJ') THEN amount END) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio_to_avg FROM trans GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10",
+  "SELECT account_id,\n       AVG(CASE WHEN type IN ('PRIJEM','VYDAJ') THEN amount END) AS avg_amount,\n       COUNT(*) AS txn_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio\nFROM trans\nGROUP BY account_id\nORDER BY ratio DESC\nLIMIT 10",
+  "SELECT account_id,\n       AVG(amount) AS avg_amount,\n       COUNT(*) AS txn_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans WHERE type IN ('PRIJEM','VYDAJ')) AS ratio\nFROM trans\nWHERE type IN ('PRIJEM','VYDAJ')\nGROUP BY account_id\nORDER BY ratio DESC\nLIMIT 10",
+  "SELECT account_id, AVG(CASE WHEN type IN ('PRIJEM','VYDAJ') THEN amount END) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio_to_avg FROM trans GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10;",
+  "SELECT account_id, AVG(amount) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans WHERE type IN ('PRIJEM','VYDAJ')) AS ratio_to_avg FROM trans WHERE type IN ('PRIJEM','VYDAJ') GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT account_id, AVG(amount) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio_to_avg FROM trans GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average amount is a plain AVG of the unsigned trans.amount over all of an account's transactions. Direction does not matter for an unsigned average, so the undocumented VYBER type rows are included along with PRIJEM and VYDAJ.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The transaction count is all rows in trans for the account. The average transactions per account is total rows divided by the number of distinct accounts in trans.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The ratio is computed in floating point and not rounded. Ties at the 10-row cut are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Average only over transactions whose type is PRIJEM (credit) or VYDAJ (withdrawal), excluding the undocumented VYBER rows. The count and ratio still use all transactions. Accounts with only VYBER rows get a NULL average.",
+     "sql": "SELECT account_id, AVG(CASE WHEN type IN ('PRIJEM','VYDAJ') THEN amount END) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio_to_avg FROM trans GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT account_id,\n       AVG(CASE WHEN type IN ('PRIJEM','VYDAJ') THEN amount END) AS avg_amount,\n       COUNT(*) AS txn_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio\nFROM trans\nGROUP BY account_id\nORDER BY ratio DESC\nLIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average amount uses only rows with type PRIJEM (credit) or VYDAJ (withdrawal), as the request says 'credits and withdrawals'. The undocumented VYBER rows are left out of the average. Amounts are unsigned, so the plain amount is averaged and not netted by direction.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How many transactions it has' and the all-account average count every row in trans, VYBER included. The ratio is the account's count divided by total rows / number of distinct accounts, in floating point and unrounded.",
+     "unresolved": true
+    },
+    {
+     "assumption": "An account with only VYBER rows would get a NULL average but is still listed.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count only credit and withdrawal transactions (PRIJEM and VYDAJ) for both the account's count and the all-account average, so the count matches the rows behind the average.",
+     "sql": "SELECT account_id,\n       AVG(amount) AS avg_amount,\n       COUNT(*) AS txn_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans WHERE type IN ('PRIJEM','VYDAJ')) AS ratio\nFROM trans\nWHERE type IN ('PRIJEM','VYDAJ')\nGROUP BY account_id\nORDER BY ratio DESC\nLIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT account_id, AVG(CASE WHEN type IN ('PRIJEM','VYDAJ') THEN amount END) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans) AS ratio_to_avg FROM trans GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The average amount uses only PRIJEM (credit) and VYDAJ (withdrawal) rows, as the request says. It uses the stored unsigned amounts. The undocumented VYBER rows are left out of the average because their direction is unknown.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The transaction count, and the average transactions per account in the denominator, cover every row in trans, including VYBER rows. 'How many transactions it has' is read as all of the account's transactions, not just credits and withdrawals.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The ratio is not rounded. The cut at 10 rows breaks ties arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "'Credits and withdrawals' limits the whole analysis, so only PRIJEM and VYDAJ rows count. This applies to the average, to each account's transaction count, and to the average transactions per account.",
+     "sql": "SELECT account_id, AVG(amount) AS avg_amount, COUNT(*) AS txn_count, COUNT(*) * 1.0 / (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT account_id) FROM trans WHERE type IN ('PRIJEM','VYDAJ')) AS ratio_to_avg FROM trans WHERE type IN ('PRIJEM','VYDAJ') GROUP BY account_id ORDER BY ratio_to_avg DESC LIMIT 10;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3b551d13a2",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 24075,
+  "chars_out": 4470
+ }
+}

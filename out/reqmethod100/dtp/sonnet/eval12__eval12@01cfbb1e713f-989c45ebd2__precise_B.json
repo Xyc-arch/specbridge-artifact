@@ -1,0 +1,52 @@
+{
+ "interpretations": [
+  "Count distinct transactions per trader type, using an inner join from advancedbehavior to transactionrecord to trader. Share = type count / sum of all type counts. Average = the plain mean of the per-type shares (including the NULL-type group). Return types whose share is strictly above that average, showing type, count, share, and share minus average.",
+  "Same as 1, but the average is taken over only the non-null trader types, with the NULL-type group still shown and compared against that average.",
+  "Same as 1, but the NULL-type group is excluded entirely, both from the total of counts and from the average. Only named types are compared.",
+  "Same as 1, but the average is the mean of the counts, converted to a share, rather than the mean of the shares. Because the shares sum to 1, this gives the same threshold as 1.",
+  "Same as 1, but the average is taken over all trader types in the trader table, including types with zero matching transactions (zero count, zero share), so the average is 1 divided by the number of types in the trader table.",
+  "Same as 1, but the average is taken over only the types that appear after the join (types with at least one matching transaction). This is the same as 1, since types with no matches are dropped by the inner join.",
+  "\"Exact text matches\" is read as case-sensitive, untrimmed equality on `translink` = `transreg` and `trdref` = `tradereg`. No normalizing of case or whitespace.",
+  "\"Exact text matches\" is read as equality after trimming whitespace and ignoring case.",
+  "\"Missing type\" is read as `tradekind` IS NULL only.",
+  "\"Missing type\" is read as NULL or empty-string `tradekind`, grouped together as one group.",
+  "\"Missing type\" is read as NULL or empty-string `tradekind`, with NULL and empty string as separate groups.",
+  "\"Return nothing if the average is missing\" is read as returning an empty result when there are no matched rows at all, so there are no groups and the average is NULL.",
+  "\"Return nothing if the average is missing\" is read as returning an empty result if the total count is zero, which would make the shares undefined.",
+  "Share is shown as a fraction between 0 and 1.",
+  "Share is shown as a percentage between 0 and 100.",
+  "The \"share minus average\" difference is shown in the same units as the share (fraction or percentage).",
+  "A transaction with several behaviour records is counted once, with `COUNT(DISTINCT transreg)` per type.",
+  "A transaction with several behaviour records is first deduplicated across the whole join, then counted per type. This gives the same result as 17, since each transaction has one trader.",
+  "Only transactions with at least one behaviour record are counted. Transactions with no behaviour record are excluded, since the join starts from advancedbehavior.",
+  "Output is sorted by share descending.",
+  "Output is sorted by trader type alphabetically.",
+  "Output has no required order.",
+  "Interpretations that are missing:",
+  "The missing-type group is displayed with a placeholder label such as 'Unknown' or 'Missing' instead of a NULL type value.",
+  "Shares are computed with exact decimal arithmetic, so the count is not truncated by integer division and the share is not rounded or cast to a limited-precision type.",
+  "Shares are computed in floating point, and the strict \"above average\" comparison is made on those floating-point values with no tolerance.",
+  "\"Missing type\" is read as NULL, empty string, or whitespace-only `tradekind`, grouped together as one group.",
+  "The trader join is a left join that keeps behaviour-linked transactions whose trader row is absent, with those transactions counted in the missing-type group. The question says to drop anything without a match, so this is unlikely."
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT t.tradekind AS tradekind, COUNT(DISTINCT tr.transreg) AS cnt\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON ab.translink = tr.transreg\n  JOIN trader t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n),\nshares AS (\n  SELECT tradekind, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share\n  FROM counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.tradekind, s.cnt AS count, s.share, s.share - a.avg_share AS share_minus_avg\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share;\n",
+  "SELECT tradekind,\n       AVG(acctbal) AS avg_acctbal,\n       AVG(acctbal) > (SELECT AVG(acctbal) FROM trader WHERE tradekind IS NOT NULL) AS above_overall_avg\nFROM trader\nGROUP BY tradekind;\n",
+  "SELECT tradekind, COUNT(*) AS trader_count, AVG(acctbal) AS avg_acctbal\nFROM trader\nWHERE tradekind IS NOT NULL\nGROUP BY tradekind;\n",
+  "SELECT t.tradekind,\n       COUNT(tr.transreg) AS transaction_count,\n       CAST(COUNT(tr.transreg) AS REAL) / (SELECT COUNT(*) FROM transactionrecord) AS share,\n       1.0 / (SELECT COUNT(DISTINCT tradekind) FROM trader) AS avg_share\nFROM (SELECT DISTINCT tradekind FROM trader) t\nLEFT JOIN trader td ON td.tradekind = t.tradekind\nLEFT JOIN transactionrecord tr ON tr.trdref = td.tradereg\nGROUP BY t.tradekind;\n",
+  "SELECT AVG(cnt) FROM (SELECT t.tradekind, COUNT(*) AS cnt FROM trader t JOIN transactionrecord r ON r.trdref = t.tradereg GROUP BY t.tradekind);\n"
+ ],
+ "raw": [
+  "1. Count distinct transactions per trader type, using an inner join from advancedbehavior to transactionrecord to trader. Share = type count / sum of all type counts. Average = the plain mean of the per-type shares (including the NULL-type group). Return types whose share is strictly above that average, showing type, count, share, and share minus average.\n2. Same as 1, but the average is taken over only the non-null trader types, with the NULL-type group still shown and compared against that average.\n3. Same as 1, but the NULL-type group is excluded entirely, both from the total of counts and from the average. Only named types are compared.\n4. Same as 1, but the average is the mean of the counts, converted to a share, rather than the mean of the shares. Because the shares sum to 1, this gives the same threshold as 1.\n5. Same as 1, but the average is taken over all trader types in the trader table, including types with zero matching transactions (zero count, zero share), so the average is 1 divided by the number of types in the trader table.\n6. Same as 1, but the average is taken over only the types that appear after the join (types with at least one matching transaction). This is the same as 1, since types with no matches are dropped by the inner join.\n7. \"Exact text matches\" is read as case-sensitive, untrimmed equality on `translink` = `transreg` and `trdref` = `tradereg`. No normalizing of case or whitespace.\n8. \"Exact text matches\" is read as equality after trimming whitespace and ignoring case.\n9. \"Missing type\" is read as `tradekind` IS NULL only.\n10. \"Missing type\" is read as NULL or empty-string `tradekind`, grouped together as one group.\n11. \"Missing type\" is read as NULL or empty-string `tradekind`, with NULL and empty string as separate groups.\n12. \"Return nothing if the average is missing\" is read as returning an empty result when there are no matched rows at all, so there are no groups and the average is NULL.\n13. \"Return nothing if the average is missing\" is read as returning an empty result if the total count is zero, which would make the shares undefined.\n14. Share is shown as a fraction between 0 and 1.\n15. Share is shown as a percentage between 0 and 100.\n16. The \"share minus average\" difference is shown in the same units as the share (fraction or percentage).\n17. A transaction with several behaviour records is counted once, with `COUNT(DISTINCT transreg)` per type.\n18. A transaction with several behaviour records is first deduplicated across the whole join, then counted per type. This gives the same result as 17, since each transaction has one trader.\n19. Only transactions with at least one behaviour record are counted. Transactions with no behaviour record are excluded, since the join starts from advancedbehavior.\n20. Output is sorted by share descending.\n21. Output is sorted by trader type alphabetically.\n22. Output has no required order.",
+  "Interpretations that are missing:\n\nThe missing-type group is displayed with a placeholder label such as 'Unknown' or 'Missing' instead of a NULL type value.\nShares are computed with exact decimal arithmetic, so the count is not truncated by integer division and the share is not rounded or cast to a limited-precision type.\nShares are computed in floating point, and the strict \"above average\" comparison is made on those floating-point values with no tolerance.\n\"Missing type\" is read as NULL, empty string, or whitespace-only `tradekind`, grouped together as one group.\nThe trader join is a left join that keeps behaviour-linked transactions whose trader row is absent, with those transactions counted in the missing-type group. The question says to drop anything without a match, so this is unlikely."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-989c45ebd2",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 140176,
+  "chars_out": 6129
+ }
+}

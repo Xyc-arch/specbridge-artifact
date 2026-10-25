@@ -1,0 +1,50 @@
+{
+ "interpretations": [
+  "Group by `corpeventprx` (Earnings, Restructuring, M&A), with NULL event types as their own group. For each group, give the average `anlycount`, the average of (`inholdpct` \u2212 `instownpct`), and that average gap minus the unweighted mean of the group-level average gaps.",
+  "Same as 1, but the gap is the absolute difference |`inholdpct` \u2212 `instownpct`|. The overall average is then the plain mean of the group-level average absolute gaps.",
+  "Same as 1, but the gap is `instownpct` \u2212 `inholdpct` (institutional minus insider), so the sign flips.",
+  "Same as 1, but the \"plain average of all the event types' average gaps\" includes the NULL group as one of the groups. This is the main reading.",
+  "Same as 1, but the plain average covers only the named event types (Earnings, Restructuring, M&A) and excludes the NULL group. The NULL group's gap is still compared against it.",
+  "Same as 1, but the plain average is taken over all snapshot rows (a row-weighted average gap) instead of over the group averages.",
+  "Same as 1, but each group's average gap uses only rows where both `inholdpct` and `instownpct` are non-null. Rows with either value missing are excluded from the gap average.",
+  "Same as 1, but each group's average gap is computed as avg(`inholdpct`) \u2212 avg(`instownpct`), with each average ignoring its own nulls separately.",
+  "The average `anlycount` is computed over all rows in the group with null `anlycount` ignored. It is not restricted to rows that have both ownership values.",
+  "The average `anlycount` is restricted to the same rows used for the gap average, so rows with missing ownership values are excluded.",
+  "If a group's average gap is missing (all rows null), that group is kept with a NULL gap and a NULL difference. The overall average ignores it.",
+  "If any group's average gap is missing, the overall average is treated as missing and no rows are returned.",
+  "If there are no non-missing gaps in any group, the overall average is missing and no rows are returned.",
+  "\"Return nothing if that overall average is missing\" means return zero rows. The alternative reading is to return rows with a NULL difference column.",
+  "Empty-string or 'None'-style event values count as \"no event type\" along with NULL, and are grouped together with NULL.",
+  "Only NULL counts as \"no event type\". Empty strings stay as their own group.",
+  "The snapshot unit is each row of `sentimentandfundamentals`, with no join to other tables.",
+  "The snapshot unit is limited to rows linked to an existing `transactionrecord` through `transref`. This is effectively all rows, since the foreign key is required.",
+  "The output is unrounded raw numeric values, including the negative differences. Results are ordered by event type, with the NULL group placed first or last.",
+  "Missing interpretations:",
+  "The plain average of the group averages is taken over all groups, but a group whose average gap is NULL is counted as zero instead of being ignored.",
+  "Event types that never appear in the data (for example, no \"M&A\" rows) are not shown, so only groups that have at least one row are output and averaged.",
+  "The average gap is computed at the row level as `inholdpct` \u2212 `instownpct`, and rows with a NULL `anlycount` still count toward the gap average (this is the opposite of the `anlycount` restriction in interpretation 10).",
+  "The plain average of the group gaps is computed as a mean over distinct group-level gap values rather than over groups, so groups with identical gaps are collapsed into one.",
+  "The \"overall average is missing\" check applies to the overall average only after the NULL group is excluded (interpretation 5), so rows are returned for the named groups even if the NULL group's gap is missing.",
+  "The difference column is each group's gap minus the overall average, but the overall average itself is also shown as an extra column or row."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT corpeventprx,\n         AVG(anlycount) AS avg_anlycount,\n         AVG(inholdpct - instownpct) AS avg_gap\n  FROM sentimentandfundamentals\n  GROUP BY corpeventprx\n)\nSELECT corpeventprx,\n       avg_anlycount,\n       avg_gap,\n       avg_gap - (SELECT AVG(avg_gap) FROM g) AS gap_minus_mean_gap\nFROM g;\n",
+  "SELECT AVG(avg_gap) FROM (SELECT corpeventprx, AVG(ABS(inholdpct - instownpct)) AS avg_gap FROM sentimentandfundamentals GROUP BY corpeventprx);\n",
+  "SELECT sentreg, instownpct - inholdpct AS gap\nFROM sentimentandfundamentals\nORDER BY gap DESC;\n",
+  "SELECT AVG(avg_gap) AS plain_avg_of_avg_gaps\nFROM (\n  SELECT corpeventprx, AVG(ABS(newsscore - socscore)) AS avg_gap\n  FROM sentimentandfundamentals\n  GROUP BY corpeventprx\n);\n",
+  "WITH g AS (\n  SELECT corpeventprx, AVG(infoleaksc) AS a\n  FROM sentimentandfundamentals\n  GROUP BY corpeventprx\n)\nSELECT (SELECT a FROM g WHERE corpeventprx IS NULL) - (SELECT AVG(a) FROM g WHERE corpeventprx IN ('Earnings','Restructuring','M&A')) AS gap;\n"
+ ],
+ "raw": [
+  "1. Group by `corpeventprx` (Earnings, Restructuring, M&A), with NULL event types as their own group. For each group, give the average `anlycount`, the average of (`inholdpct` \u2212 `instownpct`), and that average gap minus the unweighted mean of the group-level average gaps.\n2. Same as 1, but the gap is the absolute difference |`inholdpct` \u2212 `instownpct`|. The overall average is then the plain mean of the group-level average absolute gaps.\n3. Same as 1, but the gap is `instownpct` \u2212 `inholdpct` (institutional minus insider), so the sign flips.\n4. Same as 1, but the \"plain average of all the event types' average gaps\" includes the NULL group as one of the groups. This is the main reading.\n5. Same as 1, but the plain average covers only the named event types (Earnings, Restructuring, M&A) and excludes the NULL group. The NULL group's gap is still compared against it.\n6. Same as 1, but the plain average is taken over all snapshot rows (a row-weighted average gap) instead of over the group averages.\n7. Same as 1, but each group's average gap uses only rows where both `inholdpct` and `instownpct` are non-null. Rows with either value missing are excluded from the gap average.\n8. Same as 1, but each group's average gap is computed as avg(`inholdpct`) \u2212 avg(`instownpct`), with each average ignoring its own nulls separately.\n9. The average `anlycount` is computed over all rows in the group with null `anlycount` ignored. It is not restricted to rows that have both ownership values.\n10. The average `anlycount` is restricted to the same rows used for the gap average, so rows with missing ownership values are excluded.\n11. If a group's average gap is missing (all rows null), that group is kept with a NULL gap and a NULL difference. The overall average ignores it.\n12. If any group's average gap is missing, the overall average is treated as missing and no rows are returned.\n13. If there are no non-missing gaps in any group, the overall average is missing and no rows are returned.\n14. \"Return nothing if that overall average is missing\" means return zero rows. The alternative reading is to return rows with a NULL difference column.\n15. Empty-string or 'None'-style event values count as \"no event type\" along with NULL, and are grouped together with NULL.\n16. Only NULL counts as \"no event type\". Empty strings stay as their own group.\n17. The snapshot unit is each row of `sentimentandfundamentals`, with no join to other tables.\n18. The snapshot unit is limited to rows linked to an existing `transactionrecord` through `transref`. This is effectively all rows, since the foreign key is required.\n19. The output is unrounded raw numeric values, including the negative differences. Results are ordered by event type, with the NULL group placed first or last.",
+  "Missing interpretations:\n\nThe plain average of the group averages is taken over all groups, but a group whose average gap is NULL is counted as zero instead of being ignored.\nEvent types that never appear in the data (for example, no \"M&A\" rows) are not shown, so only groups that have at least one row are output and averaged.\nThe average gap is computed at the row level as `inholdpct` \u2212 `instownpct`, and rows with a NULL `anlycount` still count toward the gap average (this is the opposite of the `anlycount` restriction in interpretation 10).\nThe plain average of the group gaps is computed as a mean over distinct group-level gap values rather than over groups, so groups with identical gaps are collapsed into one.\nThe \"overall average is missing\" check applies to the overall average only after the NULL group is excluded (interpretation 5), so rows are returned for the named groups even if the NULL group's gap is missing.\nThe difference column is each group's gap minus the overall average, but the overall average itself is also shown as an extra column or row."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-f01fb1c21b",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 139427,
+  "chars_out": 6464
+ }
+}

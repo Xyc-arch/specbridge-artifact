@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH by_channel AS (SELECT o.orderbase AS channel, AVG(e.fillcount) AS average_filled_quantity, COUNT(*) AS execution_count FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault GROUP BY o.orderbase) SELECT channel, average_filled_quantity, execution_count, execution_count::numeric / SUM(execution_count) OVER () AS share_of_total FROM by_channel;",
+  "WITH per_order AS (SELECT o.orderspivot, o.orderbase AS channel, SUM(e.fillcount) AS filled_quantity FROM orders o JOIN orderexecutions e ON e.ordersmark = o.recordvault GROUP BY o.orderspivot, o.orderbase), by_channel AS (SELECT channel, AVG(filled_quantity) AS average_filled_quantity, COUNT(*) AS order_count FROM per_order GROUP BY channel) SELECT channel, average_filled_quantity, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total FROM by_channel;",
+  "SELECT o.orderbase AS channel, AVG(e.fillcount) AS avg_filled_quantity, COUNT(*) AS execution_count, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;",
+  "SELECT o.orderbase AS channel, AVG(e.fillcount) AS avg_filled_quantity, COUNT(*) AS execution_count, SUM(e.fillcount)::numeric / NULLIF(SUM(SUM(e.fillcount)) OVER (), 0) AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;",
+  "SELECT o.orderbase AS channel, AVG(e.fillcount) AS average_filled_quantity, COUNT(*) AS execution_count, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;",
+  "SELECT o.orderbase AS channel, AVG(e.fillcount) AS average_filled_quantity, COUNT(DISTINCT o.orderspivot) AS order_count, COUNT(DISTINCT o.orderspivot)::numeric / SUM(COUNT(DISTINCT o.orderspivot)) OVER () AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH by_channel AS (SELECT o.orderbase AS channel, AVG(e.fillcount) AS average_filled_quantity, COUNT(*) AS execution_count FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault GROUP BY o.orderbase) SELECT channel, average_filled_quantity, execution_count, execution_count::numeric / SUM(execution_count) OVER () AS share_of_total FROM by_channel;",
+   "assumptions": [
+    {
+     "assumption": "The count and share refer to matched execution records, including records whose fillcount is NULL. AVG ignores NULL fillcount values. A NULL orderbase forms its own group.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count distinct executed orders instead; sum each order's fills before averaging filled quantity across orders, and calculate shares from order counts.",
+     "sql": "WITH per_order AS (SELECT o.orderspivot, o.orderbase AS channel, SUM(e.fillcount) AS filled_quantity FROM orders o JOIN orderexecutions e ON e.ordersmark = o.recordvault GROUP BY o.orderspivot, o.orderbase), by_channel AS (SELECT channel, AVG(filled_quantity) AS average_filled_quantity, COUNT(*) AS order_count FROM per_order GROUP BY channel) SELECT channel, average_filled_quantity, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total FROM by_channel;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT o.orderbase AS channel, AVG(e.fillcount) AS avg_filled_quantity, COUNT(*) AS execution_count, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;",
+   "assumptions": [
+    {
+     "assumption": "The count and share refer to matched execution rows; the share uses the total matched execution count.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Share of total means share of filled quantity across matched executions.",
+     "sql": "SELECT o.orderbase AS channel, AVG(e.fillcount) AS avg_filled_quantity, COUNT(*) AS execution_count, SUM(e.fillcount)::numeric / NULLIF(SUM(SUM(e.fillcount)) OVER (), 0) AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT o.orderbase AS channel, AVG(e.fillcount) AS average_filled_quantity, COUNT(*) AS execution_count, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;",
+   "assumptions": [
+    {
+     "assumption": "The count and share refer to matched execution rows, including rows with a missing fillcount; AVG ignores those missing values.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count distinct orders with matched executions, and calculate each channel's share of those orders; keep the requested average over execution fillcount values.",
+     "sql": "SELECT o.orderbase AS channel, AVG(e.fillcount) AS average_filled_quantity, COUNT(DISTINCT o.orderspivot) AS order_count, COUNT(DISTINCT o.orderspivot)::numeric / SUM(COUNT(DISTINCT o.orderspivot)) OVER () AS share_of_total FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault GROUP BY o.orderbase;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3cc388876c",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40515,
+  "chars_out": 3147
+ }
+}

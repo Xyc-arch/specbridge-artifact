@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-db76088b9c",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "A spent value of 0 means nothing has been spent yet, so those lines are left out of the relative overspend averages but still counted as lines.",
+ "a": {
+  "request": "Group the budget lines by `category`. For each category, find the average relative overspend, (`spent` \u2212 `amount`) \u00f7 `amount` (ignoring missing values), and the number of budget lines. Lines with a `spent` of 0 are treated as not yet spent and left out of the relative overspend, though they still count as lines. Keep the categories whose line count is above the average line count per category. Then give one summary row: the average of those categories' average relative overspend, the average of their line counts, and the average amount by which their line counts exceed the per-category average line count.",
+  "sql": "WITH category_stats AS (SELECT category, COUNT(*) AS line_count, AVG(CASE WHEN spent <> 0 THEN (spent - amount) * 1.0 / NULLIF(amount, 0) END) AS avg_relative_overspend FROM budget GROUP BY category), overall AS (SELECT AVG(line_count * 1.0) AS avg_line_count FROM category_stats) SELECT AVG(cs.avg_relative_overspend) AS avg_relative_overspend, AVG(cs.line_count * 1.0) AS avg_line_count, AVG(cs.line_count - o.avg_line_count) AS avg_excess_line_count FROM category_stats AS cs CROSS JOIN overall AS o WHERE cs.line_count > o.avg_line_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For the budget categories (`budget.category`) that have more budget lines than the average category, give me one summary row with three values: their average relative overspend ((`spent` \u2212 `amount`) / `amount` per line, averaged within each category and then across categories, ignoring missing values), their average number of budget lines, and on average how many more lines they have than the per-category average. A spent value of 0 means nothing has been spent yet, so those lines are left out of the relative overspend averages but still counted as lines.",
+  "sql": "WITH category_summary AS (SELECT category, COUNT(*) AS line_count, AVG(CASE WHEN spent <> 0 AND amount <> 0 THEN (spent - amount) * 1.0 / amount END) AS avg_relative_overspend FROM budget GROUP BY category), overall AS (SELECT AVG(line_count * 1.0) AS avg_lines_per_category FROM category_summary) SELECT AVG(c.avg_relative_overspend) AS avg_relative_overspend, AVG(c.line_count * 1.0) AS avg_budget_lines, AVG(c.line_count - o.avg_lines_per_category) AS avg_lines_above_category_average FROM category_summary AS c CROSS JOIN overall AS o WHERE c.line_count > o.avg_lines_per_category;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Select budget categories whose line count exceeds the average line count across all categories, and return one row containing the average of their per-category mean `(spent \u2212 amount) / amount` values (excluding lines with `spent = 0` or missing or undefined ratios), their average line count (including lines with `spent = 0`), and that average line count minus the average line count across all categories",
+  "sql": "WITH category_stats AS (SELECT category, COUNT(*) AS line_count, AVG(CASE WHEN spent <> 0 AND amount <> 0 THEN 1.0 * (spent - amount) / amount END) AS mean_ratio FROM budget GROUP BY category), overall AS (SELECT AVG(line_count * 1.0) AS avg_line_count FROM category_stats) SELECT AVG(CASE WHEN cs.line_count > o.avg_line_count THEN cs.mean_ratio END) AS avg_mean_ratio, AVG(CASE WHEN cs.line_count > o.avg_line_count THEN cs.line_count * 1.0 END) AS avg_line_count, AVG(CASE WHEN cs.line_count > o.avg_line_count THEN cs.line_count * 1.0 END) - MAX(o.avg_line_count) AS line_count_difference FROM overall o LEFT JOIN category_stats cs ON 1 = 1;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For budget categories (`budget.category`) with more budget lines than the average category, return one summary row with three values: the average relative overspend, calculated as (`spent` \u2212 `amount`) / `amount` per eligible line, averaged within each category and then across categories; the average number of budget lines in those categories; and the average number of lines they have above the per-category average. Exclude lines with `spent = 0` and missing values from the relative overspend averages, but still count lines with `spent = 0` when calculating line counts.",
+  "sql": "WITH category_stats AS (SELECT category, COUNT(*) AS line_count, AVG(CASE WHEN spent <> 0 AND amount IS NOT NULL AND amount <> 0 THEN (spent - amount) * 1.0 / amount END) AS relative_overspend FROM budget GROUP BY category), category_average AS (SELECT AVG(line_count * 1.0) AS avg_line_count FROM category_stats) SELECT AVG(cs.relative_overspend) AS avg_relative_overspend, AVG(cs.line_count * 1.0) AS avg_budget_lines, AVG(cs.line_count - ca.avg_line_count) AS avg_lines_above_category_average FROM category_stats AS cs CROSS JOIN category_average AS ca WHERE cs.line_count > ca.avg_line_count;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,74 @@
+{
+ "queries": [
+  "WITH p AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(HGB) AS overall FROM Laboratory), a AS (SELECT p.ID, p.avg_hgb FROM p, o WHERE p.avg_hgb > o.overall) SELECT a.ID, a.avg_hgb, a.avg_hgb - o.overall AS above_overall, a.avg_hgb - (SELECT AVG(avg_hgb) FROM a) AS above_group_avg FROM a, o ORDER BY above_group_avg DESC LIMIT 10",
+  "WITH p AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(avg_hgb) AS overall FROM p), a AS (SELECT p.ID, p.avg_hgb FROM p, o WHERE p.avg_hgb > o.overall) SELECT a.ID, a.avg_hgb, a.avg_hgb - o.overall AS above_overall, a.avg_hgb - (SELECT AVG(avg_hgb) FROM a) AS above_group_avg FROM a, o ORDER BY above_group_avg DESC LIMIT 10",
+  "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), o AS (SELECT AVG(HGB) AS m FROM Laboratory WHERE HGB IS NOT NULL), ab AS (SELECT p.ID, p.a, p.a - o.m AS diff FROM p CROSS JOIN o WHERE p.a > o.m) SELECT ID, a AS avg_hgb, diff AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10;",
+  "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), o AS (SELECT AVG(a) AS m FROM p), ab AS (SELECT p.ID, p.a, p.a - o.m AS diff FROM p CROSS JOIN o WHERE p.a > o.m) SELECT ID, a AS avg_hgb, diff AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10;",
+  "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(HGB) AS ov FROM Laboratory), ab AS (SELECT p.ID, p.a, p.a - o.ov AS above FROM p CROSS JOIN o WHERE p.a > o.ov) SELECT ID, a AS avg_hgb, above AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10",
+  "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(a) AS ov FROM p), ab AS (SELECT p.ID, p.a, p.a - o.ov AS above FROM p CROSS JOIN o WHERE p.a > o.ov) SELECT ID, a AS avg_hgb, above AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH p AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(HGB) AS overall FROM Laboratory), a AS (SELECT p.ID, p.avg_hgb FROM p, o WHERE p.avg_hgb > o.overall) SELECT a.ID, a.avg_hgb, a.avg_hgb - o.overall AS above_overall, a.avg_hgb - (SELECT AVG(avg_hgb) FROM a) AS above_group_avg FROM a, o ORDER BY above_group_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The 'overall average hemoglobin' is the average of HGB over all lab records (row-weighted), not the average of per-patient averages.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Patients with no non-null HGB values are excluded; 'average of these above-average patients' averages' is the unweighted mean of their per-patient averages.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Overall average is the mean of the per-patient average HGB values (each patient weighted equally) rather than the mean over all lab records.",
+     "sql": "WITH p AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(avg_hgb) AS overall FROM p), a AS (SELECT p.ID, p.avg_hgb FROM p, o WHERE p.avg_hgb > o.overall) SELECT a.ID, a.avg_hgb, a.avg_hgb - o.overall AS above_overall, a.avg_hgb - (SELECT AVG(avg_hgb) FROM a) AS above_group_avg FROM a, o ORDER BY above_group_avg DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), o AS (SELECT AVG(HGB) AS m FROM Laboratory WHERE HGB IS NOT NULL), ab AS (SELECT p.ID, p.a, p.a - o.m AS diff FROM p CROSS JOIN o WHERE p.a > o.m) SELECT ID, a AS avg_hgb, diff AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The 'overall average hemoglobin' is the average of HGB over all non-null lab records (each record weighted equally), not the average of the patients' averages.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Patients with no non-null HGB values are excluded. The last metric uses the mean of the above-average patients' per-patient averages, with each patient weighted equally.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall average is the mean of the per-patient average HGB values (each patient weighted equally), not the mean over all lab records.",
+     "sql": "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), o AS (SELECT AVG(a) AS m FROM p), ab AS (SELECT p.ID, p.a, p.a - o.m AS diff FROM p CROSS JOIN o WHERE p.a > o.m) SELECT ID, a AS avg_hgb, diff AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(HGB) AS ov FROM Laboratory), ab AS (SELECT p.ID, p.a, p.a - o.ov AS above FROM p CROSS JOIN o WHERE p.a > o.ov) SELECT ID, a AS avg_hgb, above AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The 'overall average hemoglobin' is the average of HGB over all individual Laboratory records with non-null HGB, so patients with more records weigh more. Patients with no non-null HGB are excluded.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The 'overall average' is the mean of the per-patient average HGB values, so each patient counts equally.",
+     "sql": "WITH p AS (SELECT ID, AVG(HGB) AS a FROM Laboratory GROUP BY ID HAVING AVG(HGB) IS NOT NULL), o AS (SELECT AVG(a) AS ov FROM p), ab AS (SELECT p.ID, p.a, p.a - o.ov AS above FROM p CROSS JOIN o WHERE p.a > o.ov) SELECT ID, a AS avg_hgb, above AS above_overall_avg, a - (SELECT AVG(a) FROM ab) AS diff_from_above_group_avg FROM ab ORDER BY diff_from_above_group_avg DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4a2d376afa",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 25752,
+  "chars_out": 3927
+ }
+}

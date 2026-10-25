@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "SELECT m.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) AS ratio FROM MediaType m LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.MediaTypeId ORDER BY CASE WHEN AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) IS NULL THEN 1 ELSE 0 END, ratio DESC LIMIT 10",
+  "SELECT t.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) AS ratio FROM Track t GROUP BY t.MediaTypeId ORDER BY CASE WHEN AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) IS NULL THEN 1 ELSE 0 END, ratio DESC LIMIT 10",
+  "SELECT t.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM Track t GROUP BY t.MediaTypeId ORDER BY (CASE WHEN AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) IS NULL THEN 1 ELSE 0 END), ratio_to_overall DESC, t.MediaTypeId LIMIT 10",
+  "SELECT m.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM MediaType m LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.MediaTypeId ORDER BY (CASE WHEN AVG(t.UnitPrice) IS NULL THEN 1 ELSE 0 END), ratio_to_overall DESC, m.MediaTypeId LIMIT 10",
+  "SELECT m.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM MediaType m LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.MediaTypeId ORDER BY (AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track)) IS NULL, ratio_to_overall DESC, m.MediaTypeId LIMIT 10",
+  "SELECT MediaTypeId, AVG(UnitPrice) AS avg_unit_price, AVG(UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM Track GROUP BY MediaTypeId ORDER BY (AVG(UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track)) IS NULL, ratio_to_overall DESC, MediaTypeId LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT m.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) AS ratio FROM MediaType m LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.MediaTypeId ORDER BY CASE WHEN AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) IS NULL THEN 1 ELSE 0 END, ratio DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the mean of UnitPrice over all tracks (each track weighted equally), not an average of the per-media-type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Every row in MediaType counts as a media type, including types with no tracks. Those get a NULL average and NULL ratio and sort last.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The price is Track.UnitPrice (the list price), not InvoiceLine.UnitPrice (the sold price).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Only media type IDs that appear on at least one track are included. Types with no tracks are omitted.",
+     "sql": "SELECT t.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) AS ratio FROM Track t GROUP BY t.MediaTypeId ORDER BY CASE WHEN AVG(t.UnitPrice) * 1.0 / NULLIF((SELECT AVG(UnitPrice) FROM Track), 0) IS NULL THEN 1 ELSE 0 END, ratio DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT t.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM Track t GROUP BY t.MediaTypeId ORDER BY (CASE WHEN AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) IS NULL THEN 1 ELSE 0 END), ratio_to_overall DESC, t.MediaTypeId LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the mean UnitPrice across all rows in Track (each track counts once), not the mean of the per-media-type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only media types that have at least one track are listed, since the average price comes from Track.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Ties in ratio are broken by MediaTypeId ascending.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "List every media type from the MediaType table, including those with no tracks. These get a NULL average and ratio and sort last.",
+     "sql": "SELECT m.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM MediaType m LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.MediaTypeId ORDER BY (CASE WHEN AVG(t.UnitPrice) IS NULL THEN 1 ELSE 0 END), ratio_to_overall DESC, m.MediaTypeId LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT m.MediaTypeId, AVG(t.UnitPrice) AS avg_unit_price, AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM MediaType m LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.MediaTypeId ORDER BY (AVG(t.UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track)) IS NULL, ratio_to_overall DESC, m.MediaTypeId LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the mean UnitPrice over all tracks, not the mean of the per-media-type averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Each media type ID' means every row in MediaType, so media types with no tracks appear with a NULL average and ratio and sort last.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Track.UnitPrice is the 'track unit price'. InvoiceLine.UnitPrice (the price actually sold) is not used.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Only media types that have tracks, grouped directly from Track, so media types with no tracks are omitted.",
+     "sql": "SELECT MediaTypeId, AVG(UnitPrice) AS avg_unit_price, AVG(UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track) AS ratio_to_overall FROM Track GROUP BY MediaTypeId ORDER BY (AVG(UnitPrice) * 1.0 / (SELECT AVG(UnitPrice) FROM Track)) IS NULL, ratio_to_overall DESC, MediaTypeId LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1486e0d33f",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16173,
+  "chars_out": 3853
+ }
+}

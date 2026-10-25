@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "SELECT event_id, location, avg_ratio, rnk FROM (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio, RANK() OVER (PARTITION BY e.location ORDER BY CASE WHEN AVG((b.spent - b.amount) * 1.0 / b.amount) IS NULL THEN 1 ELSE 0 END, AVG((b.spent - b.amount) * 1.0 / b.amount) DESC) AS rnk FROM event e JOIN budget b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL AND TRIM(e.location) <> '' GROUP BY e.event_id, e.location) t WHERE rnk <= 3 ORDER BY location, rnk, event_id",
+  "WITH ev AS (\n  SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio\n  FROM event e\n  JOIN budget b ON b.link_to_event = e.event_id\n  WHERE e.location IS NOT NULL AND TRIM(e.location) <> ''\n  GROUP BY e.event_id, e.location\n), ranked AS (\n  SELECT event_id, location, avg_ratio,\n         RANK() OVER (PARTITION BY location ORDER BY CASE WHEN avg_ratio IS NULL THEN 1 ELSE 0 END, avg_ratio DESC) AS rnk\n  FROM ev\n)\nSELECT event_id, location, avg_ratio, rnk AS rank\nFROM ranked\nWHERE rnk <= 3\nORDER BY location, rnk, event_id;",
+  "WITH ev AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio FROM event e JOIN budget b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL AND TRIM(e.location) <> '' GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY avg_ratio IS NULL, avg_ratio DESC) AS rnk FROM ev) SELECT event_id, location, avg_ratio, rnk FROM ranked WHERE rnk <= 3 ORDER BY location, rnk, event_id;"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT event_id, location, avg_ratio, rnk FROM (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio, RANK() OVER (PARTITION BY e.location ORDER BY CASE WHEN AVG((b.spent - b.amount) * 1.0 / b.amount) IS NULL THEN 1 ELSE 0 END, AVG((b.spent - b.amount) * 1.0 / b.amount) DESC) AS rnk FROM event e JOIN budget b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL AND TRIM(e.location) <> '' GROUP BY e.event_id, e.location) t WHERE rnk <= 3 ORDER BY location, rnk, event_id",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with amount = 0 give a NULL ratio (SQLite division by zero) and are ignored by AVG; an event whose lines all have NULL ratios has a NULL average and ranks last in its location.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events with a NULL or blank/whitespace-only location count as having no recorded location and are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ranks are computed among only the events that have budget lines (inner join), as the request says.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH ev AS (\n  SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio\n  FROM event e\n  JOIN budget b ON b.link_to_event = e.event_id\n  WHERE e.location IS NOT NULL AND TRIM(e.location) <> ''\n  GROUP BY e.event_id, e.location\n), ranked AS (\n  SELECT event_id, location, avg_ratio,\n         RANK() OVER (PARTITION BY location ORDER BY CASE WHEN avg_ratio IS NULL THEN 1 ELSE 0 END, avg_ratio DESC) AS rnk\n  FROM ev\n)\nSELECT event_id, location, avg_ratio, rnk AS rank\nFROM ranked\nWHERE rnk <= 3\nORDER BY location, rnk, event_id;",
+   "assumptions": [
+    {
+     "assumption": "Budget lines with amount = 0 give a NULL ratio (SQLite division by zero) and are ignored by AVG; events whose lines all have NULL ratios get a NULL average and rank last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events with a NULL or empty/blank location are treated as having no recorded location and excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Rank uses RANK() semantics (ties share a rank, next rank skipped), and 'ranked 3 or better' means rank <= 3.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH ev AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio FROM event e JOIN budget b ON b.link_to_event = e.event_id WHERE e.location IS NOT NULL AND TRIM(e.location) <> '' GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY avg_ratio IS NULL, avg_ratio DESC) AS rnk FROM ev) SELECT event_id, location, avg_ratio, rnk FROM ranked WHERE rnk <= 3 ORDER BY location, rnk, event_id;",
+   "assumptions": [
+    {
+     "assumption": "A budget line with amount = 0 gives a NULL ratio (SQLite division by zero), so AVG skips it. An event whose lines all have a NULL ratio has a NULL average and ranks last within its location.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events with a NULL or blank location are treated as having no recorded location and are excluded. Events are grouped by exact location text.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Ranked 3 or better' means rank <= 3. Ties share a rank and the next rank is skipped, so RANK() is used.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-be1e5ce229",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23577,
+  "chars_out": 3302
+ }
+}

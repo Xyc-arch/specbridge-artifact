@@ -1,0 +1,21 @@
+{
+ "interpretations": [
+  "For each budget line, sum all linked expense costs; compare that total with the average of those totals across budget lines that have expenses. Report the qualifying lines\u2019 average total, their combined expense count, and their average dollar amount above the benchmark",
+  "For each budget line, sum all linked expense costs, treating lines with no expenses as zero; compare that total with the average across all budget lines. Report the qualifying lines\u2019 average total, their combined expense count, and their average dollar amount above the benchmark",
+  "For each budget line, sum all linked expense costs; compare that total with the average `budget.spent` value across budget lines. Report the qualifying lines\u2019 average expense total, their combined expense count, and their average dollar amount above that benchmark"
+ ],
+ "queries": [
+  "WITH budget_totals AS (\n    SELECT e.link_to_budget,\n           SUM(e.cost) AS total_cost,\n           COUNT(*) AS expense_count\n    FROM expense AS e\n    GROUP BY e.link_to_budget\n),\nbenchmark AS (\n    SELECT AVG(total_cost) AS average_total\n    FROM budget_totals\n)\nSELECT AVG(bt.total_cost) AS average_total,\n       SUM(bt.expense_count) AS combined_expense_count,\n       AVG(bt.total_cost - b.average_total) AS average_amount_above_benchmark\nFROM budget_totals AS bt\nCROSS JOIN benchmark AS b\nWHERE bt.total_cost > b.average_total",
+  "WITH line_totals AS (\n    SELECT b.budget_id,\n           COALESCE(SUM(e.cost), 0) AS total_cost,\n           COUNT(e.expense_id) AS expense_count\n    FROM budget AS b\n    LEFT JOIN expense AS e ON e.link_to_budget = b.budget_id\n    GROUP BY b.budget_id\n),\nbenchmark AS (\n    SELECT AVG(total_cost) AS average_total\n    FROM line_totals\n)\nSELECT AVG(l.total_cost) AS average_total,\n       SUM(l.expense_count) AS combined_expense_count,\n       AVG(l.total_cost - b.average_total) AS average_amount_above_benchmark\nFROM line_totals AS l\nCROSS JOIN benchmark AS b\nWHERE l.total_cost > b.average_total",
+  "WITH benchmark AS (\n    SELECT AVG(spent) AS avg_spent\n    FROM budget\n),\nline_totals AS (\n    SELECT b.budget_id,\n           COALESCE(SUM(e.cost), 0) AS expense_total,\n           COUNT(e.expense_id) AS expense_count\n    FROM budget AS b\n    LEFT JOIN expense AS e ON e.link_to_budget = b.budget_id\n    GROUP BY b.budget_id\n)\nSELECT AVG(lt.expense_total) AS average_expense_total,\n       SUM(lt.expense_count) AS combined_expense_count,\n       AVG(lt.expense_total - benchmark.avg_spent) AS average_amount_above_benchmark\nFROM line_totals AS lt\nCROSS JOIN benchmark\nWHERE lt.expense_total > benchmark.avg_spent"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-14054d8e5e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 5,
+  "chars_in": 38217,
+  "chars_out": 2600
+ }
+}

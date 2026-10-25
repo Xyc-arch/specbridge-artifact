@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-156f4616e3",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Return exactly 10 cities. If cities are tied at the 10th place, keep an arbitrary subset of them.",
+ "c": {
+  "request": "For each city in the address table, show its city ID, how many addresses it has, that count relative to the average number of addresses per city, and its share of all addresses. Which are the top 10 cities by that share, highest first? Don't round anything. Return exactly 10 cities. If cities are tied at the 10th place, keep an arbitrary subset of them.",
+  "sql": "WITH city_address_counts AS (\n  SELECT ci.city_id, ci.city, COUNT(a.address_id) AS address_count\n  FROM city AS ci\n  LEFT JOIN address AS a ON a.city_id = ci.city_id\n  GROUP BY ci.city_id, ci.city\n)\nSELECT\n  city_id,\n  address_count,\n  address_count / (SELECT AVG(address_count) FROM city_address_counts) AS relative_to_average,\n  address_count / (SELECT SUM(address_count) FROM city_address_counts) AS share_of_all_addresses\nFROM city_address_counts\nORDER BY share_of_all_addresses DESC\nLIMIT 10",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "For each `city_id` in the address table, show the city ID, its number of addresses, that count divided by the average number of addresses per city, and that count as a share of all addresses (count divided by the total number of addresses). Rank cities by that share from highest to lowest and return exactly 10 rows, breaking any ties at 10th place arbitrarily, without rounding.",
+  "sql": "SELECT city_id, address_count, address_count / (SELECT AVG(city_count) FROM (SELECT COUNT(*) AS city_count FROM address GROUP BY city_id) AS city_counts) AS count_vs_avg, address_count / (SELECT COUNT(*) FROM address) AS share_of_addresses FROM (SELECT city_id, COUNT(*) AS address_count FROM address GROUP BY city_id) AS city_address_counts ORDER BY share_of_addresses DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each city referenced by at least one address, return its city ID, address count, ratio of that count to the average address count across cities with addresses, and fraction of all addresses belonging to that city; order by fraction descending and return exactly 10 cities, breaking ties at rank 10 arbitrarily, without rounding",
+  "sql": "WITH city_address_counts AS (\n  SELECT ci.city_id, COUNT(*) AS address_count\n  FROM city AS ci\n  JOIN address AS a ON a.city_id = ci.city_id\n  GROUP BY ci.city_id\n)\nSELECT city_id,\n       address_count,\n       address_count / AVG(address_count) OVER () AS ratio_to_average,\n       address_count / SUM(address_count) OVER () AS fraction_of_all_addresses\nFROM city_address_counts\nORDER BY fraction_of_all_addresses DESC\nLIMIT 10",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each city in the address table, show its city ID, address count, count relative to the average number of addresses per city, and share of all addresses. Return exactly the top 10 cities by share, highest first, choosing an arbitrary subset if cities are tied for 10th place. Don\u2019t round anything.",
+  "sql": "WITH city_address_counts AS (SELECT ci.city_id, COUNT(a.address_id) AS address_count FROM city ci LEFT JOIN address a ON a.city_id = ci.city_id GROUP BY ci.city_id), totals AS (SELECT AVG(address_count) AS avg_addresses_per_city, SUM(address_count) AS all_addresses FROM city_address_counts) SELECT cac.city_id, cac.address_count, cac.address_count / t.avg_addresses_per_city AS relative_to_average, cac.address_count / t.all_addresses AS share_of_all_addresses FROM city_address_counts cac CROSS JOIN totals t ORDER BY share_of_all_addresses DESC, cac.city_id LIMIT 10;",
+  "executes": true,
+  "matches": []
+ }
+}

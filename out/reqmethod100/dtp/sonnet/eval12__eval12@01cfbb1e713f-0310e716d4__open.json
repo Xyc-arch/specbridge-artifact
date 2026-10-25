@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Compute each rental's payment total (sum of payments with a non-null rental_id), and take the store from inventory.store_id via rental.inventory_id. Compare each rental to the single global average of those totals across all stores. Output one row per store with:",
+  "the store id",
+  "the sum of totals for rentals above the global average",
+  "the average of (rental total \u2212 global average) over those rentals",
+  "Same as 1, but compare each rental to its own store's average rental payment total, not the global one.",
+  "Same as 1, but the benchmark is the average individual payment amount (per payment row, not per rental). A rental qualifies if its payment total exceeds that average.",
+  "Same as 2, but the benchmark is the store's average individual payment amount.",
+  "Same as 1, but \"how much on average they beat the average by\" is the total excess of the qualifying rentals divided by all rentals in the store (not only the qualifying ones).",
+  "Same as 1, but \"how much on average they beat the average by\" is the combined payment total of the qualifying rentals minus the average (a single difference, not a per-rental average).",
+  "Same as 1, but the output is one row per qualifying rental with store id, rental payment total and excess. The \"combined payment total\" is then a per-store running or window total.",
+  "Same as 1, but the store is taken from the customer's store_id or the staff member's store_id instead of the rented copy's inventory store. (This conflicts with the \"copy that was rented\" wording, but it is another reading of \"store\".)",
+  "Same as 1, but the global average is computed only over rentals that have an inventory/store match, or over rentals in stores that have qualifying rentals.",
+  "Same as 1, but the comparison is greater than or equal to the average, so rentals exactly at the average are included.",
+  "Same as 1, but the average benchmark is computed over all payments including those with a null rental_id, while only rentals with linked payments are listed.",
+  "Same as 1, but \"average rental payment total\" is the average of the rental's payments, meaning the mean amount per payment within each rental, compared to the overall average of those per-rental means.",
+  "Missing interpretations:",
+  "Same as 1, but the store comes from the rental's staff_id (or the payment's staff_id) instead of the rented copy's inventory store.",
+  "Same as 1, but the total is taken per payment, with the store from the rental's copy. Each payment is compared to the average payment amount, and the output is the sum of qualifying payment amounts. This differs from 3, which still totals per rental.",
+  "Same as 1, but the \"combined payment total\" is the sum of the qualifying rentals' excess over the average, not the sum of their totals.",
+  "Same as 1, but the average benchmark is computed per store over only that store's rentals and only the qualifying rentals are shown, with the average beat computed against the global average. This mixes the store-level and global benchmarks.",
+  "Same as 1, but the output includes stores with no qualifying rentals, shown with a zero or null total (a LEFT JOIN from the store table).",
+  "Same as 1, but the benchmark is the average rental payment total taken over all rentals, including rentals with no linked payments, which count as a zero total.",
+  "Same as 1, but the \"average\" benchmark is the median rather than the mean."
+ ],
+ "queries": [
+  "SELECT store_id FROM store",
+  "SELECT SUM(total)\nFROM (SELECT rental_id, SUM(amount) AS total FROM payment GROUP BY rental_id)\nWHERE total > (SELECT AVG(total) FROM (SELECT SUM(amount) AS total FROM payment GROUP BY rental_id));\n",
+  "SELECT AVG(total - (SELECT AVG(t) FROM (SELECT SUM(amount) AS t FROM payment GROUP BY rental_id))) AS avg_diff\nFROM (SELECT rental_id, SUM(amount) AS total FROM payment GROUP BY rental_id);\n",
+  "WITH rp AS (\n  SELECT r.rental_id, i.store_id, SUM(p.amount) AS total\n  FROM rental r\n  JOIN inventory i ON i.inventory_id = r.inventory_id\n  JOIN payment p ON p.rental_id = r.rental_id\n  GROUP BY r.rental_id, i.store_id\n)\nSELECT rental_id\nFROM rp\nWHERE total > (SELECT AVG(total) FROM rp AS rp2 WHERE rp2.store_id = rp.store_id);\n",
+  "SELECT rental_id FROM payment GROUP BY rental_id HAVING SUM(amount) > (SELECT AVG(amount) FROM payment)"
+ ],
+ "raw": [
+  "1. Compute each rental's payment total (sum of payments with a non-null rental_id), and take the store from inventory.store_id via rental.inventory_id. Compare each rental to the single global average of those totals across all stores. Output one row per store with:\n   - the store id\n   - the sum of totals for rentals above the global average\n   - the average of (rental total \u2212 global average) over those rentals\n2. Same as 1, but compare each rental to its own store's average rental payment total, not the global one.\n3. Same as 1, but the benchmark is the average individual payment amount (per payment row, not per rental). A rental qualifies if its payment total exceeds that average.\n4. Same as 2, but the benchmark is the store's average individual payment amount.\n5. Same as 1, but \"how much on average they beat the average by\" is the total excess of the qualifying rentals divided by all rentals in the store (not only the qualifying ones).\n6. Same as 1, but \"how much on average they beat the average by\" is the combined payment total of the qualifying rentals minus the average (a single difference, not a per-rental average).\n7. Same as 1, but the output is one row per qualifying rental with store id, rental payment total and excess. The \"combined payment total\" is then a per-store running or window total.\n8. Same as 1, but the store is taken from the customer's store_id or the staff member's store_id instead of the rented copy's inventory store. (This conflicts with the \"copy that was rented\" wording, but it is another reading of \"store\".)\n9. Same as 1, but the global average is computed only over rentals that have an inventory/store match, or over rentals in stores that have qualifying rentals.\n10. Same as 1, but the comparison is greater than or equal to the average, so rentals exactly at the average are included.\n11. Same as 1, but the average benchmark is computed over all payments including those with a null rental_id, while only rentals with linked payments are listed.\n12. Same as 1, but \"average rental payment total\" is the average of the rental's payments, meaning the mean amount per payment within each rental, compared to the overall average of those per-rental means.",
+  "Missing interpretations:\n\nSame as 1, but the store comes from the rental's staff_id (or the payment's staff_id) instead of the rented copy's inventory store.\nSame as 1, but the total is taken per payment, with the store from the rental's copy. Each payment is compared to the average payment amount, and the output is the sum of qualifying payment amounts. This differs from 3, which still totals per rental.\nSame as 1, but the \"combined payment total\" is the sum of the qualifying rentals' excess over the average, not the sum of their totals.\nSame as 1, but the average benchmark is computed per store over only that store's rentals and only the qualifying rentals are shown, with the average beat computed against the global average. This mixes the store-level and global benchmarks.\nSame as 1, but the output includes stores with no qualifying rentals, shown with a zero or null total (a LEFT JOIN from the store table).\nSame as 1, but the benchmark is the average rental payment total taken over all rentals, including rentals with no linked payments, which count as a zero total.\nSame as 1, but the \"average\" benchmark is the median rather than the mean."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0310e716d4",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 112118,
+  "chars_out": 4945
+ }
+}

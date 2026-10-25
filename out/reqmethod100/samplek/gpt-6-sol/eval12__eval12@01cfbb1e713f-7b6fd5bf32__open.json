@@ -1,0 +1,69 @@
+{
+ "queries": [
+  "WITH counts AS (SELECT o.ordertune, COUNT(*)::numeric AS order_count FROM orders o WHERE o.ordertune IS NOT NULL AND EXISTS (SELECT 1 FROM riskandmargin r WHERE r.ordervault = o.recordvault) GROUP BY o.ordertune), overall AS (SELECT AVG(order_count) AS average_count FROM counts) SELECT AVG(c.order_count) AS average_count_above_average, AVG(c.order_count - a.average_count) AS average_excess FROM counts c CROSS JOIN overall a WHERE c.order_count > a.average_count",
+  "WITH types(ordertune) AS (VALUES ('Stop'), ('Market'), ('Limit'), ('StopLimit')), counts AS (SELECT t.ordertune, COUNT(o.orderspivot)::numeric AS order_count FROM types t LEFT JOIN orders o ON o.ordertune = t.ordertune AND EXISTS (SELECT 1 FROM riskandmargin r WHERE r.ordervault = o.recordvault) GROUP BY t.ordertune), overall AS (SELECT AVG(order_count) AS average_count FROM counts) SELECT AVG(c.order_count) AS average_count_above_average, AVG(c.order_count - a.average_count) AS average_excess FROM counts c CROSS JOIN overall a WHERE c.order_count > a.average_count",
+  "WITH type_counts AS (SELECT o.\"ordertune\", COUNT(DISTINCT o.\"orderspivot\") AS order_count FROM \"orders\" AS o JOIN \"riskandmargin\" AS r ON r.\"ordervault\" = o.\"recordvault\" GROUP BY o.\"ordertune\"), overall AS (SELECT AVG(order_count * 1.0) AS average_count FROM type_counts) SELECT AVG(tc.order_count * 1.0) AS average_count, AVG(tc.order_count - overall.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN overall WHERE tc.order_count > overall.average_count",
+  "WITH type_counts AS (SELECT o.\"ordertune\", COUNT(*) AS match_count FROM \"orders\" AS o JOIN \"riskandmargin\" AS r ON r.\"ordervault\" = o.\"recordvault\" GROUP BY o.\"ordertune\"), overall AS (SELECT AVG(match_count * 1.0) AS average_count FROM type_counts) SELECT AVG(tc.match_count * 1.0) AS average_count, AVG(tc.match_count - overall.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN overall WHERE tc.match_count > overall.average_count",
+  "WITH order_types AS (SELECT 'Stop' AS ordertune UNION ALL SELECT 'Market' UNION ALL SELECT 'Limit' UNION ALL SELECT 'StopLimit'), type_counts AS (SELECT t.ordertune, COUNT(DISTINCT o.\"orderspivot\") AS order_count FROM order_types AS t LEFT JOIN \"orders\" AS o ON o.\"ordertune\" = t.ordertune AND EXISTS (SELECT 1 FROM \"riskandmargin\" AS r WHERE r.\"ordervault\" = o.\"recordvault\") GROUP BY t.ordertune), overall AS (SELECT AVG(order_count * 1.0) AS average_count FROM type_counts) SELECT AVG(tc.order_count * 1.0) AS average_count, AVG(tc.order_count - overall.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN overall WHERE tc.order_count > overall.average_count",
+  "WITH type_counts AS (SELECT o.ordertune, COUNT(DISTINCT o.orderspivot) AS order_count FROM orders AS o JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY o.ordertune), baseline AS (SELECT AVG(order_count) AS average_count FROM type_counts) SELECT AVG(tc.order_count) AS average_count_above_baseline, AVG(tc.order_count - b.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN baseline AS b WHERE tc.order_count > b.average_count;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH counts AS (SELECT o.ordertune, COUNT(*)::numeric AS order_count FROM orders o WHERE o.ordertune IS NOT NULL AND EXISTS (SELECT 1 FROM riskandmargin r WHERE r.ordervault = o.recordvault) GROUP BY o.ordertune), overall AS (SELECT AVG(order_count) AS average_count FROM counts) SELECT AVG(c.order_count) AS average_count_above_average, AVG(c.order_count - a.average_count) AS average_excess FROM counts c CROSS JOIN overall a WHERE c.order_count > a.average_count",
+   "assumptions": [
+    {
+     "assumption": "The average is across order types with at least one matched order.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include all four documented order types in the average, assigning zero to types with no matched orders.",
+     "sql": "WITH types(ordertune) AS (VALUES ('Stop'), ('Market'), ('Limit'), ('StopLimit')), counts AS (SELECT t.ordertune, COUNT(o.orderspivot)::numeric AS order_count FROM types t LEFT JOIN orders o ON o.ordertune = t.ordertune AND EXISTS (SELECT 1 FROM riskandmargin r WHERE r.ordervault = o.recordvault) GROUP BY t.ordertune), overall AS (SELECT AVG(order_count) AS average_count FROM counts) SELECT AVG(c.order_count) AS average_count_above_average, AVG(c.order_count - a.average_count) AS average_excess FROM counts c CROSS JOIN overall a WHERE c.order_count > a.average_count"
+    }
+   ]
+  },
+  {
+   "sql": "WITH type_counts AS (SELECT o.\"ordertune\", COUNT(DISTINCT o.\"orderspivot\") AS order_count FROM \"orders\" AS o JOIN \"riskandmargin\" AS r ON r.\"ordervault\" = o.\"recordvault\" GROUP BY o.\"ordertune\"), overall AS (SELECT AVG(order_count * 1.0) AS average_count FROM type_counts) SELECT AVG(tc.order_count * 1.0) AS average_count, AVG(tc.order_count - overall.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN overall WHERE tc.order_count > overall.average_count",
+   "assumptions": [
+    {
+     "assumption": "Each matched order is counted once, even if it has multiple risk/margin records.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average across types includes only order types with at least one matched order.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count matched risk/margin records per order type, so an order with multiple records contributes multiple times.",
+     "sql": "WITH type_counts AS (SELECT o.\"ordertune\", COUNT(*) AS match_count FROM \"orders\" AS o JOIN \"riskandmargin\" AS r ON r.\"ordervault\" = o.\"recordvault\" GROUP BY o.\"ordertune\"), overall AS (SELECT AVG(match_count * 1.0) AS average_count FROM type_counts) SELECT AVG(tc.match_count * 1.0) AS average_count, AVG(tc.match_count - overall.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN overall WHERE tc.match_count > overall.average_count"
+    },
+    {
+     "interpretation": "Include all four documented order types in the average, assigning zero to types with no matched orders.",
+     "sql": "WITH order_types AS (SELECT 'Stop' AS ordertune UNION ALL SELECT 'Market' UNION ALL SELECT 'Limit' UNION ALL SELECT 'StopLimit'), type_counts AS (SELECT t.ordertune, COUNT(DISTINCT o.\"orderspivot\") AS order_count FROM order_types AS t LEFT JOIN \"orders\" AS o ON o.\"ordertune\" = t.ordertune AND EXISTS (SELECT 1 FROM \"riskandmargin\" AS r WHERE r.\"ordervault\" = o.\"recordvault\") GROUP BY t.ordertune), overall AS (SELECT AVG(order_count * 1.0) AS average_count FROM type_counts) SELECT AVG(tc.order_count * 1.0) AS average_count, AVG(tc.order_count - overall.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN overall WHERE tc.order_count > overall.average_count"
+    }
+   ]
+  },
+  {
+   "sql": "WITH type_counts AS (SELECT o.ordertune, COUNT(DISTINCT o.orderspivot) AS order_count FROM orders AS o JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY o.ordertune), baseline AS (SELECT AVG(order_count) AS average_count FROM type_counts) SELECT AVG(tc.order_count) AS average_count_above_baseline, AVG(tc.order_count - b.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN baseline AS b WHERE tc.order_count > b.average_count;",
+   "assumptions": [
+    {
+     "assumption": "Each matched order counts once even if it has multiple risk/margin records; the average across types includes types with at least one matched order.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7b6fd5bf32",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40602,
+  "chars_out": 4383
+ }
+}

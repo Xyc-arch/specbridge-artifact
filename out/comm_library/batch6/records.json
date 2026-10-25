@@ -1,0 +1,2466 @@
+{
+ "library": [
+  {
+   "version": "comm-library-v2",
+   "task": "b001",
+   "question_id": 193,
+   "database": "financial",
+   "original": "List all ID and district for clients that can only have the right to issue permanent orders or apply for loans.\nEvidence: Only the owner accounts have the right to issue permanent orders or apply for loans",
+   "explicit": "Start from each `account` record; combine it with each `district` record for which location of branch (`account.district_id`) equals location of branch (`district.district_id`), one combined record per match (a record without a match is dropped); combine it with each `disp` record for which the id of the account (`account.account_id`) equals id number of account (`disp.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which disposition role on account (`disp.type`) equals 'OWNER' (compared as text, character by character); for each kept record, return (1) id number of client (`disp.client_id`); (2) location of branch (`district.district_id`); (3) district_name (`district.A2`).",
+   "gold_sql": "SELECT T3.client_id, T2.district_id, T2.A2 FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id WHERE T3.type = 'OWNER'",
+   "decision": "How 'district' is reported in the output: as the district id together with its name (A2), or as the district id alone.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "For each owner disposition, list the client id and the district both as its id and its name (A2), taken from the account's branch district.",
+     "sql": "SELECT T3.client_id, T2.district_id, T2.A2 FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id WHERE T3.type = 'OWNER'",
+     "rows": 4500,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "For each owner disposition, list the client id and the district as its id only.",
+     "sql": "SELECT T3.client_id, T2.district_id FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id WHERE T3.type = 'OWNER'",
+     "rows": 4500,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Report the district as its name only (A2), from the account's branch.",
+     "sql": "SELECT T3.client_id, T2.A2 FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id WHERE T3.type = 'OWNER'",
+     "rows": 4500,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Report the district (id and name) where the client is located, not where the account's branch is.",
+     "sql": "SELECT T3.client_id, T2.district_id, T2.A2 FROM client AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.client_id = T3.client_id WHERE T3.type = 'OWNER'",
+     "rows": 4500,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "fits",
+      "C1": "fits"
+     },
+     "other_readings": [
+      "Report the client's own district as district_id only (client.district_id), not the account branch's district.",
+      "Report the client's own district as its name only (A2 joined through client.district_id)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C1": "fits",
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Use the client's own district (client.district_id) and report only its id, with no name.",
+      "Use the client's own district (client.district_id) and report only its name A2.",
+      "Restrict to owners of accounts that actually have an order or loan, rather than all owner dispositions.",
+      "Report the district as id and name for the account branch district but also include the account id."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Submissions returned two columns \"c.client_id, c.district_id\" from client's own district. Gold returns three columns \"T3.client_id, T2.district_id, T2.A2\", where the district comes from the account's branch and includes the name A2. The ids happen to match in the first rows, but the missing A2 column causes the failure.",
+    "question_gap": "partly -- 'district' could mean the id or the name, and could come from the client or the account, so the question does not settle that gold wants both the account-branch district id and its name A2.",
+    "supplied": "return ... (2) location of branch (`district.district_id`); (3) district_name (`district.A2`)"
+   },
+   "analysis": {
+    "task": "b001",
+    "requirements": [
+     {
+      "requirement": "start from accounts linked to their branch district",
+      "real": "implied",
+      "phrase": "district for clients"
+     },
+     {
+      "requirement": "join account to district via account.district_id (branch location, not client residence)",
+      "real": "left_open",
+      "phrase": "district"
+     },
+     {
+      "requirement": "join account to disposition records to reach clients",
+      "real": "implied",
+      "phrase": "clients that can only have the right to issue permanent orders or apply for loans"
+     },
+     {
+      "requirement": "keep only dispositions of type 'OWNER'",
+      "real": "via_evidence",
+      "phrase": "Only the owner accounts have the right to issue permanent orders or apply for loans"
+     },
+     {
+      "requirement": "output client id (disp.client_id)",
+      "real": "stated",
+      "phrase": "List all ID"
+     },
+     {
+      "requirement": "output district id",
+      "real": "implied",
+      "phrase": "district"
+     },
+     {
+      "requirement": "output district name (A2)",
+      "real": "left_open",
+      "phrase": "district"
+     },
+     {
+      "requirement": "one row per matching disposition, no deduplication",
+      "real": "implied",
+      "phrase": "List all"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether 'district' should be output as only the district id or as both the district id and the district name",
+     "open_phrase": "List all ID and district",
+     "why_both": "'district' as a single output item can mean the district's identifier, which parallels 'ID', or its readable name, and the question never says whether one column or two are wanted."
+    },
+    "pattern": [
+     "names output columns with bare entity nouns ('ID', 'district') without saying which attribute or how many columns each noun stands for",
+     "puts the filter in role-based wording ('can only have the right to...') and relies on evidence to map it to a categorical value",
+     "leaves the join path implicit, so it is unclear whether the district is the account's branch or the client's residence",
+     "uses 'List all' to signal plain row-level output with no aggregation, deduplication, or ordering"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b003",
+   "question_id": 267,
+   "database": "toxicology",
+   "original": "List down the bond type for molecules from molecule id TR000 to TR050.\nEvidence: double bond refers to bond_type = ' = '; single bond refers to bond_type = '-'; triple bond refers to bond_type = '#';",
+   "explicit": "Start from each `molecule` record; combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which unique id of molecule (`molecule.molecule_id`) is between 'TR000' and 'TR050', inclusive (compared as text, character by character); for each kept record, return (1) molecule id (`bond.molecule_id`); (2) bond order/type between two atoms (`bond.bond_type`).",
+   "gold_sql": "SELECT T2.molecule_id, T2.bond_type FROM molecule AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.molecule_id BETWEEN 'TR000' AND 'TR050'",
+   "decision": "Output form: whether to list one row per bond paired with its molecule_id, or just the set of distinct bond types found across molecules TR000\u2013TR050",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "For every bond in molecules TR000 through TR050, list the molecule id and the bond's type (one row per bond, duplicates kept)",
+     "sql": "SELECT T2.molecule_id, T2.bond_type FROM molecule AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.molecule_id BETWEEN 'TR000' AND 'TR050'",
+     "rows": 1153,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List the distinct bond types that occur in molecules TR000 through TR050 (each type once)",
+     "sql": "SELECT DISTINCT T2.bond_type FROM molecule AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.molecule_id BETWEEN 'TR000' AND 'TR050'",
+     "rows": 3,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "For each molecule from TR000 to TR050, list the distinct bond types it contains (one row per molecule\u2013bond type pair)",
+     "sql": "SELECT DISTINCT T2.molecule_id, T2.bond_type FROM molecule AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.molecule_id BETWEEN 'TR000' AND 'TR050'",
+     "rows": 74,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "For every bond in molecules TR000 through TR050, list only the bond_type column (one row per bond, duplicates kept, no molecule id)",
+      "For each molecule from TR000 to TR050, list each bond type with the count of bonds of that type"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "List bond_type for every bond in molecules TR000 to TR050 as a single column, one row per bond with duplicates kept and no molecule id.",
+      "Interpret the range TR000 to TR050 as a string comparison (molecule_id BETWEEN 'TR000' AND 'TR050') versus an enumerated set of 51 ids; this affects the range boundaries but not the output shape.",
+      "Return the bond types translated into the words single, double, and triple, instead of the raw symbols."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Submissions returned \"SELECT DISTINCT bond_type\" (3 rows: '-', '=', '#'). Gold returns \"T2.molecule_id, T2.bond_type\" for every bond without DISTINCT (1153 rows).",
+    "question_gap": "no -- 'List down the bond type for molecules' reasonably reads as the distinct bond types; nothing asks for the molecule_id column or one row per bond.",
+    "supplied": "for each kept record, return (1) molecule id (`bond.molecule_id`); (2) bond order/type between two atoms (`bond.bond_type`)"
+   },
+   "analysis": {
+    "task": "b003",
+    "requirements": [
+     {
+      "requirement": "start from molecule records",
+      "real": "stated",
+      "phrase": "molecules"
+     },
+     {
+      "requirement": "link bonds to molecules by molecule id",
+      "real": "implied",
+      "phrase": "bond type for molecules"
+     },
+     {
+      "requirement": "drop molecules with no bonds (inner join)",
+      "real": "implied",
+      "phrase": "bond type for molecules"
+     },
+     {
+      "requirement": "filter molecule id between 'TR000' and 'TR050' inclusive",
+      "real": "stated",
+      "phrase": "from molecule id TR000 to TR050"
+     },
+     {
+      "requirement": "text comparison of ids",
+      "real": "implied",
+      "phrase": "TR000 to TR050"
+     },
+     {
+      "requirement": "output molecule id",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output bond type",
+      "real": "stated",
+      "phrase": "List down the bond type"
+     },
+     {
+      "requirement": "one row per bond, duplicates kept",
+      "real": "left_open",
+      "phrase": "List down the bond type"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "bond type codes ('-', '=', '#') returned raw",
+      "real": "via_evidence",
+      "phrase": "double bond refers to bond_type = ' = '; single bond refers to bond_type = '-'; triple bond refers to bond_type = '#'"
+     }
+    ],
+    "choice": {
+     "decision": "whether to return every bond row with its molecule id or only the distinct set of bond types",
+     "open_phrase": "List down the bond type for molecules from molecule id TR000 to TR050",
+     "why_both": "\"the bond type for molecules\" can mean each molecule's bonds listed per molecule (so you keep a row for every bond, tagged with the molecule id) or simply which bond types appear in that range (so each type appears once), and the question does not say which."
+    },
+    "pattern": [
+     "uses a singular noun ('the bond type') for something that has many values per entity, so it is unclear whether to list every row or each distinct value once",
+     "gives the entity range as inclusive endpoints ('from X to Y') and leaves the comparison method to convention",
+     "does not mention the identifier column that the gold output includes",
+     "uses evidence only to decode category codes, not to settle output shape",
+     "states no rule for duplicates, ordering or limit"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b004",
+   "question_id": 268,
+   "database": "toxicology",
+   "original": "What are the elements for bond id TR001_10_11?\nEvidence: TR001_10_11 is the bond id;",
+   "explicit": "Start from each `connected` record; combine it with each `atom` record for which id of the first atom (`connected.atom_id`) equals the unique id of atoms (`atom.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which bond id (`connected.bond_id`) equals 'TR001_10_11' (compared as text, character by character); for each kept record, return (1) chemical element of the atom (`atom.element`).",
+   "gold_sql": "SELECT T2.element FROM connected AS T1 INNER JOIN atom AS T2 ON T1.atom_id = T2.atom_id WHERE T1.bond_id = 'TR001_10_11'",
+   "decision": "Whether the bond's elements come back as one element per row (one column) or as a single pair per row (one column for each endpoint atom)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the elements of the atoms in bond TR001_10_11 in one column, one element per row. The connected table stores each bond in both directions, so joining on atom_id alone returns both endpoint elements.",
+     "sql": "SELECT T2.element FROM connected AS T1 INNER JOIN atom AS T2 ON T1.atom_id = T2.atom_id WHERE T1.bond_id = 'TR001_10_11'",
+     "rows": 2,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the bond's elements as pairs: for each connected row of bond TR001_10_11, one column for the first atom's element and one for the second atom's element.",
+     "sql": "SELECT T2.element, T3.element FROM connected AS T1 INNER JOIN atom AS T2 ON T1.atom_id = T2.atom_id INNER JOIN atom AS T3 ON T1.atom_id2 = T3.atom_id WHERE T1.bond_id = 'TR001_10_11'",
+     "rows": 2,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the distinct set of elements in one column, taken from both connected.atom_id and connected.atom_id2 for bond TR001_10_11 (for example, a UNION of the two joins), so a C-C bond returns just 'c'.",
+      "Return the elements of both endpoint atoms in one column without removing duplicates, taken from both atom_id and atom_id2 of a single connected row, so the result does not depend on whether bonds are stored in both directions."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return the distinct elements only, with each element listed once (e.g. deduplicated if both atoms are the same element, or if both directions of the bond are counted).",
+      "Return one row per connected row, with a single element column for only the first atom (atom_id), since the bond id is joined through that column.",
+      "Derive the atoms from the bond_id string itself (TR001_10_11 -> atoms TR001_10 and TR001_11) rather than from the connected table, and list their elements."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Failing repeat 1 returned two columns \"a1.element, a2.element\" via both atom_id and atom_id2, giving [['c','o'],['o','c']]. Gold returns the single column \"T2.element\" joined on atom_id only, giving [['c'],['o']]. Repeat 0 used one element column and passed.",
+    "question_gap": "partly -- 'the elements' does not say one column or a pair per row, but the single-column reading is natural and the agent found it in repeat 0.",
+    "supplied": ""
+   },
+   "analysis": {
+    "task": "b004",
+    "requirements": [
+     {
+      "requirement": "start from connected records (atom-bond links)",
+      "real": "implied",
+      "phrase": "elements for bond id"
+     },
+     {
+      "requirement": "join connected to atom on connected.atom_id = atom.atom_id (first atom only)",
+      "real": "left_open",
+      "phrase": "elements for bond"
+     },
+     {
+      "requirement": "drop connected records with no matching atom (inner join)",
+      "real": "implied",
+      "phrase": "elements for bond"
+     },
+     {
+      "requirement": "filter bond_id = 'TR001_10_11'",
+      "real": "stated",
+      "phrase": "bond id TR001_10_11"
+     },
+     {
+      "requirement": "bond id is a text identifier compared exactly",
+      "real": "via_evidence",
+      "phrase": "TR001_10_11 is the bond id"
+     },
+     {
+      "requirement": "output a single column: atom.element",
+      "real": "implied",
+      "phrase": "What are the elements"
+     },
+     {
+      "requirement": "one row per kept connected record (duplicates kept, no DISTINCT)",
+      "real": "left_open",
+      "phrase": "What are the elements"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to return elements as a single column (one per row via the first-atom join) or as paired columns for the first and second atom of each connected row",
+     "open_phrase": "What are the elements for bond id TR001_10_11?",
+     "why_both": "A bond has two endpoint atoms and the plural 'elements' may mean a flat list of endpoint elements or the element pair per bond link, and the question does not say how the result should be shaped."
+    },
+    "pattern": [
+     "asks for a plural attribute of an entity identified by a literal id, with no output shape stated",
+     "relies on evidence only to confirm the literal is an identifier of the named entity",
+     "leaves unstated which link column connects the entity to the attribute's table",
+     "states no rule about duplicate values in the result",
+     "uses short interrogative wording with no ordering or limit"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b005",
+   "question_id": 270,
+   "database": "toxicology",
+   "original": "Among the molecules with element Calcium, are they mostly carcinogenic or non carcinogenic?\nEvidence: calcium refers to element = 'ca'; label = '+' mean molecules are carcinogenic; label = '-' means molecules are non-carcinogenic; MAX(label)",
+   "explicit": "Start from each `atom` record; combine it with each `molecule` record for which molecule id (`atom.molecule_id`) equals unique id of molecule (`molecule.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which chemical element of the atom (`atom.element`) equals 'ca' (compared as text, character by character); group the kept records by carcinogenicity status of the molecule (`molecule.label`); each group gives one result row; for each result row, return (1) carcinogenicity status of the molecule (`molecule.label`); order the result rows by the number of records in the group whose carcinogenicity status of the molecule (`molecule.label`) is not missing descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T2.label FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.element = 'ca' GROUP BY T2.label ORDER BY COUNT(T2.label) DESC LIMIT 1",
+   "decision": "What the answer should contain: only the majority label, or each label together with its count so the reader can compare them",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return only the label (+ or -) that is most common among the calcium-containing rows.",
+     "sql": "SELECT T2.label FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.element = 'ca' GROUP BY T2.label ORDER BY COUNT(T2.label) DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return every label found among the calcium-containing molecules with its count, so the reader can see which one is more common.",
+     "sql": "SELECT T2.label, COUNT(T2.label) FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.element = 'ca' GROUP BY T2.label ORDER BY COUNT(T2.label) DESC",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return the majority label together with its count.",
+     "sql": "SELECT T2.label, COUNT(T2.label) FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.element = 'ca' GROUP BY T2.label ORDER BY COUNT(T2.label) DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "aggregation_over_join",
+     "extreme_selection",
+     "grouping"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return a single word such as 'carcinogenic' or 'non carcinogenic', mapped from the majority label, rather than the raw '+' or '-' symbol.",
+      "Read the evidence's MAX(label) literally: return the lexicographic maximum label among calcium molecules instead of the most frequent one."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct molecules containing calcium (rather than atom rows) per label and return the majority label, since a molecule may contain several calcium atoms and the question says 'molecules'.",
+      "Interpret MAX(label) literally as the lexicographically greatest label among calcium molecules, which would return '+' if any is carcinogenic rather than the most frequent label.",
+      "Return a descriptive word ('carcinogenic' or 'non-carcinogenic') instead of the raw '+' or '-' symbol."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Submissions returned an extra count column, \"m.label, COUNT(DISTINCT m.molecule_id)\", giving [['-', 1]]. Gold returns only \"T2.label\" via ORDER BY COUNT(T2.label) DESC LIMIT 1, giving [['-']]. The label is the same; only the extra column differs.",
+    "question_gap": "partly -- the question asks which label is more common, which implies returning just the label, but the extra count column is a natural addition.",
+    "supplied": "return (1) carcinogenicity status of the molecule (`molecule.label`); order the result rows by the number of records ... descending; keep only the first 1 rows"
+   },
+   "analysis": {
+    "task": "b005",
+    "requirements": [
+     {
+      "requirement": "start from atom records and link each to its molecule via molecule_id (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "molecules with element Calcium"
+     },
+     {
+      "requirement": "keep only atoms whose element equals 'ca'",
+      "real": "via_evidence",
+      "phrase": "calcium refers to element = 'ca'"
+     },
+     {
+      "requirement": "group by molecule carcinogenicity label",
+      "real": "implied",
+      "phrase": "are they mostly carcinogenic or non carcinogenic"
+     },
+     {
+      "requirement": "label values '+' = carcinogenic, '-' = non-carcinogenic",
+      "real": "via_evidence",
+      "phrase": "label = '+' mean molecules are carcinogenic; label = '-' means molecules are non-carcinogenic"
+     },
+     {
+      "requirement": "count per group is over atom-level joined rows (a molecule with several Ca atoms counts multiple times), not distinct molecules",
+      "real": "contradicted",
+      "phrase": "Among the molecules"
+     },
+     {
+      "requirement": "order groups by count descending",
+      "real": "implied",
+      "phrase": "mostly"
+     },
+     {
+      "requirement": "output only the label column",
+      "real": "implied",
+      "phrase": "are they mostly carcinogenic or non carcinogenic"
+     },
+     {
+      "requirement": "keep only the top 1 row",
+      "real": "implied",
+      "phrase": "mostly ... or ..."
+     },
+     {
+      "requirement": "missing labels excluded from count / ordered last",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "tie rule between the two labels",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "evidence hint of an aggregate maximum",
+      "real": "via_evidence",
+      "phrase": "MAX(label)"
+     }
+    ],
+    "choice": {
+     "decision": "Whether to return only the single majority label, or every label with its count so the majority can be seen",
+     "open_phrase": "are they mostly carcinogenic or non carcinogenic?",
+     "why_both": "The either/or question asks for one answer (the majority label), but a careful reader could also return both labels with their counts, since the counts support the 'mostly' judgment and the question never says to return only the winner."
+    },
+    "pattern": [
+     "phrases the task as an either/or yes-no style question rather than a request for specific columns",
+     "conveys 'pick the most frequent category' through the word 'mostly' without naming a count, order, or limit",
+     "uses evidence to map natural-language categories and the element name onto stored codes",
+     "the evidence includes a loose aggregate hint (MAX) that doesn't match the actual count-and-rank computation",
+     "speaks of 'molecules' while the computation counts linked sub-records, leaving the counting unit unclear",
+     "gives no rule for ties or missing category values"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b008",
+   "question_id": 275,
+   "database": "toxicology",
+   "original": "Give me the molecule ID of the double bond type.\nEvidence: double bond refers to bond_type = ' = ';",
+   "explicit": "Start from each `bond` record; keep only the records for which bond order/type between two atoms (`bond.bond_type`) equals '=' (compared as text, character by character); for each kept record, return (1) molecule id (`bond.molecule_id`); remove duplicate result rows.",
+   "gold_sql": "SELECT DISTINCT T.molecule_id FROM bond AS T WHERE T.bond_type = '='",
+   "decision": "Whether to keep molecule_id values from bond rows that have no matching row in the molecule table, or only return IDs of molecules that exist in that table",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List every distinct molecule_id that appears on a double-bond row in the bond table, whether or not that ID has an entry in the molecule table.",
+     "sql": "SELECT DISTINCT T.molecule_id FROM bond AS T WHERE T.bond_type = '='",
+     "rows": 370,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List the distinct IDs of molecules recorded in the molecule table that have at least one double bond, leaving out bond rows whose molecule_id has no molecule entry.",
+     "sql": "SELECT DISTINCT T.molecule_id FROM bond AS T INNER JOIN molecule AS M ON M.molecule_id = T.molecule_id WHERE T.bond_type = '='",
+     "rows": 291,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return molecule_id for every double-bond row without DISTINCT, so a molecule with several double bonds appears multiple times.",
+      "Derive molecule IDs via connected/atom joins from double-bond bond_ids instead of bond.molecule_id (same intent, different path, unnecessary)."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 1 inner-joined to molecule (\"FROM molecule m JOIN bond b ON m.molecule_id = b.molecule_id\") and got 291 rows. Gold reads bond alone (\"SELECT DISTINCT T.molecule_id FROM bond AS T WHERE T.bond_type = '='\") and gets 370 rows, so some bond.molecule_id values have no matching molecule row. Repeat 0 of the original version matched gold exactly.",
+    "question_gap": "partly -- the question does not say whether the molecule table must be joined, but the simplest reading of the bond table, which repeat 0 used, gives gold.",
+    "supplied": "Start from each `bond` record"
+   },
+   "analysis": {
+    "task": "b008",
+    "requirements": [
+     {
+      "requirement": "start from bond records",
+      "real": "implied",
+      "phrase": "double bond type"
+     },
+     {
+      "requirement": "filter bond_type equals '='",
+      "real": "via_evidence",
+      "phrase": "double bond refers to bond_type = ' = '"
+     },
+     {
+      "requirement": "exact text match '=' (evidence shows spaces around it)",
+      "real": "implied",
+      "phrase": "bond_type = ' = '"
+     },
+     {
+      "requirement": "output molecule_id column only",
+      "real": "stated",
+      "phrase": "Give me the molecule ID"
+     },
+     {
+      "requirement": "remove duplicate rows",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "no join to the molecule table / no existence check",
+      "real": "left_open",
+      "phrase": "molecule ID"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to return every molecule_id on double-bond rows, or only IDs that also exist in the molecule table",
+     "open_phrase": "the molecule ID of the double bond type",
+     "why_both": "'Molecule ID' can mean the molecule_id value stored on the bond row, or the ID of an actual recorded molecule, which would require the ID to also appear in the molecule table."
+    },
+    "pattern": [
+     "uses a singular noun phrase ('the molecule ID') even though many values are expected",
+     "sends the filter value through evidence, and the evidence literal has spacing that differs from the stored value",
+     "names the output attribute but not which table it should come from",
+     "says nothing about removing duplicates, though distinct values are expected",
+     "phrasing is terse and conversational, so the starting records are left for the reader to infer"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b020",
+   "question_id": 296,
+   "database": "toxicology",
+   "original": "Indicate the molecule id is belonging to the TR000_1_2 bond that has the first atom named TR000_1.",
+   "explicit": "Start from each `connected` record; combine it with each `bond` record for which bond id (`connected.bond_id`) equals unique id representing bonds (`bond.bond_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] id of the first atom (`connected.atom_id`) equals 'TR000_1' (compared as text, character by character); [2] unique id representing bonds (`bond.bond_id`) equals 'TR000_1_2' (compared as text, character by character) [end]; for each kept record, return (1) molecule id (`bond.molecule_id`); (2) unique id representing bonds (`bond.bond_id`); (3) id of the first atom (`connected.atom_id`).",
+   "gold_sql": "SELECT T2.molecule_id, T2.bond_id, T1.atom_id FROM connected AS T1 INNER JOIN bond AS T2 ON T1.bond_id = T2.bond_id WHERE T1.atom_id = 'TR000_1' AND T2.bond_id = 'TR000_1_2'",
+   "decision": "Which columns to return: only the molecule id, or the molecule id plus the bond id and the atom id used to identify it",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return the molecule id together with the bond id (TR000_1_2) and the first atom id (TR000_1), so the identifying context is shown next to the answer.",
+     "sql": "SELECT T2.molecule_id, T2.bond_id, T1.atom_id FROM connected AS T1 INNER JOIN bond AS T2 ON T1.bond_id = T2.bond_id WHERE T1.atom_id = 'TR000_1' AND T2.bond_id = 'TR000_1_2'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return only the molecule id of bond TR000_1_2 whose first atom is TR000_1, because that is the only thing the question asks for.",
+     "sql": "SELECT T2.molecule_id FROM connected AS T1 INNER JOIN bond AS T2 ON T1.bond_id = T2.bond_id WHERE T1.atom_id = 'TR000_1' AND T2.bond_id = 'TR000_1_2'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "The submissions returned only \"SELECT b.molecule_id\", giving [['TR000']]. Gold also returns bond_id and atom_id, giving [['TR000','TR000_1_2','TR000_1']]. The molecule value is the same.",
+    "question_gap": "no -- the question asks only for the molecule id, so gold's extra bond_id and atom_id columns are not implied.",
+    "supplied": "return (1) molecule id (`bond.molecule_id`); (2) unique id representing bonds (`bond.bond_id`); (3) id of the first atom (`connected.atom_id`)"
+   },
+   "analysis": {
+    "task": "b020",
+    "requirements": [
+     {
+      "requirement": "link connection records to bond records on bond id",
+      "real": "implied",
+      "phrase": "the TR000_1_2 bond that has the first atom named TR000_1"
+     },
+     {
+      "requirement": "first atom id equals 'TR000_1'",
+      "real": "stated",
+      "phrase": "has the first atom named TR000_1"
+     },
+     {
+      "requirement": "bond id equals 'TR000_1_2'",
+      "real": "stated",
+      "phrase": "the TR000_1_2 bond"
+     },
+     {
+      "requirement": "output molecule id",
+      "real": "stated",
+      "phrase": "Indicate the molecule id"
+     },
+     {
+      "requirement": "output bond id",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output first atom id",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "drop records without a match (inner join)",
+      "real": "implied",
+      "phrase": "belonging to the TR000_1_2 bond that has the first atom"
+     },
+     {
+      "requirement": "no ordering, limit, dedup or tie handling",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether the output includes the filter values (bond id and first atom id) next to the molecule id or only the molecule id",
+     "open_phrase": "Indicate the molecule id",
+     "why_both": "The question asks only for the molecule id, but 'indicate' and the identifiers named in the question could lead a reader to repeat the bond and atom ids as context, and the question does not say whether to include them."
+    },
+    "pattern": [
+     "names one target attribute to return and does not say whether to echo the filter values",
+     "identifies the entity by literal id values embedded in the sentence",
+     "states a relationship ('first atom') that requires a link between two record types without naming the link",
+     "uses an imperative 'indicate' verb instead of a precise output specification",
+     "gives no ordering, limit, or duplicate rule, expecting a single answer"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b023",
+   "question_id": 799,
+   "database": "superhero",
+   "original": "How many superheroes didn't have any publisher?\nEvidence: didn't have any publisher refers to publisher.id = 1;",
+   "explicit": "Start from each `superhero` record; combine it with each `publisher` record for which the id of the publisher (`superhero.publisher_id`) equals the unique identifier of the publisher (`publisher.id`), one combined record per match (a record without a match is dropped); keep only the records for which the unique identifier of the publisher (`publisher.id`) equals 1; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose the unique identifier of the superhero (`superhero.id`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.id) FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T2.id = 1",
+   "decision": "Whether superheroes with a NULL publisher_id count as having no publisher, along with those linked to publisher.id = 1 (the placeholder publisher record).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count only superheroes whose publisher_id points to the publisher record with id 1. Superheroes with a missing (NULL) publisher_id are left out.",
+     "sql": "SELECT COUNT(T1.id) FROM superhero AS T1 INNER JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T2.id = 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count superheroes with no publisher in either form: those linked to the publisher record with id 1, and those whose publisher_id is missing (NULL).",
+     "sql": "SELECT COUNT(T1.id) FROM superhero AS T1 LEFT JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T2.id = 1 OR T1.publisher_id IS NULL",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count only superheroes whose publisher_id is missing (NULL), taking 'didn't have any publisher' to mean no value is recorded.",
+     "sql": "SELECT COUNT(T1.id) FROM superhero AS T1 LEFT JOIN publisher AS T2 ON T1.publisher_id = T2.id WHERE T1.publisher_id IS NULL",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "missing_values",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "coded_values"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "does not fit",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Count superheroes with publisher_id = 1 by joining to the publisher table (publisher.id = 1), which is equivalent to R1 if all publisher_ids are valid foreign keys, but would differ if some publisher_ids don't match a publisher row."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Submitted `WHERE publisher_id IS NULL OR publisher_id = 1` returns 20. Gold uses an inner join with `WHERE T2.id = 1`, which drops superheroes whose publisher_id is NULL, and returns 17. The agent read \"didn't have any publisher\" as also covering NULL publisher_id. That added 3 rows.",
+    "question_gap": "partly \u2014 the evidence maps the phrase only to publisher.id = 1, but the wording \"didn't have any publisher\" also suggests a NULL publisher, and nothing rules that out.",
+    "supplied": "keep only the records for which the unique identifier of the publisher (`publisher.id`) equals 1"
+   },
+   "analysis": {
+    "task": "b023",
+    "requirements": [
+     {
+      "requirement": "start from superhero records",
+      "real": "stated",
+      "phrase": "superheroes"
+     },
+     {
+      "requirement": "link superhero to publisher via publisher_id = publisher.id (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "didn't have any publisher refers to publisher.id = 1"
+     },
+     {
+      "requirement": "filter to publisher.id = 1",
+      "real": "via_evidence",
+      "phrase": "didn't have any publisher refers to publisher.id = 1"
+     },
+     {
+      "requirement": "exclude superheroes with missing publisher_id",
+      "real": "left_open",
+      "phrase": "didn't have any publisher"
+     },
+     {
+      "requirement": "aggregate all kept records into one group",
+      "real": "implied",
+      "phrase": "How many"
+     },
+     {
+      "requirement": "output count of non-missing superhero.id",
+      "real": "stated",
+      "phrase": "How many superheroes"
+     }
+    ],
+    "choice": {
+     "decision": "whether superheroes with a NULL publisher_id also count as having no publisher, alongside those linked to publisher id 1",
+     "open_phrase": "didn't have any publisher",
+     "why_both": "The evidence ties 'no publisher' to publisher.id = 1, which suggests only that placeholder record counts, but in plain wording a superhero whose publisher_id is missing also has no publisher, so a careful reader could include those too."
+    },
+    "pattern": [
+     "phrases the target set as a negation ('didn't have any') of an attribute",
+     "evidence maps the negated concept onto one placeholder key value",
+     "does not say whether truly missing links also satisfy the negation",
+     "asks for a simple count with no output detail beyond 'how many'",
+     "leaves the join type to be inferred from the evidence's reference to the linked table"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b028",
+   "question_id": 805,
+   "database": "superhero",
+   "original": "List the full names of superheroes with missing weight.\nEvidence: missing weight refers to weight_kg = 0 OR weight_kg = NULL;",
+   "explicit": "Start from each `superhero` record; keep only the records for which all of the following hold: [1] it is not true that real/civilian full name (`superhero.full_name`) is missing; [2] at least one of the following holds: [1] weight (`superhero.weight_kg`) is missing; [2] weight (`superhero.weight_kg`) equals 0 [end] [end]; for each kept record, return (1) real/civilian full name (`superhero.full_name`); remove duplicate result rows.",
+   "gold_sql": "SELECT DISTINCT full_name FROM superhero WHERE full_name IS NOT NULL AND (weight_kg IS NULL OR weight_kg = 0)",
+   "decision": "Whether superheroes whose full_name is NULL should be kept in the output (as NULL entries) or left out",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List only the full names that are actually recorded. Superheroes with missing weight but no full name are left out, so no NULL entries appear.",
+     "sql": "SELECT DISTINCT full_name FROM superhero WHERE full_name IS NOT NULL AND (weight_kg IS NULL OR weight_kg = 0)",
+     "rows": 107,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List the full_name value for every superhero with missing weight, including those whose full name is unrecorded. Those superheroes show up as NULL entries.",
+     "sql": "SELECT DISTINCT full_name FROM superhero WHERE (weight_kg IS NULL OR weight_kg = 0)",
+     "rows": 108,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "List a name for every superhero with missing weight, using the superhero name when the full name is missing",
+     "sql": "SELECT DISTINCT COALESCE(full_name, superhero_name) FROM superhero WHERE (weight_kg IS NULL OR weight_kg = 0)",
+     "rows": 169,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "missing_values",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "List only distinct full_name values, so duplicate full names (or several NULLs) collapse into one entry each."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "List distinct full names only, with duplicates collapsed (the question does not say to deduplicate, so this is a weaker reading).",
+      "Treat missing weight as NULL or 0 and also exclude heroes whose full_name is NULL or an empty or placeholder string such as '-' (a variant of R1 with a stricter filter)."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Submitted has no `full_name IS NOT NULL` filter and no `DISTINCT`, so it returns NULL full names and gives 236 rows. Gold uses `SELECT DISTINCT full_name ... WHERE full_name IS NOT NULL AND (...)` and gives 107 rows. Because grading compares sets, the NULL rows are what cause the failure.",
+    "question_gap": "no \u2014 the question doesn't say to exclude superheroes whose full name is NULL.",
+    "supplied": "it is not true that real/civilian full name (`superhero.full_name`) is missing; ... remove duplicate result rows"
+   },
+   "analysis": {
+    "task": "b028",
+    "requirements": [
+     {
+      "requirement": "start from superhero records",
+      "real": "stated",
+      "phrase": "superheroes"
+     },
+     {
+      "requirement": "weight is missing (NULL) or equals 0",
+      "real": "via_evidence",
+      "phrase": "missing weight refers to weight_kg = 0 OR weight_kg = NULL"
+     },
+     {
+      "requirement": "exclude records whose full_name is NULL",
+      "real": "left_open",
+      "phrase": "List the full names"
+     },
+     {
+      "requirement": "output column full_name",
+      "real": "stated",
+      "phrase": "full names"
+     },
+     {
+      "requirement": "remove duplicate rows",
+      "real": "left_open",
+      "phrase": "List the full names"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": "List"
+     }
+    ],
+    "choice": {
+     "decision": "whether to drop superheroes whose full_name is NULL from the output",
+     "open_phrase": "List the full names of superheroes",
+     "why_both": "Asking for 'full names' could mean listing only names that actually exist, or it could mean returning the full_name field for every qualifying superhero, in which case the ones with no recorded name show up as NULL."
+    },
+    "pattern": [
+     "defines the filter condition's missing-value meaning precisely in evidence (NULL or zero sentinel)",
+     "requests an output attribute by plural noun without saying how to treat records lacking that attribute",
+     "applies explicit missing-value handling to the filter column but not to the output column",
+     "uses 'List' with no ordering, limit, or deduplication instruction"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b041",
+   "question_id": 1211,
+   "database": "thrombosis_prediction",
+   "original": "Provide the ID and age of patient with lactate dehydrogenase (LDH) between 100-300 index above the normal range.\nEvidence: age refers to SUBTRACT(year(current_timestamp), year(Birthday)); lactate dehydrogenase (LDH) between 100-300 index above the normal range refers to LDH between 600 and 800;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] lactate dehydrogenase level (`Laboratory.LDH`) is greater than 600; [2] lactate dehydrogenase level (`Laboratory.LDH`) is less than 800 [end]; for each kept record, return (1) identification of the patient (`Patient.ID`); (2) A \u2212 B; remove duplicate result rows. Here A is the year of the current date and time (when the query runs) (as text, `%Y`); B is the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`).",
+   "gold_sql": "SELECT DISTINCT T1.ID, STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH > 600 AND T2.LDH < 800",
+   "decision": "Whether the LDH range endpoints 600 and 800 are included (strict vs. inclusive bounds)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Patients with any lab record where LDH is strictly greater than 600 and strictly less than 800",
+     "sql": "SELECT DISTINCT T1.ID, STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH > 600 AND T2.LDH < 800",
+     "rows": 65,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Patients with any lab record where LDH is between 600 and 800 inclusive (600 <= LDH <= 800)",
+     "sql": "SELECT DISTINCT T1.ID, STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH BETWEEN 600 AND 800",
+     "rows": 68,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Half-open range: LDH at least 100 above the normal limit of 500 (inclusive at 600) but less than 300 above it (exclusive at 800)",
+     "sql": "SELECT DISTINCT T1.ID, STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH >= 600 AND T2.LDH < 800",
+     "rows": 67,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "value_mapping",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Use only each patient's latest lab record (or a single record) for the LDH test instead of any lab record.",
+      "Return one row per qualifying patient (DISTINCT ID and age) rather than one row per lab record.",
+      "Compute age with the current year minus the birth year (year(current_timestamp) - year(Birthday)), as the evidence says, rather than a precise age in years."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Submissions used \"l.LDH BETWEEN 600 AND 800\" (inclusive) and returned 68 rows, while gold uses \"T2.LDH > 600 AND T2.LDH < 800\" (exclusive) and returns 65 rows; the age expressions give the same values.",
+    "question_gap": "no -- the evidence says \"LDH between 600 and 800\", which most naturally maps to inclusive BETWEEN, so the gold's strict bounds can't be inferred.",
+    "supplied": "\"[1] lactate dehydrogenase level (`Laboratory.LDH`) is greater than 600; [2] lactate dehydrogenase level (`Laboratory.LDH`) is less than 800\""
+   },
+   "analysis": {
+    "task": "b041",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "Provide the ID and age of patient"
+     },
+     {
+      "requirement": "link patients to lab records by patient ID (inner join, patients without labs dropped)",
+      "real": "implied",
+      "phrase": "patient with lactate dehydrogenase (LDH)"
+     },
+     {
+      "requirement": "LDH lower bound 600, exclusive",
+      "real": "via_evidence",
+      "phrase": "refers to LDH between 600 and 800"
+     },
+     {
+      "requirement": "LDH upper bound 800, exclusive",
+      "real": "via_evidence",
+      "phrase": "refers to LDH between 600 and 800"
+     },
+     {
+      "requirement": "any single qualifying lab record makes the patient qualify",
+      "real": "implied",
+      "phrase": "patient with lactate dehydrogenase (LDH) between 100-300 index above the normal range"
+     },
+     {
+      "requirement": "output patient ID",
+      "real": "stated",
+      "phrase": "Provide the ID"
+     },
+     {
+      "requirement": "output age as current year minus birth year",
+      "real": "via_evidence",
+      "phrase": "age refers to SUBTRACT(year(current_timestamp), year(Birthday))"
+     },
+     {
+      "requirement": "remove duplicate result rows",
+      "real": "implied",
+      "phrase": "Provide the ID and age of patient"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether the LDH range endpoints 600 and 800 are included or excluded",
+     "open_phrase": "LDH between 600 and 800",
+     "why_both": "In everyday speech 'between' can mean strictly inside the range, but in SQL 'BETWEEN' includes both ends, and nothing in the question or evidence says which one is meant."
+    },
+    "pattern": [
+     "turns a domain phrase about how far a value is above normal into numeric bounds through the evidence",
+     "states a range with 'between X and Y' and doesn't say whether the endpoints count",
+     "defines a derived output column with a formula in the evidence",
+     "names the entity in the singular ('patient') but expects every matching entity, with duplicates removed",
+     "leaves the join to the related records and the 'any matching record' rule to be inferred from the attribute being filtered"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b042",
+   "question_id": 1212,
+   "database": "thrombosis_prediction",
+   "original": "For patients with alkaliphophatase (ALP) within normal range, were they treated as inpatient or outpatient?\nEvidence: alkaliphophatase (ALP) within normal range refers to ALP < 300; inpatient refers to admission = '+'; outpatient refers to admission = '-'",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which alkaline phosphatase level (`Laboratory.ALP`) is less than 300; for each kept record, return (1) hospital admission status (admitted vs outpatient) (`Patient.Admission`).",
+   "gold_sql": "SELECT T1.Admission FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300",
+   "decision": "How to present the admission status of patients with normal ALP: one raw value per joined lab record, or a summary grouped by admission status with patient counts",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the admission value (+/-) once for every lab record with ALP < 300, without deduplication or aggregation",
+     "sql": "SELECT T1.Admission FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300",
+     "rows": 10778,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Summarize: for each admission status (inpatient '+' / outpatient '-'), report how many distinct patients with an ALP < 300 lab result have that status",
+     "sql": "SELECT T1.Admission, COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300 GROUP BY T1.Admission",
+     "rows": 3,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "For each distinct patient with an ALP < 300 lab result, report that patient's admission status (one row per patient)",
+     "sql": "SELECT DISTINCT T1.ID, T1.Admission FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300",
+     "rows": 299,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Summarize by admission status, counting the qualifying lab records instead of patients",
+     "sql": "SELECT T1.Admission, COUNT(*) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300 GROUP BY T1.Admission",
+     "rows": 3,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "grouping"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits",
+      "C1": "fits"
+     },
+     "other_readings": [
+      "Report the share or percentage of qualifying distinct patients who are inpatient versus outpatient",
+      "List distinct patient IDs, grouped or labeled into an inpatient set and an outpatient set",
+      "Return only the set of distinct admission values ('+' and/or '-') that occur among qualifying patients",
+      "Choose patients whose ALP results are all below 300, rather than patients with at least one result below 300, then report their admission status"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C1": "does not fit",
+      "A": "fits",
+      "C0": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Return only the distinct set of Admission values ('+' and/or '-') that occur among patients with ALP < 300, i.e. SELECT DISTINCT Admission, without patient or record detail.",
+      "Treat a patient as 'within normal range' only if all of their lab records have ALP < 300, rather than any one record."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Gold returns a single column \"SELECT T1.Admission\" with one row per joined lab record (10778 rows). Submissions aggregated with \"GROUP BY p.Admission\" and added a COUNT column, giving 3 rows.",
+    "question_gap": "partly -- the question asks which admission status applies but doesn't say whether to give one row per lab record, per patient or a summary, and the gold's one undeduplicated row per lab record is not implied.",
+    "supplied": "\"for each kept record, return (1) hospital admission status (admitted vs outpatient) (`Patient.Admission`)\""
+   },
+   "analysis": {
+    "task": "b042",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "For patients"
+     },
+     {
+      "requirement": "link patients to their lab records by patient ID (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "patients with alkaliphophatase (ALP)"
+     },
+     {
+      "requirement": "filter lab records to ALP < 300",
+      "real": "via_evidence",
+      "phrase": "alkaliphophatase (ALP) within normal range refers to ALP < 300"
+     },
+     {
+      "requirement": "output the admission status column",
+      "real": "stated",
+      "phrase": "were they treated as inpatient or outpatient"
+     },
+     {
+      "requirement": "admission values '+' = inpatient, '-' = outpatient (return raw code)",
+      "real": "via_evidence",
+      "phrase": "inpatient refers to admission = '+'; outpatient refers to admission = '-'"
+     },
+     {
+      "requirement": "one output row per matching lab record (no aggregation)",
+      "real": "left_open",
+      "phrase": "were they treated as inpatient or outpatient?"
+     },
+     {
+      "requirement": "duplicates kept: a patient with several qualifying lab records appears several times",
+      "real": "left_open",
+      "phrase": "For patients"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "missing ALP or admission values: NULL ALP excluded by the comparison, NULL admission passed through",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Whether to return one admission value per qualifying lab record, or to group by admission status and count distinct patients",
+     "open_phrase": "For patients with alkaliphophatase (ALP) within normal range, were they treated as inpatient or outpatient?",
+     "why_both": "The plural 'patients' with a collective 'were they' question can be read as asking for each patient's status, listed one per row, or as asking for an overall summary of how the group splits between inpatient and outpatient."
+    },
+    "pattern": [
+     "asks a yes/no-style 'were they X or Y' question about a plural group without saying whether to list each member or summarize the group",
+     "pushes the filter threshold and the meaning of the category codes into the evidence",
+     "leaves the join between the entity table and the measurement table implied by naming a property of the entity",
+     "does not say how to handle an entity that has several qualifying measurement records, so the deduplication grain is left open",
+     "states no ordering, limit, or handling of missing values"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b048",
+   "question_id": 1224,
+   "database": "thrombosis_prediction",
+   "original": "What is the highest total bilirubin level recorded? List out the patient details with ID, sex and birthday with that index.\nEvidence: the highest total bilirubin refers to MAX(T-BIL)",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); for each kept record, return (1) total bilirubin concentration (`Laboratory.T-BIL`); (2) identification of the patient (`Patient.ID`); (3) patient sex (`Patient.SEX`); (4) patient date of birth (`Patient.Birthday`); order the result rows by total bilirubin concentration (`Laboratory.T-BIL`) descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T2.`T-BIL`, T1.ID, T1.SEX, T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.`T-BIL` DESC LIMIT 1",
+   "decision": "Which columns the output includes and in what order: whether the T-BIL value is returned, and whether it comes before or after the patient details (ID, sex, birthday).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return the highest total bilirubin value first, followed by the patient's ID, sex and birthday.",
+     "sql": "SELECT T2.`T-BIL`, T1.ID, T1.SEX, T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.`T-BIL` DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the patient's ID, sex and birthday, followed by the highest total bilirubin value.",
+     "sql": "SELECT T1.ID, T1.SEX, T1.Birthday, T2.`T-BIL` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.`T-BIL` DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Only list the patient details (ID, sex, birthday) for the record with the highest total bilirubin. The bilirubin value is only used to pick the patient and is not returned.",
+     "sql": "SELECT T1.ID, T1.SEX, T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.`T-BIL` DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return the highest T-BIL value plus the patient's ID, sex and birthday, and also the Laboratory Date of that record, reading 'with that index' as pointing to that specific lab record."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return the maximum T-BIL value along with details of every patient who has that value (ties included), rather than a single row.",
+      "Return the patient details as a separate result from the maximum value (two queries or two result sets) instead of one combined row.",
+      "Return one row per patient with each patient's own maximum T-BIL, rather than the single global maximum."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Both repeats found the right patient (2931207, 'F', '1959-01-05'). Repeat 0 left out T-BIL and returned only `p.ID, p.SEX, p.Birthday`. Repeat 1 included T-BIL but put it last, giving [2931207,'F','1959-01-05',7.9] where gold has [7.9,2931207,'F','1959-01-05']. Because the columns are in a different order, the row tuples don't match.",
+    "question_gap": "partly \u2014 'What is the highest total bilirubin level' suggests T-BIL should be in the output, but nothing in the question says it should come before ID, sex and birthday.",
+    "supplied": "return (1) total bilirubin concentration (`Laboratory.T-BIL`); (2) identification of the patient (`Patient.ID`); (3) patient sex (`Patient.SEX`); (4) patient date of birth (`Patient.Birthday`)"
+   },
+   "analysis": {
+    "task": "b048",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "implied",
+      "phrase": "List out the patient details"
+     },
+     {
+      "requirement": "link patients to lab records by patient ID (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "total bilirubin level recorded ... patient details ... with that index"
+     },
+     {
+      "requirement": "use the total bilirubin column T-BIL",
+      "real": "via_evidence",
+      "phrase": "the highest total bilirubin refers to MAX(T-BIL)"
+     },
+     {
+      "requirement": "pick the single highest bilirubin record (order descending, limit 1)",
+      "real": "stated",
+      "phrase": "What is the highest total bilirubin level recorded?"
+     },
+     {
+      "requirement": "missing bilirubin values go last / are ignored",
+      "real": "implied",
+      "phrase": "highest ... level recorded"
+     },
+     {
+      "requirement": "tie rule: keep just one row if several share the maximum",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output the bilirubin value",
+      "real": "stated",
+      "phrase": "What is the highest total bilirubin level recorded?"
+     },
+     {
+      "requirement": "output patient ID, sex, birthday",
+      "real": "stated",
+      "phrase": "List out the patient details with ID, sex and birthday"
+     },
+     {
+      "requirement": "column order: bilirubin value first, then ID, sex, birthday",
+      "real": "left_open",
+      "phrase": "What is the highest total bilirubin level recorded? List out the patient details with ID, sex and birthday"
+     }
+    ],
+    "choice": {
+     "decision": "Whether the bilirubin value comes before or after the patient ID, sex and birthday in the output",
+     "open_phrase": "What is the highest total bilirubin level recorded? List out the patient details with ID, sex and birthday with that index.",
+     "why_both": "The question asks for the value first and the patient details second, which suggests the value leads, but it is really two requests for the same row, and listing the patient record first with the lab value attached is just as natural."
+    },
+    "pattern": [
+     "asks two consecutive questions, one about an extreme value and one about the entity it belongs to, without saying how they combine into one output",
+     "names the extreme with a singular superlative and gives no tie rule",
+     "uses evidence to map the measure name to a column with an aggregate (MAX), while the gold query uses ordering plus a limit",
+     "lists the output attributes explicitly but leaves the overall column order to the order of the sentences",
+     "refers back to the extreme record with a vague phrase ('with that index') instead of naming the link between entities"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b050",
+   "question_id": 1226,
+   "database": "thrombosis_prediction",
+   "original": "Who is the oldest patient with the highest total cholesterol (T-CHO). State the patient ID and T-CHO index.\nEvidence: oldest patient refers to MIN(birthday); highest total cholesterol refers to MAX(T-CHO);",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); for each kept record, return (1) identification of the patient (`Patient.ID`); (2) total cholesterol concentration (`Laboratory.T-CHO`); order the result rows by total cholesterol concentration (`Laboratory.T-CHO`) descending (missing last), then patient date of birth (`Patient.Birthday`) ascending in character order (missing first); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.ID, T2.`T-CHO` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.`T-CHO` DESC, T1.Birthday ASC LIMIT 1",
+   "decision": "Which criterion is ranked first: highest T-CHO, with age only breaking ties, or oldest patient, with T-CHO taken as that patient's highest value",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Find the highest T-CHO value across all lab records. If several patients share that value, pick the oldest one (earliest birthday). Return that patient's ID and the T-CHO value.",
+     "sql": "SELECT T1.ID, T2.`T-CHO` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.`T-CHO` DESC, T1.Birthday ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Find the oldest patient, meaning the one with the earliest known birthday who has lab records. Return that patient's ID and their highest T-CHO value.",
+     "sql": "SELECT T1.ID, T2.`T-CHO` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.Birthday IS NOT NULL ORDER BY T1.Birthday ASC, T2.`T-CHO` DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "tie",
+    "structure": [
+     "extreme_selection",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Order by birthday ascending, then by T-CHO descending, and take the first row: the oldest patient's single highest T-CHO record. In practice this matches R1.",
+      "Order by T-CHO descending, then by birthday ascending, and take the top row. This matches R2 but makes the tie-break explicit with a combined ORDER BY.",
+      "Return the patient who satisfies both conditions at once, meaning that patient is the oldest overall and also holds the global maximum T-CHO. The result could be empty."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Oldest-first reading: restrict to patients with lab records, pick the one with the earliest birthday, then return that patient's maximum T-CHO. This is R1 stated more carefully, and it is a possible reading even though it fits the wording less well than R2.",
+      "Per-patient reading: compute each patient's maximum T-CHO, find the highest of those, and among the patients who reach it, return the one with the earliest birthday. This gives the same answer as R2 and differs only in how it is computed.",
+      "Ordering reading: sort by birthday ascending, then by T-CHO descending, and return the first row. This makes age the primary criterion and T-CHO the tie-breaker, which is the reverse of R2."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "reading choice",
+    "difference": "The agent sorted by age first: `ORDER BY P.Birthday ASC, MAX(L.T-CHO) DESC` with GROUP BY ID. That picks the oldest patient, 125619, whose highest T-CHO is 239. Gold sorts by `T2.T-CHO DESC, T1.Birthday ASC`, which picks [1185720, 568].",
+    "question_gap": "no \u2014 'oldest patient with the highest total cholesterol' doesn't say whether age or cholesterol comes first, and the evidence defines both MIN(birthday) and MAX(T-CHO) without ranking them.",
+    "supplied": "order the result rows by total cholesterol concentration (`Laboratory.T-CHO`) descending (missing last), then patient date of birth (`Patient.Birthday`) ascending"
+   },
+   "analysis": {
+    "task": "b050",
+    "requirements": [
+     {
+      "requirement": "start from patient records joined to their lab records by patient ID",
+      "real": "implied",
+      "phrase": "patient with the highest total cholesterol (T-CHO)"
+     },
+     {
+      "requirement": "drop patients with no matching lab record (inner join)",
+      "real": "implied",
+      "phrase": "patient with the highest total cholesterol"
+     },
+     {
+      "requirement": "one combined row per patient-lab match (no aggregation per patient)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output patient ID",
+      "real": "stated",
+      "phrase": "State the patient ID"
+     },
+     {
+      "requirement": "output T-CHO value",
+      "real": "stated",
+      "phrase": "and T-CHO index"
+     },
+     {
+      "requirement": "primary ordering by T-CHO descending",
+      "real": "left_open",
+      "phrase": "oldest patient with the highest total cholesterol"
+     },
+     {
+      "requirement": "secondary ordering by birthday ascending (oldest first)",
+      "real": "left_open",
+      "phrase": "oldest patient with the highest total cholesterol"
+     },
+     {
+      "requirement": "oldest means earliest birthday",
+      "real": "via_evidence",
+      "phrase": "oldest patient refers to MIN(birthday)"
+     },
+     {
+      "requirement": "highest cholesterol means max T-CHO",
+      "real": "via_evidence",
+      "phrase": "highest total cholesterol refers to MAX(T-CHO)"
+     },
+     {
+      "requirement": "missing T-CHO sorted last",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "missing birthday sorted first in the tie-break",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "return exactly one row",
+      "real": "implied",
+      "phrase": "Who is the oldest patient"
+     },
+     {
+      "requirement": "ties beyond both keys broken arbitrarily",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Which superlative is primary: highest T-CHO first with age as the tie-break, or oldest patient first with T-CHO as the secondary key.",
+     "open_phrase": "the oldest patient with the highest total cholesterol",
+     "why_both": "The phrase stacks two superlatives. It can mean 'among the people with the highest T-CHO, the oldest one' or 'the oldest patient, and that patient's highest T-CHO'. The evidence gives MIN(birthday) and MAX(T-CHO) side by side without saying which comes first."
+    },
+    "pattern": [
+     "stacks two superlatives on one noun phrase without saying which one is primary",
+     "uses evidence to define each superlative separately as MIN/MAX but not how they combine",
+     "asks 'who' in the singular, which suggests a single row but gives no tie rule",
+     "lists output columns explicitly in a separate imperative sentence",
+     "says nothing about records with missing values in either ranking attribute",
+     "leaves open whether a per-patient aggregate or a per-lab-record ranking is meant"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b055",
+   "question_id": 1235,
+   "database": "thrombosis_prediction",
+   "original": "What are the patient's diagnosis for those who has lower red blood blood cell? State their ID and age.\nEvidence: patient's diagnosis refers to Diagnosis; lower red blood cell refers to RBC < 3.5; age = SUBTRACT(year(current_timestamp), year(Birthday)); ",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which red blood cell concentration (`Laboratory.RBC`) is less than 3.5; for each kept record, return (1) primary diagnosed disease (`Patient.Diagnosis`); (2) identification of the patient (`Patient.ID`); (3) A \u2212 B; remove duplicate result rows. Here A is the year of the current date and time (when the query runs) (as text, `%Y`); B is the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`).",
+   "gold_sql": "SELECT DISTINCT T1.Diagnosis, T1.ID , STRFTIME('%Y', CURRENT_TIMESTAMP) -STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.RBC < 3.5",
+   "decision": "Column order of the output: whether Diagnosis comes before ID, or ID comes before Diagnosis (age is last in both)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List each matching patient's diagnosis first, then their ID, then their age, following the order the question uses (diagnosis first, then 'State their ID and age').",
+     "sql": "SELECT DISTINCT T1.Diagnosis, T1.ID , STRFTIME('%Y', CURRENT_TIMESTAMP) -STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.RBC < 3.5",
+     "rows": 73,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List each matching patient's ID first, then their diagnosis, then their age, with the ID as the leading identifier column.",
+     "sql": "SELECT DISTINCT T1.ID, T1.Diagnosis, STRFTIME('%Y', CURRENT_TIMESTAMP) -STRFTIME('%Y', T1.Birthday) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.RBC < 3.5",
+     "rows": 73,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "List ID, then age, then diagnosis, treating 'State their ID and age' as identifying information grouped together, with the diagnosis attached after it."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Output only ID and age plus diagnosis in any column order, since the question names no required column order and the three fields are what matter.",
+      "Order ID, age, diagnosis, treating 'State their ID and age' as a unit that directly follows the identifier, with diagnosis last."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Both original submissions return the right 73 rows and values, but in the column order `P.ID, P.Diagnosis, age`, giving rows like [27654, 'RA, SLE susp', 90]. The gold uses `T1.Diagnosis, T1.ID, ...`, giving ['RA, SLE susp', 27654, 90]. Because the columns are swapped, no row tuple matches.",
+    "question_gap": "partly \u2014 the question names diagnosis first and then says 'State their ID and age', which hints at the gold's column order but does not clearly require it.",
+    "supplied": "return (1) primary diagnosed disease (`Patient.Diagnosis`); (2) identification of the patient (`Patient.ID`); (3) A \u2212 B"
+   },
+   "analysis": {
+    "task": "b055",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "implied",
+      "phrase": "those who"
+     },
+     {
+      "requirement": "link patients to their lab records by patient ID",
+      "real": "implied",
+      "phrase": "who has lower red blood blood cell"
+     },
+     {
+      "requirement": "drop patients with no matching lab record (inner join)",
+      "real": "implied",
+      "phrase": "who has lower red blood blood cell"
+     },
+     {
+      "requirement": "filter lab records with RBC < 3.5",
+      "real": "via_evidence",
+      "phrase": "lower red blood cell refers to RBC < 3.5"
+     },
+     {
+      "requirement": "output diagnosis",
+      "real": "via_evidence",
+      "phrase": "patient's diagnosis refers to Diagnosis"
+     },
+     {
+      "requirement": "output patient ID",
+      "real": "stated",
+      "phrase": "State their ID"
+     },
+     {
+      "requirement": "output age as current year minus birth year",
+      "real": "via_evidence",
+      "phrase": "age = SUBTRACT(year(current_timestamp), year(Birthday))"
+     },
+     {
+      "requirement": "column order: diagnosis, ID, age",
+      "real": "left_open",
+      "phrase": "What are the patient's diagnosis ... State their ID and age."
+     },
+     {
+      "requirement": "remove duplicate rows (patients with multiple low-RBC tests)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Column order of the output: diagnosis first, or patient ID first",
+     "open_phrase": "What are the patient's diagnosis for those who has lower red blood blood cell? State their ID and age.",
+     "why_both": "The question asks for diagnosis first and then adds ID and age in a separate sentence, so a reader could follow the wording order or could put the identifier first, as is usual for listings, without going against the text."
+    },
+    "pattern": [
+     "asks for the main attribute in a question and then adds the identifying columns in a separate follow-up sentence",
+     "uses a vague comparative ('lower') whose numeric threshold appears only in the evidence",
+     "gives the derived value's formula in the evidence instead of in the question",
+     "assumes the link between entity and measurement records without naming it",
+     "says nothing about duplicates when one entity can match through many related records",
+     "gives no explicit column order, so the order of mention is the only clue"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b058",
+   "question_id": 1244,
+   "database": "thrombosis_prediction",
+   "original": "List all patients who first came to the hospital after year 1992 with prothrombin time (PT) level that are normal.\nEvidence: first came to the hospital after year 1992 refers to year(`First Date`) > 1992; prothrombin time (PT) level that are normal refers to PT < 14;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of date of first hospital visit (`Patient.First Date`) (as text, `%Y`) is greater than '1992' (compared as text, character by character); [2] prothrombin time (`Laboratory.PT`) is less than 14 [end]; for each kept record, return (1) identification of the patient (`Patient.ID`).",
+   "gold_sql": "SELECT T1.ID FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.`First Date`) > '1992' AND T2.PT < 14",
+   "decision": "Which columns to return for each listed patient: only the patient ID, or the ID plus the patient's first-visit date.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List each qualifying patient by ID only.",
+     "sql": "SELECT T1.ID FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.`First Date`) > '1992' AND T2.PT < 14",
+     "rows": 219,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List each qualifying patient by ID and also show the date they first came to the hospital, since that date is what the question filters on.",
+     "sql": "SELECT T1.ID, T1.`First Date` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.`First Date`) > '1992' AND T2.PT < 14",
+     "rows": 219,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "List each qualifying patient by ID along with the qualifying PT value(s) or lab date(s), since PT is the other filter criterion (this may produce one row per qualifying lab record rather than one per patient).",
+      "List each qualifying patient by ID with their basic Patient attributes (SEX, Birthday, Diagnosis), treating 'list patients' as showing their patient records."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "unwanted processing",
+    "difference": "Both original submissions add an extra column, `SELECT DISTINCT p.ID, p.`First Date``, giving rows like [944797, '1993-08-05']. The gold returns only `T1.ID`, e.g. [944797]. Under set comparison, the DISTINCT versus the gold's duplicate rows does not matter; the extra column is what makes every row fail to match.",
+    "question_gap": "partly \u2014 'List all patients' suggests returning only identifiers, but it does not explicitly rule out adding the first-visit date.",
+    "supplied": "for each kept record, return (1) identification of the patient (`Patient.ID`)"
+   },
+   "analysis": {
+    "task": "b058",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "List all patients"
+     },
+     {
+      "requirement": "link patients to their lab records by patient ID",
+      "real": "implied",
+      "phrase": "patients ... with prothrombin time (PT) level"
+     },
+     {
+      "requirement": "drop patients with no matching lab record (inner join)",
+      "real": "implied",
+      "phrase": "with prothrombin time (PT) level that are normal"
+     },
+     {
+      "requirement": "filter: year of first visit greater than 1992",
+      "real": "via_evidence",
+      "phrase": "first came to the hospital after year 1992 refers to year(`First Date`) > 1992"
+     },
+     {
+      "requirement": "year compared as text against '1992'",
+      "real": "implied",
+      "phrase": "year(`First Date`) > 1992"
+     },
+     {
+      "requirement": "filter: PT less than 14",
+      "real": "via_evidence",
+      "phrase": "prothrombin time (PT) level that are normal refers to PT < 14"
+     },
+     {
+      "requirement": "both filters must hold together",
+      "real": "implied",
+      "phrase": "after year 1992 with prothrombin time (PT) level that are normal"
+     },
+     {
+      "requirement": "output column: patient ID only",
+      "real": "left_open",
+      "phrase": "List all patients"
+     },
+     {
+      "requirement": "one row per matching lab record, duplicates kept",
+      "real": "left_open",
+      "phrase": "List all patients"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "patients with missing First Date or PT are excluded",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether the output shows only the patient ID or also the first-visit date that the filter uses",
+     "open_phrase": "List all patients",
+     "why_both": "\"List patients\" names entities, not columns, so one careful reader returns just the identifier, while another adds the First Date so each listed patient visibly meets the 'after 1992' condition."
+    },
+    "pattern": [
+     "asks to 'list' an entity without saying which of its attributes to show",
+     "puts the filter definitions (a date-year threshold and a numeric 'normal' cutoff) in the evidence, not the question",
+     "joins two conditions from different tables with a plain 'with', so the link between them is left unstated",
+     "says 'all' but gives no rule for duplicates when one entity has several qualifying related records",
+     "states no ordering, limit, or handling of missing values"
+    ]
+   }
+  }
+ ],
+ "not_library": [
+  {
+   "version": "comm-library-v2",
+   "task": "b006",
+   "question_id": 271,
+   "database": "toxicology",
+   "original": "Does bond id TR001_1_8 have both element of chlorine and carbon?\nEvidence: chlorine refers to element = 'cl'; carbon refers to element = 'c'",
+   "explicit": "Start from each `atom` record; combine it with each `connected` record for which id of the first atom (`connected.atom_id`) equals the unique id of atoms (`atom.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] bond id (`connected.bond_id`) equals 'TR001_1_8' (compared as text, character by character); [2] at least one of the following holds: [1] chemical element of the atom (`atom.element`) equals 'c1' (compared as text, character by character); [2] chemical element of the atom (`atom.element`) equals 'c' (compared as text, character by character) [end] [end]; for each kept record, return (1) bond id (`connected.bond_id`); (2) id of the second atom (`connected.atom_id2`); (3) chemical element of the atom (`atom.element`).",
+   "gold_sql": "SELECT T2.bond_id, T2.atom_id2, T1.element AS flag_have_CaCl FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T2.bond_id = 'TR001_1_8' AND (T1.element = 'c1' OR T1.element = 'c')",
+   "decision": "Output form for a yes/no question: list the matching atom rows of the bond, or return one yes/no flag saying whether both elements are present.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List each connection row of bond TR001_1_8, keyed on its first atom, whose atom is carbon or the literal 'c1'. Show the bond id, the second atom id and the element. The reader then decides whether both elements appear.",
+     "sql": "SELECT T2.bond_id, T2.atom_id2, T1.element AS flag_have_CaCl FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T2.bond_id = 'TR001_1_8' AND (T1.element = 'c1' OR T1.element = 'c')",
+     "rows": 2,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Give a single Yes/No answer: does bond TR001_1_8 involve both a chlorine atom and a carbon atom?",
+     "sql": "SELECT CASE WHEN COUNT(DISTINCT T1.element) = 2 THEN 'Yes' ELSE 'No' END AS flag_have_CaCl FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T2.bond_id = 'TR001_1_8' AND (T1.element = 'c1' OR T1.element = 'c')",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "List the distinct matching elements found on the bond, and let the reader check whether both are there.",
+     "sql": "SELECT DISTINCT T1.element AS flag_have_CaCl FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T2.bond_id = 'TR001_1_8' AND (T1.element = 'c1' OR T1.element = 'c')",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "C0": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "List both atoms of bond TR001_1_8 (atom_id and atom_id2 from connected) with their elements, and let the reader check whether one is 'cl' and the other is 'c'.",
+      "Return the number of distinct elements among {'cl','c'} on the bond's atoms; a count of 2 means yes."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Return a boolean/1-0 flag computed from counting the distinct elements among the atoms of the bond (count of distinct elements in ('cl','c') = 2), instead of a Yes/No string.",
+      "Consider both atoms of the bond (atom_id and atom_id2 in connected) when determining the elements, rather than only the first atom.",
+      "List the atoms of the bond with their elements (atom_id, element) restricted to 'cl' and 'c' so the reader can verify."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Gold returns three columns (bond_id, atom_id2, element) for rows joined only on \"T2.atom_id = T1.atom_id\" and filtered on \"element = 'c1' OR element = 'c'\". Its result is [['TR001_1_8','TR001_8','c'],['TR001_1_8','TR001_1','c']]. Repeat 0 returned \"SELECT DISTINCT a.element\" over both atom ends, giving [['c']]. Repeat 1 returned a yes/no flag, giving [['No']].",
+    "question_gap": "no -- the question is a yes/no question, and nothing in it determines the gold's three-column row listing, its join on the first atom only, or its 'c1' literal, which differs from the evidence's 'cl'.",
+    "supplied": "return (1) bond id (`connected.bond_id`); (2) id of the second atom (`connected.atom_id2`); (3) chemical element of the atom (`atom.element`)\" with filter \"`atom.element` equals 'c1' ... equals 'c'\""
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b013",
+   "question_id": 285,
+   "database": "toxicology",
+   "original": "Name chemical elements that form a bond TR001_10_11.\nEvidence: element = 'cl' means Chlorine; element = 'c' means Carbon; element = 'h' means Hydrogen; element = 'o' means Oxygen, element = 's' means Sulfur; element = 'n' means Nitrogen, element = 'p' means Phosphorus, element = 'na' means Sodium, element = 'br' means Bromine, element = 'f' means Fluorine; element = 'i' means Iodine; element = 'sn' means Tin; element = 'pb' means Lead; element = 'te' means Tellurium; element = 'ca' means Calcium; TR001_10_11 is the bond id; molecule id refers to SUBSTR(bond_id, 1, 5); atom 1 refers to SUBSTR(bond_id, 7, 2); atom 2 refers to SUBSTR(bond_id, 10, 2)",
+   "explicit": "Start from each `atom` record; combine it with each `connected` record for which the unique id of atoms (`atom.atom_id`) equals id of the first atom (`connected.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); combine it with each `bond` record for which bond id (`connected.bond_id`) equals unique id representing bonds (`bond.bond_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which unique id representing bonds (`bond.bond_id`) equals 'TR001_10_11' (compared as text, character by character); for each kept record, return (1) chemical element of the atom (`atom.element`).",
+   "gold_sql": "SELECT T1.element FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_id = 'TR001_10_11'",
+   "decision": "Output shape: list the bond's elements in a single column (one row per directed connected record), or as an element pair per row (first atom's element, second atom's element)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the element of each atom in the bond in one column, with one row for each directed connected record (gives c and o).",
+     "sql": "SELECT T1.element FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_id = 'TR001_10_11'",
+     "rows": 2,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "For each directed connected record of the bond, give the elements of both atoms as a pair (first atom's element, second atom's element).",
+     "sql": "SELECT T1.element, T4.element FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id INNER JOIN atom AS T4 ON T2.atom_id2 = T4.atom_id WHERE T3.bond_id = 'TR001_10_11'",
+     "rows": 2,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "List each distinct element in the bond only once, in a single column.",
+     "sql": "SELECT DISTINCT T1.element FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_id = 'TR001_10_11'",
+     "rows": 2,
+     "differs_from_gold": false
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "C0": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Return a single row with the two atoms' elements as a pair (atom1_element, atom2_element), one row for the bond rather than one per direction.",
+      "Find the two atoms by parsing the bond_id as the evidence describes (molecule = SUBSTR 1-5, atoms 10 and 11), join to atom, and list their elements without using the connected table."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "C0": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "List the distinct elements of the two atoms (TR001_10 and TR001_11) found via the atom table using the SUBSTR-derived atom ids, without using the connected table, one column.",
+      "Return each atom's element together with its atom id (atom_id, element) for the two atoms in the bond.",
+      "Return the elements of the two atoms via the connected table, taking only the record in the given direction (atom_id = TR001_10, atom_id2 = TR001_11), one row per atom, with no duplicates from the reverse direction."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Gold returns one column, the element of connected.atom_id, giving [['c'],['o']] (two directed rows). The submissions returned two columns, \"a1.element, a2.element\", giving [['c','o'],['o','c']]. The element set {c,o} is the same in both.",
+    "question_gap": "partly -- 'name chemical elements' suggests a list of elements, but the question does not fix whether the answer should be one column or a pair per row.",
+    "supplied": "combine it with each `connected` record for which ... (`atom.atom_id`) equals id of the first atom (`connected.atom_id`) ...; return (1) chemical element of the atom (`atom.element`)"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b014",
+   "question_id": 286,
+   "database": "toxicology",
+   "original": "Among all chemical compounds identified in the database, what percent of compounds form a triple-bond.\nEvidence: triple bond refers to bond_type = '#';",
+   "explicit": "Start from each `bond` record; all kept records form one group, which gives one result row; for each result row, return (1) (A \u00d7 100) \u00f7 B. Here A is the number of records in the group whose the value of the first rule that applies: if bond order/type between two atoms (`bond.bond_type`) equals '#' (compared as text, character by character) then unique id representing bonds (`bond.bond_id`); otherwise None is not missing; B is the number of records in the group whose unique id representing bonds (`bond.bond_id`) is not missing.",
+   "gold_sql": "SELECT CAST(COUNT(CASE WHEN T.bond_type = '#' THEN T.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T.bond_id) FROM bond AS T",
+   "decision": "What the percentage counts: individual bonds or compounds (molecules) that contain a triple bond.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Of all bonds in the database, the percentage that are triple bonds (bond_type = '#').",
+     "sql": "SELECT CAST(COUNT(CASE WHEN T.bond_type = '#' THEN T.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T.bond_id) FROM bond AS T",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Of all compounds (molecules), the percentage that contain at least one triple bond.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T.bond_type = '#' THEN T.molecule_id ELSE NULL END) AS REAL) * 100 / COUNT(DISTINCT T.molecule_id) FROM bond AS T",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Of every molecule in the molecule table, including molecules with no bonds recorded, the percentage that contain at least one triple bond.",
+     "sql": "SELECT CAST((SELECT COUNT(DISTINCT T.molecule_id) FROM bond AS T WHERE T.bond_type = '#') AS REAL) * 100 / (SELECT COUNT(M.molecule_id) FROM molecule AS M)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "ratio",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Of the molecules that have at least one bond recorded in the bond table (distinct bond.molecule_id), the percentage that have at least one bond with bond_type = '#'."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Percent of molecules that contain a triple bond, where the denominator is only molecules that have at least one row in the bond table (excluding molecules with no bonds recorded).",
+      "Percent of molecules in which all bonds are triple bonds (a stricter reading of 'form a triple-bond'). This is unlikely given the wording."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Gold computes the percentage of bonds: \"COUNT(CASE WHEN T.bond_type = '#' ...) * 100 / COUNT(T.bond_id) FROM bond\", which is 0.04847. The submissions computed the percentage of molecules with a triple bond, \"COUNT(DISTINCT molecule_id) ... / COUNT(*) FROM molecule\", giving 1.17 and 0.87, and they also applied ROUND(...,2).",
+    "question_gap": "no -- 'percent of compounds form a triple-bond' points to molecules, while gold divides bond counts.",
+    "supplied": "Start from each `bond` record ... (A \u00d7 100) \u00f7 B ... A is the number of records ... bond_type equals '#' ... B is the number of records ... bond_id is not missing"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b043",
+   "question_id": 1215,
+   "database": "thrombosis_prediction",
+   "original": "For all female patient with total protein (TP) beyond the normal index, what is the deviation of their TP idex from the normal.\nEvidence: female refers to SEX = 'F'; total protein (TP) beyond the normal index refers to TP > 8.5; deviation of TP index from normal refers to SUBTRACT(TP, 8.5)",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character); [2] total serum protein concentration (`Laboratory.TP`) is greater than 8.5 [end]; for each kept record, return (1) A \u2212 8.5. Here A is total serum protein concentration (`Laboratory.TP`).",
+   "gold_sql": "SELECT T2.TP - 8.5 FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.TP > 8.5",
+   "decision": "Whether to report one deviation per lab record or one combined deviation per female patient, given that a patient can have several Laboratory rows with TP > 8.5",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return TP - 8.5 for every lab measurement where a female patient's TP is above 8.5. A patient with several high readings gets one row per reading.",
+     "sql": "SELECT T2.TP - 8.5 FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.TP > 8.5",
+     "rows": 278,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "'Their deviation' is a per-patient quantity: for each female patient with high TP, return the average of TP - 8.5 over that patient's high readings, so each patient gets one row.",
+     "sql": "SELECT AVG(T2.TP - 8.5) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.TP > 8.5 GROUP BY T1.ID",
+     "rows": 55,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Per patient, report the largest deviation, meaning the highest TP above 8.5 minus 8.5",
+     "sql": "SELECT MAX(T2.TP - 8.5) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.TP > 8.5 GROUP BY T1.ID",
+     "rows": 55,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Per lab record, but show which patient each deviation belongs to",
+     "sql": "SELECT T1.ID, T2.TP - 8.5 FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.TP > 8.5",
+     "rows": 278,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "aggregation_level",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "grouping"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "does not fit",
+      "C1": "fits",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return one row per female patient (DISTINCT ID) with that patient's deviation(s), so that duplicate identical deviation values for the same patient are collapsed."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C1": "fits",
+      "C0": "does not fit",
+      "A": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Per patient, report the deviation of their most recent high-TP reading (latest Date) rather than all readings.",
+      "Per patient, report the sum of the deviations across all of their high-TP readings.",
+      "Return only distinct deviation values (DISTINCT TP - 8.5) without patient identification, so repeated values collapse."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "unwanted processing",
+    "difference": "Gold returns only \"T2.TP - 8.5\" unrounded (e.g. 0.09999999999999964). Repeat 0 grouped by patient with \"ROUND(AVG(l.TP - 8.5), 2)\" plus ID/count columns; repeat 1 added ID, SEX and TP columns and \"ROUND(l.TP - 8.5, 2)\".",
+    "question_gap": "partly -- the evidence fixes the deviation as SUBTRACT(TP, 8.5), but it doesn't say to return only that column, unrounded, one row per lab record.",
+    "supplied": "\"for each kept record, return (1) A \u2212 8.5\""
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b049",
+   "question_id": 1225,
+   "database": "thrombosis_prediction",
+   "original": "List and group all patients by sex for total bilirubin (T-BIL) level not within the normal range.\nEvidence: List refers to GROUP_CONCAT(DISTINCT ID); total bilirubin (T-BIL) not within normal range refers to T-BIL > = 2.0",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which total bilirubin concentration (`Laboratory.T-BIL`) is at least 2.0; for each kept record, return (1) identification of the patient (`Patient.ID`); (2) patient sex (`Patient.SEX`); remove duplicate result rows.",
+   "gold_sql": "SELECT T1.ID,T1.SEX FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`T-BIL` >= 2.0 GROUP BY T1.SEX,T1.ID",
+   "decision": "How to present the patients grouped by sex: one row per patient (ID, SEX), or one row per sex with all patient IDs joined into a single string.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List each patient whose T-BIL is at or above 2.0 on any lab record as its own (ID, SEX) row. Grouping by sex and ID removes duplicate rows, so each patient appears once alongside their sex.",
+     "sql": "SELECT T1.ID,T1.SEX FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`T-BIL` >= 2.0 GROUP BY T1.SEX,T1.ID",
+     "rows": 10,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "For each sex, return one row with the sex and a comma-joined list of the distinct IDs of patients whose T-BIL is at or above 2.0 on any lab record. This follows the evidence's 'GROUP_CONCAT(DISTINCT ID)'.",
+     "sql": "SELECT T1.SEX, GROUP_CONCAT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`T-BIL` >= 2.0 GROUP BY T1.SEX",
+     "rows": 2,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "grouping",
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "For each sex, return only the comma-joined list of distinct IDs (GROUP_CONCAT(DISTINCT ID) ... GROUP BY SEX), without a separate sex column; the groups are still split by sex, but the output has no sex label."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Restrict to each patient's most recent lab record when applying T-BIL >= 2.0, rather than any record.",
+      "Join through Examination as well as Laboratory, which would limit patients to those with an Examination record."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "The agent followed the evidence and grouped by sex: `SELECT SEX, GROUP_CONCAT(DISTINCT ID) ... GROUP BY SEX`. That gives 2 rows of concatenated IDs (repeat 1 also added a COUNT column, and repeat 0 returned nothing). Gold returns 10 separate (ID, SEX) rows using `GROUP BY T1.SEX,T1.ID`.",
+    "question_gap": "no \u2014 the evidence says 'List refers to GROUP_CONCAT(DISTINCT ID)', which points to the agent's concatenated form, not gold's one row per patient.",
+    "supplied": "return (1) identification of the patient (`Patient.ID`); (2) patient sex (`Patient.SEX`); remove duplicate result rows"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b054",
+   "question_id": 1233,
+   "database": "thrombosis_prediction",
+   "original": "List each patient's ID and blood glucose (GLU) index that were within normal range for patient's whose data was first recorded in 1991.\nEvidence: blood glucose (GLU) index that were within normal range refers to GLU < 180; data that was first recorded in 1991 refers to year(Description) = 1991;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of date of first hospital visit (`Patient.First Date`) (as text, `%Y`) equals '1991' (compared as text, character by character); [2] blood glucose concentration (`Laboratory.GLU`) is less than 180 [end]; for each kept record, return (1) identification of the patient (`Patient.ID`); (2) blood glucose concentration (`Laboratory.GLU`); remove duplicate result rows.",
+   "gold_sql": "SELECT DISTINCT T1.ID, T2.GLU FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.`First Date`) = '1991' AND T2.GLU < 180",
+   "decision": "Which Patient date column defines the year the patient's data was 'first recorded' (to be filtered to 1991)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Patients whose First Date (the date they first came to the hospital) falls in 1991, listed with each of their GLU lab values below 180",
+     "sql": "SELECT DISTINCT T1.ID, T2.GLU FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.`First Date`) = '1991' AND T2.GLU < 180",
+     "rows": 74,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Patients whose Description date (documented as the first date the patient's data was recorded, and named in the evidence as year(Description) = 1991) falls in 1991, listed with each of their GLU lab values below 180",
+     "sql": "SELECT DISTINCT T1.ID, T2.GLU FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.`Description`) = '1991' AND T2.GLU < 180",
+     "rows": 52,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Patients whose earliest Laboratory record is dated in 1991 (data first recorded = first lab test), listed with their GLU values below 180",
+     "sql": "SELECT DISTINCT T1.ID, T2.GLU FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.ID IN (SELECT ID FROM Laboratory GROUP BY ID HAVING STRFTIME('%Y', MIN(Date)) = '1991') AND T2.GLU < 180",
+     "rows": 162,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "dated_attributes"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit",
+      "C0": "does not fit"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The agent filtered on `strftime('%Y', P.Description) = 1991` and got 82 rows, starting with patient 3554252. Gold filters on `STRFTIME('%Y', T1.`First Date`) = '1991'` and gets 74 rows, starting with 304157.",
+    "question_gap": "no \u2014 the evidence explicitly says 'year(Description) = 1991', which is what the agent used. Gold uses `First Date`, which goes against the evidence.",
+    "supplied": "the year of date of first hospital visit (`Patient.First Date`) (as text, `%Y`) equals '1991'"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b057",
+   "question_id": 1241,
+   "database": "thrombosis_prediction",
+   "original": "For patients with abnormal platelet level, state the number of patients with lower than normal range. How is it compare to the number of patients with higher than normal range?\nEvidence: abnormal platelet level refers to PLT <= 100 or PLT >= 400; platelet level lower than normal range refers to PLT < 100; calculation = SUBTRACT(SUM(PLT < 100), SUM(PLT > 400)); platelet level higher than normal range refers to PLT > 400;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); all kept records form one group, which gives one result row; for each result row, return (1) A \u2212 B. Here A is the sum of the value of the first rule that applies: if platelet concentration (`Laboratory.PLT`) is at most 100 then 1; otherwise 0 in the group (missing values ignored; missing when there are none); B is the sum of the value of the first rule that applies: if platelet concentration (`Laboratory.PLT`) is at least 400 then 1; otherwise 0 in the group (missing values ignored; missing when there are none).",
+   "gold_sql": "SELECT SUM(CASE WHEN T2.PLT <= 100 THEN 1 ELSE 0 END) - SUM(CASE WHEN T2.PLT >= 400 THEN 1 ELSE 0 END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+   "decision": "Whether the counting unit is lab records (each PLT test row) or distinct patients",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count lab test records: the number of Laboratory rows with PLT <= 100 minus the number of rows with PLT >= 400, so a patient with several abnormal tests is counted once per test",
+     "sql": "SELECT SUM(CASE WHEN T2.PLT <= 100 THEN 1 ELSE 0 END) - SUM(CASE WHEN T2.PLT >= 400 THEN 1 ELSE 0 END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct patients: the number of distinct patients with at least one PLT reading below the normal range minus the number of distinct patients with at least one reading above it",
+     "sql": "SELECT COUNT(DISTINCT CASE WHEN T2.PLT <= 100 THEN T1.ID END) - COUNT(DISTINCT CASE WHEN T2.PLT >= 400 THEN T1.ID END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Distinct patients using the strict thresholds from the evidence's calculation (PLT < 100 and PLT > 400)",
+     "sql": "SELECT COUNT(DISTINCT CASE WHEN T2.PLT < 100 THEN T1.ID END) - COUNT(DISTINCT CASE WHEN T2.PLT > 400 THEN T1.ID END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Classify each patient once using a single summary of their PLT values (for example their latest reading, or their minimum or maximum), so no patient is counted in both the low group and the high group",
+      "Report the low count and the high count side by side as two separate numbers instead of, or alongside, their difference"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count rows (not distinct patients) with the strict thresholds PLT < 100 and PLT > 400, i.e. the literal SUM(PLT < 100) - SUM(PLT > 400) from the evidence, where a patient with several abnormal tests is counted once per test.",
+      "Report the two counts separately (lower count and higher count) and describe the comparison in words (e.g. which is larger), rather than only the single difference value.",
+      "Report the comparison as a ratio or percentage of the lower count to the higher count instead of a difference.",
+      "Classify each patient by a single reading, such as the latest or first test, rather than any reading, before counting patients in each group."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "The gold counts lab records with no deduplication: `SUM(CASE WHEN T2.PLT <= 100 ...) - SUM(CASE WHEN T2.PLT >= 400 ...)`, which gives [[-562]]. Repeat 0 counts distinct patients with `COUNT(DISTINCT CASE WHEN PLT < 100 THEN ID END)` and uses strict `<100`/`>400`, which gives -46. It also returns three columns [36, 82, -46]. Repeat 1 returns two labelled rows of distinct-patient counts and no difference at all.",
+    "question_gap": "partly \u2014 the evidence formula `SUBTRACT(SUM(PLT < 100), SUM(PLT > 400))` points to a single row-level sum difference, but the question asks for the 'number of patients', which suggests distinct counts. The evidence also mixes <=/>= with </> thresholds.",
+    "supplied": "A is the sum of ... if platelet concentration (`Laboratory.PLT`) is at most 100 then 1; otherwise 0 in the group ... B is the sum of ... at least 400 then 1 ... return (1) A \u2212 B"
+   }
+  }
+ ],
+ "other_causes": [
+  {
+   "task": "b000",
+   "cause": "run variation",
+   "question_gap": "yes -- the evidence gives the exact value 'POPLATEK TYDNE', so the failure was a transcription slip.",
+   "difference": "Failing repeat 1 used \"a.frequency = 'POPLATEK_TYDNE'\" (underscore) instead of gold's \"T1.frequency = 'POPLATEK TYDNE'\", returning [[0]] vs [[15]]; repeat 0 used the correct literal and passed."
+  },
+  {
+   "task": "b025",
+   "cause": "unwanted processing",
+   "question_gap": "yes \u2014 nothing in the question or evidence asks for rounding, and the evidence's ratio formula is unrounded.",
+   "difference": "Both repeats wrapped the ratio in `ROUND(..., 2)` and returned 2.56. Gold returns the unrounded 2.5566502463054186. Using gender_id 1/2 instead of gender text gave the same counts, so the rounding was the only problem."
+  },
+  {
+   "task": "b031",
+   "cause": "output shape",
+   "question_gap": "yes \u2014 the question asks only for the race, though its singular \"the superhero\" hides that 6 superheroes match.",
+   "difference": "Submitted returns two columns, `sh.superhero_name, r.race`, giving 6 rows such as ['Air-Walker','-']. Gold returns only `DISTINCT T2.race`, giving 2 rows: ['-'], ['Human']. The extra name column causes the mismatch. The LEFT JOIN vs INNER JOIN difference had no effect."
+  },
+  {
+   "task": "b035",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 the evidence gives an unrounded percentage formula, and the agent's id-based filters match the gold's results.",
+   "difference": "Repeat 0 applied `ROUND(..., 2)` and returned 16.51 instead of gold's 16.50943396226415. Repeat 1 used the same gender_id/alignment_id logic without rounding and passed with the exact value."
+  },
+  {
+   "task": "b039",
+   "cause": "run variation",
+   "question_gap": "yes -- the evidence says AVG(height_cm) with no exclusion of zero heights, and one original repeat got it right.",
+   "difference": "Failing repeat 1 added extra filters \"AND superhero.height_cm IS NOT NULL AND superhero.height_cm > 0\", which excluded 0-height rows and gave 218.0 instead of gold 109.0; original repeat 0 matched gold exactly."
+  },
+  {
+   "task": "b047",
+   "cause": "run variation",
+   "question_gap": "yes -- the evidence gives the calculation (SUM(SEX = 'M') > SUM(SEX = 'F')) where CRE >= 1.5, and one original repeat passed.",
+   "difference": "Failing repeat 0 had a defective CASE, \"THEN 'False' ELSE 'False'\", so it always returned 'False'; it also counted distinct patients. Original repeat 1 counted joined rows with COUNT(*) and returned 'True', matching gold."
+  },
+  {
+   "task": "b051",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 the question asks only for patients and their diagnosis, and the agent got that right in one repeat.",
+   "difference": "Repeat 0 (`SELECT DISTINCT P.ID, P.Diagnosis ...`) passed, since grading compares rows as sets. Repeat 1 added `l.TG` as an extra column (`SELECT DISTINCT p.ID, p.Diagnosis, l.TG`), so its rows have 3 columns instead of 2."
+  },
+  {
+   "task": "b059",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 the question and evidence (APTT > 45, Thrombosis = 0, distinct count) fully determine the gold, and one original repeat passed.",
+   "difference": "Original repeat 0 matches the gold logic and returns [[2]]. Repeat 1 misspells the column as `l.APPT` instead of `APTT`, so the query errors and returns no rows."
+  }
+ ]
+}

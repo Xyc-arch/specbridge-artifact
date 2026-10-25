@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Inner-join Examination to Patient on ID, so examinations with a NULL ID or no matching patient are dropped. Count them with COUNT(*) per SEX, where a blank SEX and a NULL SEX are separate groups. Each share is the group count divided by the total of the joined counts, as a fraction from 0 to 1. The average count per sex is the mean of the group counts across all groups, blank and NULL included. Keep groups with count strictly greater than that mean. Return one row with the sum of their counts, the average of their shares, and the average of (count \u2212 mean).",
+  "Same as 1, but the shares are percentages (0\u2013100) instead of fractions.",
+  "Same as 1, but the shares use the total number of all Examination rows as the denominator, including unmatched ones.",
+  "Same as 1, but the average count per sex is the total count divided by the number of distinct SEX values in Patient. This includes sexes that have no examinations, which count as zero.",
+  "Same as 1, but the average count per sex is computed over only non-blank, non-NULL sexes. The blank and NULL groups are still counted and compared against that average.",
+  "Same as 1, but the comparison is \"at or above\" the average (\u2265) instead of strictly above.",
+  "Same as 1, but the counts are distinct examination records, such as distinct (ID, Examination Date) pairs, instead of raw rows.",
+  "Same as 1, but the counts are distinct patients with examinations per SEX instead of examination rows.",
+  "Same as 1, but the NULL SEX group is excluded from the output and the average. Only the blank group is kept as its own group.",
+  "Same as 1, but SEX values that differ only by case or whitespace are merged into one group before counting.",
+  "Same as 1, but the \"average amount by which their counts exceed the average\" is the sum of excesses divided by the total number of groups, not just the qualifying ones.",
+  "Same as 1, but if no sex is above the average, return one row of NULLs. If the result is empty, return no row.",
+  "Left-join from Examination to Patient, so unmatched examinations form their own NULL-SEX group. The rest follows 1.",
+  "Missing interpretations:",
+  "Same as 1, but the average count per sex is the average of the shares' complement, meaning \"average amount by which counts exceed the average\" is computed as the qualifying groups' average count minus the overall average count (this gives the same value as 1, so it is not a distinct reading).",
+  "Same as 1, but the count uses COUNT of a specific column, such as `Examination.ID` or `Examination.Diagnosis`, so rows with NULL in that column are not counted.",
+  "Same as 1, but the shares are computed as a percentage rounded to a fixed number of decimals, or the share is computed with integer division, which truncates it to 0.",
+  "Same as 1, but the blank SEX and NULL SEX groups are merged into one \"missing\" group.",
+  "Same as 1, but the output has one row per qualifying sex (listing each sex's count, share and excess) instead of a single aggregated row.",
+  "Same as 1, but the average of shares is a weighted average (the sum of the qualifying counts divided by the total), instead of a simple mean of the shares.",
+  "Same as 1, but the average count per sex is the median instead of the mean."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT P.SEX AS SEX, COUNT(*) AS cnt\n  FROM Examination E\n  INNER JOIN Patient P ON E.ID = P.ID\n  GROUP BY P.SEX\n),\nt AS (\n  SELECT SUM(cnt) * 1.0 AS total, AVG(cnt) AS mean_cnt FROM g\n)\nSELECT\n  SUM(g.cnt) AS total_count,\n  AVG(g.cnt / t.total) AS avg_share,\n  AVG(g.cnt - t.mean_cnt) AS avg_diff\nFROM g, t\nWHERE g.cnt > t.mean_cnt;\n",
+  "SELECT CAST(COUNT(E.ID) AS REAL) / (SELECT COUNT(DISTINCT SEX) FROM Patient) FROM Examination E JOIN Patient P ON E.ID = P.ID",
+  "SELECT SEX\nFROM Patient\nGROUP BY SEX\nHAVING COUNT(*) > (\n    SELECT AVG(c)\n    FROM (\n        SELECT COUNT(*) AS c\n        FROM Patient\n        WHERE SEX IS NOT NULL AND TRIM(SEX) <> ''\n        GROUP BY SEX\n    )\n);\n",
+  "SELECT DISTINCT ID FROM Examination WHERE `aCL IgA` >= (SELECT AVG(`aCL IgA`) FROM Examination);\n"
+ ],
+ "raw": [
+  "1. Inner-join Examination to Patient on ID, so examinations with a NULL ID or no matching patient are dropped. Count them with COUNT(*) per SEX, where a blank SEX and a NULL SEX are separate groups. Each share is the group count divided by the total of the joined counts, as a fraction from 0 to 1. The average count per sex is the mean of the group counts across all groups, blank and NULL included. Keep groups with count strictly greater than that mean. Return one row with the sum of their counts, the average of their shares, and the average of (count \u2212 mean).\n2. Same as 1, but the shares are percentages (0\u2013100) instead of fractions.\n3. Same as 1, but the shares use the total number of all Examination rows as the denominator, including unmatched ones.\n4. Same as 1, but the average count per sex is the total count divided by the number of distinct SEX values in Patient. This includes sexes that have no examinations, which count as zero.\n5. Same as 1, but the average count per sex is computed over only non-blank, non-NULL sexes. The blank and NULL groups are still counted and compared against that average.\n6. Same as 1, but the comparison is \"at or above\" the average (\u2265) instead of strictly above.\n7. Same as 1, but the counts are distinct examination records, such as distinct (ID, Examination Date) pairs, instead of raw rows.\n8. Same as 1, but the counts are distinct patients with examinations per SEX instead of examination rows.\n9. Same as 1, but the NULL SEX group is excluded from the output and the average. Only the blank group is kept as its own group.\n10. Same as 1, but SEX values that differ only by case or whitespace are merged into one group before counting.\n11. Same as 1, but the \"average amount by which their counts exceed the average\" is the sum of excesses divided by the total number of groups, not just the qualifying ones.\n12. Same as 1, but if no sex is above the average, return one row of NULLs. If the result is empty, return no row.\n13. Left-join from Examination to Patient, so unmatched examinations form their own NULL-SEX group. The rest follows 1.",
+  "Missing interpretations:\n\nSame as 1, but the average count per sex is the average of the shares' complement, meaning \"average amount by which counts exceed the average\" is computed as the qualifying groups' average count minus the overall average count (this gives the same value as 1, so it is not a distinct reading).\n\nSame as 1, but the count uses COUNT of a specific column, such as `Examination.ID` or `Examination.Diagnosis`, so rows with NULL in that column are not counted.\n\nSame as 1, but the shares are computed as a percentage rounded to a fixed number of decimals, or the share is computed with integer division, which truncates it to 0.\n\nSame as 1, but the blank SEX and NULL SEX groups are merged into one \"missing\" group.\n\nSame as 1, but the output has one row per qualifying sex (listing each sex's count, share and excess) instead of a single aggregated row.\n\nSame as 1, but the average of shares is a weighted average (the sum of the qualifying counts divided by the total), instead of a simple mean of the shares.\n\nSame as 1, but the average count per sex is the median instead of the mean."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b6c13c0329",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67765,
+  "chars_out": 4960
+ }
+}

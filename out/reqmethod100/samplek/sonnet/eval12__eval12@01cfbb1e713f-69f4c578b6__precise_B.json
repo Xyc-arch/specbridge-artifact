@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH p AS (SELECT bp.player_id, pl.bats, AVG(bp.\"double\") AS avg_doubles FROM batting_postseason bp JOIN player pl ON pl.player_id = bp.player_id WHERE pl.bats IS NOT NULL AND TRIM(pl.bats) <> '' GROUP BY bp.player_id, pl.bats), i AS (SELECT player_id, bats, avg_doubles, avg_doubles * 1.0 / AVG(avg_doubles) OVER () AS idx FROM p), d AS (SELECT player_id, bats, avg_doubles, idx, AVG(idx) OVER (PARTITION BY bats) AS hand_avg_idx FROM i) SELECT player_id, bats, avg_doubles, idx AS index_value, idx - hand_avg_idx AS index_minus_hand_avg FROM d ORDER BY (idx - hand_avg_idx) IS NULL, idx - hand_avg_idx DESC LIMIT 10",
+  "WITH per_player AS (SELECT p.player_id, p.bats, AVG(bp.double) AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id WHERE p.bats IS NOT NULL AND TRIM(p.bats) <> '' GROUP BY p.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / AVG(avg_doubles) OVER () AS idx FROM per_player), final AS (SELECT player_id, bats, avg_doubles, idx AS index_value, idx - AVG(idx) OVER (PARTITION BY bats) AS diff_from_hand_avg FROM idx) SELECT player_id, bats, avg_doubles, index_value, diff_from_hand_avg FROM final ORDER BY diff_from_hand_avg DESC NULLS LAST, player_id LIMIT 10",
+  "WITH per_player AS (SELECT p.player_id, p.bats, AVG(bp.double) AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id WHERE p.bats IS NOT NULL AND TRIM(p.bats) <> '' GROUP BY p.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / (SELECT AVG(avg_doubles) FROM per_player) AS idx FROM per_player), final AS (SELECT player_id, bats, avg_doubles, idx, idx - AVG(idx) OVER (PARTITION BY bats) AS idx_minus_hand_avg FROM idx) SELECT player_id, bats, avg_doubles, idx, idx_minus_hand_avg FROM final ORDER BY (idx_minus_hand_avg IS NULL), idx_minus_hand_avg DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH p AS (SELECT bp.player_id, pl.bats, AVG(bp.\"double\") AS avg_doubles FROM batting_postseason bp JOIN player pl ON pl.player_id = bp.player_id WHERE pl.bats IS NOT NULL AND TRIM(pl.bats) <> '' GROUP BY bp.player_id, pl.bats), i AS (SELECT player_id, bats, avg_doubles, avg_doubles * 1.0 / AVG(avg_doubles) OVER () AS idx FROM p), d AS (SELECT player_id, bats, avg_doubles, idx, AVG(idx) OVER (PARTITION BY bats) AS hand_avg_idx FROM i) SELECT player_id, bats, avg_doubles, idx AS index_value, idx - hand_avg_idx AS index_minus_hand_avg FROM d ORDER BY (idx - hand_avg_idx) IS NULL, idx - hand_avg_idx DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Empty batting hand means NULL, an empty string, or whitespace only. Those players are excluded before any average is computed.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-player average doubles. Players whose doubles values are all NULL have a NULL average. They are ignored in both the overall average and the hand average, and they sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The hand average is the mean of players' indexes within each batting hand. Ties in the difference are broken arbitrarily.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_player AS (SELECT p.player_id, p.bats, AVG(bp.double) AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id WHERE p.bats IS NOT NULL AND TRIM(p.bats) <> '' GROUP BY p.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / AVG(avg_doubles) OVER () AS idx FROM per_player), final AS (SELECT player_id, bats, avg_doubles, idx AS index_value, idx - AVG(idx) OVER (PARTITION BY bats) AS diff_from_hand_avg FROM idx) SELECT player_id, bats, avg_doubles, index_value, diff_from_hand_avg FROM final ORDER BY diff_from_hand_avg DESC NULLS LAST, player_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall average and the per-hand average index are taken over per-player averages, with each player counted once. Players whose doubles are all NULL have a NULL average and are left out of both averages, but they stay in the result set and sort last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "An empty batting hand means an empty or whitespace-only string. These are excluded along with NULL, both from the overall average and from the output.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the difference are broken by player_id, which the request does not specify.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_player AS (SELECT p.player_id, p.bats, AVG(bp.double) AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id WHERE p.bats IS NOT NULL AND TRIM(p.bats) <> '' GROUP BY p.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / (SELECT AVG(avg_doubles) FROM per_player) AS idx FROM per_player), final AS (SELECT player_id, bats, avg_doubles, idx, idx - AVG(idx) OVER (PARTITION BY bats) AS idx_minus_hand_avg FROM idx) SELECT player_id, bats, avg_doubles, idx, idx_minus_hand_avg FROM final ORDER BY (idx_minus_hand_avg IS NULL), idx_minus_hand_avg DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the unweighted mean of the per-player averages (one value per player), not the mean over all postseason records. Players whose doubles values are all NULL have a NULL average and are skipped by both the overall and hand averages, but can still appear in the output with a NULL difference, sorted last.",
+     "unresolved": false
+    },
+    {
+     "assumption": "An empty batting hand means an empty string or whitespace only. Such players and NULL-hand players are excluded before any averaging.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Players with no postseason batting records are not included, because the join is an inner join.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69f4c578b6",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 28857,
+  "chars_out": 3941
+ }
+}

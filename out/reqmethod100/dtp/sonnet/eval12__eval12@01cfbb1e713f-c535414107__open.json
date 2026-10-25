@@ -1,0 +1,48 @@
+{
+ "interpretations": [
+  "Linking lab records to patients by ID, the question could mean:",
+  "The threshold is the unweighted mean of the sex-level average ALB values, taken across all sexes that have a non-missing sex-level ALB average. A sex is returned if its average is strictly above that. The output is sex, average ALB, average UN/T-BIL ratio, and ALB average minus the threshold.",
+  "Same as 1, but the threshold is the mean of all patient-level ALB averages pooled across sexes, not the mean of the sex-level averages.",
+  "Same as 1, but the threshold is the mean of all individual lab-record ALB values, weighted by record.",
+  "Same as 1, but sexes with NULL or empty SEX count as their own group when computing the threshold and when listing results.",
+  "Same as 1, but patients with NULL or empty SEX are excluded before any averaging.",
+  "Same as 1, but \"above\" means greater than or equal to the threshold.",
+  "Same as 1, but \"how far above\" is the ratio of the sex's ALB average to the threshold.",
+  "Same as 1, but \"how far above\" is the percentage difference from the threshold.",
+  "The patient-level ALB average uses all non-null ALB values for that patient. The patient-level ratio average uses only records where both UN and T-BIL are non-null and T-BIL is non-zero, so the two averages may rest on different records.",
+  "The patient-level ALB average uses only records where the UN/T-BIL ratio can also be computed, so both figures rest on the same records.",
+  "The per-test ratio is UN divided by T-BIL, with a zero T-BIL treated as missing and excluded.",
+  "The per-test ratio is UN divided by T-BIL, with a zero T-BIL treated as an error or infinite value rather than excluded.",
+  "The ratio is the patient's average UN divided by the patient's average T-BIL, not the average of per-record ratios.",
+  "Sex-level averages are averages of patient-level figures, so each patient has equal weight. Sexes with more patients are not weighted more heavily.",
+  "Sex-level averages are averages over all lab records of that sex, weighted by record, and the patient-level step is ignored.",
+  "A sex whose patients all have missing ratios is still returned if its ALB average is above the threshold, with a NULL ratio.",
+  "A sex whose patients all have missing ratios is excluded from the results.",
+  "The result is a single sex, the one with the highest average ALB above the threshold, rather than all sexes above it.",
+  "Missing interpretations:",
+  "Same as 1, but the threshold is the mean of the sex-level averages computed only over sexes that appear in the result (e.g., sexes with a computable ratio), rather than all sexes with a non-missing ALB average.",
+  "Same as 1, but \"how far above\" is the difference expressed as a fraction (difference divided by the threshold).",
+  "Same as 1, but patients with no lab records are included, with NULL averages, and a sex made up only of such patients is dropped because its ALB average is missing.",
+  "The patient-level ratio average is taken over records where T-BIL is non-null and positive (negative T-BIL is also excluded), not just non-zero.",
+  "The patient-level ALB average uses all lab records with non-null ALB, but the sex-level ratio average is computed only over patients that have a non-missing patient-level ratio, so patients with no computable ratio are dropped from the ratio average while still counting toward the ALB average."
+ ],
+ "queries": [
+  "WITH sex_avg AS (\n    SELECT P.SEX AS SEX,\n           AVG(L.ALB) AS avg_alb,\n           AVG(CAST(L.UN AS REAL) / NULLIF(L.`T-BIL`, 0)) AS avg_ratio\n    FROM Patient P\n    JOIN Laboratory L ON P.ID = L.ID\n    GROUP BY P.SEX\n),\nthreshold AS (\n    SELECT AVG(avg_alb) AS thr\n    FROM sex_avg\n    WHERE avg_alb IS NOT NULL\n)\nSELECT s.SEX, s.avg_alb, s.avg_ratio, s.avg_alb - t.thr\nFROM sex_avg s, threshold t\nWHERE s.avg_alb > t.thr;\n",
+  "WITH patient_avg AS (\n    SELECT P.ID, P.SEX, AVG(L.ALB) AS avg_alb\n    FROM Patient P\n    JOIN Laboratory L ON P.ID = L.ID\n    WHERE L.ALB IS NOT NULL\n    GROUP BY P.ID, P.SEX\n)\nSELECT ID\nFROM patient_avg\nWHERE avg_alb > (SELECT AVG(avg_alb) FROM patient_avg);\n",
+  "SELECT DISTINCT ID FROM Laboratory WHERE ALB > (SELECT AVG(ALB) FROM Laboratory);\n",
+  "SELECT SEX, AVG(strftime('%Y', 'now') - strftime('%Y', Birthday)) FROM Patient WHERE SEX IS NOT NULL AND SEX <> '' GROUP BY SEX\n"
+ ],
+ "raw": [
+  "Linking lab records to patients by ID, the question could mean:\n\n1. The threshold is the unweighted mean of the sex-level average ALB values, taken across all sexes that have a non-missing sex-level ALB average. A sex is returned if its average is strictly above that. The output is sex, average ALB, average UN/T-BIL ratio, and ALB average minus the threshold.\n2. Same as 1, but the threshold is the mean of all patient-level ALB averages pooled across sexes, not the mean of the sex-level averages.\n3. Same as 1, but the threshold is the mean of all individual lab-record ALB values, weighted by record.\n4. Same as 1, but sexes with NULL or empty SEX count as their own group when computing the threshold and when listing results.\n5. Same as 1, but patients with NULL or empty SEX are excluded before any averaging.\n6. Same as 1, but \"above\" means greater than or equal to the threshold.\n7. Same as 1, but \"how far above\" is the ratio of the sex's ALB average to the threshold.\n8. Same as 1, but \"how far above\" is the percentage difference from the threshold.\n9. The patient-level ALB average uses all non-null ALB values for that patient. The patient-level ratio average uses only records where both UN and T-BIL are non-null and T-BIL is non-zero, so the two averages may rest on different records.\n10. The patient-level ALB average uses only records where the UN/T-BIL ratio can also be computed, so both figures rest on the same records.\n11. The per-test ratio is UN divided by T-BIL, with a zero T-BIL treated as missing and excluded.\n12. The per-test ratio is UN divided by T-BIL, with a zero T-BIL treated as an error or infinite value rather than excluded.\n13. The ratio is the patient's average UN divided by the patient's average T-BIL, not the average of per-record ratios.\n14. Sex-level averages are averages of patient-level figures, so each patient has equal weight. Sexes with more patients are not weighted more heavily.\n15. Sex-level averages are averages over all lab records of that sex, weighted by record, and the patient-level step is ignored.\n16. A sex whose patients all have missing ratios is still returned if its ALB average is above the threshold, with a NULL ratio.\n17. A sex whose patients all have missing ratios is excluded from the results.\n18. The result is a single sex, the one with the highest average ALB above the threshold, rather than all sexes above it.",
+  "Missing interpretations:\n\nSame as 1, but the threshold is the mean of the sex-level averages computed only over sexes that appear in the result (e.g., sexes with a computable ratio), rather than all sexes with a non-missing ALB average.\nSame as 1, but \"how far above\" is the difference expressed as a fraction (difference divided by the threshold).\nSame as 1, but patients with no lab records are included, with NULL averages, and a sex made up only of such patients is dropped because its ALB average is missing.\nThe patient-level ratio average is taken over records where T-BIL is non-null and positive (negative T-BIL is also excluded), not just non-zero.\nThe patient-level ALB average uses all lab records with non-null ALB, but the sex-level ratio average is computed only over patients that have a non-missing patient-level ratio, so patients with no computable ratio are dropped from the ratio average while still counting toward the ALB average."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c535414107",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67855,
+  "chars_out": 5576
+ }
+}

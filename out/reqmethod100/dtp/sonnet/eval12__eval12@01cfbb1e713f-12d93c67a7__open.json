@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Compute the ratio `rebrate`/`feerate` for each joined fee-order row, then average it per `timespan`. Rows with a NULL ratio are ignored. The match count is the number of joined fee-order rows in the group, and the cross-group average is the mean of those group counts.",
+  "Same as 1, but rows with `feerate` = 0 are also excluded, because the ratio is undefined. Those rows are excluded from the ratio average but still counted as matches.",
+  "Same as 1, but the match count includes only rows where the ratio is non-null, so rows with NULL `rebrate`, NULL `feerate`, or zero `feerate` are not counted.",
+  "Same as 1, but the match count is the number of distinct orders (`recordvault`) per `timespan` group, not the number of fee rows.",
+  "Same as 1, but the match count is the number of distinct fee records (`feesnode`) per `timespan` group.",
+  "Instead of averaging per-row ratios, divide the group's average `rebrate` by its average `feerate`. Both averages ignore NULLs.",
+  "Instead of averaging per-row ratios, divide the group's total `rebrate` by its total `feerate`.",
+  "Orders with a NULL `timespan` form their own group and are included in the group list and the cross-group average.",
+  "Orders with a NULL `timespan` are excluded before grouping, so only the defined time-in-force values (IOC, GTC, GTD, FOK) form groups.",
+  "Groups whose average ratio is entirely NULL still count toward the cross-group average match count, but they contribute nothing to the final average of average ratios.",
+  "Groups whose average ratio is entirely NULL are dropped before computing the cross-group average match count.",
+  "The threshold is the unweighted mean of the per-group match counts (total matches \u00f7 number of groups). Only groups with a count strictly greater than it are kept.",
+  "The final \"average of their average ratios\" is a simple unweighted mean across the kept groups.",
+  "The final \"average of their average ratios\" is weighted by match count across the kept groups.",
+  "The final row has three values: the mean of the kept groups' average ratios, the sum of the kept groups' match counts, and the mean of (group count \u2212 cross-group average count) over the kept groups.",
+  "If no group is strictly above the cross-group average, for example when all counts are equal or there is only one group, the result is no row, or a row of NULLs, or a total of 0.",
+  "Values are left unrounded and returned at full precision."
+ ],
+ "queries": [
+  "SELECT\n  timespan,\n  avg_ratio,\n  match_count,\n  AVG(match_count) OVER () AS cross_group_avg_count\nFROM (\n  SELECT\n    o.timespan AS timespan,\n    AVG(f.rebrate / f.feerate) AS avg_ratio,\n    COUNT(*) AS match_count\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n);\n",
+  "SELECT COUNT(*) AS match_count,\n       AVG(CASE WHEN feerate <> 0 THEN rebrate / feerate END) AS avg_ratio\nFROM fees\nWHERE feerate IS NOT NULL AND rebrate IS NOT NULL;\n",
+  "SELECT COUNT(rebrate * 1.0 / NULLIF(feerate, 0)) AS match_count FROM fees;\n",
+  "SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS match_count\nFROM orders o\nJOIN fees f ON f.orderslink = o.recordvault\nGROUP BY o.timespan;\n",
+  "SELECT o.timespan, COUNT(DISTINCT f.feesnode) AS match_count\nFROM orders o\nJOIN fees f ON f.orderslink = o.recordvault\nGROUP BY o.timespan",
+  "SELECT feerange, AVG(rebrate) / AVG(feerate) AS rebate_to_fee_ratio FROM fees GROUP BY feerange"
+ ],
+ "raw": [
+  "1. Compute the ratio `rebrate`/`feerate` for each joined fee-order row, then average it per `timespan`. Rows with a NULL ratio are ignored. The match count is the number of joined fee-order rows in the group, and the cross-group average is the mean of those group counts.\n2. Same as 1, but rows with `feerate` = 0 are also excluded, because the ratio is undefined. Those rows are excluded from the ratio average but still counted as matches.\n3. Same as 1, but the match count includes only rows where the ratio is non-null, so rows with NULL `rebrate`, NULL `feerate`, or zero `feerate` are not counted.\n4. Same as 1, but the match count is the number of distinct orders (`recordvault`) per `timespan` group, not the number of fee rows.\n5. Same as 1, but the match count is the number of distinct fee records (`feesnode`) per `timespan` group.\n6. Instead of averaging per-row ratios, divide the group's average `rebrate` by its average `feerate`. Both averages ignore NULLs.\n7. Instead of averaging per-row ratios, divide the group's total `rebrate` by its total `feerate`.\n8. Orders with a NULL `timespan` form their own group and are included in the group list and the cross-group average.\n9. Orders with a NULL `timespan` are excluded before grouping, so only the defined time-in-force values (IOC, GTC, GTD, FOK) form groups.\n10. Groups whose average ratio is entirely NULL still count toward the cross-group average match count, but they contribute nothing to the final average of average ratios.\n11. Groups whose average ratio is entirely NULL are dropped before computing the cross-group average match count.\n12. The threshold is the unweighted mean of the per-group match counts (total matches \u00f7 number of groups). Only groups with a count strictly greater than it are kept.\n13. The final \"average of their average ratios\" is a simple unweighted mean across the kept groups.\n14. The final \"average of their average ratios\" is weighted by match count across the kept groups.\n15. The final row has three values: the mean of the kept groups' average ratios, the sum of the kept groups' match counts, and the mean of (group count \u2212 cross-group average count) over the kept groups.\n16. If no group is strictly above the cross-group average, for example when all counts are equal or there is only one group, the result is no row, or a row of NULLs, or a total of 0.\n17. Values are left unrounded and returned at full precision.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107830,
+  "chars_out": 4329
+ }
+}

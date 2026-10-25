@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-227771660b",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "ALB \u2212 TP per patient is the patient's mean ALB minus their mean TP.",
+ "a": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), for each patient (`ID`, `SEX`) compute the patient's average `ALB` minus their average `TP` (each averaged over all of its own non-missing values) and the average per-test difference `APTT` \u2212 `PT`. Average these patient figures within each sex (every `SEX` value, blank or missing included, as its own group). Keep the sexes whose average `APTT` \u2212 `PT` is above the mean of the sex-level `APTT` \u2212 `PT` averages. Give a single row averaging, across those sexes: the `ALB` \u2212 `TP` figure, the `APTT` \u2212 `PT` figure, and how far the `APTT` \u2212 `PT` figure exceeds that mean. Averages ignore missing values; don't round.",
+  "sql": "WITH p AS (SELECT P.ID, P.SEX, AVG(L.ALB) - AVG(L.TP) AS alb_tp, AVG(L.APTT - L.PT) AS aptt_pt FROM Laboratory L JOIN Patient P ON P.ID = L.ID GROUP BY P.ID, P.SEX), s AS (SELECT SEX, AVG(alb_tp) AS alb_tp, AVG(aptt_pt) AS aptt_pt FROM p GROUP BY SEX), m AS (SELECT AVG(aptt_pt) AS mean_ap FROM s) SELECT AVG(s.alb_tp) AS avg_alb_tp, AVG(s.aptt_pt) AS avg_aptt_pt, AVG(s.aptt_pt) - (SELECT mean_ap FROM m) AS excess FROM s WHERE s.aptt_pt > (SELECT mean_ap FROM m)",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), work out each patient's (`ID`, `SEX`) average `ALB` \u2212 `TP` and average `APTT` \u2212 `PT`, then average these within each sex (every `SEX` value, blank or missing included, as its own group). Keep the sexes whose average `APTT` \u2212 `PT` is above the mean of the sex-level `APTT` \u2212 `PT` averages. Give a single row averaging, across those sexes: the `ALB` \u2212 `TP` figure, the `APTT` \u2212 `PT` figure, and how far the `APTT` \u2212 `PT` figure exceeds that mean. Averages ignore missing values; don't round. ALB \u2212 TP per patient is the patient's mean ALB minus their mean TP.",
+  "sql": "WITH p AS (SELECT P.ID, P.SEX, AVG(L.ALB) - AVG(L.TP) AS alb_tp, AVG(L.APTT) - AVG(L.PT) AS aptt_pt FROM Laboratory L JOIN Patient P ON P.ID = L.ID GROUP BY P.ID, P.SEX), s AS (SELECT SEX, AVG(alb_tp) AS alb_tp, AVG(aptt_pt) AS aptt_pt FROM p GROUP BY SEX), m AS (SELECT AVG(aptt_pt) AS mean_ap FROM s) SELECT AVG(s.alb_tp) AS avg_alb_tp, AVG(s.aptt_pt) AS avg_aptt_pt, AVG(s.aptt_pt) - (SELECT mean_ap FROM m) AS exceed FROM s WHERE s.aptt_pt > (SELECT mean_ap FROM m)",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Inner-join Laboratory to Patient on ID (dropping unmatched lab records); per patient (ID, SEX) compute (AVG(ALB) \u2212 AVG(TP)) and (AVG(APTT) \u2212 AVG(PT)) with NULLs ignored; average each across patients within every SEX group (blank and NULL SEX as their own groups); compute M as the mean of the sex-level APTT\u2212PT averages; keep sexes whose APTT\u2212PT average exceeds M; and return one row with the average over those kept sexes of the ALB\u2212TP figure, the APTT\u2212PT figure, and (APTT\u2212PT figure \u2212 M), unrounded",
+  "sql": "WITH p AS (SELECT P.ID, P.SEX, AVG(L.ALB) - AVG(L.TP) AS alb_tp, AVG(L.APTT) - AVG(L.PT) AS aptt_pt FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), s AS (SELECT SEX, AVG(alb_tp) AS alb_tp, AVG(aptt_pt) AS aptt_pt FROM p GROUP BY SEX), m AS (SELECT AVG(aptt_pt) AS M FROM s) SELECT AVG(s.alb_tp) AS avg_alb_tp, AVG(s.aptt_pt) AS avg_aptt_pt, AVG(s.aptt_pt - m.M) AS avg_aptt_pt_minus_M FROM s CROSS JOIN m WHERE s.aptt_pt > m.M",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Linking lab records to patients by `ID` (dropping unmatched lab records), work out each patient's (`ID`, `SEX`) average `ALB` \u2212 `TP` and average `APTT` \u2212 `PT`, where a patient's `ALB` \u2212 `TP` is the patient's mean `ALB` minus their mean `TP`. Then average these within each sex (every `SEX` value, blank or missing included, as its own group). Keep the sexes whose average `APTT` \u2212 `PT` is above the mean of the sex-level `APTT` \u2212 `PT` averages. Give a single row averaging, across those sexes: the `ALB` \u2212 `TP` figure, the `APTT` \u2212 `PT` figure, and how far the `APTT` \u2212 `PT` figure exceeds that mean. Averages ignore missing values; don't round.",
+  "sql": "WITH pat AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.ALB) - AVG(l.TP) AS alb_tp, AVG(l.APTT) - AVG(l.PT) AS aptt_pt FROM Laboratory l JOIN Patient p ON p.ID = l.ID GROUP BY p.ID, p.SEX), sex_avg AS (SELECT SEX, AVG(alb_tp) AS alb_tp, AVG(aptt_pt) AS aptt_pt FROM pat GROUP BY SEX), m AS (SELECT AVG(aptt_pt) AS mean_aptt_pt FROM sex_avg), kept AS (SELECT s.SEX, s.alb_tp, s.aptt_pt, m.mean_aptt_pt FROM sex_avg s, m WHERE s.aptt_pt > m.mean_aptt_pt) SELECT AVG(alb_tp) AS avg_alb_tp, AVG(aptt_pt) AS avg_aptt_pt, AVG(aptt_pt - mean_aptt_pt) AS avg_excess FROM kept",
+  "executes": true,
+  "matches": []
+ }
+}

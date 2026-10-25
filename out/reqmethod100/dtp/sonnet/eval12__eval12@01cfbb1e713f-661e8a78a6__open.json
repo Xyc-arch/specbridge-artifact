@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Interpretations:",
+  "Per-account average of raw unsigned `trans.amount` over all of the account's transactions, with every transaction type included (PRIJEM, VYDAJ and VYBER). Each region's figure is the plain mean of its accounts' averages. The all-region average is the unweighted mean of the regional figures. Output is region, figure, figure minus average, and figure divided by average, for regions strictly above the average.",
+  "Same as 1, but the per-account average uses signed amounts: PRIJEM (credit) positive and VYDAJ (withdrawal) negative. VYBER is treated as a withdrawal, so negative.",
+  "Same as 2, but VYBER amounts are excluded because their direction is undocumented. Only PRIJEM and VYDAJ are used.",
+  "Same as 2, but VYBER amounts are treated as positive.",
+  "Same as 1, but accounts with no transactions are included with a per-account average of 0, so they count toward their region's mean.",
+  "Same as 1, but accounts with no transactions are included as NULL and ignored in the averages. A region with only such accounts would have a NULL figure and be excluded or counted as a region without a figure.",
+  "Same as 1, but the all-region average is the mean over all accounts (account-weighted), not over the regional figures. The \"exceeds\" difference is against that, and the ratio is figure divided by the same value.",
+  "Same as 1, but the all-region average is the overall mean of `trans.amount` across all transactions (transaction-weighted). The difference and ratio use that value.",
+  "Same as 1, but the comparison threshold is the average of regional figures, and the ratio's denominator is the average of the figures of only the regions above the threshold.",
+  "Same as 1, but the region is derived from the client's `district_id` (via `disp` and `client`) instead of the account's `district_id`. This conflicts with \"branch district (`account.district_id`)\" and is less likely.",
+  "Regions with no accounts, or with no transactions, are excluded from the all-region average, so only regions with a computable figure count. Alternatively, all regions in `district.A3` are counted, with empty ones as 0 or NULL.",
+  "Strictly greater than the average (`>`), versus greater than or equal to the average (`>=`). The two differ only for a region exactly at the average.",
+  "\"How much it exceeds\" is the absolute difference (figure \u2212 average). Alternatively it is the percentage excess ((figure \u2212 average) / average \u00d7 100). The ratio column is then figure / average, which is the percentage excess plus one.",
+  "Only transactions of one direction are averaged (credits only or withdrawals only), reading \"transaction amounts\" as a subset. This is less likely.",
+  "Unrounded full-precision floating-point output for all columns, with integer division avoided (amounts cast to real before averaging).",
+  "Two interpretations are missing:",
+  "Same as 1, but VYBER transactions are excluded because their direction is undocumented, and the amounts stay unsigned. Only PRIJEM and VYDAJ rows are averaged, as raw `trans.amount`.",
+  "Same as 1, but each region's figure is built in two steps. First average the per-account averages within each district. Then average those district figures within the region. The all-region average is the mean of the regional figures."
+ ],
+ "queries": [
+  "WITH acc AS (\n  SELECT a.account_id, d.A3 AS region, AVG(t.amount) AS acc_avg\n  FROM account a\n  JOIN district d ON a.district_id = d.district_id\n  JOIN trans t ON t.account_id = a.account_id\n  GROUP BY a.account_id, d.A3\n),\nreg AS (\n  SELECT region, AVG(acc_avg) AS figure\n  FROM acc\n  GROUP BY region\n),\noverall AS (\n  SELECT AVG(figure) AS avg_figure FROM reg\n)\nSELECT reg.region, reg.figure, reg.figure - overall.avg_figure, reg.figure / overall.avg_figure\nFROM reg, overall\nWHERE reg.figure > overall.avg_figure;\n",
+  "SELECT account_id,\n       AVG(CASE WHEN type = 'PRIJEM' THEN amount ELSE -amount END) AS avg_signed_amount\nFROM trans\nGROUP BY account_id;\n",
+  "SELECT d.A3, AVG(COALESCE(t.avg_amt, 0)) AS avg_per_account_amount\nFROM account a\nJOIN district d ON a.district_id = d.district_id\nLEFT JOIN (\n    SELECT account_id, AVG(amount) AS avg_amt\n    FROM trans\n    GROUP BY account_id\n) t ON t.account_id = a.account_id\nGROUP BY d.A3;\n"
+ ],
+ "raw": [
+  "Interpretations:\n\n1. Per-account average of raw unsigned `trans.amount` over all of the account's transactions, with every transaction type included (PRIJEM, VYDAJ and VYBER). Each region's figure is the plain mean of its accounts' averages. The all-region average is the unweighted mean of the regional figures. Output is region, figure, figure minus average, and figure divided by average, for regions strictly above the average.\n2. Same as 1, but the per-account average uses signed amounts: PRIJEM (credit) positive and VYDAJ (withdrawal) negative. VYBER is treated as a withdrawal, so negative.\n3. Same as 2, but VYBER amounts are excluded because their direction is undocumented. Only PRIJEM and VYDAJ are used.\n4. Same as 2, but VYBER amounts are treated as positive.\n5. Same as 1, but accounts with no transactions are included with a per-account average of 0, so they count toward their region's mean.\n6. Same as 1, but accounts with no transactions are included as NULL and ignored in the averages. A region with only such accounts would have a NULL figure and be excluded or counted as a region without a figure.\n7. Same as 1, but the all-region average is the mean over all accounts (account-weighted), not over the regional figures. The \"exceeds\" difference is against that, and the ratio is figure divided by the same value.\n8. Same as 1, but the all-region average is the overall mean of `trans.amount` across all transactions (transaction-weighted). The difference and ratio use that value.\n9. Same as 1, but the comparison threshold is the average of regional figures, and the ratio's denominator is the average of the figures of only the regions above the threshold.\n10. Same as 1, but the region is derived from the client's `district_id` (via `disp` and `client`) instead of the account's `district_id`. This conflicts with \"branch district (`account.district_id`)\" and is less likely.\n11. Regions with no accounts, or with no transactions, are excluded from the all-region average, so only regions with a computable figure count. Alternatively, all regions in `district.A3` are counted, with empty ones as 0 or NULL.\n12. Strictly greater than the average (`>`), versus greater than or equal to the average (`>=`). The two differ only for a region exactly at the average.\n13. \"How much it exceeds\" is the absolute difference (figure \u2212 average). Alternatively it is the percentage excess ((figure \u2212 average) / average \u00d7 100). The ratio column is then figure / average, which is the percentage excess plus one.\n14. Only transactions of one direction are averaged (credits only or withdrawals only), reading \"transaction amounts\" as a subset. This is less likely.\n15. Unrounded full-precision floating-point output for all columns, with integer division avoided (amounts cast to real before averaging).",
+  "Two interpretations are missing:\n\nSame as 1, but VYBER transactions are excluded because their direction is undocumented, and the amounts stay unsigned. Only PRIJEM and VYDAJ rows are averaged, as raw `trans.amount`.\n\nSame as 1, but each region's figure is built in two steps. First average the per-account averages within each district. Then average those district figures within the region. The all-region average is the mean of the regional figures."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-661e8a78a6",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 63851,
+  "chars_out": 5199
+ }
+}

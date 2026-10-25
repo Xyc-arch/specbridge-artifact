@@ -1,0 +1,43 @@
+{
+ "interpretations": [
+  "Inner join `appearances` to `player` on `player_id`, drop `bats` = '' (NULL `bats` is either kept as its own group or dropped). For each `bats` value, count the joined appearance rows. Return `bats`, that count, count \u00f7 total count across all groups, and count \u00f7 average group count (total \u00f7 number of groups). The fraction is integer division.",
+  "Same as 1, but the fraction is real-valued, as in a cast to float.",
+  "Same as 1, but NULL `bats` is excluded as well as '', so the total and the average cover only non-empty, non-NULL groups.",
+  "Same as 1, but NULL `bats` is kept as its own group. It counts toward the total and toward the number of groups in the average.",
+  "Count distinct (`player_id`, `year`, `team_id`) combinations per `bats` instead of raw joined rows. This is the \"number of appearance records\" taken as unique appearance records.",
+  "Count distinct players per `bats` instead of appearance rows. This is \"appearance records\" taken loosely as players who have appearances.",
+  "The total in the second column is all joined appearance rows, including those with empty or NULL `bats`. The denominator for the fraction is the pre-filter total rather than the sum over the remaining groups.",
+  "The average in the last column is the mean of the per-group counts over the groups shown (total \u00f7 number of groups). It could instead be the mean number of appearance records per player within each group (the group's count \u00f7 its number of players).",
+  "The \"fraction of the total\" is read as a percentage (\u00d7100) rather than a 0\u20131 proportion.",
+  "The last column is each group's count divided by the average of the group counts, which is a ratio to the mean. It could instead be read as the group's count divided by the overall average of `g_all` or another appearance measure.",
+  "Every `bats` value present is its own group, such as 'R', 'L' and 'B'. Case variants or whitespace variants are merged into one group.",
+  "Missing interpretations:",
+  "Dropping appearances with no matching player is done with a LEFT JOIN plus a non-NULL filter on `bats`, and the result is the same as an inner join. This only matters for whether NULL `bats` rows are kept.",
+  "The count is of distinct (`player_id`, `year`) pairs per `bats`, ignoring `team_id`, so stints with several teams in one year count once.",
+  "The count is of rows with `g_all` > 0 or non-NULL `g_all`, so appearances with no games are excluded.",
+  "The count is the sum of `g_all` (games played) per `bats` rather than the number of records.",
+  "The fraction and the ratio are computed with window functions over the grouped counts. The average is the average of the per-group counts, and the result is the same as in interpretation 1. This differs only in the integer-versus-real arithmetic.",
+  "The average count per group is taken over all groups before the empty-string filter. The ratio column then uses a denominator that includes the empty-string group, while the fraction uses only the remaining groups.",
+  "Players with multiple `player` rows (duplicate `player_id`) multiply the appearance rows in the join, so the counts are inflated."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT p.bats AS bats, COUNT(*) AS c\n  FROM appearances a\n  JOIN player p ON a.player_id = p.player_id\n  WHERE p.bats != ''\n  GROUP BY p.bats\n)\nSELECT bats,\n       c,\n       c / (SELECT SUM(c) FROM g),\n       c / ((SELECT SUM(c) FROM g) / (SELECT COUNT(*) FROM g))\nFROM g;\n",
+  "SELECT SUM(c) AS total, AVG(c) AS average\nFROM (\n  SELECT COUNT(*) AS c\n  FROM player\n  WHERE bats IS NOT NULL AND bats <> ''\n  GROUP BY bats\n);\n",
+  "SELECT AVG(cnt) FROM (SELECT COUNT(*) AS cnt FROM player GROUP BY bats);\n",
+  "SELECT bats, COUNT(*) AS num_appearance_records\nFROM (\n  SELECT DISTINCT p.bats, a.player_id, a.year, a.team_id\n  FROM appearances a\n  JOIN player p ON a.player_id = p.player_id\n)\nGROUP BY bats",
+  "SELECT p.bats, COUNT(DISTINCT a.player_id) FROM appearances a JOIN player p ON a.player_id = p.player_id GROUP BY p.bats"
+ ],
+ "raw": [
+  "1. Inner join `appearances` to `player` on `player_id`, drop `bats` = '' (NULL `bats` is either kept as its own group or dropped). For each `bats` value, count the joined appearance rows. Return `bats`, that count, count \u00f7 total count across all groups, and count \u00f7 average group count (total \u00f7 number of groups). The fraction is integer division.\n2. Same as 1, but the fraction is real-valued, as in a cast to float.\n3. Same as 1, but NULL `bats` is excluded as well as '', so the total and the average cover only non-empty, non-NULL groups.\n4. Same as 1, but NULL `bats` is kept as its own group. It counts toward the total and toward the number of groups in the average.\n5. Count distinct (`player_id`, `year`, `team_id`) combinations per `bats` instead of raw joined rows. This is the \"number of appearance records\" taken as unique appearance records.\n6. Count distinct players per `bats` instead of appearance rows. This is \"appearance records\" taken loosely as players who have appearances.\n7. The total in the second column is all joined appearance rows, including those with empty or NULL `bats`. The denominator for the fraction is the pre-filter total rather than the sum over the remaining groups.\n8. The average in the last column is the mean of the per-group counts over the groups shown (total \u00f7 number of groups). It could instead be the mean number of appearance records per player within each group (the group's count \u00f7 its number of players).\n9. The \"fraction of the total\" is read as a percentage (\u00d7100) rather than a 0\u20131 proportion.\n10. The last column is each group's count divided by the average of the group counts, which is a ratio to the mean. It could instead be read as the group's count divided by the overall average of `g_all` or another appearance measure.\n11. Every `bats` value present is its own group, such as 'R', 'L' and 'B'. Case variants or whitespace variants are merged into one group.",
+  "Missing interpretations:\n\nDropping appearances with no matching player is done with a LEFT JOIN plus a non-NULL filter on `bats`, and the result is the same as an inner join. This only matters for whether NULL `bats` rows are kept.\nThe count is of distinct (`player_id`, `year`) pairs per `bats`, ignoring `team_id`, so stints with several teams in one year count once.\nThe count is of rows with `g_all` > 0 or non-NULL `g_all`, so appearances with no games are excluded.\nThe count is the sum of `g_all` (games played) per `bats` rather than the number of records.\nThe fraction and the ratio are computed with window functions over the grouped counts. The average is the average of the per-group counts, and the result is the same as in interpretation 1. This differs only in the integer-versus-real arithmetic.\nThe average count per group is taken over all groups before the empty-string filter. The ratio column then uses a denominator that includes the empty-string group, while the fraction uses only the remaining groups.\nPlayers with multiple `player` rows (duplicate `player_id`) multiply the appearance rows in the join, so the counts are inflated."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-19bf5ec0c7",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 72589,
+  "chars_out": 4585
+ }
+}

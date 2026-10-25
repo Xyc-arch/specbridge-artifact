@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH per_gender AS (SELECT c.gender, COUNT(DISTINCT o.order_id) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(n * 1.0) AS avg_n FROM per_gender) SELECT AVG(p.n * 1.0) AS avg_orders_above_average, AVG(p.n - o.avg_n) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.n > o.avg_n;",
+  "WITH per_gender AS (SELECT c.gender, COUNT(*) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(n * 1.0) AS avg_n FROM per_gender) SELECT AVG(p.n * 1.0) AS avg_orders_above_average, AVG(p.n - o.avg_n) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.n > o.avg_n;",
+  "WITH per_gender AS (SELECT c.gender, COUNT(DISTINCT o.order_id) AS invoiced_orders FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(invoiced_orders * 1.0) AS avg_orders FROM per_gender) SELECT AVG(p.invoiced_orders * 1.0) AS avg_invoiced_orders_above_average, AVG(p.invoiced_orders - o.avg_orders) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.invoiced_orders > o.avg_orders;",
+  "WITH per_gender AS (SELECT c.gender, COUNT(*) AS invoiced_orders FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(invoiced_orders * 1.0) AS avg_orders FROM per_gender) SELECT AVG(p.invoiced_orders * 1.0) AS avg_invoiced_orders_above_average, AVG(p.invoiced_orders - o.avg_orders) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.invoiced_orders > o.avg_orders;",
+  "WITH g AS (SELECT c.gender, COUNT(DISTINCT o.order_id) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), a AS (SELECT AVG(n * 1.0) AS avg_n FROM g) SELECT AVG(g.n * 1.0) AS avg_invoiced_orders, AVG(g.n - a.avg_n) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.n > a.avg_n;",
+  "WITH g AS (SELECT c.gender, COUNT(i.invoice_number) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), a AS (SELECT AVG(n * 1.0) AS avg_n FROM g) SELECT AVG(g.n * 1.0) AS avg_invoiced_orders, AVG(g.n - a.avg_n) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.n > a.avg_n;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_gender AS (SELECT c.gender, COUNT(DISTINCT o.order_id) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(n * 1.0) AS avg_n FROM per_gender) SELECT AVG(p.n * 1.0) AS avg_orders_above_average, AVG(p.n - o.avg_n) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.n > o.avg_n;",
+   "assumptions": [
+    {
+     "assumption": "'Invoiced orders' means distinct orders that have at least one invoice, so an order with several invoices counts once.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL gender forms its own group, as GROUP BY does by default. Empty-string genders are treated as a separate value, not as missing.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Above' the average means strictly greater than the plain average of the per-gender counts. If no gender is above it, the query returns one row of NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count invoices per gender (each invoice row linked to its order and customer) instead of distinct orders. This differs only if an order has several invoices.",
+     "sql": "WITH per_gender AS (SELECT c.gender, COUNT(*) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(n * 1.0) AS avg_n FROM per_gender) SELECT AVG(p.n * 1.0) AS avg_orders_above_average, AVG(p.n - o.avg_n) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.n > o.avg_n;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_gender AS (SELECT c.gender, COUNT(DISTINCT o.order_id) AS invoiced_orders FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(invoiced_orders * 1.0) AS avg_orders FROM per_gender) SELECT AVG(p.invoiced_orders * 1.0) AS avg_invoiced_orders_above_average, AVG(p.invoiced_orders - o.avg_orders) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.invoiced_orders > o.avg_orders;",
+   "assumptions": [
+    {
+     "assumption": "An 'invoiced order' is a distinct order that has at least one invoice, so an order with several invoices counts once.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL gender forms its own group (GROUP BY keeps NULL as a group). Empty-string genders, if any, stay a separate group and are not merged with NULL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Exceed the average' means strictly greater than the plain, unweighted average of the per-gender counts. The result row is the average count among those genders and the average of (count minus overall average) among them.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count invoices (invoice rows) per gender instead of distinct orders, so an order with several invoices counts multiple times.",
+     "sql": "WITH per_gender AS (SELECT c.gender, COUNT(*) AS invoiced_orders FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), overall AS (SELECT AVG(invoiced_orders * 1.0) AS avg_orders FROM per_gender) SELECT AVG(p.invoiced_orders * 1.0) AS avg_invoiced_orders_above_average, AVG(p.invoiced_orders - o.avg_orders) AS avg_excess_over_average FROM per_gender p CROSS JOIN overall o WHERE p.invoiced_orders > o.avg_orders;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH g AS (SELECT c.gender, COUNT(DISTINCT o.order_id) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), a AS (SELECT AVG(n * 1.0) AS avg_n FROM g) SELECT AVG(g.n * 1.0) AS avg_invoiced_orders, AVG(g.n - a.avg_n) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.n > a.avg_n;",
+   "assumptions": [
+    {
+     "assumption": "An 'invoiced order' is a distinct order that has at least one invoice, so an order with several invoices is counted once.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A NULL gender forms its own group. Empty-string genders are not merged into it.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only genders whose count is strictly above the plain average of the per-gender counts are kept. The result is one row with their average count and their average excess over that overall average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count invoices (rows in Invoices) per gender instead of distinct orders, so an order with several invoices is counted several times.",
+     "sql": "WITH g AS (SELECT c.gender, COUNT(i.invoice_number) AS n FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), a AS (SELECT AVG(n * 1.0) AS avg_n FROM g) SELECT AVG(g.n * 1.0) AS avg_invoiced_orders, AVG(g.n - a.avg_n) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.n > a.avg_n;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-8e740d9161",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11877,
+  "chars_out": 4847
+ }
+}

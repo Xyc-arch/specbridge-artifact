@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Count lines per product in Order_Items. Each line is one Order_Items row, so count rows grouped by product_id. The share is the product's count divided by the total number of Order_Items rows. The average is taken across products that appear in Order_Items. Return the sum of counts, the average share, and the average excess over the overall average share for products above it.",
+  "Same as 1, but the average is taken over all products in the Products table. Products with no order items get a count of 0 and a share of 0, which lowers the average.",
+  "Same as 1, but count lines as the sum of product_quantity, treating \"order-item lines\" as quantity units instead of rows.",
+  "Same as 1, but count distinct order_id values per product instead of rows.",
+  "Same as 1, but the denominator is only the lines for products that appear in Invoice_Line_Items, or in some other restricted set of order items.",
+  "In 1, \"combined count\" is the total count of order-item lines across the above-average products. In another reading, it is the number of above-average products.",
+  "In 1, \"their average share\" is the plain mean of the shares of the above-average products. In another reading, it is the combined share, meaning the sum of their shares.",
+  "In 1, \"average amount by which their share exceeds the overall average share\" is the mean of (share \u2212 overall average) over the above-average products. In another reading, it is the above-average products' average share minus the overall average share. These are numerically equal, so this is the same answer.",
+  "The overall average share is the plain mean of per-product shares, which equals 1 / (number of products). In another reading, it is a weighted average, such as the total of all counts divided by the total number of lines.",
+  "The result is one row with three columns (combined count, average share, average excess). In another reading, it is one row per above-average product.",
+  "The values are unrounded, so integer division is avoided and floating-point or decimal division is used.",
+  "Order_Items rows with a NULL product_id are excluded. product_id is NOT NULL, so none are affected.",
+  "If no product's share is strictly above the average (all shares are equal), the result is an empty set. In another reading, it is one row with NULL values.",
+  "Missing interpretations:",
+  "\"Share\" is computed as an integer ratio (count / total) that truncates to 0, and the unrounded requirement means a float or decimal ratio must be used. (This is only a pitfall, not a distinct reading, so it adds no new interpretation.)",
+  "The genuinely missing readings are these:",
+  "The \"average amount by which their share exceeds the overall average\" is taken over all products, with products at or below the average contributing 0, instead of over only the above-average products.",
+  "The \"average share\" of the above-average products is a weighted average (combined count / total lines), instead of the plain mean.",
+  "The \"combined count\" is the count of distinct products or distinct orders among the above-average products, instead of the sum of line counts.",
+  "The grouping key is the Products table's `parent_product_id` (product family) instead of `product_id`.",
+  "\"Order-item lines\" means Invoice_Line_Items rows (invoiced lines) instead of Order_Items rows.",
+  "The average is taken over products that appear in Order_Items and also exist in Products. This is a separate restriction from reading 2."
+ ],
+ "queries": [
+  "WITH c AS (\n  SELECT product_id, COUNT(*) AS cnt\n  FROM Order_Items\n  GROUP BY product_id\n),\ns AS (\n  SELECT product_id, cnt, cnt * 1.0 / (SELECT COUNT(*) FROM Order_Items) AS share\n  FROM c\n),\na AS (\n  SELECT AVG(share) AS avg_share FROM s\n)\nSELECT\n  (SELECT SUM(cnt) FROM s) AS sum_of_counts,\n  (SELECT avg_share FROM a) AS average_share,\n  (SELECT AVG(share - (SELECT avg_share FROM a)) FROM s WHERE share > (SELECT avg_share FROM a)) AS average_excess_over_average_share",
+  "SELECT AVG(cnt) FROM (SELECT p.product_id, COUNT(oi.order_item_id) AS cnt FROM Products p LEFT JOIN Order_Items oi ON p.product_id = oi.product_id GROUP BY p.product_id);\n",
+  "SELECT SUM(CAST(product_quantity AS INTEGER)) FROM Order_Items;\n",
+  "SELECT product_id, COUNT(DISTINCT order_id) FROM Order_Items GROUP BY product_id",
+  "SELECT COUNT(*) FROM Order_Items WHERE product_id IN (SELECT product_id FROM Products WHERE unit_price > (SELECT AVG(unit_price) FROM Products));\n"
+ ],
+ "raw": [
+  "1. Count lines per product in Order_Items. Each line is one Order_Items row, so count rows grouped by product_id. The share is the product's count divided by the total number of Order_Items rows. The average is taken across products that appear in Order_Items. Return the sum of counts, the average share, and the average excess over the overall average share for products above it.\n\n2. Same as 1, but the average is taken over all products in the Products table. Products with no order items get a count of 0 and a share of 0, which lowers the average.\n\n3. Same as 1, but count lines as the sum of product_quantity, treating \"order-item lines\" as quantity units instead of rows.\n\n4. Same as 1, but count distinct order_id values per product instead of rows.\n\n5. Same as 1, but the denominator is only the lines for products that appear in Invoice_Line_Items, or in some other restricted set of order items.\n\n6. In 1, \"combined count\" is the total count of order-item lines across the above-average products. In another reading, it is the number of above-average products.\n\n7. In 1, \"their average share\" is the plain mean of the shares of the above-average products. In another reading, it is the combined share, meaning the sum of their shares.\n\n8. In 1, \"average amount by which their share exceeds the overall average share\" is the mean of (share \u2212 overall average) over the above-average products. In another reading, it is the above-average products' average share minus the overall average share. These are numerically equal, so this is the same answer.\n\n9. The overall average share is the plain mean of per-product shares, which equals 1 / (number of products). In another reading, it is a weighted average, such as the total of all counts divided by the total number of lines.\n\n10. The result is one row with three columns (combined count, average share, average excess). In another reading, it is one row per above-average product.\n\n11. The values are unrounded, so integer division is avoided and floating-point or decimal division is used.\n\n12. Order_Items rows with a NULL product_id are excluded. product_id is NOT NULL, so none are affected.\n\n13. If no product's share is strictly above the average (all shares are equal), the result is an empty set. In another reading, it is one row with NULL values.",
+  "Missing interpretations:\n\n\"Share\" is computed as an integer ratio (count / total) that truncates to 0, and the unrounded requirement means a float or decimal ratio must be used. (This is only a pitfall, not a distinct reading, so it adds no new interpretation.)\n\nThe genuinely missing readings are these:\n\nThe \"average amount by which their share exceeds the overall average\" is taken over all products, with products at or below the average contributing 0, instead of over only the above-average products.\n\nThe \"average share\" of the above-average products is a weighted average (combined count / total lines), instead of the plain mean.\n\nThe \"combined count\" is the count of distinct products or distinct orders among the above-average products, instead of the sum of line counts.\n\nThe grouping key is the Products table's `parent_product_id` (product family) instead of `product_id`.\n\n\"Order-item lines\" means Invoice_Line_Items rows (invoiced lines) instead of Order_Items rows.\n\nThe average is taken over products that appear in Order_Items and also exist in Products. This is a separate restriction from reading 2."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-97769b0922",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30840,
+  "chars_out": 5425
+ }
+}

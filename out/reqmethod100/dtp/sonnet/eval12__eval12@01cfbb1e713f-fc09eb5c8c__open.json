@@ -1,0 +1,48 @@
+{
+ "interpretations": [
+  "Each line is one distinct reading. They combine the choices below.",
+  "Album rate = the average of each track's Bytes/Milliseconds. The all-album average = the average of the album-level averages. The difference = album rate minus that average (absolute). Tracks with NULL Bytes are excluded from both the rate and the average UnitPrice.",
+  "Album rate = the average of each track's Bytes/Milliseconds. The all-album average = the average of per-track Bytes/Milliseconds across all tracks (not grouped by album). The difference is absolute.",
+  "Album rate = SUM(Bytes)/SUM(Milliseconds) for the album. The all-album average = the average of the album-level ratios. The difference is absolute.",
+  "Album rate = SUM(Bytes)/SUM(Milliseconds) for the album. The all-album average = total Bytes / total Milliseconds across all tracks. The difference is absolute.",
+  "Album rate = the average of per-track Bytes/Milliseconds. The all-album average = total Bytes / total Milliseconds across all tracks. The difference is absolute.",
+  "Any of the above, but the difference is relative (percentage or ratio above the average: (album \u2212 avg)/avg, or album/avg) instead of absolute.",
+  "The NULL-AlbumId tracks form one group. That group is a candidate for the top 10 and is included in the all-album average.",
+  "The NULL-AlbumId tracks form one group. That group is a candidate for the top 10 but is excluded from the all-album average.",
+  "The NULL-AlbumId tracks form one group. That group is included in the all-album average but excluded from the top-10 ranking.",
+  "The average UnitPrice covers all tracks in the album, including tracks with NULL Bytes. The rate covers only tracks with non-NULL Bytes.",
+  "The average UnitPrice covers only the tracks used in the rate calculation (non-NULL Bytes).",
+  "The \"all-album average\" is the average over every album that has a non-NULL rate. Albums with no valid rate are excluded from the denominator.",
+  "Albums with no tracks are excluded because they have no track rows. Alternatively, they are included with NULL values.",
+  "\"Ignore missing values\" also excludes tracks with NULL Bytes from the average UnitPrice, and tracks with zero Milliseconds are excluded to avoid division by zero.",
+  "The NULL group's album id is shown as NULL. Alternatively, it is shown as a placeholder such as 0, -1, or a label.",
+  "Ties at the 10th position are cut arbitrarily (strict LIMIT 10). Alternatively, ties are all included.",
+  "\"Highest\" means the top 10 by difference, descending, which is the same ordering as the top 10 by rate. Alternatively, the top 10 are chosen by rate and then sorted by difference, which gives the same result.",
+  "Missing interpretations:",
+  "Album rate = AVG(Bytes)/AVG(Milliseconds) for the album, with the all-album average computed the same way over all tracks or as the average of the album-level values. The difference is absolute.",
+  "Album rate = SUM(Bytes)/SUM(Milliseconds) for the album, and the all-album average = the average of per-track Bytes/Milliseconds across all tracks. The difference is absolute.",
+  "Bytes/Milliseconds is computed with integer division, which truncates it to 0 for nearly every track, instead of as a real-valued ratio.",
+  "In the SUM/SUM readings, tracks with NULL Bytes still have their Milliseconds counted in the denominator, because only the Bytes values are ignored.",
+  "The all-album average is taken over tracks that belong to an album (non-NULL AlbumId) only, with the NULL group excluded from both the average and the ranking."
+ ],
+ "queries": [
+  "WITH album_avg AS (\n  SELECT AlbumId, AVG(CAST(Bytes AS REAL) / Milliseconds) AS album_rate\n  FROM Track\n  WHERE Bytes IS NOT NULL AND AlbumId IS NOT NULL\n  GROUP BY AlbumId\n)\nSELECT AlbumId,\n       album_rate,\n       ABS(album_rate - (SELECT AVG(album_rate) FROM album_avg)) AS difference\nFROM album_avg;\n",
+  "SELECT a.Title,\n       ABS(AVG(t.Bytes * 1.0 / t.Milliseconds) - (SELECT AVG(Bytes * 1.0 / Milliseconds) FROM Track)) AS diff\nFROM Album a\nJOIN Track t ON t.AlbumId = a.AlbumId\nGROUP BY a.AlbumId, a.Title;\n",
+  "WITH album_rate AS (\n  SELECT a.AlbumId, a.Title, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS rate\n  FROM Album a\n  JOIN Track t ON t.AlbumId = a.AlbumId\n  GROUP BY a.AlbumId, a.Title\n)\nSELECT Title, ABS(rate - (SELECT AVG(rate) FROM album_rate)) AS difference\nFROM album_rate;\n",
+  "SELECT a.Title\nFROM Album a\nJOIN Track t ON t.AlbumId = a.AlbumId\nGROUP BY a.AlbumId\nORDER BY ABS(CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) - (SELECT CAST(SUM(Bytes) AS REAL) / SUM(Milliseconds) FROM Track)) ASC\nLIMIT 1;\n",
+  "SELECT ABS(AVG(1.0 * Bytes / Milliseconds) - (1.0 * SUM(Bytes) / SUM(Milliseconds))) AS difference\nFROM Track;\n"
+ ],
+ "raw": [
+  "Each line is one distinct reading. They combine the choices below.\n\n1. Album rate = the average of each track's Bytes/Milliseconds. The all-album average = the average of the album-level averages. The difference = album rate minus that average (absolute). Tracks with NULL Bytes are excluded from both the rate and the average UnitPrice.\n2. Album rate = the average of each track's Bytes/Milliseconds. The all-album average = the average of per-track Bytes/Milliseconds across all tracks (not grouped by album). The difference is absolute.\n3. Album rate = SUM(Bytes)/SUM(Milliseconds) for the album. The all-album average = the average of the album-level ratios. The difference is absolute.\n4. Album rate = SUM(Bytes)/SUM(Milliseconds) for the album. The all-album average = total Bytes / total Milliseconds across all tracks. The difference is absolute.\n5. Album rate = the average of per-track Bytes/Milliseconds. The all-album average = total Bytes / total Milliseconds across all tracks. The difference is absolute.\n6. Any of the above, but the difference is relative (percentage or ratio above the average: (album \u2212 avg)/avg, or album/avg) instead of absolute.\n7. The NULL-AlbumId tracks form one group. That group is a candidate for the top 10 and is included in the all-album average.\n8. The NULL-AlbumId tracks form one group. That group is a candidate for the top 10 but is excluded from the all-album average.\n9. The NULL-AlbumId tracks form one group. That group is included in the all-album average but excluded from the top-10 ranking.\n10. The average UnitPrice covers all tracks in the album, including tracks with NULL Bytes. The rate covers only tracks with non-NULL Bytes.\n11. The average UnitPrice covers only the tracks used in the rate calculation (non-NULL Bytes).\n12. The \"all-album average\" is the average over every album that has a non-NULL rate. Albums with no valid rate are excluded from the denominator.\n13. Albums with no tracks are excluded because they have no track rows. Alternatively, they are included with NULL values.\n14. \"Ignore missing values\" also excludes tracks with NULL Bytes from the average UnitPrice, and tracks with zero Milliseconds are excluded to avoid division by zero.\n15. The NULL group's album id is shown as NULL. Alternatively, it is shown as a placeholder such as 0, -1, or a label.\n16. Ties at the 10th position are cut arbitrarily (strict LIMIT 10). Alternatively, ties are all included.\n17. \"Highest\" means the top 10 by difference, descending, which is the same ordering as the top 10 by rate. Alternatively, the top 10 are chosen by rate and then sorted by difference, which gives the same result.",
+  "Missing interpretations:\n\nAlbum rate = AVG(Bytes)/AVG(Milliseconds) for the album, with the all-album average computed the same way over all tracks or as the average of the album-level values. The difference is absolute.\nAlbum rate = SUM(Bytes)/SUM(Milliseconds) for the album, and the all-album average = the average of per-track Bytes/Milliseconds across all tracks. The difference is absolute.\nBytes/Milliseconds is computed with integer division, which truncates it to 0 for nearly every track, instead of as a real-valued ratio.\nIn the SUM/SUM readings, tracks with NULL Bytes still have their Milliseconds counted in the denominator, because only the Bytes values are ignored.\nThe all-album average is taken over tracks that belong to an album (non-NULL AlbumId) only, with the NULL group excluded from both the average and the ranking."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-fc09eb5c8c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 43304,
+  "chars_out": 5661
+ }
+}

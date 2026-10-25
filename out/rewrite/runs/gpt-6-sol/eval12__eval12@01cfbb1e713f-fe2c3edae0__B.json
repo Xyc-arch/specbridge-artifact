@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fe2c3edae0",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Compare each circuit's average round with the average round of all races in its country.",
+ "c": {
+  "request": "For each circuit (`races.circuitId`, with its `circuits.country`, counting only races whose circuit is in the circuits table), what is the average round number (`races.round`) at which it hosts races, and how far is that above or below its country's average round? List circuit id, country, the circuit's average round and the difference (circuit minus country). Sort by the difference from largest to smallest (missing last), show the top 10, and don't round. Compare each circuit's average round with the average round of all races in its country.",
+  "sql": "WITH hosted_races AS (SELECT r.circuitId, c.country, r.round FROM races AS r JOIN circuits AS c ON c.circuitId = r.circuitId), circuit_averages AS (SELECT circuitId, country, AVG(round) AS average_round FROM hosted_races GROUP BY circuitId, country), country_averages AS (SELECT country, AVG(round) AS average_round FROM hosted_races GROUP BY country) SELECT ca.circuitId, ca.country, ca.average_round, ca.average_round - co.average_round AS difference FROM circuit_averages AS ca JOIN country_averages AS co ON ca.country IS co.country ORDER BY difference IS NULL, difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each circuit with at least one race and a matching circuits record, calculate its average `races.round` and subtract the average `races.round` across all races at circuits in the same country; return circuit ID, country, circuit average, and difference, sorted by difference descending with missing differences last, limited to 10 rows, without rounding",
+  "sql": "WITH race_averages AS (SELECT c.circuitId, c.country, r.round, AVG(r.round) OVER (PARTITION BY c.country) AS country_average FROM races AS r JOIN circuits AS c ON c.circuitId = r.circuitId), circuit_averages AS (SELECT circuitId, country, AVG(round) AS circuit_average, MAX(country_average) AS country_average FROM race_averages GROUP BY circuitId, country) SELECT circuitId, country, circuit_average, circuit_average - country_average AS difference FROM circuit_averages ORDER BY difference IS NULL, difference DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each circuit, identified by `races.circuitId` together with its country (`circuits.country`) and counting only races whose circuit is in the circuits table, find the average round number (`races.round`) of the races held there. Set a baseline for each country as the average round over all races held in that country, so circuits with more races count for more. Show the circuit id, the country, the circuit's average round, and the circuit's average minus its country's baseline. Sort by that difference from largest to smallest (missing values last), keep the top 10, and don't round.",
+  "sql": "WITH circuit_averages AS (SELECT r.circuitId, c.country, AVG(r.round) AS average_round FROM races AS r JOIN circuits AS c ON c.circuitId = r.circuitId GROUP BY r.circuitId, c.country), country_baselines AS (SELECT c.country, AVG(r.round) AS baseline_round FROM races AS r JOIN circuits AS c ON c.circuitId = r.circuitId GROUP BY c.country) SELECT ca.circuitId, ca.country, ca.average_round, ca.average_round - cb.baseline_round AS difference FROM circuit_averages AS ca JOIN country_baselines AS cb ON ca.country IS cb.country ORDER BY difference IS NULL, difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each circuit in the `circuits` table that has races, calculate its average `races.round` and compare it with the average round of all races at circuits in the same `circuits.country`. List the circuit ID, country, circuit average, and difference (circuit average minus country average). Sort by difference from largest to smallest, with missing values last; show the top 10 without rounding.",
+  "sql": "WITH circuit_averages AS (SELECT c.circuitId, c.country, AVG(r.round) AS circuit_average FROM circuits AS c JOIN races AS r ON r.circuitId = c.circuitId GROUP BY c.circuitId, c.country), country_averages AS (SELECT c.country, AVG(r.round) AS country_average FROM circuits AS c JOIN races AS r ON r.circuitId = c.circuitId GROUP BY c.country) SELECT ca.circuitId, ca.country, ca.circuit_average, ca.circuit_average - coa.country_average AS difference FROM circuit_averages AS ca JOIN country_averages AS coa ON ca.country IS coa.country ORDER BY difference IS NULL, difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

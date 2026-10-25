@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9d0419e2cc",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Return the top ten plus every further row whose ratio equals the tenth row's ratio.",
+ "c": {
+  "request": "Count the accounts in each branch district (with its region), counting only accounts whose district is on file, and find the districts whose count is above their region's average district count. For those districts, show the district id, region, account count, how far the count is above the region average, and the count divided by the average count across all these above-average districts. Give me the top 10 by that ratio, highest first, unrounded. Return the top ten plus every further row whose ratio equals the tenth row's ratio.",
+  "sql": "WITH district_counts AS (SELECT d.district_id, d.A3 AS region, COUNT(a.account_id) AS account_count FROM district AS d LEFT JOIN account AS a ON a.district_id = d.district_id GROUP BY d.district_id, d.A3), regional_counts AS (SELECT district_id, region, account_count, AVG(account_count) OVER (PARTITION BY region) AS region_average FROM district_counts), above_average AS (SELECT district_id, region, account_count, account_count - region_average AS above_region_average FROM regional_counts WHERE account_count > region_average), ranked AS (SELECT district_id, region, account_count, above_region_average, account_count / AVG(account_count) OVER () AS ratio, RANK() OVER (ORDER BY account_count DESC) AS account_rank FROM above_average) SELECT district_id, region, account_count, above_region_average, ratio FROM ranked WHERE account_rank <= 10 ORDER BY ratio DESC, district_id;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Counting accounts per branch district (`account.district_id`) together with its region (`district.A3`), using only accounts whose district exists in `district`, find the districts whose account count is higher than the average district account count in their region. For each such district, list the district id, region, account count, how much the count exceeds its region's average, and the count divided by the average account count across all these above-average districts. Sort by that ratio from highest to lowest and return the top 10 rows by that ratio, also including every further row whose ratio ties the 10th row's (so the list may run past 10). Don't round.",
+  "sql": "WITH district_counts AS (SELECT a.district_id, d.A3 AS region, COUNT(*) AS account_count FROM account AS a JOIN district AS d ON d.district_id = a.district_id GROUP BY a.district_id, d.A3), region_counts AS (SELECT district_id, region, account_count, AVG(account_count) OVER (PARTITION BY region) AS region_avg FROM district_counts), above_average AS (SELECT district_id, region, account_count, account_count - region_avg AS excess, account_count * 1.0 / AVG(account_count) OVER () AS ratio FROM region_counts WHERE account_count > region_avg), ranked AS (SELECT *, RANK() OVER (ORDER BY ratio DESC) AS position FROM above_average) SELECT district_id, region, account_count, excess, ratio FROM ranked WHERE position <= 10 ORDER BY ratio DESC, district_id;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each branch district on file, count its accounts, retain districts whose count exceeds the average district account count in their region, and return the district ID, region, account count, excess over that regional average, and count divided by the average count among all retained districts; order by the unrounded ratio descending and include the top ten plus every district tied with the tenth",
+  "sql": "WITH district_counts AS (SELECT d.district_id, d.A3 AS region, COUNT(a.account_id) AS account_count FROM district AS d LEFT JOIN account AS a ON a.district_id = d.district_id GROUP BY d.district_id, d.A3), regional_counts AS (SELECT district_id, region, account_count, AVG(account_count) OVER (PARTITION BY region) AS regional_average FROM district_counts), retained AS (SELECT district_id, region, account_count, account_count - regional_average AS excess FROM regional_counts WHERE account_count > regional_average), scored AS (SELECT district_id, region, account_count, excess, account_count * 1.0 / AVG(account_count) OVER () AS ratio FROM retained), ranked AS (SELECT *, RANK() OVER (ORDER BY ratio DESC) AS position FROM scored) SELECT district_id, region, account_count, excess, ratio FROM ranked WHERE position <= 10 ORDER BY ratio DESC, district_id;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Count the accounts in each branch district, including only accounts whose district is on file. Identify districts whose account count exceeds their region\u2019s average district count. For each qualifying district, show its district ID, region, account count, amount above the region average, and unrounded ratio of its count to the average count across all qualifying districts. Sort by ratio descending and return the top ten districts plus every additional district tied with the tenth district\u2019s ratio.",
+  "sql": "WITH district_counts AS (SELECT d.district_id, d.A3 AS region, COUNT(a.account_id) AS account_count FROM district AS d LEFT JOIN account AS a ON a.district_id = d.district_id GROUP BY d.district_id, d.A3), regional_counts AS (SELECT district_id, region, account_count, AVG(account_count * 1.0) OVER (PARTITION BY region) AS region_avg FROM district_counts), qualifying AS (SELECT district_id, region, account_count, account_count - region_avg AS amount_above_region_average FROM regional_counts WHERE account_count > region_avg), ratios AS (SELECT district_id, region, account_count, amount_above_region_average, account_count * 1.0 / AVG(account_count) OVER () AS ratio FROM qualifying), ranked AS (SELECT *, RANK() OVER (ORDER BY ratio DESC) AS ratio_rank FROM ratios) SELECT district_id, region, account_count, amount_above_region_average, ratio FROM ranked WHERE ratio_rank <= 10 ORDER BY ratio DESC, district_id;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

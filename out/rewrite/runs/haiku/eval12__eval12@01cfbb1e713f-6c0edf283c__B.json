@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6c0edf283c",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Each status's count is the number of distinct sites that have conservation records.",
+ "a": {
+  "request": "Match each conservation record to its site by site code, and drop records with no matching site. Under each site health and safety status (`healtheval`), with a missing status as its own group, count the number of different sites (distinct `zoneref`) that have at least one conservation record, so a site with several records counts only once. Work out each status's share of the sum of those counts. Then take only the statuses whose share is above the average share across all statuses, and return one summary row with the average count, the average share, and the average amount by which the share exceeds the average share. Don't round.",
+  "sql": "WITH status_counts AS (\n  SELECT s.healtheval, COUNT(DISTINCT c.zoneref) AS site_count\n  FROM scanconservation c\n  JOIN sites s ON s.zoneregistry = c.zoneref\n  GROUP BY s.healtheval\n),\nshares AS (\n  SELECT healtheval, site_count,\n         1.0 * site_count / SUM(site_count) OVER () AS share\n  FROM status_counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n),\nabove AS (\n  SELECT sh.site_count, sh.share, sh.share - a.avg_share AS excess\n  FROM shares sh\n  CROSS JOIN avg_share a\n  WHERE sh.share > a.avg_share\n)\nSELECT AVG(site_count) AS avg_count,\n       AVG(share) AS avg_share,\n       AVG(excess) AS avg_excess\nFROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each `healtheval` group (NULL as its own group) among conservation records inner-joined to `sites` on `zoneref = zoneregistry`, count distinct `zoneref` sites, divide by the total across groups for share, keep groups with share above the mean share, and return the mean count, mean share, and mean of (share \u2212 mean share) over those groups, unrounded",
+  "sql": "WITH grp AS (SELECT s.healtheval AS hg, COUNT(DISTINCT sc.zoneref) AS cnt FROM scanconservation sc INNER JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), tot AS (SELECT SUM(cnt) AS total FROM grp), shr AS (SELECT g.hg, g.cnt, g.cnt * 1.0 / t.total AS share FROM grp g CROSS JOIN tot t), ms AS (SELECT AVG(share) AS mean_share FROM shr), kept AS (SELECT shr.* FROM shr CROSS JOIN ms WHERE shr.share > ms.mean_share) SELECT AVG(k.cnt) AS mean_count, AVG(k.share) AS mean_share, AVG(k.share - m.mean_share) AS mean_share_deviation FROM kept k CROSS JOIN ms m;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Match the conservation records to their sites by site code, and drop any with no matching site. How much does each site health and safety status (`healtheval`) account for in the conservation data? Treat a missing status as its own group, and give a count and that count's share of the sum. Then take only the statuses with an above-average share, and return one summary row with the average count, the average share, and the average amount by which the share exceeds the average share. Don't round. Each status's count is the number of distinct sites that have conservation records.",
+  "sql": "WITH matched AS (SELECT s.zoneregistry, s.healtheval FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref), status_counts AS (SELECT healtheval, COUNT(DISTINCT zoneregistry) AS cnt FROM matched GROUP BY healtheval), shares AS (SELECT healtheval, cnt, 1.0 * cnt / SUM(cnt) OVER () AS share FROM status_counts), avg_share AS (SELECT AVG(share) AS avg_s FROM shares), above AS (SELECT sh.healtheval, sh.cnt, sh.share FROM shares sh, avg_share a WHERE sh.share > a.avg_s) SELECT AVG(ab.cnt) AS avg_count, AVG(ab.share) AS avg_share, AVG(ab.share - a.avg_s) AS avg_excess_share FROM above ab, avg_share a;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match the conservation records to their sites by site code, and drop any records with no matching site. For each site health and safety status (`healtheval`), with a missing status treated as its own group, count the distinct sites that have conservation records, and compute each count's share of the sum of those counts. Keep only the statuses whose share is above the average share, and return one summary row with the average count, the average share, and the average amount by which each kept share exceeds the average share. Don't round.",
+  "sql": "WITH matched AS (\n  SELECT s.healtheval, c.zoneref\n  FROM scanconservation c\n  JOIN sites s ON s.zoneregistry = c.zoneref\n),\ncounts AS (\n  SELECT healtheval, COUNT(DISTINCT zoneref) AS site_count\n  FROM matched\n  GROUP BY healtheval\n),\nshares AS (\n  SELECT healtheval, site_count,\n         1.0 * site_count / SUM(site_count) OVER () AS share\n  FROM counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n),\nkept AS (\n  SELECT sh.site_count, sh.share, sh.share - a.avg_share AS excess\n  FROM shares sh\n  CROSS JOIN avg_share a\n  WHERE sh.share > a.avg_share\n)\nSELECT AVG(site_count) AS avg_count,\n       AVG(share) AS avg_share,\n       AVG(excess) AS avg_excess_over_mean_share\nFROM kept;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,94 @@
+{
+ "queries": [
+  "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), t AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - t.overall_avg AS diff_from_overall FROM o CROSS JOIN t WHERE t.overall_avg IS NOT NULL ORDER BY diff_from_overall DESC, o.order_id LIMIT 10",
+  "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), t AS (SELECT AVG(avg_qty) AS overall_avg FROM o) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - t.overall_avg AS diff_from_overall FROM o CROSS JOIN t WHERE t.overall_avg IS NOT NULL ORDER BY diff_from_overall DESC, o.order_id LIMIT 10",
+  "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), g AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - g.overall_avg AS diff_from_overall FROM o CROSS JOIN g WHERE g.overall_avg IS NOT NULL ORDER BY (o.avg_qty - g.overall_avg) IS NULL, (o.avg_qty - g.overall_avg) DESC LIMIT 10",
+  "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), g AS (SELECT AVG(avg_qty) AS overall_avg FROM o) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - g.overall_avg AS diff_from_overall FROM o CROSS JOIN g WHERE g.overall_avg IS NOT NULL ORDER BY (o.avg_qty - g.overall_avg) IS NULL, (o.avg_qty - g.overall_avg) DESC LIMIT 10",
+  "WITH per_order AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS order_avg FROM Order_Items GROUP BY order_id), overall AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items) SELECT p.order_id, p.order_avg, p.order_avg - o.overall_avg AS diff_from_overall FROM per_order p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL ORDER BY (p.order_avg - o.overall_avg) IS NULL, diff_from_overall DESC LIMIT 10",
+  "WITH per_order AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS order_avg FROM Order_Items GROUP BY order_id), overall AS (SELECT AVG(order_avg) AS overall_avg FROM per_order) SELECT p.order_id, p.order_avg, p.order_avg - o.overall_avg AS diff_from_overall FROM per_order p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL ORDER BY (p.order_avg - o.overall_avg) IS NULL, diff_from_overall DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), t AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - t.overall_avg AS diff_from_overall FROM o CROSS JOIN t WHERE t.overall_avg IS NOT NULL ORDER BY diff_from_overall DESC, o.order_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text (VARCHAR) but holds numeric values, so it is cast to a number. Missing values (NULL) are ignored by AVG.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the average over all Order_Items rows (row-weighted), not the average of the per-order averages.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Orders whose quantities are all missing are kept, with a NULL difference. Under DESC ordering, NULLs sort last in SQLite but first in some other databases such as PostgreSQL.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the difference are broken by order_id ascending, which the request does not specify.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall average is the mean of the per-order averages, so each order counts equally.",
+     "sql": "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), t AS (SELECT AVG(avg_qty) AS overall_avg FROM o) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - t.overall_avg AS diff_from_overall FROM o CROSS JOIN t WHERE t.overall_avg IS NOT NULL ORDER BY diff_from_overall DESC, o.order_id LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), g AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - g.overall_avg AS diff_from_overall FROM o CROSS JOIN g WHERE g.overall_avg IS NOT NULL ORDER BY (o.avg_qty - g.overall_avg) IS NULL, (o.avg_qty - g.overall_avg) DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to a number; NULLs are ignored by AVG.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the average over all Order_Items rows (row-weighted), not the average of the per-order averages.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Orders whose quantities are all NULL are kept, with a NULL difference sorted last.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall average is the mean of the per-order averages (each order weighted equally).",
+     "sql": "WITH o AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty FROM Order_Items GROUP BY order_id), g AS (SELECT AVG(avg_qty) AS overall_avg FROM o) SELECT o.order_id, o.avg_qty AS order_avg_quantity, o.avg_qty - g.overall_avg AS diff_from_overall FROM o CROSS JOIN g WHERE g.overall_avg IS NOT NULL ORDER BY (o.avg_qty - g.overall_avg) IS NULL, (o.avg_qty - g.overall_avg) DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_order AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS order_avg FROM Order_Items GROUP BY order_id), overall AS (SELECT AVG(CAST(product_quantity AS REAL)) AS overall_avg FROM Order_Items) SELECT p.order_id, p.order_avg, p.order_avg - o.overall_avg AS diff_from_overall FROM per_order p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL ORDER BY (p.order_avg - o.overall_avg) IS NULL, diff_from_overall DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to a number. Empty or NULL values are treated as missing and ignored by AVG. This assumes missing values are NULL rather than empty strings, since an empty string would cast to 0 in some databases.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The overall average is the average of product_quantity over all Order_Items rows, not the average of the per-order averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders with no Order_Items rows are not listed, because the request says 'for each order in Order_Items'.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall average is the mean of the per-order averages, so each order counts equally regardless of its number of items.",
+     "sql": "WITH per_order AS (SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS order_avg FROM Order_Items GROUP BY order_id), overall AS (SELECT AVG(order_avg) AS overall_avg FROM per_order) SELECT p.order_id, p.order_avg, p.order_avg - o.overall_avg AS diff_from_overall FROM per_order p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL ORDER BY (p.order_avg - o.overall_avg) IS NULL, diff_from_overall DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c1b7822e6",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11949,
+  "chars_out": 4779
+ }
+}

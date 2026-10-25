@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-63281c15ea",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Only constructor results with points strictly greater than 1.0 are used, leaving out results of exactly 1.0.",
+ "b": {
+  "request": "For each race, use only constructor results with points greater than 1.0 to calculate the average points and result count; compare that race\u2019s average with the unweighted average of per-race averages for races sharing its name, then return the 10 highest ratios with race ID, race name, average points, result count, and ratio, leaving missing ratios last and without rounding.",
+  "sql": "WITH race_averages AS (\n  SELECT raceId, AVG(points) AS average_points, COUNT(*) AS result_count\n  FROM constructorResults\n  WHERE points > 1.0\n  GROUP BY raceId\n), race_ratios AS (\n  SELECT r.raceId, r.name, a.average_points, a.result_count,\n         a.average_points / NULLIF(AVG(a.average_points) OVER (PARTITION BY r.name), 0) AS ratio\n  FROM races AS r\n  LEFT JOIN race_averages AS a ON a.raceId = r.raceId\n)\nSELECT raceId, name, average_points, result_count, ratio\nFROM race_ratios\nORDER BY CASE WHEN ratio IS NULL THEN 1 ELSE 0 END, ratio DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For each race, use only constructor results with points greater than 1.0 to calculate the average points and result count; compare that race\u2019s average with the unweighted average of per-race averages for races sharing its name, then return the 10 highest ratios with race ID, race name, average points, result count, and ratio, leaving missing ratios last and without rounding."
+ },
+ "d": {
+  "request": "Filter `constructorResults` to rows with `points > 1.0`, join them to `races`, and for each race ID and name calculate the average points and count of qualifying results. For each race name, calculate the unweighted average of those per-race averages across all races with that name. Return each race\u2019s ID, name, per-race average points, qualifying result count, and ratio of its per-race average to its race-name average; order by ratio descending with missing ratios last, and return the top 10 without rounding.",
+  "sql": "WITH per_race AS (\n  SELECT cr.raceId, r.name, AVG(cr.points) AS avg_points, COUNT(*) AS qualifying_result_count\n  FROM constructorResults AS cr\n  JOIN races AS r ON r.raceId = cr.raceId\n  WHERE cr.points > 1.0\n  GROUP BY cr.raceId, r.name\n), with_name_average AS (\n  SELECT raceId, name, avg_points, qualifying_result_count,\n         AVG(avg_points) OVER (PARTITION BY name) AS race_name_avg_points\n  FROM per_race\n)\nSELECT raceId, name, avg_points, qualifying_result_count,\n       avg_points / race_name_avg_points AS ratio\nFROM with_name_average\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "First filter the constructor results: split them by their race points (`constructorResults.points`) using 1.0 points as the dividing line, and keep only those on the higher side. Match the kept results to their races, then find for each race (race ID and race name) the average constructor points and the number of such results. Then, for each race name, take the average of these per-race averages across all races sharing that name. List the race ID, race name, per-race average points, result count, and the ratio of the race's average to its race-name average. Show the 10 races with the highest ratio (missing ratios last), without rounding. Only constructor results with points strictly greater than 1.0 are used, leaving out results of exactly 1.0.",
+  "sql": "WITH per_race AS (\n  SELECT r.raceId, r.name AS race_name,\n         AVG(cr.points) AS avg_constructor_points,\n         COUNT(*) AS result_count\n  FROM constructorResults AS cr\n  JOIN races AS r ON r.raceId = cr.raceId\n  WHERE cr.points > 1.0\n  GROUP BY r.raceId, r.name\n), with_name_average AS (\n  SELECT raceId, race_name, avg_constructor_points, result_count,\n         AVG(avg_constructor_points) OVER (PARTITION BY race_name) AS race_name_avg\n  FROM per_race\n)\nSELECT raceId, race_name, avg_constructor_points, result_count,\n       avg_constructor_points / race_name_avg AS ratio\nFROM with_name_average\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Using only constructor results whose race points (`constructorResults.points`) are more than 1.0, matched to their races, find for each race (race ID and race name) the average constructor points and the number of such results. Then, for each race name, take the average of these per-race averages across all races sharing that name. List the race ID, race name, per-race average points, result count, and the ratio of the race's average to its race-name average. Show the 10 races with the highest ratio (missing ratios last), without rounding.",
+  "sql": "WITH race_averages AS (\n  SELECT\n    r.raceId,\n    r.name AS race_name,\n    AVG(cr.points) AS avg_points,\n    COUNT(*) AS result_count\n  FROM constructorResults AS cr\n  JOIN races AS r ON r.raceId = cr.raceId\n  WHERE cr.points > 1.0\n  GROUP BY r.raceId, r.name\n),\nname_averages AS (\n  SELECT\n    race_name,\n    AVG(avg_points) AS name_avg_points\n  FROM race_averages\n  GROUP BY race_name\n)\nSELECT\n  ra.raceId,\n  ra.race_name,\n  ra.avg_points,\n  ra.result_count,\n  ra.avg_points / na.name_avg_points AS ratio\nFROM race_averages AS ra\nJOIN name_averages AS na ON na.race_name = ra.race_name\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

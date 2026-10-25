@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-a83a9b0bf3",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Per birth country, count the player_college records matched to a player. Shares, the above-average filter and the summary are all built on those record counts.",
+ "c": {
+  "request": "Using the college attendance data matched to players by `player_id` (leaving out anything with no matching player), tally college attendance for each player `birth_country`, along with each country's share of the overall tally. For the countries above the average tally across all countries, give me one row: their combined tally, their average share, and on average how far above the average tally they are. No rounding. Per birth country, count the player_college records matched to a player. Shares, the above-average filter and the summary are all built on those record counts.",
+  "sql": "WITH country_counts AS (\n    SELECT p.birth_country, COUNT(*) AS tally\n    FROM player_college pc\n    JOIN player p ON p.player_id = pc.player_id\n    GROUP BY p.birth_country\n),\ncountry_shares AS (\n    SELECT birth_country, tally,\n           CAST(tally AS REAL) / SUM(tally) OVER () AS share\n    FROM country_counts\n),\naverages AS (\n    SELECT AVG(tally) AS average_tally\n    FROM country_counts\n)\nSELECT SUM(cs.tally) AS combined_tally,\n       AVG(cs.share) AS average_share,\n       AVG(cs.tally - a.average_tally) AS average_amount_above_average\nFROM country_shares cs\nCROSS JOIN averages a\nWHERE cs.tally > a.average_tally;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Match each `player_college` record to its player by `player_id`, dropping records with no matching player. Count the matched college records (one per player-college-year row) for each `birth_country`, and work out each country's share of the total of those counts. Now take only the countries whose record count is above the average record count across all countries. In one row, give the total record count of those countries, their average share, and the average amount by which their record count exceeds that overall average. Don't round anything.",
+  "sql": "WITH country_counts AS (\n    SELECT p.birth_country, COUNT(*) AS record_count\n    FROM player_college pc\n    JOIN player p ON p.player_id = pc.player_id\n    GROUP BY p.birth_country\n),\ncountry_stats AS (\n    SELECT birth_country,\n           record_count,\n           CAST(record_count AS REAL) / SUM(record_count) OVER () AS share,\n           AVG(record_count) OVER () AS overall_average\n    FROM country_counts\n)\nSELECT SUM(record_count) AS total_record_count,\n       AVG(share) AS average_share,\n       AVG(record_count - overall_average) AS average_excess\nFROM country_stats\nWHERE record_count > overall_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Count matched `player_college` records per player birth country, calculate each country\u2019s share of the total record count, and select countries whose record counts exceed the average across countries. Return one row with those countries\u2019 combined record count, their average share, and the average difference between their record counts and the across-country average, without rounding",
+  "sql": "WITH country_counts AS (\n    SELECT p.birth_country, COUNT(*) AS record_count\n    FROM player_college pc\n    JOIN player p ON p.player_id = pc.player_id\n    GROUP BY p.birth_country\n), country_shares AS (\n    SELECT birth_country, record_count,\n           CAST(record_count AS REAL) / SUM(record_count) OVER () AS share\n    FROM country_counts\n), above_average AS (\n    SELECT birth_country, record_count, share,\n           AVG(record_count) OVER () AS across_country_average\n    FROM country_shares\n)\nSELECT SUM(record_count) AS combined_record_count,\n       AVG(share) AS average_share,\n       AVG(record_count - across_country_average) AS average_difference\nFROM above_average\nWHERE record_count > across_country_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using player college attendance records matched to players by `player_id`, count the records for each player birth country, excluding records without a matching player. Calculate each country\u2019s share of the total record count. For countries whose record count is above the average across all countries, return a single row with their combined record count, average share, and average amount above the overall average count. Do not round.",
+  "sql": "WITH country_counts AS (\n    SELECT p.birth_country, COUNT(*) AS record_count\n    FROM player_college pc\n    JOIN player p ON p.player_id = pc.player_id\n    GROUP BY p.birth_country\n),\ncountry_shares AS (\n    SELECT birth_country,\n           record_count,\n           1.0 * record_count / SUM(record_count) OVER () AS share\n    FROM country_counts\n),\ncountry_average AS (\n    SELECT AVG(record_count) AS overall_average_count\n    FROM country_counts\n)\nSELECT SUM(cs.record_count) AS combined_record_count,\n       AVG(cs.share) AS average_share,\n       AVG(cs.record_count - ca.overall_average_count) AS average_amount_above_overall_average_count\nFROM country_shares cs\nCROSS JOIN country_average ca\nWHERE cs.record_count > ca.overall_average_count;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

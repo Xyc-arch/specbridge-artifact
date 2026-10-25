@@ -1,0 +1,24 @@
+{
+ "interpretations": [
+  "Group signals by `rfistat`, including NULL as one group. Return groups whose average non-NULL `modindex` exceeds the average across all signals with a non-NULL `modindex`. Show each group\u2019s average, its signed difference from that overall average, and its signed difference from the unweighted mean of the returned groups\u2019 averages",
+  "Use the same groups and overall signal average, but report each group\u2019s percentage above that average and its percentage difference from the mean of the returned groups\u2019 averages",
+  "Group signals by `rfistat`, including NULL as one group. Return groups whose average non-NULL `modindex` exceeds the unweighted mean of all groups\u2019 averages. Show each group\u2019s average, its signed difference from that mean, and its signed difference from the unweighted mean of the returned groups\u2019 averages",
+  "Use the same unweighted mean of all groups\u2019 averages to select groups, but report percentage differences for both comparisons",
+  "Under either group selection rule, interpret \u201chow it differs from the mean of the qualifying statuses\u2019 averages\u201d as an absolute difference rather than a signed difference",
+  "Select signals with a non-NULL `modindex` above the overall signal average, then group those signals by `rfistat` (including NULL). Show each group\u2019s average and its differences from the overall average and the mean of the returned groups\u2019 averages"
+ ],
+ "queries": [
+  "WITH group_averages AS (\n  SELECT rfistat, AVG(modindex) AS group_average\n  FROM signals\n  GROUP BY rfistat\n),\nreturned_groups AS (\n  SELECT rfistat, group_average\n  FROM group_averages\n  WHERE group_average > (SELECT AVG(modindex) FROM signals)\n)\nSELECT\n  rfistat,\n  group_average,\n  group_average - (SELECT AVG(modindex) FROM signals) AS difference_from_overall,\n  group_average - (SELECT AVG(group_average) FROM returned_groups) AS difference_from_returned_groups\nFROM returned_groups",
+  "WITH group_averages AS (\n    SELECT rfistat, AVG(modindex) AS avg_modindex\n    FROM signals\n    GROUP BY rfistat\n),\nall_groups_mean AS (\n    SELECT AVG(avg_modindex) AS mean_avg_modindex\n    FROM group_averages\n),\nreturned_groups AS (\n    SELECT g.rfistat, g.avg_modindex, g.avg_modindex - a.mean_avg_modindex AS difference_from_all\n    FROM group_averages AS g\n    CROSS JOIN all_groups_mean AS a\n    WHERE g.avg_modindex > a.mean_avg_modindex\n)\nSELECT\n    rfistat,\n    avg_modindex,\n    difference_from_all,\n    avg_modindex - AVG(avg_modindex) OVER () AS difference_from_returned\nFROM returned_groups",
+  "WITH overall AS (\n  SELECT AVG(modindex) AS overall_avg\n  FROM signals\n),\ngroups AS (\n  SELECT rfistat, AVG(modindex) AS group_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n    AND modindex > (SELECT overall_avg FROM overall)\n  GROUP BY rfistat\n)\nSELECT\n  rfistat,\n  group_avg,\n  group_avg - (SELECT overall_avg FROM overall) AS difference_from_overall,\n  group_avg - AVG(group_avg) OVER () AS difference_from_group_mean\nFROM groups"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 322525,
+  "chars_out": 3126
+ }
+}

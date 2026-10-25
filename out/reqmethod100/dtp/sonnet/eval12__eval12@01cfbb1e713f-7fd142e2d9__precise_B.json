@@ -1,0 +1,38 @@
+{
+ "interpretations": [
+  "Per-patient averages are computed over all of that patient's examination records. Each sex's average `aCL IgG` and average `ANA` is the mean of those per-patient values. The ratio is the sex's average ANA divided by the mean of the per-sex average ANA values (an unweighted mean across sexes).",
+  "Same as 1, but the denominator is the overall average of the per-patient ANA values across all matched patients (a patient-weighted mean), not the mean of the per-sex averages.",
+  "Same as 1, but the ratio is computed only for sexes with non-null `SEX`, so patients with missing `SEX` are dropped and do not form a group.",
+  "Same as 1, but patients with missing `SEX` form their own group (NULL or empty), and that group is included in the mean of the per-sex ANA averages.",
+  "Same as 1, but the sex groups include only those with at least one non-null `ANA` value. The denominator mean is taken over those groups only.",
+  "Same as 1, but a patient with a null `aCL IgG` or null `ANA` across all examinations is excluded from both averages. This means both averages cover the same set of patients.",
+  "Same as 1, but each average ignores nulls independently. The `aCL IgG` average covers patients with a non-null `aCL IgG`, and the `ANA` average covers patients with a non-null `ANA`.",
+  "The per-patient average is taken over examination records with non-null values only. A patient whose values are all null contributes nothing to that average.",
+  "The output is one row per sex with four columns: sex, average `aCL IgG`, average `ANA`, and the ANA ratio.",
+  "The ratio is a relative ANA index: values above 1 mean the sex's average ANA is above the cross-sex mean, and values below 1 mean it is below.",
+  "Patients are matched to examinations through `Examination.ID = Patient.ID` using an inner join. Examinations with no matching patient are dropped, and patients with no examinations do not appear.",
+  "`SEX` values are grouped as stored (for example 'F', 'M'), with no normalization of case or whitespace.",
+  "The ratio's denominator is the mean of the per-sex average ANA values, with each sex weighted equally, even if the sexes have very different patient counts.",
+  "The numbers are not rounded and are returned at full floating-point precision."
+ ],
+ "queries": [
+  "WITH p AS (\n  SELECT P.SEX AS SEX, E.ID AS ID, AVG(E.`aCL IgG`) AS g, AVG(E.ANA) AS a\n  FROM Examination E\n  JOIN Patient P ON P.ID = E.ID\n  GROUP BY E.ID, P.SEX\n),\ns AS (\n  SELECT SEX, AVG(g) AS avg_igg, AVG(a) AS avg_ana\n  FROM p\n  GROUP BY SEX\n)\nSELECT SEX, avg_igg, avg_ana, avg_ana / (SELECT AVG(avg_ana) FROM s) AS ratio\nFROM s",
+  "WITH p AS (\n    SELECT P.ID, P.SEX, AVG(E.ANA) AS a\n    FROM Patient P\n    JOIN Examination E ON E.ID = P.ID\n    WHERE E.ANA IS NOT NULL\n    GROUP BY P.ID, P.SEX\n)\nSELECT SEX, AVG(a) / (SELECT AVG(a) FROM p) AS ratio\nFROM p\nGROUP BY SEX;\n",
+  "SELECT SEX, CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM Patient WHERE SEX IS NOT NULL) AS ratio\nFROM Patient\nWHERE SEX IS NOT NULL\nGROUP BY SEX;\n",
+  "SELECT AVG(avg_ana)\nFROM (\n    SELECT AVG(e.ANA) AS avg_ana\n    FROM Examination e\n    JOIN Patient p ON e.ID = p.ID\n    GROUP BY COALESCE(NULLIF(p.SEX, ''), '')\n);\n",
+  "SELECT AVG(`aCL IgG`), AVG(ANA)\nFROM Examination\nWHERE ID IN (\n    SELECT ID\n    FROM Examination\n    GROUP BY ID\n    HAVING COUNT(`aCL IgG`) > 0 AND COUNT(ANA) > 0\n);\n"
+ ],
+ "raw": [
+  "1. Per-patient averages are computed over all of that patient's examination records. Each sex's average `aCL IgG` and average `ANA` is the mean of those per-patient values. The ratio is the sex's average ANA divided by the mean of the per-sex average ANA values (an unweighted mean across sexes).\n2. Same as 1, but the denominator is the overall average of the per-patient ANA values across all matched patients (a patient-weighted mean), not the mean of the per-sex averages.\n3. Same as 1, but the ratio is computed only for sexes with non-null `SEX`, so patients with missing `SEX` are dropped and do not form a group.\n4. Same as 1, but patients with missing `SEX` form their own group (NULL or empty), and that group is included in the mean of the per-sex ANA averages.\n5. Same as 1, but the sex groups include only those with at least one non-null `ANA` value. The denominator mean is taken over those groups only.\n6. Same as 1, but a patient with a null `aCL IgG` or null `ANA` across all examinations is excluded from both averages. This means both averages cover the same set of patients.\n7. Same as 1, but each average ignores nulls independently. The `aCL IgG` average covers patients with a non-null `aCL IgG`, and the `ANA` average covers patients with a non-null `ANA`.\n8. The per-patient average is taken over examination records with non-null values only. A patient whose values are all null contributes nothing to that average.\n9. The output is one row per sex with four columns: sex, average `aCL IgG`, average `ANA`, and the ANA ratio.\n10. The ratio is a relative ANA index: values above 1 mean the sex's average ANA is above the cross-sex mean, and values below 1 mean it is below.\n11. Patients are matched to examinations through `Examination.ID = Patient.ID` using an inner join. Examinations with no matching patient are dropped, and patients with no examinations do not appear.\n12. `SEX` values are grouped as stored (for example 'F', 'M'), with no normalization of case or whitespace.\n13. The ratio's denominator is the mean of the per-sex average ANA values, with each sex weighted equally, even if the sexes have very different patient counts.\n14. The numbers are not rounded and are returned at full floating-point precision.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7fd142e2d9",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67909,
+  "chars_out": 4430
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "interpretations": [
+  "Count distinct transaction records linked to advanced behaviour, group by the linked trader\u2019s type, calculate each type\u2019s share of all such records, and return one summary row for types whose counts exceed the mean type count: their summed count, mean share, and mean excess count.",
+  "Count advanced behaviour rows with a matching transaction and trader, group by trader type, and use those row counts throughout the calculation; multiple analyses of one transaction count multiple times.",
+  "Count distinct transactions within each trader type, but calculate each type\u2019s share against all matched advanced behaviour rows.",
+  "Include every defined trader type when calculating the mean type count, assigning zero to types with no analysed transactions.",
+  "Calculate the mean type count using only trader types represented among matched analysed transactions.",
+  "Treat a matched trader with a null trader type as its own group when calculating counts, shares, and the mean.",
+  "Exclude matched traders whose trader type is null before calculating counts, shares, and the mean.",
+  "Express each type\u2019s share and the summary\u2019s average share as fractions of the overall total.",
+  "Express each type\u2019s share and the summary\u2019s average share as percentages of the overall total.",
+  "Interpret the summary\u2019s \u201caverage share\u201d as the selected types\u2019 combined count divided by the overall total.",
+  "Interpret \u201chow far above that average number\u201d as the mean absolute excess count over the mean type count.",
+  "Interpret \u201chow far above that average number\u201d as the mean percentage excess over the mean type count.",
+  "Return the per-type counts and shares alongside a single summary row for the above-average types.",
+  "Use the per-type counts and shares only as intermediate calculations, returning just the single summary row.",
+  "Include trader types present in the trader table but absent from the matched analysed records as zero-count groups when calculating the average.",
+  "Calculate each type\u2019s share against all transaction records whose trader can be found, including records without advanced behaviour data."
+ ],
+ "queries": [
+  "WITH type_counts AS (\n    SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS record_count\n    FROM advancedbehavior AS ab\n    JOIN transactionrecord AS tr ON tr.transreg = ab.translink\n    JOIN trader AS t ON t.tradereg = tr.trdref\n    GROUP BY t.tradekind\n),\noverall AS (\n    SELECT AVG(record_count) AS mean_count,\n           SUM(record_count) AS total_count\n    FROM type_counts\n)\nSELECT SUM(tc.record_count) AS summed_count,\n       AVG(1.0 * tc.record_count / o.total_count) AS mean_share,\n       AVG(tc.record_count - o.mean_count) AS mean_excess_count\nFROM type_counts AS tc\nCROSS JOIN overall AS o\nWHERE tc.record_count > o.mean_count",
+  "SELECT t.tradekind, COUNT(*) AS advanced_behavior_count\nFROM advancedbehavior AS ab\nJOIN transactionrecord AS tr ON tr.transreg = ab.translink\nJOIN trader AS t ON t.tradereg = tr.trdref\nGROUP BY t.tradekind",
+  "SELECT\n    t.tradekind,\n    COUNT(DISTINCT tr.transreg) AS transaction_count,\n    1.0 * COUNT(DISTINCT tr.transreg) / SUM(COUNT(*)) OVER () AS share\nFROM trader AS t\nJOIN transactionrecord AS tr ON tr.trdref = t.tradereg\nJOIN advancedbehavior AS ab ON ab.translink = tr.transreg\nGROUP BY t.tradekind",
+  "WITH trader_types(tradekind) AS (\n    VALUES ('Market Maker'), ('Broker'), ('Individual'), ('Institution')\n),\ntype_counts AS (\n    SELECT tt.tradekind, COUNT(DISTINCT ab.translink) AS transaction_count\n    FROM trader_types AS tt\n    LEFT JOIN trader AS t ON t.tradekind = tt.tradekind\n    LEFT JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n    LEFT JOIN advancedbehavior AS ab ON ab.translink = tr.transreg\n    GROUP BY tt.tradekind\n)\nSELECT AVG(transaction_count) AS mean_type_count\nFROM type_counts",
+  "SELECT AVG(type_count)\nFROM (\n    SELECT COUNT(*) AS type_count\n    FROM trader AS t\n    JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n    JOIN advancedbehavior AS ab ON ab.translink = tr.transreg\n    GROUP BY t.tradekind\n)"
+ ],
+ "raw": [
+  "Count distinct transaction records linked to advanced behaviour, group by the linked trader\u2019s type, calculate each type\u2019s share of all such records, and return one summary row for types whose counts exceed the mean type count: their summed count, mean share, and mean excess count.\n\nCount advanced behaviour rows with a matching transaction and trader, group by trader type, and use those row counts throughout the calculation; multiple analyses of one transaction count multiple times.\n\nCount distinct transactions within each trader type, but calculate each type\u2019s share against all matched advanced behaviour rows.\n\nInclude every defined trader type when calculating the mean type count, assigning zero to types with no analysed transactions.\n\nCalculate the mean type count using only trader types represented among matched analysed transactions.\n\nTreat a matched trader with a null trader type as its own group when calculating counts, shares, and the mean.\n\nExclude matched traders whose trader type is null before calculating counts, shares, and the mean.\n\nExpress each type\u2019s share and the summary\u2019s average share as fractions of the overall total.\n\nExpress each type\u2019s share and the summary\u2019s average share as percentages of the overall total.\n\nInterpret the summary\u2019s \u201caverage share\u201d as the selected types\u2019 combined count divided by the overall total.\n\nInterpret \u201chow far above that average number\u201d as the mean absolute excess count over the mean type count.\n\nInterpret \u201chow far above that average number\u201d as the mean percentage excess over the mean type count.\n\nReturn the per-type counts and shares alongside a single summary row for the above-average types.\n\nUse the per-type counts and shares only as intermediate calculations, returning just the single summary row.",
+  "Include trader types present in the trader table but absent from the matched analysed records as zero-count groups when calculating the average.\n\nCalculate each type\u2019s share against all transaction records whose trader can be found, including records without advanced behaviour data."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 138112,
+  "chars_out": 4025
+ }
+}

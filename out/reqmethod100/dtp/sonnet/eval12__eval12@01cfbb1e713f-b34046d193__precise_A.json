@@ -1,0 +1,50 @@
+{
+ "interpretations": [
+  "Inner join income \u2192 member (via income.link_to_member) \u2192 major (via member.link_to_major); group by major.college; output college, SUM(income.amount), and SUM(income.amount) divided by the total of all matched income, using real (non-integer) division and no rounding.",
+  "Same as 1, but the fraction is expressed as a percentage (multiplied by 100), unrounded.",
+  "Same as 1, but the fraction is computed with integer division (the amount column is INTEGER), so the result may truncate.",
+  "Same as 1, but the denominator is the sum of the per-college totals, which equals the total income of all income records matched to a college (members with a non-null major).",
+  "Same as 1, but the denominator is the total income across all income records, including unmatched ones (this conflicts with \"only income matched to a college\").",
+  "Group by college only, so different majors, departments, and majors with the same college name are merged into one row.",
+  "Group by college and also by major or department, with one row per college/major or college/department combination, while the fraction is still relative to the combined total.",
+  "Colleges with NULL or empty names are included as their own group, because the join only checks that a major exists.",
+  "Colleges with NULL names are excluded, because \"matched to a college\" requires a non-null college.",
+  "Income rows are counted once per income record, with each income linked to exactly one member.",
+  "Income amounts are summed as stored (dollars), with no filtering by source, date, or notes.",
+  "Colleges are output in no particular order.",
+  "Colleges are ordered by total income descending.",
+  "Colleges are ordered alphabetically by name.",
+  "The fraction is expressed as a ratio between 0 and 1 and shown in a separate column next to the total.",
+  "\"Combined income of all colleges\" is read as the sum across the colleges shown in the result, which is the same as the total in 4.",
+  "\"Brought in\" is read as income.link_to_member, the member who received or recorded the income.",
+  "Missing interpretations:",
+  "Join income to member through attendance or event, instead of using income.link_to_member, so \"brought in\" means the member who attended an event.",
+  "Group by college and also show the college's income as a fraction of the total using a window function. This gives the same values as 1 but adds no extra rows.",
+  "The denominator is the total income of members with a major, regardless of whether the major has a college. This can differ from 4 when the college is NULL.",
+  "Use a left join, then drop the unmatched rows. This gives the same result as an inner join, with any NULL-college group excluded.",
+  "Output the fraction as a formatted string, such as \"12.5%\", instead of a numeric value.",
+  "Treat duplicate member or major rows as a fan-out that multiplies income. This case cannot happen here because both ids are primary keys.",
+  "Use the income.source or income.notes fields to decide who \"brought in\" the income, such as dues paid by the member.",
+  "Show the fraction as a column in the same row as each college, rather than as a separate summary row with the overall total.",
+  "Include a grand-total row in addition to the per-college rows."
+ ],
+ "queries": [
+  "SELECT m.college,\n       SUM(i.amount),\n       SUM(i.amount) * 1.0 / (SELECT SUM(i2.amount)\n                              FROM income i2\n                              INNER JOIN member mb2 ON i2.link_to_member = mb2.member_id\n                              INNER JOIN major m2 ON mb2.link_to_major = m2.major_id)\nFROM income i\nINNER JOIN member mb ON i.link_to_member = mb.member_id\nINNER JOIN major m ON mb.link_to_major = m.major_id\nGROUP BY m.college\n",
+  "SELECT mj.college,\n       SUM(i.amount) * 100.0 / (\n           SELECT SUM(i2.amount)\n           FROM income i2\n           JOIN member m2 ON i2.link_to_member = m2.member_id\n           JOIN major mj2 ON m2.link_to_major = mj2.major_id\n       ) AS percentage\nFROM income i\nJOIN member m ON i.link_to_member = m.member_id\nJOIN major mj ON m.link_to_major = mj.major_id\nGROUP BY mj.college;\n",
+  "SELECT mj.college,\n       100.0 * SUM(i.amount) / (SELECT SUM(amount) FROM income) AS income_percentage\nFROM income i\nJOIN member m ON i.link_to_member = m.member_id\nJOIN major mj ON m.link_to_major = mj.major_id\nGROUP BY mj.college;\n",
+  "SELECT T1.college, COUNT(T2.member_id) FROM major AS T1 LEFT JOIN member AS T2 ON T2.link_to_major = T1.major_id GROUP BY T1.college;\n"
+ ],
+ "raw": [
+  "1. Inner join income \u2192 member (via income.link_to_member) \u2192 major (via member.link_to_major); group by major.college; output college, SUM(income.amount), and SUM(income.amount) divided by the total of all matched income, using real (non-integer) division and no rounding.\n2. Same as 1, but the fraction is expressed as a percentage (multiplied by 100), unrounded.\n3. Same as 1, but the fraction is computed with integer division (the amount column is INTEGER), so the result may truncate.\n4. Same as 1, but the denominator is the sum of the per-college totals, which equals the total income of all income records matched to a college (members with a non-null major).\n5. Same as 1, but the denominator is the total income across all income records, including unmatched ones (this conflicts with \"only income matched to a college\").\n6. Group by college only, so different majors, departments, and majors with the same college name are merged into one row.\n7. Group by college and also by major or department, with one row per college/major or college/department combination, while the fraction is still relative to the combined total.\n8. Colleges with NULL or empty names are included as their own group, because the join only checks that a major exists.\n9. Colleges with NULL names are excluded, because \"matched to a college\" requires a non-null college.\n10. Income rows are counted once per income record, with each income linked to exactly one member.\n11. Income amounts are summed as stored (dollars), with no filtering by source, date, or notes.\n12. Colleges are output in no particular order.\n13. Colleges are ordered by total income descending.\n14. Colleges are ordered alphabetically by name.\n15. The fraction is expressed as a ratio between 0 and 1 and shown in a separate column next to the total.\n16. \"Combined income of all colleges\" is read as the sum across the colleges shown in the result, which is the same as the total in 4.\n17. \"Brought in\" is read as income.link_to_member, the member who received or recorded the income.",
+  "Missing interpretations:\n\nJoin income to member through attendance or event, instead of using income.link_to_member, so \"brought in\" means the member who attended an event.\nGroup by college and also show the college's income as a fraction of the total using a window function. This gives the same values as 1 but adds no extra rows.\nThe denominator is the total income of members with a major, regardless of whether the major has a college. This can differ from 4 when the college is NULL.\nUse a left join, then drop the unmatched rows. This gives the same result as an inner join, with any NULL-college group excluded.\nOutput the fraction as a formatted string, such as \"12.5%\", instead of a numeric value.\nTreat duplicate member or major rows as a fan-out that multiplies income. This case cannot happen here because both ids are primary keys.\nUse the income.source or income.notes fields to decide who \"brought in\" the income, such as dues paid by the member.\nShow the fraction as a column in the same row as each college, rather than as a separate summary row with the overall total.\nInclude a grand-total row in addition to the per-college rows."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b34046d193",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 60922,
+  "chars_out": 5748
+ }
+}

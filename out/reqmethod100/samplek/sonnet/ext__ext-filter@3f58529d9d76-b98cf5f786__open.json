@@ -1,0 +1,91 @@
+{
+ "queries": [
+  "SELECT AVG(mean_price) AS avg_of_invoice_mean_price, AVG(line_item_count) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS mean_price, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) t",
+  "SELECT AVG(mean_price) AS avg_of_invoice_mean_price, AVG(line_item_count) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS mean_price, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number) t",
+  "SELECT AVG(avg_price) AS avg_of_invoice_mean_price, AVG(cnt) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS avg_price, COUNT(*) AS cnt FROM Invoice_Line_Items GROUP BY invoice_number) t",
+  "SELECT AVG(avg_price) AS avg_of_invoice_mean_price, AVG(cnt) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS avg_price, COUNT(*) AS cnt FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) t",
+  "SELECT (SELECT AVG(avg_price) FROM (SELECT AVG(product_price) AS avg_price FROM Invoice_Line_Items GROUP BY invoice_number) a) AS avg_of_invoice_mean_price, (SELECT AVG(cnt) FROM (SELECT i.invoice_number, COUNT(l.invoice_number) AS cnt FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number) b) AS avg_line_items_per_invoice",
+  "SELECT AVG(m) AS avg_of_invoice_mean_price, AVG(c) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS m, COUNT(*) AS c FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) t;",
+  "SELECT (SELECT AVG(m) FROM (SELECT AVG(product_price) AS m FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) a) AS avg_of_invoice_mean_price, (SELECT AVG(c) FROM (SELECT COUNT(*) AS c FROM Invoice_Line_Items GROUP BY invoice_number) b) AS avg_line_items_per_invoice;"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT AVG(mean_price) AS avg_of_invoice_mean_price, AVG(line_item_count) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS mean_price, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) t",
+   "assumptions": [
+    {
+     "assumption": "Invoices with no non-missing price are skipped entirely, so the average line-item count is over the same set of invoices as the average of means.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Only invoices that have at least one row in Invoice_Line_Items are considered; invoices with zero line items are not counted.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The line-item count counts all line-item rows on an invoice, including those with a missing price.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The skipping applies only to the mean price. The average line-item count is taken over all invoices that have line items, including those whose prices are all missing.",
+     "sql": "SELECT AVG(mean_price) AS avg_of_invoice_mean_price, AVG(line_item_count) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS mean_price, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number) t"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT AVG(avg_price) AS avg_of_invoice_mean_price, AVG(cnt) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS avg_price, COUNT(*) AS cnt FROM Invoice_Line_Items GROUP BY invoice_number) t",
+   "assumptions": [
+    {
+     "assumption": "The average line-item count is taken over every invoice that has at least one line item. This includes invoices where all prices are missing, since only the price mean skips those invoices. Every row in Invoice_Line_Items counts as a line item.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Invoices with no rows in Invoice_Line_Items are left out of both averages.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The line-item average covers only the invoices that have a mean price. Invoices with no non-missing price are dropped from both values.",
+     "sql": "SELECT AVG(avg_price) AS avg_of_invoice_mean_price, AVG(cnt) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS avg_price, COUNT(*) AS cnt FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) t"
+    },
+    {
+     "interpretation": "The line-item average covers all invoices in Invoices, so invoices with no line items count as 0. The price mean still skips invoices with no non-missing price.",
+     "sql": "SELECT (SELECT AVG(avg_price) FROM (SELECT AVG(product_price) AS avg_price FROM Invoice_Line_Items GROUP BY invoice_number) a) AS avg_of_invoice_mean_price, (SELECT AVG(cnt) FROM (SELECT i.invoice_number, COUNT(l.invoice_number) AS cnt FROM Invoices i LEFT JOIN Invoice_Line_Items l ON l.invoice_number = i.invoice_number GROUP BY i.invoice_number) b) AS avg_line_items_per_invoice"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT AVG(m) AS avg_of_invoice_mean_price, AVG(c) AS avg_line_items_per_invoice FROM (SELECT invoice_number, AVG(product_price) AS m, COUNT(*) AS c FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) t;",
+   "assumptions": [
+    {
+     "assumption": "Invoices with no non-missing price are skipped entirely, so they are excluded from both averages (the line-item count average covers only invoices that have a mean price).",
+     "unresolved": true
+    },
+    {
+     "assumption": "Invoices with no rows in Invoice_Line_Items are not counted, since they have no line items to average over.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Line-item count includes all rows for the invoice, including those with a missing price.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The skip rule applies only to the mean price; the average line-item count is taken over all invoices that have at least one line item, including those whose prices are all missing.",
+     "sql": "SELECT (SELECT AVG(m) FROM (SELECT AVG(product_price) AS m FROM Invoice_Line_Items GROUP BY invoice_number HAVING COUNT(product_price) > 0) a) AS avg_of_invoice_mean_price, (SELECT AVG(c) FROM (SELECT COUNT(*) AS c FROM Invoice_Line_Items GROUP BY invoice_number) b) AS avg_line_items_per_invoice;"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-b98cf5f786",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 11631,
+  "chars_out": 4234
+ }
+}

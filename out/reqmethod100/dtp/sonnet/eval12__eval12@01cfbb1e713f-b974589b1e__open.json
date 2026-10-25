@@ -1,0 +1,34 @@
+{
+ "interpretations": [
+  "Group by `orders.timespan`, using an inner join of `riskandmargin` to `orders` on `ordervault = recordvault`. Show each time in force, its count of matched risk/margin records, the share (count \u00f7 total matched records), and the difference between that share and the average share across time-in-force values (1 \u00f7 number of distinct time-in-force values). The difference is signed, with no rounding",
+  "Same as 1, but the difference is an absolute value (the magnitude of the deviation)",
+  "Same as 1, but the average share is the mean of the per-group shares, computed with AVG over the grouped shares. This equals 1 \u00f7 the number of groups, and it is the same as interpretation 1 in value",
+  "Same as 1, but the share is expressed as a percentage (\u00d7100), and the deviation from the average share is in percentage points",
+  "Same as 1, but the count is the number of distinct `riskandmargin.riskandmarginpivot` values per time in force, rather than the number of rows",
+  "Same as 1, but the count is the number of distinct orders (`orders.recordvault`) that have risk/margin records, per time in force",
+  "Same as 1, but the count excludes records whose `risk_margin_profile` is NULL",
+  "Same as 1, but time-in-force values with no matched risk/margin records are also listed, with a count of 0. The average share then includes those values",
+  "Same as 1, but orders with a NULL `timespan` form their own group, and that group is included in the average-share denominator",
+  "Same as 1, but orders with a NULL `timespan` are excluded from the groups, the total and the average",
+  "The share is calculated against the total number of all risk/margin records, including unmatched ones. The average share is across the time-in-force groups",
+  "The deviation is expressed as a ratio relative to the average share, (share \u2212 average share) \u00f7 average share, instead of a raw difference",
+  "The average share is the overall share \u00f7 the number of time-in-force values, where the number of values comes from all enum values (GTC, IOC, GTD, FOK), even if absent from the data",
+  "The \"time in force\" is read from a time-in-force field inside `risk_margin_profile` rather than from `orders.timespan`"
+ ],
+ "queries": [
+  "SELECT\n  o.timespan AS timespan,\n  COUNT(*) AS record_count,\n  CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM riskandmargin r2 JOIN orders o2 ON r2.ordervault = o2.recordvault) AS share,\n  CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM riskandmargin r2 JOIN orders o2 ON r2.ordervault = o2.recordvault)\n    - 1.0 / (SELECT COUNT(DISTINCT o3.timespan) FROM riskandmargin r3 JOIN orders o3 ON r3.ordervault = o3.recordvault) AS share_diff\nFROM riskandmargin r\nJOIN orders o ON r.ordervault = o.recordvault\nGROUP BY o.timespan;\n",
+  "SELECT AVG(share) AS avg_share\nFROM (\n  SELECT COUNT(*) * 1.0 / (SELECT COUNT(*) FROM orders) AS share\n  FROM orders\n  GROUP BY ordertune\n);\n",
+  "WITH s AS (\n  SELECT exchspot, 100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share_pct\n  FROM orders\n  GROUP BY exchspot\n)\nSELECT exchspot, share_pct, share_pct - AVG(share_pct) OVER () AS deviation_pp\nFROM s;\n",
+  "SELECT o.timespan, COUNT(DISTINCT r.riskandmarginpivot) AS count\nFROM orders o\nJOIN riskandmargin r ON r.ordervault = o.recordvault\nGROUP BY o.timespan;\n",
+  "SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count\nFROM orders o\nJOIN riskandmargin r ON r.ordervault = o.recordvault\nGROUP BY o.timespan"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107216,
+  "chars_out": 4318
+ }
+}

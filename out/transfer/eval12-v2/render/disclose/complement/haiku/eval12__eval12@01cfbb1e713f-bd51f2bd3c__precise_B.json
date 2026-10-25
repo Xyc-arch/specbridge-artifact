@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-bd51f2bd3c",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH invoice_stats AS (SELECT invoice_number, 1.0 * SUM(derived_product_cost) / SUM(derived_total_cost) AS cost_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number), avg_ratio AS (SELECT AVG(cost_ratio) AS avg_cost_ratio FROM invoice_stats) SELECT s.invoice_number, s.cost_ratio, s.line_item_count, s.cost_ratio / a.avg_cost_ratio AS relative_ratio FROM invoice_stats s CROSS JOIN avg_ratio a WHERE a.avg_cost_ratio IS NOT NULL ORDER BY relative_ratio IS NULL, relative_ratio DESC LIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "The database is SQLite, inferred from the INTEGER PRIMARY KEY and DATETIME type syntax; `1.0 *` forces real division and `LIMIT` is used for top 10.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Each sum ignores NULLs independently, as SUM does by default, so a line with a missing cost still counts toward the total-cost sum and vice versa. 'Number of line items' is COUNT(*) over all rows of the invoice, including rows with missing values.",
+    "unresolved": false
+   },
+   {
+    "assumption": "An invoice whose summed derived_total_cost is 0 gets a NULL cost ratio (SQLite returns NULL for division by zero), so it is sorted last and excluded from the average. NULL ratios are also excluded from the average, as AVG does by default.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The 'overall average' is the plain mean of per-invoice cost ratios, not a weighted mean by line count or total cost.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Ignore any line where either derived_product_cost or derived_total_cost is missing when computing the cost ratio (paired sums), while still counting all of the invoice's lines as its line items.",
+    "sql": "WITH counts AS (SELECT invoice_number, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY invoice_number), ratios AS (SELECT invoice_number, 1.0 * SUM(derived_product_cost) / SUM(derived_total_cost) AS cost_ratio FROM Invoice_Line_Items WHERE derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL GROUP BY invoice_number), stats AS (SELECT c.invoice_number, r.cost_ratio, c.line_item_count FROM counts c LEFT JOIN ratios r ON r.invoice_number = c.invoice_number), avg_ratio AS (SELECT AVG(cost_ratio) AS avg_cost_ratio FROM stats) SELECT s.invoice_number, s.cost_ratio, s.line_item_count, s.cost_ratio / a.avg_cost_ratio AS relative_ratio FROM stats s CROSS JOIN avg_ratio a WHERE a.avg_cost_ratio IS NOT NULL ORDER BY relative_ratio IS NULL, relative_ratio DESC LIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 14.8
+}

@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Average bandwidth usage is the plain mean of `bandusagepct` across each station's telescopes, with NULLs ignored. The telescope count includes every telescope at the station, even those with NULL bandwidth. The ratio is that count divided by the mean telescope count per station. This mean is taken over all stations that have at least one telescope. Sort by the ratio descending and take the top 10.",
+  "Same as 1, but the telescope count covers only telescopes with non-NULL `bandusagepct`. The ratio denominator is the average of these counts.",
+  "Same as 1, but the denominator is the average telescope count across all stations in `observatories`. Stations with zero telescopes count as 0 in that average.",
+  "Same as 1, but the denominator is the total number of telescopes divided by the number of distinct stations that have telescopes. This gives the same value as 1 and is stated differently.",
+  "Same as 1, but the denominator is the average of per-station counts after restricting to the top 10 stations. The ratio is then relative to those stations only.",
+  "Same as 1, but the stations come from joining `telescopes` to `observatories`. Telescopes whose station is missing from `observatories` are excluded from the count and the average.",
+  "Same as 1, but stations are defined by distinct `observstation` values in `telescopes`, with no join to `observatories`.",
+  "Same as 1, but the average bandwidth usage is weighted or computed some other way. For example, it could be total bandwidth divided by total telescope count, so NULL telescopes still count in the denominator.",
+  "Same as 1, but ties in the ratio are broken by a secondary key, such as `observstation` ascending or average bandwidth descending. Ties may also be left in arbitrary order, or all tied rows may be included beyond 10.",
+  "Same as 1, but the ratio is rounded to a fixed number of decimals, or the average bandwidth is rounded to two decimals, in the output.",
+  "Same as 1, but \"ratio\" is read as a percentage, so the count divided by the average is multiplied by 100.",
+  "Same as 1, but stations whose names differ only in case or trailing whitespace (`observstation` is `CHAR(60)` in the docs) are treated as the same station. They are grouped together rather than kept as distinct values.",
+  "Missing interpretations:",
+  "Same as 1, but the ratio denominator is the median telescope count per station instead of the mean.",
+  "Same as 1, but the denominator is the average telescope count computed only over stations that have at least one telescope with non-NULL `bandusagepct`, while the count shown still includes all telescopes.",
+  "Same as 1, but the ratio is computed with integer division, so the count divided by the average is truncated rather than fractional.",
+  "Same as 1, but the average bandwidth is taken over distinct `bandusagepct` values rather than every telescope's value.",
+  "Same as 1, but the telescope count is the number of distinct `telescregistry` values, with duplicate or NULL registry entries excluded.",
+  "Same as 1, but stations whose average bandwidth is NULL, because all their telescopes have NULL `bandusagepct`, are excluded from the output and possibly from the denominator average."
+ ],
+ "queries": [
+  "SELECT observstation,\n       AVG(bandusagepct) AS avg_bandwidth_usage,\n       COUNT(*) AS telescope_count,\n       COUNT(*) * 1.0 / (SELECT AVG(cnt) FROM (SELECT COUNT(*) AS cnt FROM telescopes GROUP BY observstation)) AS ratio\nFROM telescopes\nGROUP BY observstation\nORDER BY ratio DESC\nLIMIT 10;\n",
+  "WITH c AS (\n  SELECT observstation, COUNT(*) AS telescope_count\n  FROM telescopes\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation\n)\nSELECT observstation, telescope_count, telescope_count * 1.0 / (SELECT AVG(telescope_count) FROM c) AS ratio\nFROM c;\n",
+  "SELECT o.observstation,\n       COUNT(t.telescregistry) * 1.0 / (SELECT AVG(cnt) FROM (SELECT COUNT(t2.telescregistry) AS cnt FROM observatories o2 LEFT JOIN telescopes t2 ON t2.observstation = o2.observstation GROUP BY o2.observstation)) AS ratio\nFROM observatories o\nLEFT JOIN telescopes t ON t.observstation = o.observstation\nGROUP BY o.observstation;\n",
+  "SELECT CAST((SELECT COUNT(*) FROM signals) AS REAL) / ((SELECT COUNT(*) FROM telescopes) * 1.0 / (SELECT COUNT(DISTINCT observstation) FROM telescopes));\n",
+  "WITH station_counts AS (\n  SELECT t.observstation, COUNT(*) AS cnt\n  FROM signals s\n  JOIN telescopes t ON s.telescref = t.telescregistry\n  GROUP BY t.observstation\n  ORDER BY cnt DESC\n  LIMIT 10\n)\nSELECT observstation, cnt * 1.0 / (SELECT AVG(cnt) FROM station_counts) AS ratio\nFROM station_counts;\n",
+  "SELECT COUNT(DISTINCT o.observstation) AS station_count,\n       CAST(COUNT(t.telescregistry) AS REAL) / COUNT(DISTINCT o.observstation) AS avg_telescopes_per_station\nFROM telescopes t\nJOIN observatories o ON t.observstation = o.observstation;\n"
+ ],
+ "raw": [
+  "1. Average bandwidth usage is the plain mean of `bandusagepct` across each station's telescopes, with NULLs ignored. The telescope count includes every telescope at the station, even those with NULL bandwidth. The ratio is that count divided by the mean telescope count per station. This mean is taken over all stations that have at least one telescope. Sort by the ratio descending and take the top 10.\n2. Same as 1, but the telescope count covers only telescopes with non-NULL `bandusagepct`. The ratio denominator is the average of these counts.\n3. Same as 1, but the denominator is the average telescope count across all stations in `observatories`. Stations with zero telescopes count as 0 in that average.\n4. Same as 1, but the denominator is the total number of telescopes divided by the number of distinct stations that have telescopes. This gives the same value as 1 and is stated differently.\n5. Same as 1, but the denominator is the average of per-station counts after restricting to the top 10 stations. The ratio is then relative to those stations only.\n6. Same as 1, but the stations come from joining `telescopes` to `observatories`. Telescopes whose station is missing from `observatories` are excluded from the count and the average.\n7. Same as 1, but stations are defined by distinct `observstation` values in `telescopes`, with no join to `observatories`.\n8. Same as 1, but the average bandwidth usage is weighted or computed some other way. For example, it could be total bandwidth divided by total telescope count, so NULL telescopes still count in the denominator.\n9. Same as 1, but ties in the ratio are broken by a secondary key, such as `observstation` ascending or average bandwidth descending. Ties may also be left in arbitrary order, or all tied rows may be included beyond 10.\n10. Same as 1, but the ratio is rounded to a fixed number of decimals, or the average bandwidth is rounded to two decimals, in the output.\n11. Same as 1, but \"ratio\" is read as a percentage, so the count divided by the average is multiplied by 100.\n12. Same as 1, but stations whose names differ only in case or trailing whitespace (`observstation` is `CHAR(60)` in the docs) are treated as the same station. They are grouped together rather than kept as distinct values.",
+  "Missing interpretations:\n\nSame as 1, but the ratio denominator is the median telescope count per station instead of the mean.\nSame as 1, but the denominator is the average telescope count computed only over stations that have at least one telescope with non-NULL `bandusagepct`, while the count shown still includes all telescopes.\nSame as 1, but the ratio is computed with integer division, so the count divided by the average is truncated rather than fractional.\nSame as 1, but the average bandwidth is taken over distinct `bandusagepct` values rather than every telescope's value.\nSame as 1, but the telescope count is the number of distinct `telescregistry` values, with duplicate or NULL registry entries excluded.\nSame as 1, but stations whose average bandwidth is NULL, because all their telescopes have NULL `bandusagepct`, are excluded from the output and possibly from the denominator average."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-938a0f3041",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 323485,
+  "chars_out": 5547
+ }
+}

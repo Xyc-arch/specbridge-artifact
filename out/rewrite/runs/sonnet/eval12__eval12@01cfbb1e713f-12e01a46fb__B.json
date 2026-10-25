@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-12e01a46fb",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Average the wins gained at each individual race (running count minus the previous round's count in the same season) over each country's standings rows.",
+ "c": {
+  "request": "For each country where races are held, look at the average constructor wins per standings entry at its races. Take the countries above the overall average, and then those of them that are also above the average of that above-average group. Give one row with three unrounded figures: the mean of those countries' average wins, the mean of how far they exceed the overall average, and the mean of how far they exceed the above-average group's average. Average the wins gained at each individual race (running count minus the previous round's count in the same season) over each country's standings rows.",
+  "sql": "WITH g AS (SELECT cs.constructorStandingsId, c.country, cs.wins - COALESCE(LAG(cs.wins) OVER (PARTITION BY cs.constructorId, r.year ORDER BY r.round), 0) AS gain FROM constructorStandings cs JOIN races r ON r.raceId = cs.raceId JOIN circuits c ON c.circuitId = r.circuitId), ca AS (SELECT country, AVG(gain) AS avg_g FROM g GROUP BY country), ov AS (SELECT AVG(gain) AS o FROM g), grp AS (SELECT ca.country, ca.avg_g FROM ca, ov WHERE ca.avg_g > ov.o), ga AS (SELECT AVG(avg_g) AS a FROM grp), fin AS (SELECT grp.avg_g FROM grp, ga WHERE grp.avg_g > ga.a) SELECT AVG(fin.avg_g) AS mean_avg, AVG(fin.avg_g - ov.o) AS mean_excess_overall, AVG(fin.avg_g - ga.a) AS mean_excess_group FROM fin, ov, ga",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Link constructor standings to their races and circuits. For each circuit country, compute the average number of wins gained at that race (the running `constructorStandings.wins` minus the constructor's value at its previous round in the same season, or minus 0 if there is no earlier round) across that country's standings rows. Keep the countries whose average is above the mean of all country averages, and note how far each is above it. Among those, keep the countries whose average is also above the mean of the kept countries' averages, and note how far each is above that second mean. Return one row with three unrounded values: the mean of these final countries' average wins, the mean of their excess over the all-country mean, and the mean of their excess over the above-average group's mean.",
+  "sql": "WITH g AS (SELECT c.country AS country, cs.wins - COALESCE(LAG(cs.wins) OVER (PARTITION BY cs.constructorId, r.year ORDER BY r.round), 0) AS gain FROM constructorStandings cs JOIN races r ON r.raceId = cs.raceId JOIN circuits c ON c.circuitId = r.circuitId), ca AS (SELECT country, AVG(gain) AS avg_w FROM g GROUP BY country), m1 AS (SELECT AVG(avg_w) AS m FROM ca), a AS (SELECT ca.country, ca.avg_w, ca.avg_w - m1.m AS ex1 FROM ca, m1 WHERE ca.avg_w > m1.m), m2 AS (SELECT AVG(avg_w) AS m FROM a), f AS (SELECT a.avg_w, a.ex1, a.avg_w - m2.m AS ex2 FROM a, m2 WHERE a.avg_w > m2.m) SELECT AVG(avg_w) AS mean_avg_wins, AVG(ex1) AS mean_excess_over_all_mean, AVG(ex2) AS mean_excess_over_group_mean FROM f",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each country with races, compute the average per-race wins gained per constructorStandings entry (the entry's running wins minus the previous round's running wins for the same constructor in the same season, using the full running wins when there is no previous round). Take the countries whose average is above the overall average across all countries. Of those, keep the countries whose average is also above the mean of that above-average group. Return one row with the mean of the kept countries' averages, the mean of their excess over the overall average, and the mean of their excess over the above-average group's mean, all unrounded",
+  "sql": "WITH e AS (SELECT c.country AS country, cs.wins - COALESCE(LAG(cs.wins) OVER (PARTITION BY cs.constructorId, r.year ORDER BY r.round), 0) AS d FROM constructorStandings cs JOIN races r ON r.raceId = cs.raceId JOIN circuits c ON c.circuitId = r.circuitId), ca AS (SELECT country, AVG(d) AS a FROM e GROUP BY country), o AS (SELECT AVG(a) AS oa FROM ca), g1 AS (SELECT ca.country, ca.a FROM ca, o WHERE ca.a > o.oa), gm AS (SELECT AVG(a) AS ga FROM g1), k AS (SELECT g1.a FROM g1, gm WHERE g1.a > gm.ga) SELECT AVG(k.a) AS mean_avg, AVG(k.a - o.oa) AS mean_excess_over_overall, AVG(k.a - gm.ga) AS mean_excess_over_group FROM k, o, gm",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each country where races are held, compute the average number of constructor wins gained per constructor standings entry at its races, where the wins gained at each individual race is the constructor's running win count minus its running win count at the previous round in the same season. Take the countries whose average is above the overall average, and then those among them that are also above the average of that above-average group. Return one row with three unrounded figures: the mean of those countries' average wins gained, the mean of how far they exceed the overall average, and the mean of how far they exceed the above-average group's average.",
+  "sql": "WITH g AS (SELECT c.country AS country, cs.wins - COALESCE(LAG(cs.wins) OVER (PARTITION BY cs.constructorId, r.year ORDER BY r.round), 0) AS gain FROM constructorStandings cs JOIN races r ON r.raceId = cs.raceId JOIN circuits c ON c.circuitId = r.circuitId), ca AS (SELECT country, AVG(gain * 1.0) AS a FROM g GROUP BY country), o AS (SELECT AVG(a) AS oa FROM ca), grp AS (SELECT ca.country, ca.a FROM ca, o WHERE ca.a > o.oa), gm AS (SELECT AVG(a) AS ga FROM grp), fin AS (SELECT grp.a FROM grp, gm WHERE grp.a > gm.ga) SELECT AVG(fin.a) AS mean_avg_wins_gained, AVG(fin.a - o.oa) AS mean_excess_over_overall, AVG(fin.a - gm.ga) AS mean_excess_over_group FROM fin, o, gm",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

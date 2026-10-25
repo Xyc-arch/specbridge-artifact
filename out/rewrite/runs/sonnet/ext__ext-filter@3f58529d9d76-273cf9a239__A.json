@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-273cf9a239",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "Scans timestamped exactly at either endpoint of the window are included.",
+ "b": {
+  "request": "Among scans whose `chronotag`, compared as text, falls between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' inclusive of both endpoints and that join to a site via `zoneref`, group by site code and `healtheval`, compute each group's average of `gbsize` \u00f7 `spanmin` (skipping missing values) and its scan count, keep groups whose average is strictly above the mean of all group averages (return nothing if that mean can't be computed), and show site code, status, average ratio, scan count and the unrounded amount above the mean, sorted by that amount descending with missing values last, top 10.",
+  "sql": "WITH g AS (SELECT s.zoneref AS site_code, st.healtheval AS status, AVG(CAST(s.gbsize AS REAL) / NULLIF(s.spanmin, 0)) AS avg_ratio, COUNT(*) AS scan_count FROM scans s JOIN sites st ON st.zoneregistry = s.zoneref WHERE CAST(s.chronotag AS TEXT) BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY s.zoneref, st.healtheval), m AS (SELECT AVG(avg_ratio) AS mean_avg FROM g) SELECT g.site_code, g.status, g.avg_ratio, g.scan_count, g.avg_ratio - m.mean_avg AS amount_above_mean FROM g CROSS JOIN m WHERE m.mean_avg IS NOT NULL AND g.avg_ratio > m.mean_avg ORDER BY amount_above_mean DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "Among scans whose `chronotag`, compared as text, falls between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' inclusive of both endpoints and that join to a site via `zoneref`, group by site code and `healtheval`, compute each group's average of `gbsize` \u00f7 `spanmin` (skipping missing values) and its scan count, keep groups whose average is strictly above the mean of all group averages (return nothing if that mean can't be computed), and show site code, status, average ratio, scan count and the unrounded amount above the mean, sorted by that amount descending with missing values last, top 10."
+ },
+ "a": {
+  "request": "For scans linked to a site (scan `zoneref` = site code) with a timestamp (`chronotag`, compared as text) from '2024-06-06 11:53:59.684274' through '2024-11-03 19:51:13.516797', including both endpoints, group by site code and the site's health and safety status (`healtheval`). For each group, work out the average file size per scan minute (`gbsize` \u00f7 `spanmin`, ignoring missing values) and the number of scans. Compare each group's average with the mean of all the group averages (return nothing if that mean can't be computed), and keep only the groups strictly above it. Show the site code, status, average ratio, scan count and the amount by which the group's average exceeds the mean, unrounded. Sort by that amount from largest to smallest (missing values last) and return the top 10.",
+  "sql": "WITH g AS (SELECT s.zoneref AS zoneref, si.healtheval AS healtheval, AVG(s.gbsize / NULLIF(s.spanmin, 0)) AS avg_ratio, COUNT(*) AS scan_count FROM scans s JOIN sites si ON si.zoneregistry = s.zoneref WHERE s.chronotag >= '2024-06-06 11:53:59.684274' AND s.chronotag <= '2024-11-03 19:51:13.516797' GROUP BY s.zoneref, si.healtheval), m AS (SELECT AVG(avg_ratio) AS mean_ratio FROM g) SELECT g.zoneref AS site_code, g.healtheval AS health_status, g.avg_ratio AS average_ratio, g.scan_count AS scan_count, g.avg_ratio - m.mean_ratio AS excess_over_mean FROM g CROSS JOIN m WHERE m.mean_ratio IS NOT NULL AND g.avg_ratio > m.mean_ratio ORDER BY excess_over_mean DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "d": {
+  "request": "Scans with `chronotag` (compared as text) from '2024-06-06 11:53:59.684274' to '2024-11-03 19:51:13.516797', both endpoints included, that join to a site via `zoneref`, grouped by site code and `healtheval`, with each group's average `gbsize`/`spanmin` (missing values skipped) and scan count, keeping only groups whose average is strictly above the mean of all group averages (nothing if that mean can't be computed), showing site code, status, average ratio, scan count and the unrounded excess over the mean, sorted by excess descending with missing values last, top 10.",
+  "sql": "WITH g AS (SELECT s.zoneregistry AS site_code, s.healtheval AS status, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS avg_ratio, COUNT(*) AS scan_count FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE CAST(sc.chronotag AS TEXT) >= '2024-06-06 11:53:59.684274' AND CAST(sc.chronotag AS TEXT) <= '2024-11-03 19:51:13.516797' GROUP BY s.zoneregistry, s.healtheval), m AS (SELECT g.*, AVG(avg_ratio) OVER () AS mean_ratio FROM g) SELECT site_code, status, avg_ratio, scan_count, avg_ratio - mean_ratio AS excess FROM m WHERE mean_ratio IS NOT NULL AND avg_ratio > mean_ratio ORDER BY excess DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Among scans taken between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' (comparing `chronotag` as text) that link to a site via `zoneref`, group by site code and the site's health and safety status (`healtheval`), and get each group's average GB per scan minute (`gbsize` \u00f7 `spanmin`, skipping missing values) and its scan count. Which groups have an average strictly above the mean of all the group averages? Return nothing if that mean can't be computed. Show the site code, status, average ratio, scan count and the amount by which the group beats the mean, unrounded. Sort by that amount from largest to smallest (missing values last) and return the top 10. Scans timestamped exactly at either endpoint of the window are included.",
+  "sql": "WITH g AS (SELECT s.zoneref AS zoneref, si.healtheval AS healtheval, AVG(CASE WHEN s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin <> 0 THEN s.gbsize * 1.0 / s.spanmin END) AS avg_ratio, COUNT(*) AS scan_count FROM scans s JOIN sites si ON s.zoneref = si.zoneregistry WHERE CAST(s.chronotag AS TEXT) >= '2024-06-06 11:53:59.684274' AND CAST(s.chronotag AS TEXT) <= '2024-11-03 19:51:13.516797' GROUP BY s.zoneref, si.healtheval), m AS (SELECT AVG(avg_ratio) AS mean_ratio FROM g) SELECT g.zoneref AS site_code, g.healtheval AS health_status, g.avg_ratio AS avg_ratio, g.scan_count AS scan_count, g.avg_ratio - m.mean_ratio AS diff_from_mean FROM g CROSS JOIN m WHERE m.mean_ratio IS NOT NULL AND g.avg_ratio > m.mean_ratio ORDER BY diff_from_mean DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6
+}

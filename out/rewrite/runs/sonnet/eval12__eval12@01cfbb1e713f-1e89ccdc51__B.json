@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "For race names with above-average total points, the laps figure is the mean laps over all their individual result rows, so race names with more results weigh more.",
+ "a": {
+  "request": "Matching each result to its race by `raceId`, group by race name (`races.name`) and compute each race name's total `points` and average `laps`. Keep race names whose total points are greater than the average of those totals across all race names. Return one row with: the sum of the kept race names' total points; the average laps across all of their individual results that have a laps value, so race names with more results weigh more; and the average amount by which their totals exceed the average total.",
+  "sql": "WITH t AS (SELECT r.name AS name, SUM(res.points) AS tp FROM results res JOIN races r ON res.raceId = r.raceId GROUP BY r.name), avgt AS (SELECT AVG(tp) AS a FROM t), kept AS (SELECT name, tp FROM t WHERE tp > (SELECT a FROM avgt)) SELECT (SELECT SUM(tp) FROM kept) AS total_points, (SELECT AVG(CAST(res.laps AS REAL)) FROM results res JOIN races r ON res.raceId = r.raceId WHERE r.name IN (SELECT name FROM kept) AND res.laps IS NOT NULL) AS avg_laps, (SELECT AVG(tp - (SELECT a FROM avgt)) FROM kept) AS avg_excess",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group results by race name (joining results to races on raceId) and sum results.points per race name; keep the race names whose total exceeds the average of those per-name totals; then return one row with the combined total points of those names, the average of results.laps over all their individual result rows (so names with more results weigh more), and the average of (name total minus the average total) across those names",
+  "sql": "WITH t AS (SELECT r.name AS name, SUM(res.points) AS total FROM results res JOIN races r ON res.raceId = r.raceId GROUP BY r.name), a AS (SELECT AVG(total) AS avg_total FROM t), k AS (SELECT t.name AS name, t.total AS total, a.avg_total AS avg_total FROM t, a WHERE t.total > a.avg_total) SELECT (SELECT SUM(total) FROM k) AS total_points, (SELECT AVG(CAST(res.laps AS REAL)) FROM results res JOIN races r ON res.raceId = r.raceId WHERE r.name IN (SELECT name FROM k)) AS avg_laps, (SELECT AVG(total - avg_total) FROM k) AS avg_diff_from_avg",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Looking at race results by race name (`races.name`, matched to results by `raceId`), which race names have a total of `points` above the average total across race names? For those race names together, give me in one row their combined total points, their average laps completed, and the average amount by which their totals exceed the average total. For race names with above-average total points, the laps figure is the mean laps over all their individual result rows, so race names with more results weigh more.",
+  "sql": "WITH t AS (SELECT r.name AS name, SUM(res.points) AS tp FROM results res JOIN races r ON r.raceId = res.raceId GROUP BY r.name), a AS (SELECT AVG(tp) AS av FROM t), h AS (SELECT name, tp FROM t WHERE tp > (SELECT av FROM a)) SELECT SUM(tp) AS combined_total_points, (SELECT AVG(CAST(res.laps AS REAL)) FROM results res JOIN races r ON r.raceId = res.raceId WHERE r.name IN (SELECT name FROM h)) AS avg_laps, AVG(tp - (SELECT av FROM a)) AS avg_excess_over_average FROM h",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Looking at race results grouped by race name (`races.name`, matched to results by `raceId`), which race names have a total of `points` above the average total across race names? For those race names together, give me in one row their combined total points, their average laps completed, and the average amount by which their totals exceed the average total. Compute the average laps as the mean of `laps` over all individual result rows belonging to those race names, so race names with more results carry more weight.",
+  "sql": "WITH t AS (SELECT r.name AS name, SUM(res.points) AS total FROM results res JOIN races r ON r.raceId = res.raceId GROUP BY r.name), a AS (SELECT AVG(total) AS avg_total FROM t), sel AS (SELECT t.name AS name, t.total AS total, a.avg_total AS avg_total FROM t, a WHERE t.total > a.avg_total) SELECT (SELECT SUM(total) FROM sel) AS combined_total_points, (SELECT AVG(CAST(res.laps AS REAL)) FROM results res JOIN races r ON r.raceId = res.raceId WHERE r.name IN (SELECT name FROM sel)) AS avg_laps, (SELECT AVG(total - avg_total) FROM sel) AS avg_excess_over_average_total",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

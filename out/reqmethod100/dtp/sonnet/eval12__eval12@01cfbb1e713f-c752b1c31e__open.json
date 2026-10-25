@@ -1,0 +1,37 @@
+{
+ "interpretations": [
+  "Inner join telescopes to observatories on observstation. Group by lunarstage, with NULL lunarstage as its own group. Per group, the average of non-null bandusagepct and the count of all telescopes (COUNT(*)). The threshold is the unweighted mean of the group averages, including the missing-phase group. Keep groups with average strictly above the threshold. Return (1) the average of the kept groups' averages, (2) the sum of the kept groups' telescope counts, (3) the average of (group average \u2212 threshold) over the kept groups",
+  "Same as above, but the count per phase is only telescopes with non-null bandusagepct (COUNT(bandusagepct))",
+  "Same as above, but the count per phase is the number of distinct telescregistry values",
+  "Same as above, but the threshold is the overall mean of bandusagepct across all joined telescopes (a telescope-weighted mean) instead of the mean of the phase averages",
+  "Same as above, but the missing-phase group also includes empty-string or placeholder lunarstage values, and not only NULL",
+  "Same as above, but a phase whose bandusagepct values are all NULL has a NULL average. It is excluded from the threshold calculation and can never be kept",
+  "Same as above, but a phase whose bandusagepct values are all NULL is treated as having average 0 and included in the threshold calculation",
+  "Same as above, but \"above the mean\" is read as greater than or equal to the mean",
+  "Same as above, but the third value is the total excess (sum of group average \u2212 threshold) across kept groups, and not the average excess",
+  "Same as above, but the third value is the kept groups' average of the excess measured against the weighted overall mean, while the filter uses the mean of the phase averages",
+  "Same as above, but the second value is a telescope-level count of rows in kept phases after the join, where each telescope is counted once. This is the same as the sum of counts if the join is one-to-one",
+  "Same as above, but the first value is the telescope-weighted average of bandusagepct across all telescopes in kept phases, and not the simple average of the phase averages",
+  "Some interpretations are missing:",
+  "Same as the first interpretation, but the count per phase is the number of distinct observatories (distinct observstation) in that phase, not telescopes",
+  "Same as the first interpretation, but the threshold is computed only over the non-missing phases. The missing-phase group is still its own group and is filtered against that threshold",
+  "Same as the first interpretation, but lunarstage values are normalized (trimmed and case-folded) before grouping, so variants like \"full\" and \"Full \" fall into the same phase"
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT o.lunarstage AS lunarstage,\n         AVG(t.bandusagepct) AS avg_band,\n         COUNT(*) AS cnt\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n  GROUP BY o.lunarstage\n),\nth AS (\n  SELECT AVG(avg_band) AS threshold FROM g\n)\nSELECT AVG(g.avg_band) AS avg_of_kept_averages,\n       SUM(g.cnt) AS total_telescope_count,\n       AVG(g.avg_band - th.threshold) AS avg_diff_from_threshold\nFROM g, th\nWHERE g.avg_band > th.threshold;\n",
+  "SELECT o.lunarstage, COUNT(t.bandusagepct) FROM observatories o JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.lunarstage",
+  "SELECT o.lunarstage, COUNT(DISTINCT t.telescregistry) AS telescope_count\nFROM telescopes t\nJOIN observatories o ON t.observstation = o.observstation\nGROUP BY o.lunarstage;\n",
+  "SELECT o.lunarstage\nFROM telescopes t\nJOIN observatories o ON t.observstation = o.observstation\nGROUP BY o.lunarstage\nHAVING AVG(t.bandusagepct) > (\n  SELECT AVG(t2.bandusagepct)\n  FROM telescopes t2\n  JOIN observatories o2 ON t2.observstation = o2.observstation\n);\n",
+  "SELECT CASE WHEN lunarstage IS NULL OR TRIM(lunarstage) = '' OR LOWER(TRIM(lunarstage)) IN ('n/a', 'na', 'null', 'unknown', 'none', '-', '?') THEN 'Missing' ELSE lunarstage END AS lunar_phase, COUNT(*) AS observatory_count\nFROM observatories\nGROUP BY 1",
+  "WITH phase_avg AS (\n  SELECT o.lunarstage, AVG(t.bandusagepct) AS avg_bandusage\n  FROM observatories o\n  JOIN telescopes t ON t.observstation = o.observstation\n  GROUP BY o.lunarstage\n)\nSELECT lunarstage, avg_bandusage\nFROM phase_avg\nWHERE avg_bandusage IS NOT NULL\n  AND avg_bandusage > (SELECT AVG(avg_bandusage) FROM phase_avg WHERE avg_bandusage IS NOT NULL);\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c752b1c31e",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 323655,
+  "chars_out": 4918
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4eb2b4a71e",
+ "wording": "precise_A",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH grp AS (\n  SELECT CASE WHEN link_to_member IS NULL OR TRIM(link_to_member) = '' THEN NULL ELSE link_to_member END AS g,\n         amount\n  FROM income\n),\nsums AS (\n  SELECT g, SUM(amount) AS s FROM grp GROUP BY g\n),\nshares AS (\n  SELECT s, s * 1.0 / (SELECT SUM(s) FROM sums) AS share FROM sums\n),\navg_share AS (\n  SELECT AVG(share) AS a FROM shares\n),\nkept AS (\n  SELECT s, share FROM shares WHERE share > (SELECT a FROM avg_share)\n)\nSELECT SUM(s) AS total_amount,\n       AVG(share) AS avg_share,\n       AVG(share - (SELECT a FROM avg_share)) AS avg_share_deviation\nFROM kept;",
+  "assumptions": [
+   {
+    "assumption": "A missing link_to_member means SQL NULL or a blank/whitespace-only string; both go into the one 'missing' group.",
+    "unresolved": true
+   },
+   {
+    "assumption": "amount is non-NULL for every income row (SUM skips NULLs if not).",
+    "unresolved": false
+   },
+   {
+    "assumption": "The average of shares (the threshold) is taken over all groups including the missing group, while the output average share and deviation are taken only over the kept groups, as the request's 'their' implies.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Total of all group sums is non-zero, so shares are defined.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Only SQL NULL counts as missing; an empty string is treated as its own separate member group.",
+    "sql": "WITH grp AS (\n  SELECT link_to_member AS g, amount\n  FROM income\n),\nsums AS (\n  SELECT g, SUM(amount) AS s FROM grp GROUP BY g\n),\nshares AS (\n  SELECT s, s * 1.0 / (SELECT SUM(s) FROM sums) AS share FROM sums\n),\navg_share AS (\n  SELECT AVG(share) AS a FROM shares\n),\nkept AS (\n  SELECT s, share FROM shares WHERE share > (SELECT a FROM avg_share)\n)\nSELECT SUM(s) AS total_amount,\n       AVG(share) AS avg_share,\n       AVG(share - (SELECT a FROM avg_share)) AS avg_share_deviation\nFROM kept;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 11.7
+}

@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH per AS (SELECT transref, AVG(anlycount) AS avg_cnt FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_cnt) AS overall_avg FROM per WHERE avg_cnt IS NOT NULL), kept AS (SELECT p.transref, p.avg_cnt, o.overall_avg FROM per p CROSS JOIN overall o WHERE p.avg_cnt > o.overall_avg), kept_avg AS (SELECT AVG(avg_cnt) AS kept_avg FROM kept), ranked AS (SELECT k.transref, k.avg_cnt AS avg_anlycount, k.avg_cnt - k.overall_avg AS diff_from_overall_avg, k.avg_cnt - ka.kept_avg AS diff_from_kept_avg, RANK() OVER (ORDER BY (k.avg_cnt - ka.kept_avg) DESC NULLS LAST) AS rnk FROM kept k CROSS JOIN kept_avg ka) SELECT transref, avg_anlycount, diff_from_overall_avg, diff_from_kept_avg FROM ranked WHERE rnk <= 10 ORDER BY diff_from_kept_avg DESC NULLS LAST",
+  "WITH per AS (SELECT transref, AVG(anlycount) AS avg_cnt FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_cnt) AS overall_avg FROM per WHERE avg_cnt IS NOT NULL), kept AS (SELECT p.transref, p.avg_cnt, o.overall_avg FROM per p CROSS JOIN overall o WHERE p.avg_cnt > o.overall_avg), kept_avg AS (SELECT AVG(avg_cnt) AS k_avg FROM kept) SELECT k.transref, k.avg_cnt AS avg_anlycount, k.avg_cnt - k.overall_avg AS diff_above_overall_avg, k.avg_cnt - ka.k_avg AS diff_above_kept_avg FROM kept k CROSS JOIN kept_avg ka ORDER BY diff_above_kept_avg DESC NULLS LAST FETCH FIRST 10 ROWS WITH TIES",
+  "WITH per AS (SELECT transref, AVG(anlycount) AS avg_cnt FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_cnt) AS overall_avg FROM per), kept AS (SELECT p.transref, p.avg_cnt FROM per p CROSS JOIN overall o WHERE p.avg_cnt > o.overall_avg), kept_avg AS (SELECT AVG(avg_cnt) AS k_avg FROM kept), res AS (SELECT k.transref, k.avg_cnt AS avg_anlycount, k.avg_cnt - o.overall_avg AS diff_above_overall, k.avg_cnt - ka.k_avg AS diff_above_kept_avg FROM kept k CROSS JOIN overall o CROSS JOIN kept_avg ka), ranked AS (SELECT res.*, RANK() OVER (ORDER BY diff_above_kept_avg DESC NULLS LAST) AS rnk FROM res) SELECT transref, avg_anlycount, diff_above_overall, diff_above_kept_avg FROM ranked WHERE rnk <= 10 ORDER BY diff_above_kept_avg DESC NULLS LAST"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per AS (SELECT transref, AVG(anlycount) AS avg_cnt FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_cnt) AS overall_avg FROM per WHERE avg_cnt IS NOT NULL), kept AS (SELECT p.transref, p.avg_cnt, o.overall_avg FROM per p CROSS JOIN overall o WHERE p.avg_cnt > o.overall_avg), kept_avg AS (SELECT AVG(avg_cnt) AS kept_avg FROM kept), ranked AS (SELECT k.transref, k.avg_cnt AS avg_anlycount, k.avg_cnt - k.overall_avg AS diff_from_overall_avg, k.avg_cnt - ka.kept_avg AS diff_from_kept_avg, RANK() OVER (ORDER BY (k.avg_cnt - ka.kept_avg) DESC NULLS LAST) AS rnk FROM kept k CROSS JOIN kept_avg ka) SELECT transref, avg_anlycount, diff_from_overall_avg, diff_from_kept_avg FROM ranked WHERE rnk <= 10 ORDER BY diff_from_kept_avg DESC NULLS LAST",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the mean of per-transaction averages, excluding transactions whose anlycount is entirely NULL (their average is NULL). Transactions with no non-null anlycount are therefore not kept.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How far above' is a simple difference (transaction average minus the reference average), unrounded. Ties at the 10th place are included via RANK().",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per AS (SELECT transref, AVG(anlycount) AS avg_cnt FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_cnt) AS overall_avg FROM per WHERE avg_cnt IS NOT NULL), kept AS (SELECT p.transref, p.avg_cnt, o.overall_avg FROM per p CROSS JOIN overall o WHERE p.avg_cnt > o.overall_avg), kept_avg AS (SELECT AVG(avg_cnt) AS k_avg FROM kept) SELECT k.transref, k.avg_cnt AS avg_anlycount, k.avg_cnt - k.overall_avg AS diff_above_overall_avg, k.avg_cnt - ka.k_avg AS diff_above_kept_avg FROM kept k CROSS JOIN kept_avg ka ORDER BY diff_above_kept_avg DESC NULLS LAST FETCH FIRST 10 ROWS WITH TIES",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the mean of per-transaction averages, excluding transactions whose average is NULL (all anlycount values missing). Kept transactions are those with a per-transaction average strictly above it.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties with the 10th row are included via FETCH FIRST 10 ROWS WITH TIES (PostgreSQL 13+ syntax), ordering by the difference from the kept-group average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per AS (SELECT transref, AVG(anlycount) AS avg_cnt FROM sentimentandfundamentals GROUP BY transref), overall AS (SELECT AVG(avg_cnt) AS overall_avg FROM per), kept AS (SELECT p.transref, p.avg_cnt FROM per p CROSS JOIN overall o WHERE p.avg_cnt > o.overall_avg), kept_avg AS (SELECT AVG(avg_cnt) AS k_avg FROM kept), res AS (SELECT k.transref, k.avg_cnt AS avg_anlycount, k.avg_cnt - o.overall_avg AS diff_above_overall, k.avg_cnt - ka.k_avg AS diff_above_kept_avg FROM kept k CROSS JOIN overall o CROSS JOIN kept_avg ka), ranked AS (SELECT res.*, RANK() OVER (ORDER BY diff_above_kept_avg DESC NULLS LAST) AS rnk FROM res) SELECT transref, avg_anlycount, diff_above_overall, diff_above_kept_avg FROM ranked WHERE rnk <= 10 ORDER BY diff_above_kept_avg DESC NULLS LAST",
+   "assumptions": [
+    {
+     "assumption": "The overall average is the unweighted mean of the per-transaction averages. Transactions whose anlycount is all NULL have a NULL average. AVG ignores them, and they are not kept.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'top 10 plus ties' rule is implemented with RANK() <= 10 on the difference from the kept-group average. This is the same ordering as the average itself.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c078054b47",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52878,
+  "chars_out": 3626
+ }
+}

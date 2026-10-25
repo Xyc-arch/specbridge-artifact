@@ -1,0 +1,38 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH account_counts AS (SELECT a.account_id, c.town_city, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a JOIN Customers AS c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL AND TRIM(c.town_city) <> '' GROUP BY a.account_id, c.town_city), totals AS (SELECT account_id, town_city, transaction_count, SUM(transaction_count) OVER (PARTITION BY town_city) AS town_transaction_count, AVG(transaction_count) OVER () AS average_transaction_count FROM account_counts) SELECT account_id, town_city, transaction_count, transaction_count * 1.0 / NULLIF(town_transaction_count, 0) AS town_transaction_share, transaction_count * 1.0 / NULLIF(average_transaction_count, 0) AS ratio_to_average FROM totals ORDER BY ratio_to_average DESC, transaction_count DESC, account_id LIMIT 10",
+  "assumptions": [
+   {
+    "assumption": "The average includes every account with a recorded holder and town, including accounts with zero transactions. A share or ratio with a zero denominator is NULL.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Compute the average across all accounts, including those excluded from the displayed results because their holder or town is missing.",
+    "sql": "WITH all_account_counts AS (SELECT a.account_id, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id GROUP BY a.account_id), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM all_account_counts AS ac JOIN Accounts AS a ON a.account_id = ac.account_id JOIN Customers AS c ON c.customer_id = a.customer_id WHERE c.town_city IS NOT NULL AND TRIM(c.town_city) <> ''), town_totals AS (SELECT town_city, SUM(transaction_count) AS town_transaction_count FROM eligible GROUP BY town_city), overall_average AS (SELECT AVG(transaction_count) AS average_transaction_count FROM all_account_counts) SELECT e.account_id, e.town_city, e.transaction_count, e.transaction_count * 1.0 / NULLIF(t.town_transaction_count, 0) AS town_transaction_share, e.transaction_count * 1.0 / NULLIF(o.average_transaction_count, 0) AS ratio_to_average FROM eligible AS e JOIN town_totals AS t ON t.town_city = e.town_city CROSS JOIN overall_average AS o ORDER BY ratio_to_average DESC, e.transaction_count DESC, e.account_id LIMIT 10"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "Compute the average across all accounts, including those excluded from the displayed results because their holder or town is missing.",
+   "sql": "WITH all_account_counts AS (SELECT a.account_id, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id GROUP BY a.account_id), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM all_account_counts AS ac JOIN Accounts AS a ON a.account_id = ac.account_id JOIN Customers AS c ON c.customer_id = a.customer_id WHERE c.town_city IS NOT NULL AND TRIM(c.town_city) <> ''), town_totals AS (SELECT town_city, SUM(transaction_count) AS town_transaction_count FROM eligible GROUP BY town_city), overall_average AS (SELECT AVG(transaction_count) AS average_transaction_count FROM all_account_counts) SELECT e.account_id, e.town_city, e.transaction_count, e.transaction_count * 1.0 / NULLIF(t.town_transaction_count, 0) AS town_transaction_share, e.transaction_count * 1.0 / NULLIF(o.average_transaction_count, 0) AS ratio_to_average FROM eligible AS e JOIN town_totals AS t ON t.town_city = e.town_city CROSS JOIN overall_average AS o ORDER BY ratio_to_average DESC, e.transaction_count DESC, e.account_id LIMIT 10",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 41.3,
+ "chars_out": 2451
+}

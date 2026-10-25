@@ -1,0 +1,46 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b4231a9afb",
+ "wording": "open",
+ "model": "sonnet",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_quantity, (SUM(derived_product_cost) - SUM(derived_total_cost)) * 1.0 / NULLIF(SUM(derived_total_cost), 0) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_quantity) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_quantity, p.relative_gap, p.avg_quantity - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_quantity > o.overall_avg ORDER BY (p.avg_quantity - o.overall_avg) IS NULL, diff_above_overall_avg DESC LIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "product_quantity is stored as text but holds numeric values, so it is cast to a number before averaging.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The overall average is the average of the per-invoice average quantities (each invoice weighted equally), not the average over all line items.",
+    "unresolved": false
+   },
+   {
+    "assumption": "An invoice's relative gap is computed from its summed costs: (SUM(derived_product_cost) - SUM(derived_total_cost)) / SUM(derived_total_cost). The request does not say whether to aggregate first or average per-line ratios.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The relative gap is the average of the per-line-item ratios (derived_product_cost - derived_total_cost) / derived_total_cost within each invoice, rather than a ratio of sums.",
+    "sql": "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_quantity, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_quantity) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_quantity, p.relative_gap, p.avg_quantity - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_quantity > o.overall_avg ORDER BY (p.avg_quantity - o.overall_avg) IS NULL, diff_above_overall_avg DESC LIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "The relative gap is the average of the per-line-item ratios (derived_product_cost - derived_total_cost) / derived_total_cost within each invoice, rather than a ratio of sums.",
+   "sql": "WITH per_invoice AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_quantity, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS relative_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(avg_quantity) AS overall_avg FROM per_invoice) SELECT p.invoice_number, p.avg_quantity, p.relative_gap, p.avg_quantity - o.overall_avg AS diff_above_overall_avg FROM per_invoice p CROSS JOIN overall o WHERE p.avg_quantity > o.overall_avg ORDER BY (p.avg_quantity - o.overall_avg) IS NULL, diff_above_overall_avg DESC LIMIT 10;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 10.1,
+ "chars_out": 2114
+}

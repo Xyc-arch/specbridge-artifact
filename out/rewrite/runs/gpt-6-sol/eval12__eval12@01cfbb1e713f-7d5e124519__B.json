@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "The time-in-force benchmark averages fill quantity directly over all execution records in that time in force.",
+ "a": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; drop unmatched executions) and work out each order's average filled quantity (`fillcount`, ignoring missing values) along with its time in force (`timespan`). For each time in force, take the average `fillcount` over all of its execution records, with each execution weighted equally. Keep orders whose average fill is strictly above that figure. For each, show `ordersmark`, `timespan`, the order's average fill, how far it exceeds the time-in-force figure, and its rank within its time in force by average fill (highest first, missing last, tied orders share a rank and the next rank skips). Return only orders ranked 3 or better. No rounding.",
+  "sql": "WITH matched_executions AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault), order_averages AS (SELECT ordersmark, timespan, AVG(fillcount) AS average_fill FROM matched_executions GROUP BY ordersmark, timespan), time_in_force_averages AS (SELECT timespan, AVG(fillcount) AS time_in_force_average FROM matched_executions GROUP BY timespan), ranked_orders AS (SELECT oa.ordersmark, oa.timespan, oa.average_fill, oa.average_fill - ta.time_in_force_average AS amount_above_average, RANK() OVER (PARTITION BY oa.timespan ORDER BY oa.average_fill DESC NULLS LAST) AS fill_rank, ta.time_in_force_average FROM order_averages AS oa JOIN time_in_force_averages AS ta ON oa.timespan IS NOT DISTINCT FROM ta.timespan) SELECT ordersmark, timespan, average_fill, amount_above_average, fill_rank FROM ranked_orders WHERE average_fill > time_in_force_average AND fill_rank <= 3",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Join executions to orders on `ordersmark = recordvault`, excluding unmatched executions; average non-null `fillcount` per order, and separately average non-null `fillcount` across all execution records for each `timespan`. Rank orders within each `timespan` by their average fill descending, with nulls last and gaps after ties. Return only orders with rank \u2264 3 and an average fill strictly above their time-in-force execution-level average, showing `ordersmark`, `timespan`, the order average, the unrounded difference, and the rank",
+  "sql": "WITH matched_executions AS (SELECT o.orderspivot, e.ordersmark, o.timespan, e.fillcount FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault), order_averages AS (SELECT orderspivot, ordersmark, timespan, AVG(fillcount) AS order_average FROM matched_executions GROUP BY orderspivot, ordersmark, timespan), timespan_averages AS (SELECT timespan, AVG(fillcount) AS execution_average FROM matched_executions GROUP BY timespan), ranked_orders AS (SELECT oa.ordersmark, oa.timespan, oa.order_average, ta.execution_average, RANK() OVER (PARTITION BY oa.timespan ORDER BY oa.order_average DESC NULLS LAST) AS order_rank FROM order_averages AS oa JOIN timespan_averages AS ta ON oa.timespan IS NOT DISTINCT FROM ta.timespan) SELECT ordersmark, timespan, order_average, order_average - execution_average AS difference, order_rank FROM ranked_orders WHERE order_rank <= 3 AND order_average > execution_average;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; skip unmatched executions) and get each order's average filled quantity (`fillcount`, ignoring missing values) and its time in force (`timespan`). Which orders have an average fill strictly above their time in force's average fill? For each, show `ordersmark`, `timespan`, the order's average fill, how far above the time-in-force average it is, and its rank within its time in force by average fill (highest first, missing last, ties share a rank and the next rank skips). Keep only orders ranked 3 or better. No rounding. The time-in-force benchmark averages fill quantity directly over all execution records in that time in force.",
+  "sql": "WITH matched AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault), order_averages AS (SELECT ordersmark, timespan, AVG(fillcount) AS average_fill FROM matched GROUP BY ordersmark, timespan), time_in_force_averages AS (SELECT timespan, AVG(fillcount) AS benchmark_fill FROM matched GROUP BY timespan), ranked AS (SELECT oa.ordersmark, oa.timespan, oa.average_fill, ta.benchmark_fill, RANK() OVER (PARTITION BY oa.timespan ORDER BY oa.average_fill DESC NULLS LAST) AS fill_rank FROM order_averages AS oa JOIN time_in_force_averages AS ta ON oa.timespan IS NOT DISTINCT FROM ta.timespan) SELECT ordersmark, timespan, average_fill, average_fill - benchmark_fill AS above_time_in_force_average, fill_rank FROM ranked WHERE average_fill > benchmark_fill AND fill_rank <= 3",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match executions to orders using `orderexecutions.ordersmark = orders.recordvault`, skipping unmatched executions. For each order, calculate its average `fillcount` over non-missing values. For each `timespan`, calculate the benchmark by averaging non-missing `fillcount` directly across all matched execution records in that time in force, rather than averaging the orders\u2019 averages. Which orders have an average fill strictly above that benchmark? Show `ordersmark`, `timespan`, the order\u2019s average fill, the amount above the benchmark, and its rank within its time in force by average fill (highest first, missing last; ties share a rank and the next rank skips). Keep only orders ranked 3 or better. Do not round.",
+  "sql": "WITH matched AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions AS e JOIN orders AS o ON e.ordersmark = o.recordvault), benchmarks AS (SELECT timespan, AVG(fillcount) AS benchmark_fill FROM matched GROUP BY timespan), order_averages AS (SELECT ordersmark, timespan, AVG(fillcount) AS average_fill FROM matched GROUP BY ordersmark, timespan), ranked AS (SELECT a.ordersmark, a.timespan, a.average_fill, b.benchmark_fill, RANK() OVER (PARTITION BY a.timespan ORDER BY a.average_fill DESC NULLS LAST) AS fill_rank FROM order_averages AS a JOIN benchmarks AS b ON a.timespan IS NOT DISTINCT FROM b.timespan) SELECT ordersmark, timespan, average_fill, average_fill - benchmark_fill AS amount_above_benchmark, fill_rank FROM ranked WHERE average_fill > benchmark_fill AND fill_rank <= 3",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

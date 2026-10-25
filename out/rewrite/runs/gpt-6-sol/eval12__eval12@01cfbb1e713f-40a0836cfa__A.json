@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-40a0836cfa",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Group examinations by patient ID, with the examinations lacking an ID forming one group that counts toward the total and the average share; list up to 10 above-average groups by excess share.",
+ "b": {
+  "request": "Group examination records by patient ID, treating all NULL IDs as one group included in the total and average share; return up to 10 groups whose share exceeds the average, showing ID, examination count, unrounded share of all examinations, and unrounded excess over the average share, ordered by excess descending",
+  "sql": "WITH grouped AS (SELECT ID, COUNT(*) AS examination_count FROM Examination GROUP BY ID), totals AS (SELECT SUM(examination_count) AS total_examinations, COUNT(*) AS group_count FROM grouped) SELECT g.ID, g.examination_count, g.examination_count * 1.0 / t.total_examinations AS share, g.examination_count * 1.0 / t.total_examinations - 1.0 / t.group_count AS excess_over_average FROM grouped AS g CROSS JOIN totals AS t WHERE g.examination_count * 1.0 / t.total_examinations > 1.0 / t.group_count ORDER BY excess_over_average DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Group the examination records by patient `ID`, with examinations that have no patient ID forming one group of their own. For each group, count its examinations and work out that count as a fraction of the total over all groups. For the groups whose fraction is above the average fraction across groups, list the ID, the number of examinations, the fraction, and how much the fraction exceeds the average, sorted by that excess from largest to smallest, top 10 only, unrounded.",
+  "sql": "WITH grouped AS (SELECT ID, COUNT(*) AS examination_count FROM Examination GROUP BY ID), stats AS (SELECT SUM(examination_count) AS total_examinations, COUNT(*) AS group_count FROM grouped) SELECT g.ID, g.examination_count, 1.0 * g.examination_count / s.total_examinations AS fraction, 1.0 * g.examination_count / s.total_examinations - 1.0 / s.group_count AS excess FROM grouped AS g CROSS JOIN stats AS s WHERE 1.0 * g.examination_count / s.total_examinations > 1.0 / s.group_count ORDER BY excess DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Break the examination records down by patient ID. Which IDs have an above-average share of the examinations? Show the ID, its number of examinations, its share of the total, and how far above the average share it is, listing the top 10 by that margin from largest to smallest, unrounded. Group examinations by patient ID, with the examinations lacking an ID forming one group that counts toward the total and the average share; list up to 10 above-average groups by excess share.",
+  "sql": "WITH exam_counts AS (SELECT ID, COUNT(*) AS examination_count FROM Examination GROUP BY ID), shares AS (SELECT ID, examination_count, 1.0 * examination_count / SUM(examination_count) OVER () AS share_of_total, 1.0 / COUNT(*) OVER () AS average_share FROM exam_counts) SELECT ID, examination_count, share_of_total, share_of_total - average_share AS excess_share FROM shares WHERE share_of_total > average_share ORDER BY excess_share DESC, ID LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Group examination records by patient ID, treating records with no patient ID as one group. Include that group when calculating the total examinations and the average share across groups. Which groups have an above-average share? Show each group\u2019s patient ID (or indicate missing ID), examination count, share of the total, and excess over the average share. List up to 10 groups in descending order of excess share, using unrounded values.",
+  "sql": "WITH group_counts AS (SELECT ID, COUNT(*) AS examination_count FROM Examination GROUP BY ID), shares AS (SELECT ID, examination_count, examination_count * 1.0 / SUM(examination_count) OVER () AS share_of_total, 1.0 / COUNT(*) OVER () AS average_share FROM group_counts) SELECT CASE WHEN ID IS NULL THEN 'Missing ID' ELSE CAST(ID AS TEXT) END AS patient_id, examination_count, share_of_total, share_of_total - average_share AS excess_share FROM shares WHERE share_of_total > average_share ORDER BY excess_share DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ }
+}

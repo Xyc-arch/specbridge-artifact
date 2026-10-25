@@ -1,0 +1,23 @@
+{
+ "interpretations": [
+  "For each funding source represented by matched spatial records, count all its spatial records and average the nonmissing `boxy / boxz` ratios. Keep sources whose count exceeds the average count across those sources. Return the unweighted average of the kept source averages, the sum of their counts, and their average count excess",
+  "Use the same calculation, but average the ratios of all spatial records in the kept sources together, weighting sources by their number of nonmissing ratios",
+  "Count only spatial records with nonmissing `boxy` and `boxz` when calculating each source\u2019s count, the cross-source average count, and the count excess",
+  "Include every funding source in `projects` when calculating the cross-source average count, assigning zero to sources with no matched spatial records; calculate the returned values from sources that pass the count threshold",
+  "Use the same source grouping and record counts as the first interpretation, but exclude records with `boxz = 0` from the ratio averages as well as records with missing ratio inputs",
+  "For each funding source, calculate the ratio of its average nonmissing `boxy` to its average nonmissing `boxz`, then apply the first interpretation\u2019s count threshold and final aggregation"
+ ],
+ "queries": [
+  "WITH source_stats AS (\n  SELECT p.fundflux,\n         COUNT(*) AS record_count,\n         AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio\n  FROM scanspatial AS s\n  JOIN projects AS p ON p.arcregistry = s.arcref\n  GROUP BY p.fundflux\n),\ncount_average AS (\n  SELECT AVG(record_count) AS avg_count\n  FROM source_stats\n)\nSELECT AVG(ss.avg_ratio) AS avg_source_ratio,\n       SUM(ss.record_count) AS total_records,\n       AVG(ss.record_count - ca.avg_count) AS avg_count_excess\nFROM source_stats AS ss\nCROSS JOIN count_average AS ca\nWHERE ss.record_count > ca.avg_count",
+  "WITH source_counts AS (\n  SELECT\n    p.fundflux AS funding_source,\n    COUNT(s.domainregistry) AS spatial_record_count\n  FROM projects AS p\n  LEFT JOIN scanspatial AS s\n    ON s.arcref = p.arcregistry\n   AND s.boxy IS NOT NULL\n   AND s.boxz IS NOT NULL\n  GROUP BY p.fundflux\n)\nSELECT\n  funding_source,\n  spatial_record_count,\n  AVG(spatial_record_count) OVER () AS average_count,\n  spatial_record_count - AVG(spatial_record_count) OVER () AS count_excess\nFROM source_counts;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e14588a994",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 326860,
+  "chars_out": 2814
+ }
+}

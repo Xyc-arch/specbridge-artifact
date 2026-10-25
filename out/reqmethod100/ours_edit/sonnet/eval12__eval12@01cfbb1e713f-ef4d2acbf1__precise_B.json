@@ -1,0 +1,23 @@
+{
+ "clauses": [
+  "Define the overall average ratio as the mean of the per-patient ratios, and likewise the kept group's average as the mean of its patients' ratios.",
+  "Define the overall average ratio as total average HGB over total average HCT, pooled across all lab rows, and likewise for the kept group."
+ ],
+ "readings": [
+  "For each patient in the laboratory data, take their average hemoglobin (`HGB`) divided by their average hematocrit (`HCT`), each average ignoring missing values. Keep the patients whose ratio is above the average ratio across all patients, noting how far above it they are. Then, among those, keep the ones whose ratio is also above the average ratio of that kept group, noting how far above this second average they are. Give a single row with the averages, over these final patients, of the ratio, the amount above the overall average, and the amount above the second average, unrounded. Define the overall average ratio as the mean of the per-patient ratios, and likewise the kept group's average as the mean of its patients' ratios.",
+  "For each patient in the laboratory data, take their average hemoglobin (`HGB`) divided by their average hematocrit (`HCT`), each average ignoring missing values. Keep the patients whose ratio is above the average ratio across all patients, noting how far above it they are. Then, among those, keep the ones whose ratio is also above the average ratio of that kept group, noting how far above this second average they are. Give a single row with the averages, over these final patients, of the ratio, the amount above the overall average, and the amount above the second average, unrounded. Define the overall average ratio as total average HGB over total average HCT, pooled across all lab rows, and likewise for the kept group."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT ID, AVG(HGB) * 1.0 / AVG(HCT) AS ratio\n  FROM Laboratory\n  GROUP BY ID\n  HAVING AVG(HGB) IS NOT NULL AND AVG(HCT) IS NOT NULL AND AVG(HCT) <> 0\n),\na AS (\n  SELECT r.ID, r.ratio, r.ratio - (SELECT AVG(ratio) FROM r) AS above1\n  FROM r\n  WHERE r.ratio > (SELECT AVG(ratio) FROM r)\n),\nb AS (\n  SELECT a.ID, a.ratio, a.above1, a.ratio - (SELECT AVG(ratio) FROM a) AS above2\n  FROM a\n  WHERE a.ratio > (SELECT AVG(ratio) FROM a)\n)\nSELECT AVG(ratio) AS avg_ratio, AVG(above1) AS avg_above_overall, AVG(above2) AS avg_above_second\nFROM b;\n",
+  "WITH p AS (\n  SELECT ID, AVG(HGB) AS h, AVG(HCT) AS c, AVG(HGB)/AVG(HCT) AS r\n  FROM Laboratory\n  GROUP BY ID\n  HAVING AVG(HGB) IS NOT NULL AND AVG(HCT) IS NOT NULL AND AVG(HCT) <> 0\n),\no AS (\n  SELECT AVG(HGB)/AVG(HCT) AS R FROM Laboratory\n),\nk AS (\n  SELECT p.ID, p.r, p.r - o.R AS d1\n  FROM p, o\n  WHERE p.r > o.R\n),\nk2 AS (\n  SELECT (SELECT AVG(HGB) FROM Laboratory WHERE ID IN (SELECT ID FROM k)) /\n         (SELECT AVG(HCT) FROM Laboratory WHERE ID IN (SELECT ID FROM k)) AS R2\n),\nf AS (\n  SELECT k.r, k.d1, k.r - k2.R2 AS d2\n  FROM k, k2\n  WHERE k.r > k2.R2\n)\nSELECT AVG(r) AS avg_ratio, AVG(d1) AS avg_above_overall, AVG(d2) AS avg_above_second\nFROM f;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ef4d2acbf1",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 3,
+  "chars_in": 26045,
+  "chars_out": 1539
+ }
+}

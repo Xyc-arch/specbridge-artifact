@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-e14588a994",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The size of each funding source is measured by how many spatial records it has.",
+ "b": {
+  "request": "Group spatial records by funding source, treating NULL as its own group; for each group, calculate the average non-NULL `boxy / boxz` ratio and record count. Keep groups whose count exceeds the average count across funding source groups, then return one row with the average of those groups\u2019 ratio averages, their combined record count, and the average amount by which their counts exceed the average group count, without rounding",
+  "sql": "WITH funding_group_stats AS (\n  SELECT\n    p.fundflux,\n    AVG(ss.boxy / NULLIF(ss.boxz, 0)) AS avg_ratio,\n    COUNT(*) AS record_count\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  GROUP BY p.fundflux\n),\naverage_group_count AS (\n  SELECT AVG(record_count) AS avg_count\n  FROM funding_group_stats\n),\nabove_average_groups AS (\n  SELECT fgs.avg_ratio, fgs.record_count, agc.avg_count\n  FROM funding_group_stats AS fgs\n  CROSS JOIN average_group_count AS agc\n  WHERE fgs.record_count > agc.avg_count\n)\nSELECT\n  AVG(avg_ratio) AS average_of_group_ratio_averages,\n  SUM(record_count) AS combined_record_count,\n  AVG(record_count - avg_count) AS average_excess_count\nFROM above_average_groups;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Using spatial records (`scanspatial`) matched to a project (`projects.arcregistry` = `scanspatial.arcref`), for each funding source (`projects.fundflux`, treating a missing source as its own group) compute the average ratio of bounding box Y (`boxy`) to bounding box Z (`boxz`), ignoring missing values, and the number of spatial records. Keep the funding sources whose number of spatial records is above the average of that number across all funding sources. Return one row with: the average of the kept sources' ratios; the total of their spatial record counts; and the average amount by which their counts exceed the cross-source average. No rounding.",
+  "sql": "WITH source_stats AS (\n  SELECT\n    p.fundflux,\n    AVG(ss.boxy / NULLIF(ss.boxz, 0)) AS avg_ratio,\n    COUNT(*) AS record_count\n  FROM projects AS p\n  JOIN scanspatial AS ss ON ss.arcref = p.arcregistry\n  GROUP BY p.fundflux\n),\nthreshold AS (\n  SELECT AVG(record_count) AS avg_count\n  FROM source_stats\n),\nkept AS (\n  SELECT s.avg_ratio, s.record_count, t.avg_count\n  FROM source_stats AS s\n  CROSS JOIN threshold AS t\n  WHERE s.record_count > t.avg_count\n)\nSELECT\n  AVG(avg_ratio) AS average_ratio,\n  SUM(record_count) AS total_spatial_records,\n  AVG(record_count - avg_count) AS average_excess_count\nFROM kept;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Looking at spatial scan data (`scanspatial`) linked to projects (`projects.arcregistry` = `scanspatial.arcref`), which funding sources (`projects.fundflux`, treating a missing source as its own group) are bigger than average? For each funding source, work out the average ratio of bounding box Y (`boxy`) to bounding box Z (`boxz`), ignoring missing values, and how big it is. For the sources above the average size across funding sources, give one row with the average of their ratios, their combined size, and how far on average they exceed the average size. No rounding. The size of each funding source is measured by how many spatial records it has.",
+  "sql": "WITH funding_stats AS (\n  SELECT p.fundflux,\n         AVG(ss.boxy / NULLIF(ss.boxz, 0)) AS avg_ratio,\n         COUNT(*) AS source_size\n  FROM projects AS p\n  JOIN scanspatial AS ss ON ss.arcref = p.arcregistry\n  GROUP BY p.fundflux\n),\nwith_average AS (\n  SELECT funding_stats.*,\n         AVG(source_size) OVER () AS average_size\n  FROM funding_stats\n)\nSELECT AVG(avg_ratio) AS avg_ratio,\n       SUM(source_size) AS combined_size,\n       AVG(source_size - average_size) AS avg_excess_size\nFROM with_average\nWHERE source_size > average_size;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each funding source, including missing funding sources as their own group, count its linked spatial records and calculate the average `boxy`/`boxz` ratio, ignoring missing values. Which funding sources have a record count above the average count across all funding sources? For those sources, return one row with the average of their ratios, their combined record count, and their average excess over the average funding source record count. Do not round the results.",
+  "sql": "WITH source_stats AS (\n  SELECT\n    p.fundflux,\n    COUNT(ss.domainregistry) AS record_count,\n    AVG(ss.boxy / NULLIF(ss.boxz, 0)) AS avg_ratio\n  FROM projects AS p\n  LEFT JOIN scanspatial AS ss\n    ON ss.arcref = p.arcregistry\n  GROUP BY p.fundflux\n),\nqualified_sources AS (\n  SELECT *\n  FROM source_stats\n  WHERE record_count > (SELECT AVG(record_count) FROM source_stats)\n)\nSELECT\n  AVG(avg_ratio) AS average_ratio,\n  SUM(record_count) AS combined_record_count,\n  AVG(record_count - (SELECT AVG(record_count) FROM source_stats)) AS average_excess_record_count\nFROM qualified_sources;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

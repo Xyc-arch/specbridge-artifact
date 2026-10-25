@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Count rows of advancedbehavior joined to transactionrecord (inner join on translink = transreg), grouped by ordertypedist with NULL as its own group. Share is each group's count divided by the total joined rows. The average is the plain mean of the group shares (1 divided by the number of groups, including the NULL group). List the groups whose share is above that mean, with the difference between share and mean.",
+  "Same as 1, but the average share is the plain mean of group shares computed over only the non-missing mixes (Market, Mixed, Limit). The missing group is still shown and compared if it is above that average.",
+  "Same as 1, but the total used for share is only the non-missing mixes. The missing group is excluded from the denominator and from the output.",
+  "Same as 1, but a \"count\" means the number of distinct advancedbehavior records (distinct abhvreg) per mix, not joined rows.",
+  "Same as 1, but a \"count\" means the number of distinct transactions (distinct transreg) per mix, not advancedbehavior rows.",
+  "Same as 1, but the join is a left join from advancedbehavior. Records with no matching transaction would fall into the missing group.",
+  "Same as 1, but the join starts from transactionrecord and counts only transactions that have at least one advancedbehavior record. Counts are per transaction.",
+  "\"Share\" is a fraction between 0 and 1, and \"how far above the average\" is the difference in fractions.",
+  "\"Share\" is a percentage between 0 and 100, and \"how far above the average\" is the difference in percentage points.",
+  "\"How far above the average\" is a relative measure, (share \u2212 average) / average, instead of an absolute difference.",
+  "\"Missing mix\" means NULL ordertypedist only.",
+  "\"Missing mix\" means NULL or an empty string in ordertypedist, grouped together as one group.",
+  "\"Above-average\" is strictly greater than the average share. Groups exactly equal to the average are excluded.",
+  "\"Above-average\" is greater than or equal to the average share. Groups exactly equal to the average are included.",
+  "The results are ordered by share descending.",
+  "The results are ordered by the mix name alphabetically.",
+  "The average share is the plain mean of group shares, and the group count includes only groups that have at least one row. Mixes with zero rows are not counted.",
+  "The average share is the plain mean of group shares across all possible enum values (Market, Mixed, Limit) plus the missing group, so mixes with zero rows count as zero share.",
+  "The existing list is nearly complete, but these interpretations are missing:",
+  "\"How far above the average\" is a ratio, share \u00f7 average, instead of a difference or a relative difference.",
+  "\"Missing mix\" means NULL, an empty string, or whitespace-only values, grouped together as one group.",
+  "The total for share is all advancedbehavior rows, including any with no matching transaction. Only mixes from matched transactions are grouped and listed."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT t.ordertypedist AS ordertypedist, COUNT(*) AS cnt\n  FROM advancedbehavior a\n  JOIN transactionrecord t ON a.translink = t.transreg\n  GROUP BY t.ordertypedist\n),\ns AS (\n  SELECT ordertypedist,\n         cnt * 1.0 / (SELECT SUM(cnt) FROM g) AS share,\n         1.0 / (SELECT COUNT(*) FROM g) AS mean_share\n  FROM g\n)\nSELECT ordertypedist, share, share - mean_share AS diff\nFROM s\nWHERE share > mean_share;\n",
+  "WITH g AS (\n  SELECT ordertypedist, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM transactionrecord) AS share\n  FROM transactionrecord\n  GROUP BY ordertypedist\n)\nSELECT ordertypedist, share\nFROM g\nWHERE share > (SELECT AVG(share) FROM g WHERE ordertypedist IN ('Market', 'Mixed', 'Limit'));\n",
+  "SELECT ordertypedist,\n       COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share\nFROM transactionrecord\nWHERE ordertypedist IS NOT NULL\nGROUP BY ordertypedist;\n",
+  "SELECT t.ordertypedist, COUNT(DISTINCT a.abhvreg) AS cnt\nFROM advancedbehavior a\nJOIN transactionrecord t ON a.translink = t.transreg\nGROUP BY t.ordertypedist;\n",
+  "SELECT COALESCE(t.ordertimepat, 'Missing') AS ordertimepat, COUNT(*) AS record_count\nFROM advancedbehavior a\nLEFT JOIN transactionrecord t ON a.translink = t.transreg\nGROUP BY COALESCE(t.ordertimepat, 'Missing');\n"
+ ],
+ "raw": [
+  "1. Count rows of advancedbehavior joined to transactionrecord (inner join on translink = transreg), grouped by ordertypedist with NULL as its own group. Share is each group's count divided by the total joined rows. The average is the plain mean of the group shares (1 divided by the number of groups, including the NULL group). List the groups whose share is above that mean, with the difference between share and mean.\n\n2. Same as 1, but the average share is the plain mean of group shares computed over only the non-missing mixes (Market, Mixed, Limit). The missing group is still shown and compared if it is above that average.\n\n3. Same as 1, but the total used for share is only the non-missing mixes. The missing group is excluded from the denominator and from the output.\n\n4. Same as 1, but a \"count\" means the number of distinct advancedbehavior records (distinct abhvreg) per mix, not joined rows.\n\n5. Same as 1, but a \"count\" means the number of distinct transactions (distinct transreg) per mix, not advancedbehavior rows.\n\n6. Same as 1, but the join is a left join from advancedbehavior. Records with no matching transaction would fall into the missing group.\n\n7. Same as 1, but the join starts from transactionrecord and counts only transactions that have at least one advancedbehavior record. Counts are per transaction.\n\n8. \"Share\" is a fraction between 0 and 1, and \"how far above the average\" is the difference in fractions.\n\n9. \"Share\" is a percentage between 0 and 100, and \"how far above the average\" is the difference in percentage points.\n\n10. \"How far above the average\" is a relative measure, (share \u2212 average) / average, instead of an absolute difference.\n\n11. \"Missing mix\" means NULL ordertypedist only.\n\n12. \"Missing mix\" means NULL or an empty string in ordertypedist, grouped together as one group.\n\n13. \"Above-average\" is strictly greater than the average share. Groups exactly equal to the average are excluded.\n\n14. \"Above-average\" is greater than or equal to the average share. Groups exactly equal to the average are included.\n\n15. The results are ordered by share descending.\n\n16. The results are ordered by the mix name alphabetically.\n\n17. The average share is the plain mean of group shares, and the group count includes only groups that have at least one row. Mixes with zero rows are not counted.\n\n18. The average share is the plain mean of group shares across all possible enum values (Market, Mixed, Limit) plus the missing group, so mixes with zero rows count as zero share.",
+  "The existing list is nearly complete, but these interpretations are missing:\n\n\"How far above the average\" is a ratio, share \u00f7 average, instead of a difference or a relative difference.\n\"Missing mix\" means NULL, an empty string, or whitespace-only values, grouped together as one group.\nThe total for share is all advancedbehavior rows, including any with no matching transaction. Only mixes from matched transactions are grouped and listed."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 139128,
+  "chars_out": 5315
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Each mix's count is the number of distinct linked transactions with that mix, and shares are computed from those counts.",
+ "b": {
+  "request": "Among advanced behaviour analyses linked to a transaction via `translink` \u2192 `transreg`, count the distinct linked transactions for each `ordertypedist` mix (NULL as its own group), compute each mix's share of the total distinct count, and list only the mixes whose share exceeds the plain average share across mixes (1 divided by the number of mixes), showing the mix, its count, its share, and the unrounded excess over that average",
+  "sql": "WITH linked AS (SELECT t.ordertypedist AS mix, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT mix, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, 1.0 / COUNT(*) OVER () AS avg_share FROM linked) SELECT mix, cnt AS distinct_transactions, share, share - avg_share AS excess_over_average FROM shares WHERE share > avg_share ORDER BY share DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Link each advanced behaviour record to its transaction (`translink` = `transreg`), dropping any without a match, and group by order type mix (`ordertypedist`), keeping a separate group for records with no mix recorded. For each mix, count the distinct transactions, and work out that count's share of the total across all mixes. Take the simple average of those shares across mixes as the baseline. Return only the mixes whose share is above the baseline, showing the order type mix, the count of distinct transactions, the share, and how far the share is above the baseline average share, with no rounding.",
+  "sql": "WITH g AS (SELECT t.ordertypedist AS ordertypedist, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), s AS (SELECT ordertypedist, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), b AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS baseline FROM s) SELECT ordertypedist, cnt AS distinct_transaction_count, share, share - baseline AS share_above_baseline FROM b WHERE share > baseline",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Taking the advanced behaviour analyses that tie to a transaction (via `translink` \u2192 `transreg`), which order type mixes (`ordertypedist`, with a missing mix treated as its own group) make up an above-average share? For each mix, find how many there are and its share of the overall total. Compare that share with the plain average share across mixes, and list only the mixes above that average. Show the mix, its count, its share, and how far it sits above the average share, all unrounded. Each mix's count is the number of distinct linked transactions with that mix, and shares are computed from those counts.",
+  "sql": "WITH linked AS (SELECT DISTINCT t.transreg, t.ordertypedist FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg), counts AS (SELECT ordertypedist, COUNT(*) AS cnt FROM linked GROUP BY ordertypedist), shares AS (SELECT ordertypedist, cnt, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM counts), avg_share AS (SELECT AVG(share) AS avg_s FROM shares) SELECT s.ordertypedist AS order_type_mix, s.cnt AS mix_count, s.share AS share_of_total, s.share - a.avg_s AS excess_over_average_share FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_s ORDER BY s.share DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Taking the advanced behaviour analyses that tie to a transaction (via `translink` \u2192 `transreg`), which order type mixes (`ordertypedist`, with a missing mix treated as its own group) make up an above-average share? For each mix, count the number of distinct linked transactions with that mix, and compute its share of the overall total from those counts. Compare that share with the plain average share across mixes, and list only the mixes above that average. Show the mix, its count of distinct linked transactions, its share, and how far it sits above the average share, all unrounded.",
+  "sql": "WITH counts AS (SELECT t.ordertypedist AS mix, COUNT(DISTINCT t.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT mix, cnt, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM counts), avgs AS (SELECT mix, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT mix AS ordertypedist, cnt AS distinct_transactions, share, share - avg_share AS above_average_by FROM avgs WHERE share > avg_share ORDER BY share DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

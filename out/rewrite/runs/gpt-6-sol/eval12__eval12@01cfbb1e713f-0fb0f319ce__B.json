@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0fb0f319ce",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Rank invoices the same way, and return every invoice ranked in the top 10, including all invoices tied at 10th place.",
+ "c": {
+  "request": "Work out each invoice's average line `UnitPrice` (with its customer's country) and how far that is from the average across all invoices. Which are the top 10 invoices whose deviation sits furthest above their country's average deviation? Show the invoice id, country, average unit price, deviation from the overall average, and the deviation minus the country's average deviation, sorted highest first (blanks last) and unrounded. Rank invoices the same way, and return every invoice ranked in the top 10, including all invoices tied at 10th place.",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_unit_price, average_unit_price - AVG(average_unit_price) OVER () AS deviation_from_overall_average FROM invoice_averages), country_comparisons AS (SELECT InvoiceId, Country, average_unit_price, deviation_from_overall_average, deviation_from_overall_average - AVG(deviation_from_overall_average) OVER (PARTITION BY Country) AS deviation_above_country_average FROM deviations), ranked AS (SELECT *, RANK() OVER (ORDER BY CASE WHEN deviation_above_country_average IS NULL THEN 1 ELSE 0 END, deviation_above_country_average DESC) AS invoice_rank FROM country_comparisons) SELECT InvoiceId, Country, average_unit_price, deviation_from_overall_average, deviation_above_country_average FROM ranked WHERE invoice_rank <= 10 ORDER BY CASE WHEN deviation_above_country_average IS NULL THEN 1 ELSE 0 END, deviation_above_country_average DESC, InvoiceId;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each invoice, together with its customer's country, compute the average `UnitPrice` of its invoice lines. Take the overall average of these invoice averages, and for each invoice compute its deviation (invoice average minus overall average). Then, for each country, average these deviations over its invoices. For each invoice, show the invoice id, country, average unit price, deviation from the overall average, and that deviation minus its country's average deviation. Sort by this last value from highest to lowest (blanks last) and return the top 10, including every invoice tied with the 10th one. Don't round.",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_unit_price, average_unit_price - AVG(average_unit_price) OVER () AS deviation FROM invoice_averages), country_deviations AS (SELECT InvoiceId, Country, average_unit_price, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS deviation_from_country_average FROM deviations), ranked AS (SELECT *, RANK() OVER (ORDER BY CASE WHEN deviation_from_country_average IS NULL THEN 1 ELSE 0 END, deviation_from_country_average DESC) AS position FROM country_deviations) SELECT InvoiceId, Country, average_unit_price, deviation, deviation_from_country_average FROM ranked WHERE position <= 10 ORDER BY CASE WHEN deviation_from_country_average IS NULL THEN 1 ELSE 0 END, deviation_from_country_average DESC, InvoiceId",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each invoice, calculate the unrounded average of its line `UnitPrice` values, subtract the unrounded mean of those invoice averages to get its deviation, then subtract the mean deviation for invoices whose customers share its `Country`; return the invoice ID, customer country, invoice average, deviation, and resulting difference for every invoice in the top 10 positions by that difference, including all ties at 10th place, sorted descending with blanks last",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS invoice_average FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, invoice_average, invoice_average - AVG(invoice_average) OVER () AS deviation FROM invoice_averages), differences AS (SELECT InvoiceId, Country, invoice_average, deviation, deviation - AVG(deviation) OVER (PARTITION BY Country) AS difference FROM deviations), ranked AS (SELECT *, RANK() OVER (ORDER BY difference DESC NULLS LAST) AS position FROM differences) SELECT InvoiceId, Country, invoice_average, deviation, difference FROM ranked WHERE position <= 10 ORDER BY difference DESC NULLS LAST, InvoiceId;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each invoice, calculate the average line `UnitPrice`, its deviation from the average across all invoices, and that deviation minus the average deviation for invoices in the same customer country. Return the invoice ID, country, average unit price, deviation from the overall average, and difference from the country\u2019s average deviation. Rank invoices by that final difference from highest to lowest, with blanks last, and include every invoice tied at 10th place. Leave values unrounded.",
+  "sql": "WITH invoice_averages AS (SELECT i.InvoiceId, c.Country, AVG(il.UnitPrice) AS average_unit_price FROM Invoice AS i JOIN Customer AS c ON c.CustomerId = i.CustomerId LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId GROUP BY i.InvoiceId, c.Country), deviations AS (SELECT InvoiceId, Country, average_unit_price, average_unit_price - AVG(average_unit_price) OVER () AS deviation_from_overall_average FROM invoice_averages), differences AS (SELECT InvoiceId, Country, average_unit_price, deviation_from_overall_average, deviation_from_overall_average - AVG(deviation_from_overall_average) OVER (PARTITION BY Country) AS difference_from_country_average_deviation FROM deviations), ranked AS (SELECT *, RANK() OVER (ORDER BY CASE WHEN difference_from_country_average_deviation IS NULL THEN 1 ELSE 0 END, difference_from_country_average_deviation DESC) AS invoice_rank FROM differences) SELECT InvoiceId, Country, average_unit_price, deviation_from_overall_average, difference_from_country_average_deviation FROM ranked WHERE invoice_rank <= 10 ORDER BY CASE WHEN difference_from_country_average_deviation IS NULL THEN 1 ELSE 0 END, difference_from_country_average_deviation DESC, InvoiceId;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

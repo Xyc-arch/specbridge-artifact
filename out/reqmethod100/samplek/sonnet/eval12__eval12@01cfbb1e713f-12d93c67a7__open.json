@@ -1,0 +1,76 @@
+{
+ "queries": [
+  "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS match_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT timespan, avg_ratio, match_count, AVG(match_count) OVER () AS avg_match_count FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(match_count) AS total_match_count, AVG(match_count - avg_match_count) AS avg_excess_over_mean FROM a WHERE match_count > avg_match_count",
+  "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS match_cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), t AS (SELECT timespan, avg_ratio, match_cnt, AVG(match_cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(match_cnt) AS total_match_count, AVG(match_cnt - avg_cnt) AS avg_excess_over_mean FROM t WHERE match_cnt > avg_cnt",
+  "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratios, SUM(g.cnt) AS total_match_count, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_mean FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS match_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT timespan, avg_ratio, match_count, AVG(match_count) OVER () AS avg_match_count FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(match_count) AS total_match_count, AVG(match_count - avg_match_count) AS avg_excess_over_mean FROM a WHERE match_count > avg_match_count",
+   "assumptions": [
+    {
+     "assumption": "A match is one fee row joined to its order, so the match count is COUNT(*) per timespan group. Orders with no fees add nothing.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A feerate of 0 is treated as a missing ratio (NULLIF) so the division doesn't fail. Those rows are ignored in the average but still counted as matches.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The cross-group average match count is the mean of the per-group counts, not a per-row average. A NULL timespan, if present, counts as its own group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS match_cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), t AS (SELECT timespan, avg_ratio, match_cnt, AVG(match_cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(match_cnt) AS total_match_count, AVG(match_cnt - avg_cnt) AS avg_excess_over_mean FROM t WHERE match_cnt > avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "Match count is the number of joined fee-order rows in each timespan group. The cross-group average is the mean of those group counts, not a per-row average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A feerate of 0 makes the ratio undefined, so it is treated as missing (NULLIF) and left out of the average. This avoids a division-by-zero error.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders with a NULL timespan, if any, form their own group and count as a group in the cross-group average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT AVG(cnt * 1.0) AS avg_cnt FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratios, SUM(g.cnt) AS total_match_count, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_mean FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "The cross-group average match count is the mean of the per-group counts (each group weighted equally), not the average per order or per fee row.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A match count is the number of joined fee-order rows in the group. Each fee row counts once, including rows whose ratio is missing.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A ratio is missing if rebrate or feerate is NULL. A feerate of 0 is also treated as missing (via NULLIF) to avoid division by zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Orders with a NULL timespan form their own group, as GROUP BY does by default.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 41259,
+  "chars_out": 3188
+ }
+}

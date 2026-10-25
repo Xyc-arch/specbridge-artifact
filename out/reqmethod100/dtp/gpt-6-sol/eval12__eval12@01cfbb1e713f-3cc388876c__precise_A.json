@@ -1,0 +1,25 @@
+{
+ "interpretations": [
+  "Group executions with a matching order by `orders.orderbase`, treating NULL as a separate channel; for each group, return its channel, average non-NULL `fillcount`, count of all its executions, and that count divided by the count of all matched executions, unrounded.",
+  "Report every channel found in `orders`, including channels with no matched executions; for each, return the average non-NULL `fillcount` and count of its matched executions, plus that count divided by the count of all matched executions, unrounded. Treat NULL as a separate channel.",
+  "Report every defined `orderbase` channel (API, Web, Mobile, Bot), even if no order uses it, plus a NULL channel group; use the average non-NULL `fillcount`, execution count, and unrounded fraction of all matched executions for each."
+ ],
+ "queries": [
+  "SELECT\n    o.orderbase AS channel,\n    AVG(e.fillcount) AS average_fillcount,\n    COUNT(*) AS execution_count,\n    CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS execution_fraction\nFROM orderexecutions AS e\nJOIN orders AS o ON e.ordersmark = o.recordvault\nGROUP BY o.orderbase",
+  "WITH channel_counts AS (\n  SELECT\n    o.orderbase AS channel,\n    AVG(e.fillcount) AS average_fillcount,\n    COUNT(e.orderexecmark) AS execution_count\n  FROM orders AS o\n  LEFT JOIN orderexecutions AS e\n    ON e.ordersmark = o.recordvault\n  GROUP BY o.orderbase\n)\nSELECT\n  channel,\n  average_fillcount,\n  execution_count,\n  1.0 * execution_count / SUM(execution_count) OVER () AS execution_fraction\nFROM channel_counts",
+  "WITH channels(orderbase) AS (\n  VALUES ('API'), ('Web'), ('Mobile'), ('Bot'), (NULL)\n),\nmatched AS (\n  SELECT o.orderbase, e.fillcount\n  FROM orderexecutions AS e\n  JOIN orders AS o ON o.recordvault = e.ordersmark\n)\nSELECT\n  c.orderbase,\n  AVG(m.fillcount) AS avg_fillcount,\n  COUNT(m.rowid) AS execution_count,\n  1.0 * COUNT(m.rowid) / NULLIF((SELECT COUNT(*) FROM matched), 0) AS execution_fraction\nFROM channels AS c\nLEFT JOIN matched AS m ON m.orderbase IS c.orderbase\nGROUP BY c.orderbase"
+ ],
+ "raw": [
+  "Group executions with a matching order by `orders.orderbase`, treating NULL as a separate channel; for each group, return its channel, average non-NULL `fillcount`, count of all its executions, and that count divided by the count of all matched executions, unrounded.\nReport every channel found in `orders`, including channels with no matched executions; for each, return the average non-NULL `fillcount` and count of its matched executions, plus that count divided by the count of all matched executions, unrounded. Treat NULL as a separate channel.",
+  "Report every defined `orderbase` channel (API, Web, Mobile, Bot), even if no order uses it, plus a NULL channel group; use the average non-NULL `fillcount`, execution count, and unrounded fraction of all matched executions for each."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3cc388876c",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 5,
+  "chars_in": 67028,
+  "chars_out": 1975
+ }
+}

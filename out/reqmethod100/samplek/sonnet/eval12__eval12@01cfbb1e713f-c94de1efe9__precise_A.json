@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB * 1.0 / L.HCT) AS ratio FROM Laboratory L JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM p) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - m.mean_ratio AS ratio_diff FROM p CROSS JOIN m WHERE p.ratio > m.mean_ratio ORDER BY ratio_diff DESC LIMIT 10",
+  "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB * 1.0 / l.HCT) AS ratio FROM Laboratory l JOIN Patient p ON p.ID = l.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(ratio) AS mean_ratio FROM per_patient) SELECT pp.ID, pp.SEX, pp.avg_wbc, pp.ratio, pp.ratio - o.mean_ratio AS diff_from_mean FROM per_patient pp CROSS JOIN overall o WHERE pp.ratio > o.mean_ratio ORDER BY diff_from_mean DESC LIMIT 10",
+  "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB * 1.0 / l.HCT) AS ratio FROM Laboratory l JOIN Patient p ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(ratio) AS mean_ratio FROM per_patient) SELECT pp.ID, pp.SEX, pp.avg_wbc, pp.ratio, pp.ratio - o.mean_ratio AS diff_from_mean FROM per_patient pp CROSS JOIN overall o WHERE pp.ratio > o.mean_ratio ORDER BY diff_from_mean DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB * 1.0 / L.HCT) AS ratio FROM Laboratory L JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM p) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - m.mean_ratio AS ratio_diff FROM p CROSS JOIN m WHERE p.ratio > m.mean_ratio ORDER BY ratio_diff DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall mean is the unweighted mean of the per-patient ratios, with each patient counting once regardless of how many lab records they have.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A lab record with HCT = 0 gives a NULL ratio, which SQLite does by default, so AVG ignores it. Patients whose ratio is NULL are excluded because NULL > mean is not true.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the difference are not broken in any particular order, because the request does not specify one.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB * 1.0 / l.HCT) AS ratio FROM Laboratory l JOIN Patient p ON p.ID = l.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(ratio) AS mean_ratio FROM per_patient) SELECT pp.ID, pp.SEX, pp.avg_wbc, pp.ratio, pp.ratio - o.mean_ratio AS diff_from_mean FROM per_patient pp CROSS JOIN overall o WHERE pp.ratio > o.mean_ratio ORDER BY diff_from_mean DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The overall mean is the unweighted average of the per-patient ratios, with each patient counted once. It is not the average across all lab records.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Records with a zero HCT give a NULL ratio in SQLite and are ignored. Records with a NULL HGB or HCT are also ignored.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A patient with no non-null ratio has a NULL ratio. Such a patient is left out of the mean and fails the greater-than comparison.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_patient AS (SELECT p.ID AS ID, p.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB * 1.0 / l.HCT) AS ratio FROM Laboratory l JOIN Patient p ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(ratio) AS mean_ratio FROM per_patient) SELECT pp.ID, pp.SEX, pp.avg_wbc, pp.ratio, pp.ratio - o.mean_ratio AS diff_from_mean FROM per_patient pp CROSS JOIN overall o WHERE pp.ratio > o.mean_ratio ORDER BY diff_from_mean DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Records with HCT = 0 or NULL, or HGB NULL, yield a NULL per-record ratio (SQLite returns NULL on division by zero) and are skipped by AVG. A patient with no valid ratio has a NULL ratio and is excluded by the > mean filter.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall mean is the unweighted mean of the per-patient ratios, not the mean over all lab records.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 26802,
+  "chars_out": 2852
+ }
+}

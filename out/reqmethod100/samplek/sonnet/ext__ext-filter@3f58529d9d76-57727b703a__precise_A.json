@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH per_site AS (SELECT p.zoneref, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(p.procgpu * 1.0 / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY p.zoneref, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat",
+  "WITH per_site AS (SELECT sp.zoneref, s.entrystat, AVG(sp.memusagegb) AS avg_mem, AVG(CAST(sp.procgpu AS REAL) / NULLIF(sp.proccpu, 0)) AS avg_ratio FROM scanprocessing sp JOIN sites s ON s.zoneregistry = sp.zoneref WHERE sp.memusagegb >= 60.8 GROUP BY sp.zoneref, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat",
+  "SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(CAST(p.procgpu AS REAL) / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY s.zoneregistry, s.entrystat) t GROUP BY entrystat"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_site AS (SELECT p.zoneref, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(p.procgpu * 1.0 / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY p.zoneref, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat",
+   "assumptions": [
+    {
+     "assumption": "Rows with proccpu = 0 are treated as having a missing GPU/CPU ratio (division guarded with NULLIF) and are skipped in the ratio average, though they still count toward the RAM average.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Sites with a NULL entrystat form their own group, shown with a NULL access status.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_site AS (SELECT sp.zoneref, s.entrystat, AVG(sp.memusagegb) AS avg_mem, AVG(CAST(sp.procgpu AS REAL) / NULLIF(sp.proccpu, 0)) AS avg_ratio FROM scanprocessing sp JOIN sites s ON s.zoneregistry = sp.zoneref WHERE sp.memusagegb >= 60.8 GROUP BY sp.zoneref, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat",
+   "assumptions": [
+    {
+     "assumption": "Rows with proccpu = 0 are treated as missing for the ratio (NULLIF avoids division by zero); rows with NULL procgpu or proccpu are ignored by AVG.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ratio is computed per run (procgpu/proccpu) and then averaged per site, using floating-point division rather than integer division.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Sites with NULL entrystat form their own group (a NULL access status row), since the request does not say to exclude them.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(CAST(p.procgpu AS REAL) / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY s.zoneregistry, s.entrystat) t GROUP BY entrystat",
+   "assumptions": [
+    {
+     "assumption": "The GPU/CPU ratio is computed per processing run (procgpu / proccpu, as a real number rather than integer division) and then averaged; runs with NULL procgpu or NULL/zero proccpu are ignored for the ratio average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Zero proccpu is treated as a missing ratio (via NULLIF) to avoid division by zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A site with a NULL entrystat forms its own group, and the outer query returns it as a NULL access-status row.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-57727b703a",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123468,
+  "chars_out": 2817
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "interpretations": [
+  "Count attendance entries joined to an event for each `event.status`; divide each count by the total number of joined attendance entries.",
+  "Count attendance entries joined to an event for each `event.status`; show each count as an unrounded percentage of all joined attendance entries.",
+  "Count distinct `attendance.link_to_member` values for each `event.status`; divide each count by the sum of those counts across statuses, so a member attending events with different statuses contributes to each status.",
+  "Count distinct `attendance.link_to_member` values for each `event.status`; divide each count by the number of distinct members across all joined attendance entries, so a member attending events with different statuses contributes to each status but only once to the total.",
+  "Count existing members who attended at least one event of each `event.status`, excluding attendance entries whose member ID has no matching member; divide each status count by the sum of those counts across statuses.",
+  "For each status present in the `event` table, including statuses with no matching attendance entries, count its joined attendance entries and divide by the total number of joined attendance entries.",
+  "Count distinct members with a matching `member` record for each `event.status`; divide by the number of distinct matching members across all statuses.",
+  "Exclude events with a NULL `status`; count joined attendance entries for each remaining status and divide by the total for those statuses.",
+  "Show all three documented statuses (Open, Closed, Planning), including any with no events or attendees; divide each attendance count by the total across those statuses."
+ ],
+ "queries": [
+  "SELECT e.status,\n       COUNT(*) * 1.0 / (\n           SELECT COUNT(*)\n           FROM attendance AS a2\n           JOIN event AS e2 ON e2.event_id = a2.link_to_event\n       ) AS attendance_share\nFROM attendance AS a\nJOIN event AS e ON e.event_id = a.link_to_event\nGROUP BY e.status",
+  "SELECT e.status,\n       COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS percentage\nFROM attendance AS a\nJOIN event AS e ON e.event_id = a.link_to_event\nGROUP BY e.status",
+  "WITH status_counts AS (\n    SELECT e.status, COUNT(DISTINCT a.link_to_member) AS member_count\n    FROM event AS e\n    JOIN attendance AS a ON a.link_to_event = e.event_id\n    GROUP BY e.status\n)\nSELECT status,\n       1.0 * member_count / SUM(member_count) OVER () AS proportion\nFROM status_counts",
+  "WITH joined_attendance AS (\n    SELECT e.status, a.link_to_member\n    FROM attendance AS a\n    JOIN event AS e ON e.event_id = a.link_to_event\n)\nSELECT\n    status,\n    1.0 * COUNT(DISTINCT link_to_member)\n        / (SELECT COUNT(DISTINCT link_to_member) FROM joined_attendance)\nFROM joined_attendance\nGROUP BY status",
+  "WITH status_counts AS (\n    SELECT e.status, COUNT(DISTINCT m.member_id) AS member_count\n    FROM event AS e\n    JOIN attendance AS a ON a.link_to_event = e.event_id\n    JOIN member AS m ON m.member_id = a.link_to_member\n    GROUP BY e.status\n)\nSELECT status,\n       1.0 * member_count / SUM(member_count) OVER () AS proportion\nFROM status_counts",
+  "SELECT\n    e.status,\n    COUNT(a.link_to_member) * 1.0\n        / NULLIF(SUM(COUNT(a.link_to_member)) OVER (), 0) AS attendance_share\nFROM event AS e\nLEFT JOIN attendance AS a\n    ON a.link_to_event = e.event_id\nGROUP BY e.status"
+ ],
+ "raw": [
+  "Count attendance entries joined to an event for each `event.status`; divide each count by the total number of joined attendance entries.\n\nCount attendance entries joined to an event for each `event.status`; show each count as an unrounded percentage of all joined attendance entries.\n\nCount distinct `attendance.link_to_member` values for each `event.status`; divide each count by the sum of those counts across statuses, so a member attending events with different statuses contributes to each status.\n\nCount distinct `attendance.link_to_member` values for each `event.status`; divide each count by the number of distinct members across all joined attendance entries, so a member attending events with different statuses contributes to each status but only once to the total.\n\nCount existing members who attended at least one event of each `event.status`, excluding attendance entries whose member ID has no matching member; divide each status count by the sum of those counts across statuses.\n\nFor each status present in the `event` table, including statuses with no matching attendance entries, count its joined attendance entries and divide by the total number of joined attendance entries.",
+  "Count distinct members with a matching `member` record for each `event.status`; divide by the number of distinct matching members across all statuses.\n\nExclude events with a NULL `status`; count joined attendance entries for each remaining status and divide by the total for those statuses.\n\nShow all three documented statuses (Open, Closed, Planning), including any with no events or attendees; divide each attendance count by the total across those statuses."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6b346d7be2",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 60226,
+  "chars_out": 3291
+ }
+}

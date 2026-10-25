@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-b6c13c0329",
+ "model": "haiku",
+ "reading": "B",
+ "description": "For each sex, count the distinct patients who have at least one examination.",
+ "a": {
+  "request": "Matching examinations to their patients, count the distinct examined patients (`Examination.ID`) for each `SEX` value (blank and missing sexes are their own groups) and work out each sex's share of the combined count. Among the sexes whose count is above the average count per sex, give one row with the total of their counts, the average of their shares, and the average amount by which their counts exceed that per-sex average.",
+  "sql": "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(DISTINCT e.ID) AS cnt FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), totals AS (SELECT SUM(cnt) AS total_cnt, AVG(cnt) AS avg_cnt FROM sex_counts), shares AS (SELECT s.cnt, CAST(s.cnt AS REAL) / t.total_cnt AS share, t.avg_cnt FROM sex_counts s CROSS JOIN totals t) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess FROM shares WHERE cnt > avg_cnt",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each value of Patient.SEX (with NULL and blank values as their own groups), count the distinct Patient.ID values that have at least one row in Examination",
+  "sql": "SELECT p.SEX, COUNT(DISTINCT p.ID) AS patient_count FROM Patient p WHERE EXISTS (SELECT 1 FROM Examination e WHERE e.ID = p.ID) GROUP BY p.SEX;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Looking at the examination data by patient sex (blank and missing sexes as their own groups), how many were examined in each sex, and what share of the overall total is that? For the sexes above the per-sex average, give one row with their combined total, their average share, and on average how far above the per-sex average they are. For each sex, count the distinct patients who have at least one examination.",
+  "sql": "WITH exam_sex AS (SELECT e.ID AS pid, CASE WHEN p.SEX IS NULL THEN 'missing' WHEN TRIM(p.SEX) = '' THEN 'blank' ELSE p.SEX END AS sex FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID), sex_counts AS (SELECT sex, COUNT(*) AS exams, COUNT(DISTINCT pid) AS patients FROM exam_sex GROUP BY sex), totals AS (SELECT SUM(exams) AS total, AVG(exams) AS avg_exams FROM sex_counts), shares AS (SELECT s.sex, s.exams, s.patients, 1.0 * s.exams / t.total AS share, s.exams - t.avg_exams AS excess FROM sex_counts s CROSS JOIN totals t) SELECT sex, exams, patients, share, excess FROM shares UNION ALL SELECT 'above_average', SUM(exams), NULL, AVG(share), AVG(excess) FROM shares WHERE excess > 0",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each patient sex (with blank and missing sexes as their own groups), how many distinct patients have at least one examination?",
+  "sql": "SELECT p.SEX, COUNT(DISTINCT p.ID) AS patient_count FROM Patient p JOIN Examination e ON e.ID = p.ID GROUP BY p.SEX;",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-5c048dd871",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Rank member/position groups by their share of all attendance and return the top 10 plus every row tied with the 10th row's share.",
+ "a": {
+  "request": "Matching each attendance record to its member by member id (dropping attendance with no matching member), count the attendance records for each member id and `position` combination, and work out each count as a share of the total of all these counts. List the member id, position, attendance count and share, sorted by share from highest to lowest, and return the top 10 rows, plus any further rows whose share equals that of the 10th row.",
+  "sql": "WITH attendance_counts AS (\n    SELECT a.link_to_member AS member_id,\n           m.position,\n           COUNT(*) AS attendance_count\n    FROM attendance AS a\n    JOIN member AS m\n      ON a.link_to_member = m.member_id\n    GROUP BY a.link_to_member, m.position\n),\nshares AS (\n    SELECT member_id,\n           position,\n           attendance_count,\n           1.0 * attendance_count / SUM(attendance_count) OVER () AS share,\n           RANK() OVER (ORDER BY attendance_count DESC) AS attendance_rank\n    FROM attendance_counts\n)\nSELECT member_id, position, attendance_count, share\nFROM shares\nWHERE attendance_rank <= 10\nORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Rank member ID and position groups by their count of attendance records divided by the total attendance records, and return the top 10 groups plus all groups tied with the 10th group\u2019s share, showing member ID, position, attendance count, and share from highest to lowest",
+  "sql": "WITH group_counts AS (\n    SELECT m.member_id, m.position, COUNT(*) AS attendance_count\n    FROM attendance AS a\n    JOIN member AS m ON m.member_id = a.link_to_member\n    GROUP BY m.member_id, m.position\n), ranked AS (\n    SELECT member_id, position, attendance_count,\n           CAST(attendance_count AS REAL) / SUM(attendance_count) OVER () AS share,\n           RANK() OVER (ORDER BY CAST(attendance_count AS REAL) / SUM(attendance_count) OVER () DESC) AS share_rank\n    FROM group_counts\n)\nSELECT member_id, position, attendance_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Which are the top 10 members by share of total event attendance? Match attendance to members by member id, count attendance per member id and position, and show the member id, position, attendance count and share of all attendance, from highest share to lowest. Rank member/position groups by their share of all attendance and return the top 10 plus every row tied with the 10th row's share.",
+  "sql": "WITH member_attendance AS (\n    SELECT\n        m.member_id,\n        m.position,\n        COUNT(*) AS attendance_count\n    FROM attendance AS a\n    JOIN member AS m\n      ON m.member_id = a.link_to_member\n    GROUP BY m.member_id, m.position\n),\nshares AS (\n    SELECT\n        member_id,\n        position,\n        attendance_count,\n        1.0 * attendance_count / SUM(attendance_count) OVER () AS attendance_share\n    FROM member_attendance\n),\nranked AS (\n    SELECT\n        member_id,\n        position,\n        attendance_count,\n        attendance_share,\n        RANK() OVER (ORDER BY attendance_share DESC) AS share_rank\n    FROM shares\n)\nSELECT member_id, position, attendance_count, attendance_share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY attendance_share DESC, member_id, position;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Rank member ID and position groups by their share of all attendance, counting attendance by member ID and position. Return the top 10 groups plus all groups tied with the 10th group\u2019s share, showing each group\u2019s member ID, position, attendance count, and share of total attendance, ordered from highest share to lowest.",
+  "sql": "WITH group_attendance AS (\n    SELECT\n        m.member_id,\n        m.position,\n        COUNT(*) AS attendance_count\n    FROM attendance AS a\n    JOIN member AS m ON m.member_id = a.link_to_member\n    GROUP BY m.member_id, m.position\n),\nshares AS (\n    SELECT\n        member_id,\n        position,\n        attendance_count,\n        1.0 * attendance_count / SUM(attendance_count) OVER () AS share_of_total_attendance\n    FROM group_attendance\n),\nranked AS (\n    SELECT\n        member_id,\n        position,\n        attendance_count,\n        share_of_total_attendance,\n        RANK() OVER (ORDER BY share_of_total_attendance DESC) AS share_rank\n    FROM shares\n)\nSELECT member_id, position, attendance_count, share_of_total_attendance\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share_of_total_attendance DESC, member_id, position;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

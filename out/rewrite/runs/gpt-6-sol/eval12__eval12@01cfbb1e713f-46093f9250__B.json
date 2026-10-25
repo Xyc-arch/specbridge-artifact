@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-46093f9250",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Each rating's share is its number of distinct rented films as a fraction of the total distinct rented films summed over ratings.",
+ "c": {
+  "request": "Looking at what has actually been rented (each rental traced through its inventory copy to the film, skipping any that don't link up), what share of the rented films does each film `rating` account for, out of the total across all ratings? For the ratings whose share is above the average share across ratings, give one row with: their combined number of rented films, their average share, and how far on average their share sits above that average share. No rounding. Each rating's share is its number of distinct rented films as a fraction of the total distinct rented films summed over ratings.",
+  "sql": "WITH rating_counts AS (SELECT f.rating, COUNT(DISTINCT f.film_id) AS rented_films FROM rental AS r JOIN inventory AS i ON i.inventory_id = r.inventory_id JOIN film AS f ON f.film_id = i.film_id GROUP BY f.rating), rating_shares AS (SELECT rating, rented_films, rented_films / SUM(rented_films) OVER () AS share FROM rating_counts), compared AS (SELECT rented_films, share, AVG(share) OVER () AS average_share_across_ratings FROM rating_shares) SELECT SUM(rented_films) AS combined_rented_films, AVG(share) AS average_share, AVG(share - average_share_across_ratings) AS average_share_above_average FROM compared WHERE share > average_share_across_ratings;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Count distinct rented film IDs for each rating using rentals joined to inventory and film; divide each count by the sum of those counts across all ratings, retain ratings whose share exceeds the average rating share, and return one row with the sum of their distinct-film counts, their average share, and their average share minus the average share across all ratings, without rounding",
+  "sql": "WITH rating_counts AS (SELECT f.rating, COUNT(DISTINCT f.film_id) AS distinct_film_count FROM rental AS r JOIN inventory AS i ON i.inventory_id = r.inventory_id JOIN film AS f ON f.film_id = i.film_id GROUP BY f.rating), rating_shares AS (SELECT rating, distinct_film_count, 1.0 * distinct_film_count / SUM(distinct_film_count) OVER () AS share FROM rating_counts), compared AS (SELECT distinct_film_count, share, AVG(share) OVER () AS average_rating_share FROM rating_shares) SELECT SUM(distinct_film_count) AS total_distinct_film_count, AVG(share) AS average_share, AVG(share) - MAX(average_rating_share) AS share_above_average FROM compared WHERE share > average_rating_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Link each rental to its inventory copy and that copy's film, dropping rentals with no matching copy or film. For each film `rating`, count the distinct films that were rented, so each film counts once however often it was rented. Compute each rating's share as its count divided by the total of these counts across all ratings. Keep only the ratings whose share is above the average share across ratings, with each rating weighted equally. Return a single row with: the total count of those ratings, their average share, and the average amount by which their share exceeds that average share. Do not round anything.",
+  "sql": "WITH rating_counts AS (SELECT f.rating, COUNT(DISTINCT f.film_id) AS film_count FROM rental AS r JOIN inventory AS i ON i.inventory_id = r.inventory_id JOIN film AS f ON f.film_id = i.film_id GROUP BY f.rating), rating_shares AS (SELECT rating, film_count / SUM(film_count) OVER () AS share FROM rating_counts), shares_with_average AS (SELECT share, AVG(share) OVER () AS average_share_across_ratings FROM rating_shares) SELECT COUNT(*) AS rating_count, AVG(share) AS average_share, AVG(share - average_share_across_ratings) AS average_excess FROM shares_with_average WHERE share > average_share_across_ratings",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each film rating, count the distinct films that have been rented, tracing each rental through its inventory copy to its film and excluding rentals without a complete link. Calculate each rating\u2019s share as its count divided by the sum of those counts across all ratings. For ratings whose share exceeds the average share across ratings, return one row containing their combined distinct-film count, their average share, and the average amount by which their shares exceed that overall average. Do not round.",
+  "sql": "WITH rating_counts AS (SELECT f.rating, COUNT(DISTINCT f.film_id) AS film_count FROM rental AS r JOIN inventory AS i ON i.inventory_id = r.inventory_id JOIN film AS f ON f.film_id = i.film_id GROUP BY f.rating), rating_shares AS (SELECT rating, film_count, film_count / SUM(film_count) OVER () AS share FROM rating_counts), shares_with_average AS (SELECT film_count, share, AVG(share) OVER () AS overall_average_share FROM rating_shares) SELECT SUM(film_count) AS combined_distinct_film_count, AVG(share) AS average_share, AVG(share - overall_average_share) AS average_excess_share FROM shares_with_average WHERE share > overall_average_share",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,32 @@
+{
+ "id": "q84",
+ "db": "california_schools",
+ "path": "dev_unzipped/dev_20240627/dev_databases/california_schools/california_schools.sqlite",
+ "question": "What are the two most common first names among the school administrators? Indicate the district to which they administer.",
+ "evidence": "",
+ "rule": "join_kind",
+ "clarification": "Also keep rows that have no matching the joined table record.",
+ "gold": "SELECT DISTINCT T1.AdmFName1, T1.District FROM schools AS T1 LEFT JOIN (SELECT admfname1 FROM schools GROUP BY admfname1 ORDER BY COUNT(admfname1) DESC LIMIT 2) AS T2 ON T1.AdmFName1 = T2.admfname1",
+ "gold0": "SELECT DISTINCT T1.AdmFName1, T1.District FROM schools AS T1 INNER JOIN ( SELECT admfname1 FROM schools GROUP BY admfname1 ORDER BY COUNT(admfname1) DESC LIMIT 2 ) AS T2 ON T1.AdmFName1 = T2.admfname1",
+ "d": {
+  "request": "What are the two most common first names among school administrators, and which districts do they administer? Include rows even when there is no matching record in the joined table.",
+  "sql": "WITH administrators AS (SELECT CDSCode, AdmFName1 AS first_name FROM schools WHERE AdmFName1 IS NOT NULL AND TRIM(AdmFName1) <> '' UNION ALL SELECT CDSCode, AdmFName2 FROM schools WHERE AdmFName2 IS NOT NULL AND TRIM(AdmFName2) <> '' UNION ALL SELECT CDSCode, AdmFName3 FROM schools WHERE AdmFName3 IS NOT NULL AND TRIM(AdmFName3) <> ''), top_names AS (SELECT first_name, COUNT(*) AS administrator_count FROM administrators GROUP BY first_name ORDER BY administrator_count DESC, first_name LIMIT 2) SELECT DISTINCT t.first_name, t.administrator_count, s.District AS district FROM top_names AS t LEFT JOIN administrators AS a ON a.first_name = t.first_name LEFT JOIN schools AS s ON s.CDSCode = a.CDSCode ORDER BY t.administrator_count DESC, t.first_name, district;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "b": {
+  "request": "Find the two first names appearing most often across all three school administrator fields, list the districts of their schools, and retain schools even when a joined table has no matching record",
+  "sql": "WITH administrator_names AS (SELECT s.District, CASE slot.n WHEN 1 THEN s.AdmFName1 WHEN 2 THEN s.AdmFName2 ELSE s.AdmFName3 END AS first_name FROM schools AS s LEFT JOIN satscores AS sat ON sat.cds = s.CDSCode CROSS JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS slot), ranked_names AS (SELECT first_name, COUNT(*) AS appearances FROM administrator_names WHERE first_name IS NOT NULL AND TRIM(first_name) <> '' GROUP BY first_name ORDER BY appearances DESC, first_name LIMIT 2) SELECT r.first_name, r.appearances, GROUP_CONCAT(DISTINCT a.District) AS districts FROM ranked_names AS r JOIN administrator_names AS a ON a.first_name = r.first_name GROUP BY r.first_name, r.appearances ORDER BY r.appearances DESC, r.first_name;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "c": {
+  "request": "What are the two most common first names among the school administrators? Indicate the district to which they administer.\nAlso keep rows that have no matching the joined table record.",
+  "sql": "WITH administrators AS (SELECT CDSCode, TRIM(AdmFName1) AS first_name FROM schools UNION ALL SELECT CDSCode, TRIM(AdmFName2) FROM schools UNION ALL SELECT CDSCode, TRIM(AdmFName3) FROM schools), top_names AS (SELECT first_name, COUNT(*) AS administrator_count FROM administrators WHERE first_name IS NOT NULL AND first_name <> '' GROUP BY first_name ORDER BY administrator_count DESC, first_name LIMIT 2) SELECT DISTINCT t.first_name, t.administrator_count, s.District AS district FROM top_names AS t LEFT JOIN administrators AS a ON a.first_name = t.first_name LEFT JOIN schools AS s ON s.CDSCode = a.CDSCode ORDER BY t.administrator_count DESC, t.first_name, district;",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ }
+}

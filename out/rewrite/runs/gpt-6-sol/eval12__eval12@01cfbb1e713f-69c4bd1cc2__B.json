@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-69c4bd1cc2",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "All orders in Orders are included, and orders with no invoice count as 0.",
+ "b": {
+  "request": "Include every order in `Orders`, assigning zero invoices to orders with none; divide each order\u2019s invoice count by the total invoice count, retain orders whose share strictly exceeds the average share across all orders, and return one unrounded row containing the sum of their invoice counts, their mean share, and their mean excess over that average share",
+  "sql": "WITH order_counts AS (SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count FROM Orders AS o LEFT JOIN Invoices AS i ON i.order_id = o.order_id GROUP BY o.order_id), order_shares AS (SELECT oc.invoice_count, 1.0 * oc.invoice_count / NULLIF(t.total_invoice_count, 0) AS share FROM order_counts AS oc CROSS JOIN (SELECT COUNT(*) AS total_invoice_count FROM Invoices) AS t), average_share AS (SELECT AVG(share) AS value FROM order_shares) SELECT COALESCE(SUM(os.invoice_count), 0) AS invoice_count_sum, AVG(os.share) AS mean_share, AVG(os.share - a.value) AS mean_excess FROM order_shares AS os CROSS JOIN average_share AS a WHERE os.share > a.value;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Take every order in `Orders`, including orders with no invoice (which get a count of 0), and count its invoices. Give each such order a share: its invoice count divided by the total invoice count across those orders. Average the shares over all of those orders, the zero-invoice ones included. For the orders whose share is strictly above that average, return one unrounded row with: their total number of invoices, their average share, and the average amount by which their share exceeds the average share.",
+  "sql": "WITH order_counts AS (SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count FROM Orders AS o LEFT JOIN Invoices AS i ON i.order_id = o.order_id GROUP BY o.order_id), shares AS (SELECT invoice_count, CAST(invoice_count AS REAL) / NULLIF(SUM(invoice_count) OVER (), 0) AS share FROM order_counts), compared AS (SELECT invoice_count, share, AVG(share) OVER () AS average_share FROM shares) SELECT SUM(invoice_count) AS total_invoices, AVG(share) AS average_share, AVG(share - average_share) AS average_excess FROM compared WHERE share > average_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each order, count its invoices and work out its share of all invoices (its count divided by the total). For the orders whose share is strictly above the average share, give one unrounded row with: their total number of invoices, their average share, and the average amount by which their share exceeds the average share. All orders in Orders are included, and orders with no invoice count as 0.",
+  "sql": "WITH invoice_counts AS (SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count FROM Orders AS o LEFT JOIN Invoices AS i ON i.order_id = o.order_id GROUP BY o.order_id), shares AS (SELECT invoice_count, 1.0 * invoice_count / NULLIF(SUM(invoice_count) OVER (), 0) AS share FROM invoice_counts), compared AS (SELECT invoice_count, share, AVG(share) OVER () AS average_share FROM shares) SELECT SUM(invoice_count) AS total_invoices, AVG(share) AS average_share, AVG(share - average_share) AS average_excess FROM compared WHERE share > average_share;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each order in Orders, count its invoices, treating orders with no invoices as having a count of 0, and calculate its share of all invoices. Among orders whose share is strictly above the average share across all orders, return one unrounded row containing their total invoice count, average share, and average amount by which their share exceeds that average.",
+  "sql": "WITH order_counts AS (SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count FROM Orders AS o LEFT JOIN Invoices AS i ON i.order_id = o.order_id GROUP BY o.order_id), shares AS (SELECT invoice_count, invoice_count * 1.0 / NULLIF(SUM(invoice_count) OVER (), 0) AS share FROM order_counts), compared AS (SELECT invoice_count, share, AVG(share) OVER () AS average_share_all_orders FROM shares) SELECT SUM(invoice_count) AS total_invoice_count, AVG(share) AS average_share, AVG(share - average_share_all_orders) AS average_excess_share FROM compared WHERE share > average_share_all_orders",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH scope_counts AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS count_to_average FROM scope_counts ORDER BY acctscope",
+  "WITH scope_counts AS (SELECT u.acctscope, COUNT(*) AS match_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, match_count, match_count::numeric / SUM(match_count) OVER () AS share_of_total, match_count::numeric / AVG(match_count) OVER () AS count_to_average FROM scope_counts ORDER BY acctscope",
+  "WITH matched_orders AS (SELECT DISTINCT o.orderspivot, u.acctscope FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp WHERE u.acctscope IS NOT NULL), scope_counts AS (SELECT acctscope, COUNT(*) AS order_count FROM matched_orders GROUP BY acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM scope_counts ORDER BY acctscope;",
+  "WITH matched_orders AS (SELECT DISTINCT o.orderspivot, u.acctscope FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp), scope_counts AS (SELECT acctscope, COUNT(*) AS order_count FROM matched_orders GROUP BY acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM scope_counts ORDER BY acctscope;",
+  "WITH counts AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM users AS u JOIN orders AS o ON o.userlink = u.userstamp JOIN riskandmargin AS r ON r.ordervault = o.recordvault WHERE u.acctscope IS NOT NULL GROUP BY u.acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM counts ORDER BY acctscope;",
+  "WITH counts AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM users AS u JOIN orders AS o ON o.userlink = u.userstamp JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY u.acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM counts ORDER BY acctscope;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH scope_counts AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS count_to_average FROM scope_counts ORDER BY acctscope",
+   "assumptions": [
+    {
+     "assumption": "Each matched order counts once per scope even if several risk/margin records reference it. The average covers scopes present in the matched results; a NULL scope forms a group if present.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count each matching risk/margin record\u2013order pair, so an order with several risk/margin records contributes several times.",
+     "sql": "WITH scope_counts AS (SELECT u.acctscope, COUNT(*) AS match_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, match_count, match_count::numeric / SUM(match_count) OVER () AS share_of_total, match_count::numeric / AVG(match_count) OVER () AS count_to_average FROM scope_counts ORDER BY acctscope"
+    }
+   ]
+  },
+  {
+   "sql": "WITH matched_orders AS (SELECT DISTINCT o.orderspivot, u.acctscope FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp WHERE u.acctscope IS NOT NULL), scope_counts AS (SELECT acctscope, COUNT(*) AS order_count FROM matched_orders GROUP BY acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM scope_counts ORDER BY acctscope;",
+   "assumptions": [
+    {
+     "assumption": "A NULL acctscope is not an account scope, so orders with NULL acctscope are excluded.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include orders with NULL acctscope as a separate group in the counts and total.",
+     "sql": "WITH matched_orders AS (SELECT DISTINCT o.orderspivot, u.acctscope FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault JOIN users AS u ON o.userlink = u.userstamp), scope_counts AS (SELECT acctscope, COUNT(*) AS order_count FROM matched_orders GROUP BY acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM scope_counts ORDER BY acctscope;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH counts AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM users AS u JOIN orders AS o ON o.userlink = u.userstamp JOIN riskandmargin AS r ON r.ordervault = o.recordvault WHERE u.acctscope IS NOT NULL GROUP BY u.acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM counts ORDER BY acctscope;",
+   "assumptions": [
+    {
+     "assumption": "A NULL acctscope is excluded because it does not identify an account scope.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Treat NULL acctscope as its own group.",
+     "sql": "WITH counts AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM users AS u JOIN orders AS o ON o.userlink = u.userstamp JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY u.acctscope) SELECT acctscope, order_count, order_count::numeric / SUM(order_count) OVER () AS share_of_total, order_count::numeric / AVG(order_count) OVER () AS relative_to_average FROM counts ORDER BY acctscope;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40749,
+  "chars_out": 3775
+ }
+}

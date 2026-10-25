@@ -1,0 +1,54 @@
+{
+ "interpretations": [
+  "Event-level averages use an inner join of budget to event, so lines with no matching event are dropped. Each event gets AVG(remaining) and AVG((spent \u2212 amount) / amount) over its lines, ignoring NULLs. For each status, the event-level figures are averaged, giving an unweighted mean across events. The overall average remaining is the average of the event-level averages across all events. The ratio is status avg remaining \u00f7 that overall figure.",
+  "Same as 1, but the overall average remaining is the average of `remaining` across all matched budget lines (line-weighted), not across events.",
+  "Same as 1, but the overall average remaining is the average of the status-level average remainings (the mean of the per-status values).",
+  "Same as 1, but \"status\" is `event.status`, and the grouping uses the event table's status.",
+  "Same as 1, but \"status\" is `budget.event_status`, and the grouping uses the budget line's status. An event could then fall in more than one status group, depending on how its lines are grouped.",
+  "Lines where `amount` is 0 give a division by zero. These lines are either excluded or yield NULL, and are ignored in the overspend average.",
+  "Lines where `amount` is 0 are kept in the `remaining` average but dropped from the overspend-rate average.",
+  "Lines where `amount` is 0 are dropped from both averages.",
+  "Lines with NULL `spent`, `amount`, or `remaining` are ignored in each average separately, so the two averages may be over different line sets.",
+  "Lines with a NULL in any of the three fields are dropped from both averages.",
+  "Events with no budget lines are excluded, because only matched lines are used.",
+  "The overspend rate is a fraction (e.g. 0.25), not a percentage.",
+  "The overspend rate is shown as a percentage.",
+  "The comparison ratio is the status average remaining divided by the overall average remaining. It is not a difference or a percent difference.",
+  "The comparison ratio is the overall average remaining divided by the status average remaining (reversed).",
+  "The output has one row per status with 4 columns: status, average remaining, average overspend rate, and ratio.",
+  "Events with a NULL status form their own group, or are excluded.",
+  "The overspend rate is computed per line and then averaged per event. It is not computed from the event's total spent and total amount.",
+  "The overspend rate per event is computed from summed spent and summed amount, (\u03a3Spent \u2212 \u03a3Amount) \u00f7 \u03a3Amount, rather than as the average of per-line rates.",
+  "The overall average remaining is computed over events whose status is non-NULL only.",
+  "The overall average remaining is computed over all matched events, including those with NULL status.",
+  "Missing interpretations:",
+  "The overspend rate is computed per line as (spent \u2212 amount) \u00f7 amount, using `remaining` in place of the stated formula, i.e. \u2212remaining \u00f7 amount (equivalent only if amount = spent + remaining holds).",
+  "The overall average remaining is the average of `remaining` across all matched events' event-level averages, but computed as a window or scalar subquery over the status-level rows (the status-weighted-by-event-count mean). This is the same as interpretation 1, so it is not a separate case.",
+  "The ratio is shown as a percentage (status avg remaining \u00f7 overall avg remaining \u00d7 100).",
+  "Lines where the overall average remaining is 0 or NULL give a division by zero or NULL ratio.",
+  "Integer division is applied to `amount` (INTEGER) in the overspend rate, so the rate is truncated unless cast to REAL (spent is REAL, so this is normally not an issue).",
+  "Events are identified by `link_to_event` and `event_id`. Grouping is at the event level by `event_id`, not by `event_name` (events sharing a name are not merged).",
+  "Events with a status other than Open, Closed or Planning (e.g. empty string) are kept as their own group.",
+  "The overall average remaining is computed over events whose matched lines have a non-NULL `remaining` only. Events whose averages are NULL are excluded from the overall average."
+ ],
+ "queries": [
+  "WITH ev AS (\n    SELECT e.event_id,\n           e.status,\n           AVG(b.remaining) AS avg_remaining,\n           AVG((b.spent - b.amount) * 1.0 / b.amount) AS avg_ratio\n    FROM budget b\n    JOIN event e ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.status\n),\noverall AS (\n    SELECT AVG(avg_remaining) AS overall_avg FROM ev\n)\nSELECT ev.status,\n       AVG(ev.avg_remaining) / (SELECT overall_avg FROM overall) AS ratio\nFROM ev\nGROUP BY ev.status;\n",
+  "SELECT AVG(avg_remaining) AS overall_avg_remaining\nFROM (\n    SELECT event_status, AVG(remaining) AS avg_remaining\n    FROM budget\n    GROUP BY event_status\n);\n",
+  "SELECT status, COUNT(*) FROM event GROUP BY status;\n",
+  "SELECT event_status, COUNT(DISTINCT link_to_event) FROM budget GROUP BY event_status;\n",
+  "SELECT AVG((spent - amount) * 1.0 / amount) FROM budget WHERE remaining < 0 AND amount <> 0;\n"
+ ],
+ "raw": [
+  "1. Event-level averages use an inner join of budget to event, so lines with no matching event are dropped. Each event gets AVG(remaining) and AVG((spent \u2212 amount) / amount) over its lines, ignoring NULLs. For each status, the event-level figures are averaged, giving an unweighted mean across events. The overall average remaining is the average of the event-level averages across all events. The ratio is status avg remaining \u00f7 that overall figure.\n2. Same as 1, but the overall average remaining is the average of `remaining` across all matched budget lines (line-weighted), not across events.\n3. Same as 1, but the overall average remaining is the average of the status-level average remainings (the mean of the per-status values).\n4. Same as 1, but \"status\" is `event.status`, and the grouping uses the event table's status.\n5. Same as 1, but \"status\" is `budget.event_status`, and the grouping uses the budget line's status. An event could then fall in more than one status group, depending on how its lines are grouped.\n6. Lines where `amount` is 0 give a division by zero. These lines are either excluded or yield NULL, and are ignored in the overspend average.\n7. Lines where `amount` is 0 are kept in the `remaining` average but dropped from the overspend-rate average.\n8. Lines where `amount` is 0 are dropped from both averages.\n9. Lines with NULL `spent`, `amount`, or `remaining` are ignored in each average separately, so the two averages may be over different line sets.\n10. Lines with a NULL in any of the three fields are dropped from both averages.\n11. Events with no budget lines are excluded, because only matched lines are used.\n12. The overspend rate is a fraction (e.g. 0.25), not a percentage.\n13. The overspend rate is shown as a percentage.\n14. The comparison ratio is the status average remaining divided by the overall average remaining. It is not a difference or a percent difference.\n15. The comparison ratio is the overall average remaining divided by the status average remaining (reversed).\n16. The output has one row per status with 4 columns: status, average remaining, average overspend rate, and ratio.\n17. Events with a NULL status form their own group, or are excluded.\n18. The overspend rate is computed per line and then averaged per event. It is not computed from the event's total spent and total amount.\n19. The overspend rate per event is computed from summed spent and summed amount, (\u03a3Spent \u2212 \u03a3Amount) \u00f7 \u03a3Amount, rather than as the average of per-line rates.\n20. The overall average remaining is computed over events whose status is non-NULL only.\n21. The overall average remaining is computed over all matched events, including those with NULL status.",
+  "Missing interpretations:\n\nThe overspend rate is computed per line as (spent \u2212 amount) \u00f7 amount, using `remaining` in place of the stated formula, i.e. \u2212remaining \u00f7 amount (equivalent only if amount = spent + remaining holds).\nThe overall average remaining is the average of `remaining` across all matched events' event-level averages, but computed as a window or scalar subquery over the status-level rows (the status-weighted-by-event-count mean). This is the same as interpretation 1, so it is not a separate case.\nThe ratio is shown as a percentage (status avg remaining \u00f7 overall avg remaining \u00d7 100).\nLines where the overall average remaining is 0 or NULL give a division by zero or NULL ratio.\nInteger division is applied to `amount` (INTEGER) in the overspend rate, so the rate is truncated unless cast to REAL (spent is REAL, so this is normally not an issue).\nEvents are identified by `link_to_event` and `event_id`. Grouping is at the event level by `event_id`, not by `event_name` (events sharing a name are not merged).\nEvents with a status other than Open, Closed or Planning (e.g. empty string) are kept as their own group.\nThe overall average remaining is computed over events whose matched lines have a non-NULL `remaining` only. Events whose averages are NULL are excluded from the overall average."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-37095ad966",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 62128,
+  "chars_out": 5948
+ }
+}

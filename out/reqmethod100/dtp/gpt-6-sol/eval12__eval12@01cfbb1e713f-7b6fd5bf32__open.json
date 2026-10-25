@@ -1,0 +1,32 @@
+{
+ "interpretations": [
+  "Count distinct orders with at least one matching risk/margin record by `ordertune`; average those counts across types with matches; return one row with the mean count for types above that average and their mean excess over it.",
+  "Count distinct orders with at least one matching risk/margin record by `ordertune`; include defined types with zero matches in the overall average; return one row with the mean count for types above that average and their mean excess over it.",
+  "Count joined risk/margin\u2013order rows by `ordertune`, so an order with multiple risk/margin records contributes multiple times; average those counts across types with matches; return one row with the mean count for types above that average and their mean excess over it.",
+  "Count joined risk/margin\u2013order rows by `ordertune`; include defined types with zero matches in the overall average; return one row with the mean count for types above that average and their mean excess over it.",
+  "For any of these counts, return the per-type counts as well as the single summary row.",
+  "For any of these counts, treat a null `ordertune` as its own type when calculating the overall average and selecting types above it.",
+  "Exclude orders with a null `ordertune` from the per-type counts and averages.",
+  "Include types present in `orders` with zero risk/margin matches in the overall average, but exclude defined types absent from `orders`."
+ ],
+ "queries": [
+  "WITH type_counts AS (\n  SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM orders AS o\n  JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n  GROUP BY o.ordertune\n),\noverall AS (\n  SELECT AVG(order_count) AS average_count\n  FROM type_counts\n)\nSELECT\n  AVG(t.order_count) AS mean_count,\n  AVG(t.order_count - a.average_count) AS mean_excess\nFROM type_counts AS t\nCROSS JOIN overall AS a\nWHERE t.order_count > a.average_count",
+  "WITH order_types(ordertune) AS (\n  VALUES ('Stop'), ('Market'), ('Limit'), ('StopLimit')\n),\ntype_counts AS (\n  SELECT t.ordertune,\n         COUNT(DISTINCT CASE WHEN r.riskandmarginpivot IS NOT NULL THEN o.orderspivot END) AS order_count\n  FROM order_types AS t\n  LEFT JOIN orders AS o ON o.ordertune = t.ordertune\n  LEFT JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n  GROUP BY t.ordertune\n),\noverall AS (\n  SELECT AVG(order_count) AS avg_count\n  FROM type_counts\n)\nSELECT AVG(tc.order_count) AS mean_count,\n       AVG(tc.order_count - ov.avg_count) AS mean_excess\nFROM type_counts AS tc\nCROSS JOIN overall AS ov\nWHERE tc.order_count > ov.avg_count",
+  "WITH counts AS (\n  SELECT o.ordertune, COUNT(*) AS match_count\n  FROM riskandmargin AS r\n  JOIN orders AS o ON o.recordvault = r.ordervault\n  GROUP BY o.ordertune\n),\noverall AS (\n  SELECT AVG(match_count) AS avg_count\n  FROM counts\n)\nSELECT\n  AVG(c.match_count) AS mean_count,\n  AVG(c.match_count - a.avg_count) AS mean_excess\nFROM counts AS c\nCROSS JOIN overall AS a\nWHERE c.match_count > a.avg_count",
+  "WITH order_types(ordertune) AS (\n  VALUES ('Stop'), ('Market'), ('Limit'), ('StopLimit')\n),\ntype_counts AS (\n  SELECT t.ordertune, COUNT(r.riskandmarginpivot) AS row_count\n  FROM order_types AS t\n  LEFT JOIN orders AS o ON o.ordertune = t.ordertune\n  LEFT JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n  GROUP BY t.ordertune\n),\noverall AS (\n  SELECT AVG(row_count) AS mean_count\n  FROM type_counts\n)\nSELECT\n  AVG(c.row_count) AS mean_count_above_average,\n  AVG(c.row_count - a.mean_count) AS mean_excess\nFROM type_counts AS c\nCROSS JOIN overall AS a\nWHERE c.row_count > a.mean_count",
+  "WITH type_counts AS (\n  SELECT ordertune, COUNT(*) AS order_count\n  FROM orders\n  GROUP BY ordertune\n)\nSELECT ordertune, order_count\nFROM type_counts\nWHERE order_count > (SELECT AVG(order_count) FROM type_counts)"
+ ],
+ "raw": [
+  "Count distinct orders with at least one matching risk/margin record by `ordertune`; average those counts across types with matches; return one row with the mean count for types above that average and their mean excess over it.\nCount distinct orders with at least one matching risk/margin record by `ordertune`; include defined types with zero matches in the overall average; return one row with the mean count for types above that average and their mean excess over it.\nCount joined risk/margin\u2013order rows by `ordertune`, so an order with multiple risk/margin records contributes multiple times; average those counts across types with matches; return one row with the mean count for types above that average and their mean excess over it.\nCount joined risk/margin\u2013order rows by `ordertune`; include defined types with zero matches in the overall average; return one row with the mean count for types above that average and their mean excess over it.\nFor any of these counts, return the per-type counts as well as the single summary row.\nFor any of these counts, treat a null `ordertune` as its own type when calculating the overall average and selecting types above it.",
+  "Exclude orders with a null `ordertune` from the per-type counts and averages.\n\nInclude types present in `orders` with zero risk/margin matches in the overall average, but exclude defined types absent from `orders`."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7b6fd5bf32",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 106404,
+  "chars_out": 3767
+ }
+}

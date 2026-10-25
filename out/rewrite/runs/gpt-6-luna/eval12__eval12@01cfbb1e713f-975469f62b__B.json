@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-975469f62b",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Average copies per film (per rating and overall) are computed over every film in the catalogue. Films with no copies in inventory count as having 0 copies.",
+ "a": {
+  "request": "Looking at every film in the catalogue (a film with no copies in inventory counts as having 0 copies, and that 0 is included in every average), count each film's inventory copies. For each film, show its id, its rating, its number of copies, its copy count minus the average copy count per film for films of the same rating, and its copy count minus the overall average copy count per film (averaged over the individual films, not over the rating averages; averages ignore missing values). Sort by the difference from the overall average, largest first, and keep the top 10 (ties broken arbitrarily). Do not round.",
+  "sql": "WITH film_copies AS (\n  SELECT f.film_id, f.rating, COUNT(i.inventory_id) AS copy_count\n  FROM film AS f\n  LEFT JOIN inventory AS i ON i.film_id = f.film_id\n  GROUP BY f.film_id, f.rating\n), deviations AS (\n  SELECT film_id, rating, copy_count,\n         copy_count - AVG(copy_count) OVER (PARTITION BY rating) AS rating_avg_difference,\n         copy_count - AVG(copy_count) OVER () AS overall_avg_difference\n  FROM film_copies\n)\nSELECT film_id, rating, copy_count, rating_avg_difference, overall_avg_difference\nFROM deviations\nORDER BY overall_avg_difference DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Which 10 films have the most inventory copies compared with the average number of copies per film? For each, show the film id, its rating, its number of copies, how far that is from the average copies per film for its rating, and how far it is from the overall average copies per film (averaged over films, not over the rating averages; averages ignore missing values). Sort by the overall difference, largest first. Ties can go in any order, and nothing is rounded. Average copies per film (per rating and overall) are computed over every film in the catalogue. Films with no copies in inventory count as having 0 copies.",
+  "sql": "WITH film_copy_counts AS (\n  SELECT f.film_id, f.rating, COUNT(i.inventory_id) AS copy_count\n  FROM film AS f\n  LEFT JOIN inventory AS i ON i.film_id = f.film_id\n  GROUP BY f.film_id, f.rating\n),\nfilm_differences AS (\n  SELECT film_id, rating, copy_count,\n         copy_count - AVG(copy_count) OVER (PARTITION BY rating) AS difference_from_rating_average,\n         copy_count - AVG(copy_count) OVER () AS difference_from_overall_average\n  FROM film_copy_counts\n)\nSELECT film_id, rating, copy_count, difference_from_rating_average,\n       difference_from_overall_average\nFROM film_differences\nORDER BY difference_from_overall_average DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Find the 10 films with the largest number of inventory copies, showing each film\u2019s ID, rating, copy count, difference from the average copies per catalogue film with the same rating, and difference from the overall average copies per catalogue film. Include films with zero copies as zero when calculating both averages, average over films rather than rating averages, ignore missing values, sort by overall difference descending, allow ties in any order, and do not round values",
+  "sql": "WITH film_copies AS (SELECT f.film_id, f.rating, COUNT(i.inventory_id) AS copy_count FROM film f LEFT JOIN inventory i ON i.film_id = f.film_id GROUP BY f.film_id, f.rating), film_differences AS (SELECT film_id, rating, copy_count, copy_count - AVG(copy_count) OVER (PARTITION BY rating) AS rating_avg_difference, copy_count - AVG(copy_count) OVER () AS overall_avg_difference FROM film_copies) SELECT film_id, rating, copy_count, rating_avg_difference, overall_avg_difference FROM film_differences ORDER BY overall_avg_difference DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Which 10 films have the most inventory copies compared with the average copies per film? For each, show the film ID, rating, number of inventory copies, its difference from the average copies per film with the same rating, and its difference from the overall average copies per film. Compute both averages across every film in the catalogue, counting films with no inventory copies as having zero. Compute the overall average across films, not across rating averages, and ignore missing values. Sort by the overall difference, largest first. Do not round the results. Ties can appear in any order.",
+  "sql": "WITH film_copy_counts AS (\n  SELECT f.film_id, f.rating, COUNT(i.inventory_id) AS copy_count\n  FROM film AS f\n  LEFT JOIN inventory AS i ON i.film_id = f.film_id\n  GROUP BY f.film_id, f.rating\n),\nfilm_copy_averages AS (\n  SELECT film_id, rating, copy_count,\n         AVG(copy_count) OVER (PARTITION BY rating) AS rating_avg,\n         AVG(copy_count) OVER () AS overall_avg\n  FROM film_copy_counts\n)\nSELECT film_id,\n       rating,\n       copy_count,\n       copy_count - rating_avg AS difference_from_rating_average,\n       copy_count - overall_avg AS difference_from_overall_average\nFROM film_copy_averages\nORDER BY difference_from_overall_average DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,71 @@
+{
+ "queries": [
+  "WITH counts AS (SELECT o.timespan, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT timespan, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT timespan, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY timespan;",
+  "WITH counts AS (SELECT o.timespan, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT timespan, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT timespan, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY timespan;",
+  "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force",
+  "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, share - AVG(share) OVER () AS difference_from_average_share FROM shares ORDER BY time_in_force",
+  "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force",
+  "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force",
+  "WITH time_in_force_values(time_in_force) AS (VALUES ('IOC'), ('GTC'), ('GTD'), ('FOK')), counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT v.time_in_force, COALESCE(c.risk_margin_count, 0) AS risk_margin_count, COALESCE(c.risk_margin_count, 0)::numeric / NULLIF(SUM(COALESCE(c.risk_margin_count, 0)) OVER (), 0) AS share FROM time_in_force_values AS v LEFT JOIN counts AS c ON c.time_in_force = v.time_in_force) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force"
+ ],
+ "responses": [
+  {
+   "sql": "WITH counts AS (SELECT o.timespan, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT timespan, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT timespan, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY timespan;",
+   "assumptions": [
+    {
+     "assumption": "Orders with a NULL time in force are excluded from both the counts and the overall total.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include NULL time in force as a separate group in the counts, total, and average.",
+     "sql": "WITH counts AS (SELECT o.timespan, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT timespan, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT timespan, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY timespan;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force",
+   "assumptions": [
+    {
+     "assumption": "Only non-null time-in-force values are included in the counts and overall total.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "If the requested difference should retain its sign, subtract the average share without taking the absolute value.",
+     "sql": "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, share - AVG(share) OVER () AS difference_from_average_share FROM shares ORDER BY time_in_force"
+    },
+    {
+     "interpretation": "If orders with a null time in force should form a separate group, include that group in the total and average.",
+     "sql": "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force"
+    }
+   ]
+  },
+  {
+   "sql": "WITH counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT time_in_force, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER () AS share FROM counts) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force",
+   "assumptions": [
+    {
+     "assumption": "The total includes matched records with a non-null time in force, and the average covers time-in-force values represented by those records.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Include all four documented time-in-force values in the average, assigning a count of zero to values with no matched records.",
+     "sql": "WITH time_in_force_values(time_in_force) AS (VALUES ('IOC'), ('GTC'), ('GTD'), ('FOK')), counts AS (SELECT o.timespan AS time_in_force, COUNT(*) AS risk_margin_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.timespan IS NOT NULL GROUP BY o.timespan), shares AS (SELECT v.time_in_force, COALESCE(c.risk_margin_count, 0) AS risk_margin_count, COALESCE(c.risk_margin_count, 0)::numeric / NULLIF(SUM(COALESCE(c.risk_margin_count, 0)) OVER (), 0) AS share FROM time_in_force_values AS v LEFT JOIN counts AS c ON c.time_in_force = v.time_in_force) SELECT time_in_force, risk_margin_count, share, ABS(share - AVG(share) OVER ()) AS distance_from_average_share FROM shares ORDER BY time_in_force"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40506,
+  "chars_out": 4708
+ }
+}

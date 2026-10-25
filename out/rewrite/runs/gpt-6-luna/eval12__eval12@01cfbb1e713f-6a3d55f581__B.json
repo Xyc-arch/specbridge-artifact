@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6a3d55f581",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Each account's average is the plain mean of the stored unsigned trans.amount over all of its transactions.",
+ "b": {
+  "request": "For each account with at least one transaction, calculate the arithmetic mean of its stored unsigned `trans.amount` values; within each `account.frequency`, divide that account\u2019s mean by the unweighted arithmetic mean of the per-account means for all accounts with that frequency; return the account number, frequency, account mean, and ratio, ordered by ratio descending with missing ratios last, limited to 10 rows, without rounding",
+  "sql": "WITH account_means AS (\n    SELECT account_id, AVG(amount) AS account_mean\n    FROM trans\n    GROUP BY account_id\n), frequency_means AS (\n    SELECT a.frequency, AVG(am.account_mean) AS frequency_mean\n    FROM account_means am\n    JOIN account a ON a.account_id = am.account_id\n    GROUP BY a.frequency\n)\nSELECT am.account_id, a.frequency, am.account_mean,\n       am.account_mean / fm.frequency_mean AS ratio\nFROM account_means am\nJOIN account a ON a.account_id = am.account_id\nJOIN frequency_means fm ON fm.frequency = a.frequency\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For transactions that belong to an existing account, find each account's average transaction amount, grouped by account number and statement issuance frequency (`account.frequency`). Then compare each account with the others of the same frequency: divide its average by the plain mean of the per-account averages for that frequency. Show the account number, the frequency, the account's average and that ratio. Give the top 10 by ratio (highest first, any missing ratio last), unrounded. Each account's average is the plain mean of the stored unsigned trans.amount over all of its transactions.",
+  "sql": "WITH account_averages AS (\n    SELECT\n        a.account_id,\n        a.frequency,\n        AVG(t.amount) AS average_amount\n    FROM account AS a\n    JOIN trans AS t ON t.account_id = a.account_id\n    GROUP BY a.account_id, a.frequency\n),\naccount_ratios AS (\n    SELECT\n        account_id,\n        frequency,\n        average_amount,\n        average_amount / AVG(average_amount) OVER (PARTITION BY frequency) AS ratio\n    FROM account_averages\n)\nSELECT\n    account_id,\n    frequency,\n    average_amount,\n    ratio\nFROM account_ratios\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Using transactions joined to their account (drop transactions with no matching account), group by account number (`trans.account_id`) and statement issuance frequency (`account.frequency`). For each group, compute the plain average of the stored `amount` over all of the group's transactions, regardless of type. Then, for each frequency, take the plain average of these per-account averages. Return the account number, the frequency, the account's average, and the ratio of the account's average to its frequency's average. Sort by that ratio from highest to lowest, with missing ratios last, and keep the top 10 rows. Don't round anything.",
+  "sql": "WITH account_averages AS (\n    SELECT\n        t.account_id,\n        a.frequency,\n        AVG(t.amount) AS account_average\n    FROM trans AS t\n    JOIN account AS a ON a.account_id = t.account_id\n    GROUP BY t.account_id, a.frequency\n),\nfrequency_averages AS (\n    SELECT\n        frequency,\n        AVG(account_average) AS frequency_average\n    FROM account_averages\n    GROUP BY frequency\n)\nSELECT\n    aa.account_id,\n    aa.frequency,\n    aa.account_average,\n    aa.account_average / fa.frequency_average AS ratio\nFROM account_averages AS aa\nJOIN frequency_averages AS fa ON fa.frequency = aa.frequency\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each existing account, calculate the plain mean of the stored unsigned `trans.amount` values across all its transactions. Group accounts by account number and statement issuance frequency (`account.frequency`). Divide each account\u2019s average by the plain mean of the per-account averages for accounts with the same frequency. Return the 10 accounts with the highest ratios, showing account number, frequency, average transaction amount, and ratio. Sort by ratio descending, with missing ratios last, and do not round the results.",
+  "sql": "WITH account_averages AS (\n    SELECT\n        a.account_id,\n        a.frequency,\n        AVG(t.amount) AS average_transaction_amount\n    FROM account AS a\n    LEFT JOIN trans AS t ON t.account_id = a.account_id\n    GROUP BY a.account_id, a.frequency\n),\nfrequency_means AS (\n    SELECT\n        frequency,\n        AVG(average_transaction_amount) AS mean_account_average\n    FROM account_averages\n    GROUP BY frequency\n)\nSELECT\n    aa.account_id AS account_number,\n    aa.frequency,\n    aa.average_transaction_amount,\n    aa.average_transaction_amount / fm.mean_account_average AS ratio\nFROM account_averages AS aa\nJOIN frequency_means AS fm ON fm.frequency = aa.frequency\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

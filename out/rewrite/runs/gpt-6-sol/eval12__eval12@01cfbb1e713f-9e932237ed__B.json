@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9e932237ed",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "A time-in-force bucket's count is the number of distinct orders that have at least one risk/margin record.",
+ "c": {
+  "request": "Take risk/margin records matched to their orders (`riskandmargin.ordervault` = `orders.recordvault`), skipping any with no matching order, and get each time-in-force (`orders.timespan`) bucket's count. Orders with no time in force are their own bucket. Work out each bucket's share of the total of all bucket counts, and keep the buckets whose share is above the average share. Give me one summary row with three values: the total count across those buckets, their average share, and how far above the average share they are on average. Leave everything unrounded. A time-in-force bucket's count is the number of distinct orders that have at least one risk/margin record.",
+  "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(*) AS bucket_count FROM orders AS o WHERE EXISTS (SELECT 1 FROM riskandmargin AS r WHERE r.ordervault = o.recordvault) GROUP BY o.timespan), shares AS (SELECT bucket_count, bucket_count::numeric / SUM(bucket_count) OVER () AS share FROM bucket_counts), compared AS (SELECT bucket_count, share, AVG(share) OVER () AS average_share FROM shares) SELECT COALESCE(SUM(bucket_count), 0) AS total_count, AVG(share) AS average_share, AVG(share - average_share) AS average_excess_share FROM compared WHERE share > average_share;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Join risk/margin records to matching orders, exclude unmatched records, and group the distinct matched orders by time in force, including NULL as its own bucket. For each bucket, divide its distinct-order count by the sum of all bucket counts; keep buckets with a share greater than the average bucket share. Return one unrounded row containing the sum of the kept buckets\u2019 counts, their average share, and their average share minus the average share across all buckets",
+  "sql": "WITH matched_orders AS (SELECT DISTINCT o.orderspivot, o.timespan FROM riskandmargin AS r JOIN orders AS o ON o.recordvault = r.ordervault), buckets AS (SELECT timespan, COUNT(*) AS order_count FROM matched_orders GROUP BY timespan), shares AS (SELECT order_count, order_count::numeric / SUM(order_count) OVER () AS share FROM buckets), scored AS (SELECT order_count, share, AVG(share) OVER () AS average_bucket_share FROM shares) SELECT SUM(order_count) AS kept_order_count, AVG(share) AS average_kept_share, AVG(share) - MAX(average_bucket_share) AS share_difference FROM scored WHERE share > average_bucket_share",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Match risk/margin records to their orders (`riskandmargin.ordervault` = `orders.recordvault`) and leave out risk/margin records with no matching order. Group the matched pairs by time in force (`orders.timespan`); orders with no time in force form their own bucket. Give each bucket a count equal to the number of distinct orders (distinct `orders.recordvault`) in it, so an order with two risk/margin records adds only 1. Each bucket's share is its count divided by the total of all bucket counts. Keep only the buckets whose share is above the plain average of all the bucket shares. Return one summary row with three values: the total count across the kept buckets, their average share, and the average amount by which their share exceeds that average share. Don't round anything.",
+  "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), bucket_shares AS (SELECT order_count, order_count::numeric / SUM(order_count) OVER () AS share FROM bucket_counts), compared AS (SELECT order_count, share, AVG(share) OVER () AS average_share FROM bucket_shares) SELECT SUM(order_count) AS total_count, AVG(share) AS average_share, AVG(share - average_share) AS average_excess_share FROM compared WHERE share > average_share;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each time-in-force (`orders.timespan`) bucket, count the distinct orders (`orders.recordvault`) that have at least one matching risk/margin record (`riskandmargin.ordervault`), excluding unmatched records. Treat orders with no time in force as their own bucket. Calculate each bucket\u2019s share of the total count across all buckets, then keep buckets whose share exceeds the average bucket share. Return one unrounded summary row containing the total count across those buckets, their average share, and their average amount above the overall average share.",
+  "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count FROM orders AS o JOIN riskandmargin AS r ON r.ordervault = o.recordvault GROUP BY o.timespan), bucket_shares AS (SELECT order_count, order_count::numeric / SUM(order_count) OVER () AS share FROM bucket_counts), compared AS (SELECT order_count, share, AVG(share) OVER () AS average_bucket_share FROM bucket_shares) SELECT SUM(order_count) AS total_count, AVG(share) AS average_share, AVG(share - average_bucket_share) AS average_excess_share FROM compared WHERE share > average_bucket_share;",
+  "executes": false,
+  "matches": []
+ }
+}

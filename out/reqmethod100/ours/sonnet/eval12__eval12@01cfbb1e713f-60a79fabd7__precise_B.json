@@ -1,0 +1,22 @@
+{
+ "readings": [
+  "Join each scan to its site (scans.zoneref = sites.zoneregistry) and drop unmatched scans. Group by sites.healtheval. For each status, compute the average of the per-scan ratio gbsize/spanmin, skipping scans where either value is missing. Also count the distinct sites scanned in that status. Take the all-status average as the simple mean of the per-status average rates. Keep the statuses whose rate is strictly above that mean, or none if the mean is missing. Return one unrounded row with three values for the kept statuses: the mean of their rates, the mean of their distinct-site counts, and the mean of (rate minus all-status mean).",
+  "Join each scan to its site (scans.zoneref = sites.zoneregistry) and drop unmatched scans. Group by sites.healtheval. For each status, compute the rate as total gbsize divided by total spanmin, using only scans where both values are present. Also count the distinct sites scanned in that status. Take the all-status average as the simple mean of the per-status rates. Keep the statuses whose rate is strictly above that mean, or none if the mean is missing. Return one unrounded row with three values for the kept statuses: the mean of their rates, the mean of their distinct-site counts, and the mean of (rate minus all-status mean)."
+ ],
+ "queries": [
+  "WITH per_status AS (\n  SELECT s.healtheval AS healtheval,\n         AVG(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize * 1.0 / sc.spanmin END) AS rate,\n         COUNT(DISTINCT sc.zoneref) AS site_cnt\n  FROM scans sc\n  JOIN sites s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\noverall AS (\n  SELECT AVG(rate) AS mean_rate FROM per_status\n)\nSELECT AVG(p.rate) AS avg_rate,\n       AVG(p.site_cnt) AS avg_site_cnt,\n       AVG(p.rate - o.mean_rate) AS avg_rate_diff\nFROM per_status p\nCROSS JOIN overall o\nWHERE p.rate > o.mean_rate;\n",
+  "WITH per_status AS (\n  SELECT s.healtheval AS healtheval,\n         SUM(sc.gbsize) * 1.0 / SUM(sc.spanmin) AS rate,\n         COUNT(DISTINCT sc.zoneref) AS site_cnt\n  FROM scans sc\n  JOIN sites s ON sc.zoneref = s.zoneregistry\n  WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL\n  GROUP BY s.healtheval\n),\noverall AS (\n  SELECT AVG(rate) AS mean_rate FROM per_status\n),\nkept AS (\n  SELECT p.rate, p.site_cnt, o.mean_rate\n  FROM per_status p, overall o\n  WHERE p.rate > o.mean_rate\n)\nSELECT AVG(rate) AS avg_rate,\n       AVG(site_cnt) AS avg_site_cnt,\n       AVG(rate - mean_rate) AS avg_rate_diff\nFROM kept;\n"
+ ],
+ "raw": [
+  "{\"readings\":[\"Join each scan to its site (scans.zoneref = sites.zoneregistry) and drop unmatched scans. Group by sites.healtheval. For each status, compute the average of the per-scan ratio gbsize/spanmin, skipping scans where either value is missing. Also count the distinct sites scanned in that status. Take the all-status average as the simple mean of the per-status average rates. Keep the statuses whose rate is strictly above that mean, or none if the mean is missing. Return one unrounded row with three values for the kept statuses: the mean of their rates, the mean of their distinct-site counts, and the mean of (rate minus all-status mean).\",\"Join each scan to its site (scans.zoneref = sites.zoneregistry) and drop unmatched scans. Group by sites.healtheval. For each status, compute the rate as total gbsize divided by total spanmin, using only scans where both values are present. Also count the distinct sites scanned in that status. Take the all-status average as the simple mean of the per-status rates. Keep the statuses whose rate is strictly above that mean, or none if the mean is missing. Return one unrounded row with three values for the kept statuses: the mean of their rates, the mean of their distinct-site counts, and the mean of (rate minus all-status mean).\"]}"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123127,
+  "chars_out": 2489
+ }
+}

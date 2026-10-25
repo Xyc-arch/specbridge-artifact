@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "The time-in-force benchmark averages fill quantity directly over all execution records in that time in force.",
+ "b": {
+  "request": "Which orders (joined to their non-orphan executions) have an average `fillcount` (ignoring NULLs) strictly above the average `fillcount` taken directly over all execution records (not the average of per-order averages) in the same `timespan`, showing `ordersmark`, `timespan`, order average fill, the difference from the time-in-force average, and the rank within `timespan` by average fill (descending, NULLs last, ties share a rank with gaps), keeping only rank \u2264 3, with no rounding",
+  "sql": "WITH j AS (SELECT o.recordvault, o.timespan, e.fillcount FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault), t AS (SELECT timespan, AVG(fillcount) AS tavg FROM j GROUP BY timespan), p AS (SELECT recordvault, timespan, AVG(fillcount) AS avgfill FROM j GROUP BY recordvault, timespan), r AS (SELECT p.recordvault AS ordersmark, p.timespan, p.avgfill AS order_avg_fill, p.avgfill - t.tavg AS diff_from_timespan_avg, RANK() OVER (PARTITION BY p.timespan ORDER BY p.avgfill DESC NULLS LAST) AS fill_rank FROM p JOIN t ON p.timespan IS NOT DISTINCT FROM t.timespan WHERE p.avgfill > t.tavg) SELECT ordersmark, timespan, order_avg_fill, diff_from_timespan_avg, fill_rank FROM r WHERE fill_rank <= 3 ORDER BY timespan, fill_rank",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; skip unmatched executions) and get each order's average filled quantity (`fillcount`, ignoring missing values) and its time in force (`timespan`). Which orders have an average fill strictly above their time in force's average fill? For each, show `ordersmark`, `timespan`, the order's average fill, how far above the time-in-force average it is, and its rank within its time in force by average fill (highest first, missing last, ties share a rank and the next rank skips). Keep only orders ranked 3 or better. No rounding. The time-in-force benchmark averages fill quantity directly over all execution records in that time in force.",
+  "sql": "WITH j AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault), oa AS (SELECT ordersmark, timespan, AVG(fillcount) AS avg_fill FROM j GROUP BY ordersmark, timespan), ta AS (SELECT timespan, AVG(fillcount) AS tif_avg FROM j GROUP BY timespan), r AS (SELECT oa.ordersmark, oa.timespan, oa.avg_fill, ta.tif_avg, RANK() OVER (PARTITION BY oa.timespan ORDER BY oa.avg_fill DESC NULLS LAST) AS rnk FROM oa JOIN ta ON oa.timespan = ta.timespan) SELECT ordersmark, timespan, avg_fill AS order_avg_fill, avg_fill - tif_avg AS diff_above_tif_avg, rnk AS rank_in_timespan FROM r WHERE avg_fill > tif_avg AND rnk <= 3 ORDER BY timespan, rnk, ordersmark",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; drop unmatched executions) and work out each order's average filled quantity (`fillcount`, ignoring missing values) along with its time in force (`timespan`). For each time in force, take the average `fillcount` over all of its execution records, with each execution weighted equally. Keep orders whose average fill is strictly above that figure. For each, show `ordersmark`, `timespan`, the order's average fill, how far it exceeds the time-in-force figure, and its rank within its time in force by average fill (highest first, missing last, tied orders share a rank and the next rank skips). Return only orders ranked 3 or better. No rounding.",
+  "sql": "WITH j AS (SELECT e.ordersmark, o.timespan, e.fillcount FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault), tif AS (SELECT timespan, AVG(fillcount) AS tif_avg FROM j GROUP BY timespan), ord AS (SELECT ordersmark, timespan, AVG(fillcount) AS avg_fill FROM j GROUP BY ordersmark, timespan), r AS (SELECT ord.ordersmark, ord.timespan, ord.avg_fill, ord.avg_fill - tif.tif_avg AS excess, RANK() OVER (PARTITION BY ord.timespan ORDER BY ord.avg_fill DESC NULLS LAST) AS rnk FROM ord JOIN tif ON ord.timespan = tif.timespan WHERE ord.avg_fill > tif.tif_avg) SELECT ordersmark, timespan, avg_fill, excess, rnk FROM r WHERE rnk <= 3",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; skip unmatched executions) and get each order's average filled quantity (`fillcount`, ignoring missing values) and its time in force (`timespan`). Which orders have an average fill strictly above their time in force's benchmark average, where the benchmark is computed by averaging `fillcount` directly over all matched execution records in that time in force (not an average of the per-order averages)? For each, show `ordersmark`, `timespan`, the order's average fill, how far above the time-in-force benchmark average it is, and its rank within its time in force by average fill (highest first, missing last, ties share a rank and the next rank skips). Keep only orders ranked 3 or better. No rounding.",
+  "sql": "WITH m AS (SELECT oe.ordersmark, o.timespan, oe.fillcount FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault), per_order AS (SELECT ordersmark, timespan, AVG(fillcount) AS avg_fill FROM m GROUP BY ordersmark, timespan), bench AS (SELECT timespan, AVG(fillcount) AS bench_avg FROM m GROUP BY timespan), ranked AS (SELECT p.ordersmark, p.timespan, p.avg_fill, b.bench_avg, p.avg_fill - b.bench_avg AS above_benchmark, RANK() OVER (PARTITION BY p.timespan ORDER BY p.avg_fill DESC NULLS LAST) AS rnk FROM per_order p JOIN bench b ON p.timespan = b.timespan) SELECT ordersmark, timespan, avg_fill, above_benchmark, rnk FROM ranked WHERE avg_fill > bench_avg AND rnk <= 3 ORDER BY timespan, rnk, ordersmark",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

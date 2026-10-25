@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6514cf857d",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Group linked lab records by patient sex, with the empty-string sex value as its own group that counts toward the total and the average group count; report the groups above the average.",
+ "b": {
+  "request": "Group Laboratory records linked to patients by Patient.SEX, treating empty-string sex as its own group; count each group\u2019s records, include all sex groups in the total and average, and report only groups whose record count exceeds the average, with sex, record count, share of all records, and unrounded difference above the average",
+  "sql": "WITH sex_counts AS (\n    SELECT p.SEX, COUNT(*) AS record_count\n    FROM Laboratory AS l\n    JOIN Patient AS p ON p.ID = l.ID\n    GROUP BY p.SEX\n), totals AS (\n    SELECT SUM(record_count) AS all_records,\n           AVG(record_count) AS average_count\n    FROM sex_counts\n)\nSELECT sc.SEX AS sex,\n       sc.record_count,\n       1.0 * sc.record_count / t.all_records AS share_of_all_records,\n       sc.record_count - t.average_count AS difference_above_average\nFROM sex_counts AS sc\nCROSS JOIN totals AS t\nWHERE sc.record_count > t.average_count;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Break down the lab test records that match a patient (by patient ID) by the patient's sex. Which sexes have more test records than the average per sex? For each, show the sex, its number of test records, its share of the total, and how far above the average it is, unrounded. Group linked lab records by patient sex, with the empty-string sex value as its own group that counts toward the total and the average group count; report the groups above the average.",
+  "sql": "WITH counts_by_sex AS (\n  SELECT p.SEX, COUNT(*) AS test_records\n  FROM Laboratory AS l\n  JOIN Patient AS p ON p.ID = l.ID\n  GROUP BY p.SEX\n), totals AS (\n  SELECT SUM(test_records) AS total_records,\n         AVG(test_records) AS average_per_sex\n  FROM counts_by_sex\n)\nSELECT c.SEX AS sex,\n       c.test_records,\n       1.0 * c.test_records / t.total_records AS share_of_total,\n       c.test_records - t.average_per_sex AS above_average\nFROM counts_by_sex AS c\nCROSS JOIN totals AS t\nWHERE c.test_records > t.average_per_sex;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Take the laboratory test records that match a patient by patient ID (tests with no matching patient are left out) and group them by the patient's `SEX`, treating an empty-string sex value as a group of its own. For each sex group whose number of test records is above the average number of records per group, show the sex, its number of test records, that number as a fraction of the total over all these groups, and how far its count is above the per-group average, all unrounded.",
+  "sql": "WITH sex_counts AS (\n    SELECT p.SEX, COUNT(*) AS test_count\n    FROM Laboratory AS l\n    JOIN Patient AS p ON p.ID = l.ID\n    GROUP BY p.SEX\n),\nabove_average AS (\n    SELECT SEX, test_count\n    FROM sex_counts\n    WHERE test_count > (SELECT AVG(test_count) FROM sex_counts)\n)\nSELECT SEX, test_count,\n       CAST(test_count AS REAL) / SUM(test_count) OVER () AS fraction_of_total,\n       test_count - (SELECT AVG(test_count) FROM sex_counts) AS above_average\nFROM above_average;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Group lab test records linked by patient ID according to the patient\u2019s sex, treating an empty-string sex as its own group in the total and average. For each group with more test records than the average across sex groups, report the sex, record count, share of all records, and amount above the average, without rounding.",
+  "sql": "WITH sex_counts AS (\n    SELECT p.SEX, COUNT(*) AS record_count\n    FROM Laboratory AS l\n    JOIN Patient AS p ON p.ID = l.ID\n    GROUP BY p.SEX\n), overall AS (\n    SELECT SUM(record_count) AS total_records,\n           AVG(record_count) AS average_count\n    FROM sex_counts\n)\nSELECT sc.SEX AS sex,\n       sc.record_count,\n       1.0 * sc.record_count / o.total_records AS share_of_all_records,\n       sc.record_count - o.average_count AS amount_above_average\nFROM sex_counts AS sc\nCROSS JOIN overall AS o\nWHERE sc.record_count > o.average_count;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-568a31721e",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Each patient's HGB/HCT ratio is the mean of the ratios computed for each of their lab records.",
+ "c": {
+  "request": "Looking at each patient's hemoglobin-to-hematocrit (`HGB`/`HCT`) ratio from their lab records (ignoring missing values), take the patients whose ratio is above the average across all patients. Give one summary row for them: the mean of their average PIC, the mean of their ratios, and the mean amount by which their ratios exceed that cross-patient average. Each patient's HGB/HCT ratio is the mean of the ratios computed for each of their lab records.",
+  "sql": "WITH patient_stats AS (SELECT ID, AVG(CASE WHEN HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 THEN HGB * 1.0 / HCT END) AS ratio, AVG(PIC) AS avg_pic FROM Laboratory GROUP BY ID), baseline AS (SELECT AVG(ratio) AS overall_avg_ratio FROM patient_stats) SELECT AVG(p.avg_pic) AS mean_average_pic, AVG(p.ratio) AS mean_ratio, AVG(p.ratio - b.overall_avg_ratio) AS mean_excess_ratio FROM patient_stats AS p CROSS JOIN baseline AS b WHERE p.ratio > b.overall_avg_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For each patient in the Laboratory table, compute their average PIC and their hemoglobin-to-hematocrit ratio, taken as the average of the `HGB`/`HCT` ratios of their individual lab records (ignoring missing values). Keep the patients whose ratio is above the average of all patients' ratios, and give one summary row for them: the average of their average PIC values, the average of their ratios, and the average amount by which their ratios exceed that all-patient average.",
+  "sql": "WITH patient_averages AS (SELECT ID, AVG(PIC) AS avg_pic, AVG(1.0 * HGB / NULLIF(HCT, 0)) AS avg_ratio FROM Laboratory GROUP BY ID), overall AS (SELECT AVG(avg_ratio) AS overall_ratio FROM patient_averages) SELECT AVG(p.avg_pic) AS avg_pic, AVG(p.avg_ratio) AS avg_ratio, AVG(p.avg_ratio - o.overall_ratio) AS avg_excess_ratio FROM patient_averages AS p CROSS JOIN overall AS o WHERE p.avg_ratio > o.overall_ratio;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each patient, average the HGB/HCT ratios from lab records with both values present; select patients whose average ratio exceeds the mean of those patient averages, then return one row containing the mean of the selected patients\u2019 average PIC values, the mean of their average ratios, and the mean amount their average ratios exceed the cross-patient mean",
+  "sql": "WITH patient_ratios AS (SELECT ID, AVG(HGB / NULLIF(HCT, 0)) AS avg_ratio FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL GROUP BY ID), patient_pics AS (SELECT ID, AVG(PIC) AS avg_pic FROM Laboratory GROUP BY ID), cross_patient_mean AS (SELECT AVG(avg_ratio) AS mean_ratio FROM patient_ratios) SELECT AVG(p.avg_pic) AS mean_avg_pic, AVG(r.avg_ratio) AS mean_avg_ratio, AVG(r.avg_ratio - c.mean_ratio) AS mean_excess_ratio FROM patient_ratios AS r LEFT JOIN patient_pics AS p ON p.ID = r.ID CROSS JOIN cross_patient_mean AS c WHERE r.avg_ratio > c.mean_ratio",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using each patient\u2019s lab records with nonmissing HGB and HCT values, calculate their HGB/HCT ratio as the mean of the per-record ratios. Find the average of these patient ratios across all patients, then select patients whose ratio exceeds it. Return one summary row with the mean of the selected patients\u2019 average PIC values, the mean of their HGB/HCT ratios, and the mean amount by which those ratios exceed the cross-patient average.",
+  "sql": "WITH patient_averages AS (SELECT ID, AVG(HGB * 1.0 / HCT) AS hgb_hct_ratio, AVG(PIC) AS avg_pic FROM Laboratory WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0 GROUP BY ID), overall AS (SELECT AVG(hgb_hct_ratio) AS overall_ratio FROM patient_averages) SELECT AVG(p.avg_pic) AS mean_avg_pic, AVG(p.hgb_hct_ratio) AS mean_hgb_hct_ratio, AVG(p.hgb_hct_ratio - o.overall_ratio) AS mean_ratio_excess FROM patient_averages AS p CROSS JOIN overall AS o WHERE p.hgb_hct_ratio > o.overall_ratio;",
+  "executes": true,
+  "matches": []
+ }
+}

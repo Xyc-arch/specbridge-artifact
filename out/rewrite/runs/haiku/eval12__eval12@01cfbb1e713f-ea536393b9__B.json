@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ea536393b9",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Rank the site-and-risk-status groups by share of scans and return every group whose share reaches the 10th-ranked share, including all ties.",
+ "b": {
+  "request": "Rank the (scans.zoneref, sites.riskeval) groups among scans matched to a site by share of matched scans, and return every group whose share is greater than or equal to the 10th-highest share (including ties), showing site code, risk evaluation status, average pressratio (nulls ignored), scan count, and share, without rounding",
+  "sql": "WITH matched AS (SELECT s.zoneref, st.riskeval, s.pressratio FROM scans s JOIN sites st ON s.zoneref = st.zoneregistry), grp AS (SELECT zoneref, riskeval, AVG(pressratio) AS avg_pressratio, COUNT(*) AS scan_count FROM matched GROUP BY zoneref, riskeval), tot AS (SELECT COUNT(*) AS total FROM matched), shares AS (SELECT g.zoneref, g.riskeval, g.avg_pressratio, g.scan_count, g.scan_count * 1.0 / t.total AS share FROM grp g CROSS JOIN tot t), cutoff AS (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) SELECT zoneref AS site_code, riskeval AS risk_evaluation, avg_pressratio, scan_count, share FROM shares WHERE share >= (SELECT share FROM cutoff) ORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Matching each scan to its site by site code (dropping scans with no matching site), group the scans by site code (`scans.zoneref`) and risk evaluation status (`riskeval`). For each group give the site code, the risk evaluation status, the average compression ratio (`pressratio`, ignoring missing values), the number of scans, and that number as a share of all matched scans. Sort by share from largest to smallest and keep the top 10 rows plus every group whose share ties with the 10th one, even if that gives more than 10 rows. Don't round.",
+  "sql": "WITH matched AS (\n  SELECT s.zoneref, si.riskeval, s.pressratio\n  FROM scans s\n  JOIN sites si ON s.zoneref = si.zoneregistry\n),\ngrouped AS (\n  SELECT zoneref AS site_code,\n         riskeval AS risk_evaluation_status,\n         AVG(pressratio) AS avg_pressratio,\n         COUNT(*) AS scan_count,\n         COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share\n  FROM matched\n  GROUP BY zoneref, riskeval\n),\nranked AS (\n  SELECT g.*, RANK() OVER (ORDER BY share DESC) AS rnk\n  FROM grouped g\n)\nSELECT site_code, risk_evaluation_status, avg_pressratio, scan_count, share\nFROM ranked\nWHERE rnk <= 10\nORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Matching each scan to its site by site code (dropping scans with no matching site), group the scans by site code (`scans.zoneref`) and risk evaluation status (`riskeval`). For each group give the site code, the risk evaluation status, the average compression ratio (`pressratio`, ignoring missing values), the number of scans, and that number as a share of all matched scans. Show the top 10 by share, largest first. Don't round. Rank the site-and-risk-status groups by share of scans and return every group whose share reaches the 10th-ranked share, including all ties.",
+  "sql": "WITH matched AS (\n  SELECT sc.zoneref, t.riskeval, sc.pressratio\n  FROM scans sc\n  JOIN sites t ON sc.zoneref = t.zoneregistry\n),\ngrouped AS (\n  SELECT zoneref, riskeval, AVG(pressratio) AS avg_pressratio, COUNT(*) AS scan_count\n  FROM matched\n  GROUP BY zoneref, riskeval\n),\nshares AS (\n  SELECT zoneref, riskeval, avg_pressratio, scan_count,\n         scan_count * 1.0 / SUM(scan_count) OVER () AS share\n  FROM grouped\n),\nranked AS (\n  SELECT *, RANK() OVER (ORDER BY share DESC) AS share_rank\n  FROM shares\n)\nSELECT zoneref AS site_code, riskeval AS risk_evaluation_status, avg_pressratio, scan_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among the site-and-risk-status groups, which ones have a share of scans at or above the 10th-highest share, including every group tied with it?",
+  "sql": "WITH grp AS (SELECT s.zoneref, si.riskeval, COUNT(*) AS cnt FROM scans s JOIN sites si ON si.zoneregistry = s.zoneref GROUP BY s.zoneref, si.riskeval), shares AS (SELECT zoneref, riskeval, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM grp), cutoff AS (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) SELECT zoneref, riskeval, share FROM shares WHERE share >= (SELECT share FROM cutoff) ORDER BY share DESC",
+  "executes": true,
+  "matches": []
+ }
+}

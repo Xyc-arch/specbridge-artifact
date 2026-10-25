@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-46093f9250",
+ "wording": "precise_A",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH rated AS (SELECT f.rating, COUNT(*) AS cnt FROM rental r JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film f ON f.film_id = i.film_id GROUP BY f.rating), shares AS (SELECT rating, cnt, CAST(cnt AS DOUBLE) / SUM(cnt) OVER () AS share FROM rated), threshold AS (SELECT AVG(share) AS mean_share FROM shares), kept AS (SELECT s.cnt, s.share, t.mean_share FROM shares s CROSS JOIN threshold t WHERE s.share > t.mean_share) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(share - mean_share) AS avg_excess_over_mean_share FROM kept",
+  "assumptions": [
+   {
+    "assumption": "Rentals are linked to film through inner joins on rental.inventory_id = inventory.inventory_id and inventory.film_id = film.film_id, so rentals without a matching copy or film are dropped.",
+    "unresolved": false
+   },
+   {
+    "assumption": "\"Total count of those ratings\" is read as the sum of the rental counts of the kept ratings (not the number of kept ratings).",
+    "unresolved": true
+   },
+   {
+    "assumption": "The average share across ratings is the unweighted mean of the per-rating shares over all ratings present after the joins, and 'their average share' is the mean share of the kept ratings.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Shares are computed as DOUBLE values rather than DECIMAL, because MySQL decimal division would round the result, and the request says not to round anything. The dialect is taken to be MySQL, inferred from the Sakila-style schema.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"Total count of those ratings\" means the number of kept ratings, not the sum of their rental counts.",
+    "sql": "WITH rated AS (SELECT f.rating, COUNT(*) AS cnt FROM rental r JOIN inventory i ON i.inventory_id = r.inventory_id JOIN film f ON f.film_id = i.film_id GROUP BY f.rating), shares AS (SELECT rating, cnt, CAST(cnt AS DOUBLE) / SUM(cnt) OVER () AS share FROM rated), threshold AS (SELECT AVG(share) AS mean_share FROM shares), kept AS (SELECT s.cnt, s.share, t.mean_share FROM shares s CROSS JOIN threshold t WHERE s.share > t.mean_share) SELECT COUNT(*) AS total_count, AVG(share) AS avg_share, AVG(share - mean_share) AS avg_excess_over_mean_share FROM kept"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 15.0
+}

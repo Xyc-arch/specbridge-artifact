@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS avg_ratio, COUNT(*) AS mesh_count FROM scanmesh m JOIN sites s ON s.zoneregistry = m.zoneref WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat HAVING AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) IS NOT NULL), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS above_avg_sites_avg_ratio, COUNT(*) AS above_avg_site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess_over_status_avg FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
+  "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / NULLIF(m.geomdeltamm, 0)) AS avg_ratio, COUNT(*) AS mesh_count FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio WHERE avg_ratio IS NOT NULL GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS above_avg_sites_avg_ratio, COUNT(*) AS above_avg_site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess_over_status_avg FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
+  "WITH site_stats AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / NULLIF(m.geomdeltamm, 0)) AS avg_ratio, COUNT(*) AS mesh_count FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), site_ratios AS (SELECT * FROM site_stats WHERE avg_ratio IS NOT NULL), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratios GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS avg_ratio_above, COUNT(*) AS site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess FROM site_ratios r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat"
+ ],
+ "responses": [
+  {
+   "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS avg_ratio, COUNT(*) AS mesh_count FROM scanmesh m JOIN sites s ON s.zoneregistry = m.zoneref WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat HAVING AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) IS NOT NULL), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS above_avg_sites_avg_ratio, COUNT(*) AS above_avg_site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess_over_status_avg FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
+   "assumptions": [
+    {
+     "assumption": "A ratio is missing when facetresmm or geomdeltamm is NULL, or when geomdeltamm is 0 (division by zero is treated as missing via NULLIF). The site ratio is the average of the per-mesh ratios, not the ratio of the averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Sites whose ratios are all missing have no site ratio. They are left out of the status average and of the above-average sites. Their meshes still count toward mesh_count, which is computed but not shown in the final output.",
+     "unresolved": false
+    },
+    {
+     "assumption": "A NULL insurstat counts as 'no recorded insurance status' and is excluded. Empty-string statuses are treated as real values.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / NULLIF(m.geomdeltamm, 0)) AS avg_ratio, COUNT(*) AS mesh_count FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio WHERE avg_ratio IS NOT NULL GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS above_avg_sites_avg_ratio, COUNT(*) AS above_avg_site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess_over_status_avg FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
+   "assumptions": [
+    {
+     "assumption": "A mesh record's ratio is facetresmm / geomdeltamm. A zero geomdeltamm counts as a missing ratio (NULLIF), and so does a null in either column.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Mesh count is the number of all matched mesh records for the site, including those whose ratio is missing. It is not used in the final output.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Sites with no ratio at all are left out of the status average because the ratio is NULL, and they cannot be above average. Sites with a NULL insurstat are excluded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH site_stats AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / NULLIF(m.geomdeltamm, 0)) AS avg_ratio, COUNT(*) AS mesh_count FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), site_ratios AS (SELECT * FROM site_stats WHERE avg_ratio IS NOT NULL), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratios GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS avg_ratio_above, COUNT(*) AS site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess FROM site_ratios r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
+   "assumptions": [
+    {
+     "assumption": "A mesh record with geomdeltamm = 0 is treated as having a missing ratio (NULLIF), and NULL ratios are ignored in the per-site average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Sites whose every ratio is missing have no site ratio, so they are excluded from the status average and from the above-average set. The mesh count is computed per site (all joined mesh records) but does not appear in the final output.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Sites with no insurance status means insurstat IS NULL. Empty strings are treated as a real status.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 124212,
+  "chars_out": 4192
+ }
+}

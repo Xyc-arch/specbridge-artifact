@@ -1,0 +1,31 @@
+{
+ "interpretations": [
+  "For each observed non-null `orders.timespan`, count distinct matched orders, divide by the sum of those counts, and subtract the arithmetic mean of the resulting shares; retain the sign",
+  "For each observed non-null `orders.timespan`, calculate the same count and share, then report the absolute difference from the arithmetic mean share",
+  "For each observed non-null `orders.timespan`, calculate the same count and share, then report its signed percentage difference relative to the arithmetic mean share",
+  "For each observed non-null `orders.timespan`, calculate the same count and share, then report its absolute percentage difference relative to the arithmetic mean share",
+  "Treat orders whose `orders.timespan` is NULL as an additional group in the counts, total, and average share",
+  "Include every defined time-in-force value, including values with zero matched orders, in the counts, total, and average share",
+  "Include every defined time-in-force value and a NULL group, including groups with zero matched orders, in the counts, total, and average share",
+  "Include time-in-force values present in `orders` even if none of their orders has a matching risk/margin record; exclude values absent from `orders`",
+  "Express the signed difference between each share and the average share in percentage points",
+  "Express the absolute difference between each share and the average share in percentage points"
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT timespan, COUNT(DISTINCT orderspivot) AS order_count\n  FROM orders\n  WHERE timespan IS NOT NULL\n  GROUP BY timespan\n),\nshares AS (\n  SELECT timespan,\n         1.0 * order_count / SUM(order_count) OVER () AS share\n  FROM counts\n)\nSELECT timespan, share - AVG(share) OVER () AS centered_share\nFROM shares",
+  "WITH counts AS (\n  SELECT timespan, COUNT(*) AS order_count\n  FROM orders\n  WHERE timespan IS NOT NULL\n  GROUP BY timespan\n),\nshares AS (\n  SELECT\n    timespan,\n    order_count,\n    1.0 * order_count / SUM(order_count) OVER () AS share\n  FROM counts\n)\nSELECT\n  timespan,\n  order_count,\n  share,\n  ABS(share - AVG(share) OVER ()) AS absolute_difference_from_mean_share\nFROM shares",
+  "WITH counts AS (\n    SELECT timespan, COUNT(*) AS order_count\n    FROM orders\n    WHERE timespan IS NOT NULL\n    GROUP BY timespan\n),\nshares AS (\n    SELECT\n        timespan,\n        order_count,\n        1.0 * order_count / SUM(order_count) OVER () AS share\n    FROM counts\n)\nSELECT\n    timespan,\n    order_count,\n    share,\n    100.0 * (share - AVG(share) OVER ()) / AVG(share) OVER () AS signed_percentage_difference\nFROM shares;\n",
+  "WITH counts AS (\n  SELECT timespan, COUNT(*) AS order_count\n  FROM orders\n  WHERE timespan IS NOT NULL\n  GROUP BY timespan\n),\nshares AS (\n  SELECT\n    timespan,\n    order_count,\n    1.0 * order_count / SUM(order_count) OVER () AS share\n  FROM counts\n)\nSELECT\n  timespan,\n  order_count,\n  share,\n  ABS(share - AVG(share) OVER ()) / AVG(share) OVER () * 100\n    AS absolute_percentage_difference\nFROM shares",
+  "WITH counts AS (\n  SELECT timespan, COUNT(*) AS order_count\n  FROM orders\n  GROUP BY timespan\n)\nSELECT\n  timespan,\n  order_count,\n  SUM(order_count) OVER () AS total_orders,\n  1.0 * order_count / SUM(order_count) OVER () AS average_share\nFROM counts",
+  "WITH time_in_force(value) AS (\n  VALUES ('IOC'), ('GTC'), ('GTD'), ('FOK')\n),\ncounts AS (\n  SELECT t.value, COUNT(o.orderspivot) AS order_count\n  FROM time_in_force AS t\n  LEFT JOIN orders AS o ON o.timespan = t.value\n  GROUP BY t.value\n)\nSELECT\n  value,\n  order_count,\n  SUM(order_count) OVER () AS total_orders,\n  1.0 * order_count / NULLIF(SUM(order_count) OVER (), 0) AS average_share\nFROM counts"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b974589b1e",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 106245,
+  "chars_out": 3603
+ }
+}

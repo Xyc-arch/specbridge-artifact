@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Only accounts that have at least one transaction are considered.",
+ "a": {
+  "request": "Considering only accounts that have at least one financial transaction (accounts with none are left out entirely), pair each account with the town/city (`town_city`) of the customer who holds it. Drop accounts whose holder isn't on file or has no town. For each account, give: the account id; the town; its number of transactions; that number as a share of the total transactions of these accounts in the same town; and that number divided by the average transaction count per account across these accounts. Show the 10 accounts with the highest ratio to the average, highest first, unrounded.",
+  "sql": "WITH account_counts AS (\n    SELECT\n        a.account_id,\n        c.town_city,\n        COUNT(*) AS transaction_count\n    FROM Accounts AS a\n    JOIN Customers AS c\n        ON c.customer_id = a.customer_id\n    JOIN Financial_Transactions AS ft\n        ON ft.account_id = a.account_id\n    WHERE c.town_city IS NOT NULL\n    GROUP BY a.account_id, c.town_city\n)\nSELECT\n    account_id,\n    town_city,\n    transaction_count,\n    1.0 * transaction_count / SUM(transaction_count) OVER (PARTITION BY town_city) AS town_transaction_share,\n    1.0 * transaction_count / AVG(transaction_count) OVER () AS ratio_to_average\nFROM account_counts\nORDER BY ratio_to_average DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For accounts with at least one financial transaction, count transactions per account and divide each count by the average transaction count across those accounts; return the 10 highest ratios, descending, with account ID, the account holder\u2019s town/city, the account\u2019s share of all transactions in that town, and the ratio, without rounding, excluding accounts whose customer record or town/city is missing",
+  "sql": "WITH account_counts AS (\n    SELECT\n        a.account_id,\n        a.customer_id,\n        COUNT(*) AS transaction_count\n    FROM Accounts AS a\n    JOIN Financial_Transactions AS ft\n        ON ft.account_id = a.account_id\n    GROUP BY a.account_id, a.customer_id\n),\naccount_metrics AS (\n    SELECT\n        ac.account_id,\n        c.town_city,\n        ac.transaction_count,\n        1.0 * ac.transaction_count / AVG(ac.transaction_count) OVER () AS ratio\n    FROM account_counts AS ac\n    JOIN Customers AS c\n        ON c.customer_id = ac.customer_id\n    WHERE c.town_city IS NOT NULL\n      AND TRIM(c.town_city) <> ''\n),\ntown_transactions AS (\n    SELECT\n        c.town_city,\n        COUNT(*) AS transaction_count\n    FROM Financial_Transactions AS ft\n    JOIN Accounts AS a\n        ON a.account_id = ft.account_id\n    JOIN Customers AS c\n        ON c.customer_id = a.customer_id\n    WHERE c.town_city IS NOT NULL\n      AND TRIM(c.town_city) <> ''\n    GROUP BY c.town_city\n)\nSELECT\n    am.account_id,\n    am.town_city,\n    1.0 * am.transaction_count / tt.transaction_count AS town_transaction_share,\n    am.ratio\nFROM account_metrics AS am\nJOIN town_transactions AS tt\n    ON tt.town_city = am.town_city\nORDER BY am.ratio DESC\nLIMIT 10",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Using the financial transaction counts by account, show the 10 accounts whose count is highest relative to the average count per account (count \u00f7 average), highest first. For each, give the account id, the town/city (`town_city`) of the customer who holds it, its number of transactions, its share of its town's transactions, and that ratio to the average. Leave out accounts whose holder isn't on file or has no town, and don't round. Only accounts that have at least one transaction are considered.",
+  "sql": "WITH account_counts AS (\n  SELECT account_id, COUNT(*) AS transaction_count\n  FROM Financial_Transactions\n  GROUP BY account_id\n), town_counts AS (\n  SELECT a.account_id, c.town_city, ac.transaction_count,\n         SUM(ac.transaction_count) OVER (PARTITION BY c.town_city) AS town_transaction_count\n  FROM account_counts ac\n  JOIN Accounts a ON a.account_id = ac.account_id\n  JOIN Customers c ON c.customer_id = a.customer_id\n  WHERE c.town_city IS NOT NULL\n), ratios AS (\n  SELECT account_id, town_city, transaction_count,\n         CAST(transaction_count AS DECIMAL(19,4)) / town_transaction_count AS town_transaction_share,\n         CAST(transaction_count AS DECIMAL(19,4)) / AVG(transaction_count) OVER () AS ratio_to_average\n  FROM town_counts\n)\nSELECT account_id, town_city, transaction_count, town_transaction_share, ratio_to_average\nFROM ratios\nORDER BY ratio_to_average DESC\nLIMIT 10",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using the financial transaction counts by account, consider only accounts with at least one transaction. Show the 10 accounts with the highest transaction count relative to the average count per account (count \u00f7 average), in descending order. For each, give the account ID, the account holder\u2019s town or city (`town_city`), the number of transactions, its share of the town\u2019s transactions, and its ratio to the average. Exclude accounts whose holder isn\u2019t on file or has no town, and don\u2019t round the values.",
+  "sql": "WITH AccountCounts AS (\n  SELECT account_id, COUNT(*) AS transaction_count\n  FROM Financial_Transactions\n  GROUP BY account_id\n),\nEligibleAccounts AS (\n  SELECT ac.account_id, c.town_city, ac.transaction_count\n  FROM AccountCounts ac\n  JOIN Accounts a ON a.account_id = ac.account_id\n  JOIN Customers c ON c.customer_id = a.customer_id\n  WHERE c.town_city IS NOT NULL AND TRIM(c.town_city) <> ''\n),\nTownCounts AS (\n  SELECT town_city, SUM(transaction_count) AS town_transaction_count\n  FROM EligibleAccounts\n  GROUP BY town_city\n),\nAverageCount AS (\n  SELECT AVG(transaction_count * 1.0) AS average_transaction_count\n  FROM AccountCounts\n)\nSELECT ea.account_id,\n       ea.town_city,\n       ea.transaction_count,\n       ea.transaction_count * 1.0 / tc.town_transaction_count AS town_transaction_share,\n       ea.transaction_count * 1.0 / av.average_transaction_count AS ratio_to_average\nFROM EligibleAccounts ea\nJOIN TownCounts tc ON tc.town_city = ea.town_city\nCROSS JOIN AverageCount av\nORDER BY ratio_to_average DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

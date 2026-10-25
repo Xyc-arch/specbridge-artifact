@@ -1,0 +1,40 @@
+{
+ "interpretations": [
+  "\"Above-average\" means the status's mean modindex exceeds the overall mean modindex across all signals with non-null modindex (signal-level average). \"How far above average\" is the status mean minus that overall mean. \"Differs from the mean of the qualifying statuses' averages\" is the status mean minus the average of the qualifying statuses' means",
+  "\"Above-average\" means the status's mean modindex exceeds the unweighted mean of all statuses' mean modindex values (including the NULL group), rather than the signal-level overall mean. \"How far above average\" is the status mean minus that mean of group means. The difference from the qualifying mean is the status mean minus the average of the qualifying statuses' means",
+  "The comparison baseline is the overall mean modindex across all signals, including those whose rfistat is null. Null modindex values are excluded. \"How far above average\" is the status mean minus this baseline",
+  "\"How far above average\" is expressed as a ratio or percentage (status mean divided by overall mean, or percent above) instead of an absolute difference",
+  "\"How it differs from the mean of the qualifying statuses' averages\" is the signed difference (status mean minus qualifying mean), so it can be negative or positive",
+  "That same difference is taken as an absolute value (magnitude only)",
+  "The \"mean of the qualifying statuses' averages\" is the simple average of the qualifying statuses' mean modindex values (each status weighted equally)",
+  "The \"mean of the qualifying statuses' averages\" is a weighted average, i.e. the mean modindex across all signals belonging to the qualifying statuses pooled together",
+  "Signals with a null rfistat form their own group (shown as NULL or a label such as 'No Status' or 'Unknown'), and this group can qualify and appear in the output",
+  "Signals with rfistat = 'Unknown' are treated as the \"no status\" group, merged with NULL rfistat rows",
+  "Signals with rfistat = 'Unknown' are kept as a separate group from NULL rfistat rows",
+  "Empty-string rfistat values are treated as missing and grouped with NULL as the \"no status\" group",
+  "Statuses whose modindex values are all null are excluded entirely, since they have no average. Alternatively they are kept with a NULL average and fail the above-average test",
+  "The output has one row per qualifying status, with columns: status, average modindex, difference from the overall average, and difference from the qualifying mean. The overall average itself may or may not appear as an additional column",
+  "Results are ordered by average modindex descending, by status name, or left unordered",
+  "Values are left unrounded, so full floating-point precision is shown with no ROUND or formatting applied",
+  "Interpretations not yet covered:",
+  "The comparison baseline is the overall mean modindex across only signals with a non-null rfistat, excluding the no-status signals from the baseline",
+  "\"Above-average\" is inclusive (status mean greater than or equal to the overall mean) rather than strictly greater",
+  "rfistat values are normalized for case or surrounding whitespace before grouping (e.g. 'clean', 'Clean ' and 'CLEAN' count as one status)",
+  "\"How it differs from the mean of the qualifying statuses' averages\" is expressed as a ratio or percentage of the qualifying mean rather than an absolute difference"
+ ],
+ "queries": [
+  "WITH overall AS (\n  SELECT AVG(modindex) AS overall_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_avg AS (\n  SELECT rfistat, AVG(modindex) AS status_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nqualifying AS (\n  SELECT s.rfistat, s.status_avg, o.overall_avg\n  FROM status_avg s\n  CROSS JOIN overall o\n  WHERE s.status_avg > o.overall_avg\n)\nSELECT\n  rfistat,\n  status_avg,\n  status_avg - overall_avg AS above_average_by,\n  status_avg - (SELECT AVG(status_avg) FROM qualifying) AS diff_from_qualifying_mean\nFROM qualifying\nORDER BY status_avg DESC;\n",
+  "WITH g AS (\n  SELECT rfistat, AVG(modindex) AS m\n  FROM signals\n  GROUP BY rfistat\n),\na AS (\n  SELECT AVG(m) AS avg_m FROM g\n),\nq AS (\n  SELECT g.rfistat, g.m, a.avg_m\n  FROM g, a\n  WHERE g.m > a.avg_m\n)\nSELECT rfistat,\n       m - avg_m AS how_far_above_average,\n       m - (SELECT AVG(m) FROM q) AS difference_from_qualifying_mean\nFROM q;\n",
+  "SELECT rfistat,\n       AVG(modindex) - (SELECT AVG(modindex) FROM signals) AS above_average\nFROM signals\nWHERE modindex IS NOT NULL\nGROUP BY rfistat;\n",
+  "SELECT decodestat, AVG(decodeconf) / (SELECT AVG(decodeconf) FROM signaldecoding) AS ratio_to_overall_mean\nFROM signaldecoding\nGROUP BY decodestat;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 324041,
+  "chars_out": 5816
+ }
+}

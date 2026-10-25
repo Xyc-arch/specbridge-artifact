@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-a2193f5c9c",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Lab tests dated on 1985-04-22 or on 1994-03-14 are included in the range, along with every test between them.",
+ "c": {
+  "request": "For laboratory tests between 1985-04-22 and 1994-03-14 (comparing the `Date` text as stored), what is the average hemoglobin (`HGB`) and the average total bilirubin-to-creatinine ratio (`T-BIL` \u00f7 `CRE`, per test) for each anti-centromere status (`CENTROMEA`, with a missing status as its own group)? Also give each status's average ratio divided by the plain mean of all the statuses' average ratios. Ignore missing values in the averages, return nothing if that overall mean is missing, and don't round. Lab tests dated on 1985-04-22 or on 1994-03-14 are included in the range, along with every test between them.",
+  "sql": "WITH status_averages AS (\n  SELECT\n    CENTROMEA,\n    AVG(HGB) AS average_hemoglobin,\n    AVG(`T-BIL` / CRE) AS average_ratio\n  FROM Laboratory\n  WHERE Date >= '1985-04-22' AND Date <= '1994-03-14'\n  GROUP BY CENTROMEA\n),\noverall AS (\n  SELECT AVG(average_ratio) AS overall_mean_ratio\n  FROM status_averages\n)\nSELECT\n  status_averages.CENTROMEA,\n  status_averages.average_hemoglobin,\n  status_averages.average_ratio,\n  status_averages.average_ratio / overall.overall_mean_ratio AS ratio_relative_to_overall_mean\nFROM status_averages\nCROSS JOIN overall\nWHERE overall.overall_mean_ratio IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "d": {
+  "request": "Group laboratory tests by CENTROMEA, treating missing status as its own group, and include tests whose stored Date text is between 1985-04-22 and 1994-03-14, inclusive. For each group, return the average HGB and the average per-test T-BIL / CRE ratio, ignoring missing values in each average; also return that group\u2019s average ratio divided by the unweighted mean of all groups\u2019 average ratios. Return no rows if that overall mean is missing, and do not round.",
+  "sql": "WITH grouped AS (\n    SELECT\n        CENTROMEA,\n        AVG(HGB) AS avg_hgb,\n        AVG(CAST(`T-BIL` AS REAL) / NULLIF(CRE, 0)) AS avg_tbil_cre_ratio\n    FROM Laboratory\n    WHERE CAST(Date AS TEXT) BETWEEN '1985-04-22' AND '1994-03-14'\n    GROUP BY CENTROMEA\n), with_overall AS (\n    SELECT\n        CENTROMEA,\n        avg_hgb,\n        avg_tbil_cre_ratio,\n        AVG(avg_tbil_cre_ratio) OVER () AS overall_mean_ratio\n    FROM grouped\n)\nSELECT\n    CENTROMEA,\n    avg_hgb,\n    avg_tbil_cre_ratio,\n    avg_tbil_cre_ratio / NULLIF(overall_mean_ratio, 0) AS ratio_to_overall_mean\nFROM with_overall\nWHERE overall_mean_ratio IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Using laboratory tests dated from 1985-04-22 through 1994-03-14 inclusive (comparing the `Date` text as stored), for each anti-centromere status (`CENTROMEA`, with a missing status as its own group), give the status, the average hemoglobin (`HGB`), the average of each test's total bilirubin-to-creatinine ratio (`T-BIL` \u00f7 `CRE`), and that average ratio divided by the plain mean of all the statuses' average ratios. Ignore missing values in every average, return nothing if that overall mean is missing, and don't round.",
+  "sql": "WITH per_status AS (\n  SELECT\n    CENTROMEA AS status,\n    AVG(HGB) AS average_hemoglobin,\n    AVG(`T-BIL` / CRE) AS average_ratio\n  FROM Laboratory\n  WHERE Date >= '1985-04-22' AND Date <= '1994-03-14'\n  GROUP BY CENTROMEA\n), overall AS (\n  SELECT AVG(average_ratio) AS overall_mean_ratio\n  FROM per_status\n)\nSELECT\n  p.status,\n  p.average_hemoglobin,\n  p.average_ratio,\n  p.average_ratio / o.overall_mean_ratio AS ratio_divided_by_overall_mean\nFROM per_status AS p\nCROSS JOIN overall AS o\nWHERE o.overall_mean_ratio IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Include laboratory tests whose stored `Date` text is between `1985-04-22` and `1994-03-14`, inclusive; for each `CENTROMEA` status, grouping missing status separately, return the mean `HGB` and the mean per-test `T-BIL / CRE` ratio, ignoring missing values in each mean, plus that status\u2019s mean ratio divided by the unweighted mean of all statuses\u2019 mean ratios; return no rows if that overall mean is missing and do not round.",
+  "sql": "WITH filtered AS (\n  SELECT CENTROMEA, HGB, `T-BIL` / NULLIF(CRE, 0) AS test_ratio\n  FROM Laboratory\n  WHERE Date >= '1985-04-22' AND Date <= '1994-03-14'\n), status_means AS (\n  SELECT CENTROMEA, AVG(HGB) AS mean_hgb, AVG(test_ratio) AS mean_ratio\n  FROM filtered\n  GROUP BY CENTROMEA\n), with_overall AS (\n  SELECT CENTROMEA, mean_hgb, mean_ratio,\n         AVG(mean_ratio) OVER () AS overall_mean_ratio\n  FROM status_means\n)\nSELECT CENTROMEA, mean_hgb, mean_ratio,\n       mean_ratio / NULLIF(overall_mean_ratio, 0) AS ratio_to_overall_mean\nFROM with_overall\nWHERE overall_mean_ratio IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "Include laboratory tests whose stored `Date` text is between `1985-04-22` and `1994-03-14`, inclusive; for each `CENTROMEA` status, grouping missing status separately, return the mean `HGB` and the mean per-test `T-BIL / CRE` ratio, ignoring missing values in each mean, plus that status\u2019s mean ratio divided by the unweighted mean of all statuses\u2019 mean ratios; return no rows if that overall mean is missing and do not round."
+ },
+ "calls": 6
+}

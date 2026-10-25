@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH media_rates AS (SELECT mt.Name, COUNT(*) AS track_count, SUM(CASE WHEN t.Bytes IS NOT NULL THEN CAST(t.Bytes AS REAL) END) / NULLIF(SUM(CASE WHEN t.Bytes IS NOT NULL THEN t.Milliseconds END), 0) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;",
+  "WITH media_rates AS (SELECT mt.Name, COUNT(*) AS track_count, AVG(CAST(t.Bytes AS REAL) / NULLIF(t.Milliseconds, 0)) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;",
+  "WITH type_stats AS (SELECT mt.Name, COUNT(*) AS track_count, SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds > 0 THEN CAST(t.Bytes AS REAL) END) / NULLIF(SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds > 0 THEN t.Milliseconds END), 0) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM type_stats) SELECT AVG(ts.rate) AS average_rate, AVG(ts.track_count) AS average_track_count, AVG(ts.rate - o.average_rate) AS average_margin FROM type_stats AS ts CROSS JOIN overall AS o WHERE ts.rate > o.average_rate;",
+  "WITH type_stats AS (SELECT mt.Name, COUNT(*) AS track_count, AVG(CASE WHEN t.Milliseconds > 0 THEN CAST(t.Bytes AS REAL) / t.Milliseconds END) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM type_stats) SELECT AVG(ts.rate) AS average_rate, AVG(ts.track_count) AS average_track_count, AVG(ts.rate - o.average_rate) AS average_margin FROM type_stats AS ts CROSS JOIN overall AS o WHERE ts.rate > o.average_rate;",
+  "WITH media_rates AS (SELECT m.Name, COUNT(*) AS track_count, AVG(1.0 * t.Bytes / NULLIF(t.Milliseconds, 0)) AS rate FROM MediaType AS m JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count * 1.0) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;",
+  "WITH media_rates AS (SELECT m.Name, COUNT(*) AS track_count, 1.0 * SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds <> 0 THEN t.Bytes END) / NULLIF(SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds <> 0 THEN t.Milliseconds END), 0) AS rate FROM MediaType AS m JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count * 1.0) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH media_rates AS (SELECT mt.Name, COUNT(*) AS track_count, SUM(CASE WHEN t.Bytes IS NOT NULL THEN CAST(t.Bytes AS REAL) END) / NULLIF(SUM(CASE WHEN t.Bytes IS NOT NULL THEN t.Milliseconds END), 0) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;",
+   "assumptions": [
+    {
+     "assumption": "A media type\u2019s rate is total known bytes divided by total duration for tracks with known bytes; its track count includes all linked tracks.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "A media type\u2019s rate is the average of its individual tracks\u2019 bytes-per-millisecond rates.",
+     "sql": "WITH media_rates AS (SELECT mt.Name, COUNT(*) AS track_count, AVG(CAST(t.Bytes AS REAL) / NULLIF(t.Milliseconds, 0)) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH type_stats AS (SELECT mt.Name, COUNT(*) AS track_count, SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds > 0 THEN CAST(t.Bytes AS REAL) END) / NULLIF(SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds > 0 THEN t.Milliseconds END), 0) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM type_stats) SELECT AVG(ts.rate) AS average_rate, AVG(ts.track_count) AS average_track_count, AVG(ts.rate - o.average_rate) AS average_margin FROM type_stats AS ts CROSS JOIN overall AS o WHERE ts.rate > o.average_rate;",
+   "assumptions": [
+    {
+     "assumption": "A media type's rate is total bytes divided by total milliseconds for its tracks with known bytes and positive duration; track counts include every track of that media type.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "A media type's rate is the average of its individual tracks' bytes-per-millisecond rates.",
+     "sql": "WITH type_stats AS (SELECT mt.Name, COUNT(*) AS track_count, AVG(CASE WHEN t.Milliseconds > 0 THEN CAST(t.Bytes AS REAL) / t.Milliseconds END) AS rate FROM Track AS t JOIN MediaType AS mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.Name), overall AS (SELECT AVG(rate) AS average_rate FROM type_stats) SELECT AVG(ts.rate) AS average_rate, AVG(ts.track_count) AS average_track_count, AVG(ts.rate - o.average_rate) AS average_margin FROM type_stats AS ts CROSS JOIN overall AS o WHERE ts.rate > o.average_rate;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH media_rates AS (SELECT m.Name, COUNT(*) AS track_count, AVG(1.0 * t.Bytes / NULLIF(t.Milliseconds, 0)) AS rate FROM MediaType AS m JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count * 1.0) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;",
+   "assumptions": [
+    {
+     "assumption": "A media type\u2019s rate is the average of its tracks\u2019 bytes-per-millisecond rates. Tracks with missing bytes or zero milliseconds cannot contribute to that rate, but still count toward its track count.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "A media type\u2019s rate is total bytes divided by total milliseconds for tracks with a computable rate.",
+     "sql": "WITH media_rates AS (SELECT m.Name, COUNT(*) AS track_count, 1.0 * SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds <> 0 THEN t.Bytes END) / NULLIF(SUM(CASE WHEN t.Bytes IS NOT NULL AND t.Milliseconds <> 0 THEN t.Milliseconds END), 0) AS rate FROM MediaType AS m JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId GROUP BY m.Name), overall AS (SELECT AVG(rate) AS average_rate FROM media_rates) SELECT AVG(m.rate) AS average_rate, AVG(m.track_count * 1.0) AS average_track_count, AVG(m.rate - o.average_rate) AS average_margin FROM media_rates AS m CROSS JOIN overall AS o WHERE m.rate > o.average_rate;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6f949de77e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16296,
+  "chars_out": 4428
+ }
+}

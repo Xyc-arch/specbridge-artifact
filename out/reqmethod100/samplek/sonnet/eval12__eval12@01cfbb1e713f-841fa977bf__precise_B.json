@@ -1,0 +1,60 @@
+{
+ "queries": [
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count, CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM races) AS share FROM races GROUP BY circuitId), a AS (SELECT c.*, share - (SELECT AVG(share) FROM c) AS excess FROM c), r AS (SELECT a.*, RANK() OVER (ORDER BY excess DESC) AS rnk FROM a WHERE share > (SELECT AVG(share) FROM c)) SELECT circuitId, race_count, share, excess FROM r WHERE rnk <= 10 ORDER BY excess DESC, circuitId",
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), s AS (SELECT circuitId, race_count, race_count * 1.0 / (SELECT COUNT(*) FROM races) AS share FROM c), a AS (SELECT circuitId, race_count, share, share - (SELECT AVG(share) FROM s) AS excess FROM s), f AS (SELECT circuitId, race_count, share, excess, RANK() OVER (ORDER BY excess DESC) AS rnk FROM a WHERE excess > 0) SELECT circuitId, race_count, share, excess AS share_above_average FROM f WHERE rnk <= 10 ORDER BY excess DESC, circuitId",
+  "WITH c AS (SELECT circuitId, COUNT(*) AS race_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM races) AS share FROM races GROUP BY circuitId), a AS (SELECT c.*, AVG(share) OVER () AS avg_share FROM c), r AS (SELECT circuitId, race_count, share, share - avg_share AS excess, RANK() OVER (ORDER BY share - avg_share DESC) AS rk FROM a WHERE share > avg_share) SELECT circuitId, race_count, share, excess FROM r WHERE rk <= 10 ORDER BY excess DESC, circuitId"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count, CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM races) AS share FROM races GROUP BY circuitId), a AS (SELECT c.*, share - (SELECT AVG(share) FROM c) AS excess FROM c), r AS (SELECT a.*, RANK() OVER (ORDER BY excess DESC) AS rnk FROM a WHERE share > (SELECT AVG(share) FROM c)) SELECT circuitId, race_count, share, excess FROM r WHERE rnk <= 10 ORDER BY excess DESC, circuitId",
+   "assumptions": [
+    {
+     "assumption": "The average share across circuits is the mean of the per-circuit shares, taken over circuits that have at least one race in races. This equals 1 divided by the number of such circuits. Circuits with no races are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties at 10th place are handled with RANK() on the excess, so every circuit tied with the 10th is included.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count FROM races GROUP BY circuitId), s AS (SELECT circuitId, race_count, race_count * 1.0 / (SELECT COUNT(*) FROM races) AS share FROM c), a AS (SELECT circuitId, race_count, share, share - (SELECT AVG(share) FROM s) AS excess FROM s), f AS (SELECT circuitId, race_count, share, excess, RANK() OVER (ORDER BY excess DESC) AS rnk FROM a WHERE excess > 0) SELECT circuitId, race_count, share, excess AS share_above_average FROM f WHERE rnk <= 10 ORDER BY excess DESC, circuitId",
+   "assumptions": [
+    {
+     "assumption": "The average share across circuits is taken over circuits that have at least one race in races (i.e. 1 / number of distinct races.circuitId), not over all rows in the circuits table.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties with the 10th circuit are included by using RANK() on the excess, so more than 10 rows may be returned.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT circuitId, COUNT(*) AS race_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM races) AS share FROM races GROUP BY circuitId), a AS (SELECT c.*, AVG(share) OVER () AS avg_share FROM c), r AS (SELECT circuitId, race_count, share, share - avg_share AS excess, RANK() OVER (ORDER BY share - avg_share DESC) AS rk FROM a WHERE share > avg_share) SELECT circuitId, race_count, share, excess FROM r WHERE rk <= 10 ORDER BY excess DESC, circuitId",
+   "assumptions": [
+    {
+     "assumption": "The average share is taken over circuits that appear in races (circuits with no races are excluded), so it equals 1 divided by the number of such circuits.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties with the 10th circuit are included using RANK() over the excess. Circuits with equal race counts have equal excess.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-841fa977bf",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 38154,
+  "chars_out": 2702
+ }
+}

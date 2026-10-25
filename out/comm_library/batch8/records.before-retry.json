@@ -1,0 +1,1228 @@
+{
+ "library": [
+  {
+   "version": "comm-library-v2",
+   "task": "b005",
+   "question_id": 1285,
+   "database": "thrombosis_prediction",
+   "original": "When is the latest patient's medical data recorded? This patient should have an abnormal level of lactate dehydrogenase.\nEvidence: latest patient refers to ID with MAX('First Date'); abnormal level of lactate dehydrogenase refers to LDH > = 500;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which lactate dehydrogenase level (`Laboratory.LDH`) is at least 500; for each kept record, return (1) date of first hospital visit (`Patient.First Date`); order the result rows by date of first hospital visit (`Patient.First Date`) descending in character order (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.`First Date` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH >= 500 ORDER BY T1.`First Date` DESC LIMIT 1",
+   "decision": "Which date column answers 'when is the medical data recorded' for the patient with the latest First Date who has LDH >= 500: Patient.`First Date` or the Laboratory.Date of that patient's abnormal-LDH test",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Among patients with any lab record where LDH >= 500, take the one with the latest First Date and return that First Date (the date the patient first came to the hospital).",
+     "sql": "SELECT T1.`First Date` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH >= 500 ORDER BY T1.`First Date` DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Among patients with any lab record where LDH >= 500, take the one with the latest First Date and return the date of that patient's most recent lab test with LDH >= 500 (Laboratory.Date).",
+     "sql": "SELECT T2.Date FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH >= 500 ORDER BY T1.`First Date` DESC, T2.Date DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return Patient.Description, which the documentation defines as 'the first date when a patient data was recorded', for the patient with the latest First Date who has LDH >= 500.",
+     "sql": "SELECT T1.Description FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH >= 500 ORDER BY T1.`First Date` DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "extreme_selection",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "dated_attributes"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "C0": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return all Laboratory.Date values (or the most recent one) for that patient's lab records of any kind, not just those with LDH >= 500.",
+      "Take the patient with the latest First Date across all patients, and only return a date if that patient has an LDH >= 500 record; otherwise return nothing."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "does not fit",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return the Laboratory.Date of the lab record(s) with LDH >= 500 for the patient with the latest First Date (same as R1, but for all such records, not just the most recent).",
+      "Take the patient with the globally latest First Date first, and only then check whether that patient has LDH >= 500 (possibly returning nothing), instead of filtering to LDH >= 500 patients first."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Gold returns `T1.`First Date`` from Patient, ordered DESC LIMIT 1, giving '1998-07-01'. Repeat 0 returned `MAX(l.Date)` from Laboratory for the patient with the latest First Date, giving '1992-06-26'. Repeat 1 returned `MAX(L.Date)` over all rows with LDH >= 500, giving '1998-07-13'. Both repeats read 'medical data recorded' as Laboratory.Date, not Patient.`First Date`.",
+    "question_gap": "partly \u2014 the evidence says 'latest' means MAX('First Date', but it never says that 'when is the medical data recorded' should return First Date itself rather than a Laboratory date.",
+    "supplied": "return (1) date of first hospital visit (`Patient.First Date`); order the result rows by date of first hospital visit (`Patient.First Date`) descending ... keep only the first 1 rows"
+   },
+   "analysis": {
+    "task": "b005",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "patient's"
+     },
+     {
+      "requirement": "link patients to lab records on patient ID (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "This patient should have an abnormal level of lactate dehydrogenase"
+     },
+     {
+      "requirement": "filter lab records to LDH >= 500",
+      "real": "via_evidence",
+      "phrase": "abnormal level of lactate dehydrogenase refers to LDH > = 500"
+     },
+     {
+      "requirement": "rank patients by First Date to find the latest",
+      "real": "via_evidence",
+      "phrase": "latest patient refers to ID with MAX('First Date')"
+     },
+     {
+      "requirement": "output column is First Date (date of first hospital visit)",
+      "real": "left_open",
+      "phrase": "When is the latest patient's medical data recorded?"
+     },
+     {
+      "requirement": "order by First Date descending",
+      "real": "via_evidence",
+      "phrase": "MAX('First Date')"
+     },
+     {
+      "requirement": "keep only 1 row",
+      "real": "implied",
+      "phrase": "the latest patient"
+     },
+     {
+      "requirement": "missing First Date sorted last",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "tie rule among patients sharing the max First Date",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "duplicate rows from multiple qualifying lab records collapsed by LIMIT 1",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Which date column to return: the patient's First Date or the date of the abnormal lab record (Laboratory.Date)",
+     "open_phrase": "When is the latest patient's medical data recorded?",
+     "why_both": "\"Medical data recorded\" can mean the patient's registration date, which is also the date the evidence uses to pick the 'latest patient', or it can mean the date of the lab record that holds the abnormal LDH value, since that lab record is the medical data being discussed."
+    },
+    "pattern": [
+     "identifies the target entity with a superlative ('latest') whose ranking column is only given in the evidence",
+     "asks for the output with a vague 'when is ... recorded' and never names which date column to return",
+     "adds a qualifying condition in a second sentence, which implies a join to a related table",
+     "relies on the evidence to turn a clinical term ('abnormal level') into a numeric threshold",
+     "says nothing about ties, missing dates, or duplicate rows from multiple matching child records"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b006",
+   "question_id": 1289,
+   "database": "thrombosis_prediction",
+   "original": "For the patients who are diagnosed with SJS, how many of them have a normal level of total protein?\nEvidence: diagnosed with SJS refers to Diagnosis = 'SJS'; normal level of total protein refers to TP > 6.0 and TP < 8.5;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] primary diagnosed disease (`Patient.Diagnosis`) equals 'SJS' (compared as text, character by character); [2] total serum protein concentration (`Laboratory.TP`) is greater than 6.0; [3] total serum protein concentration (`Laboratory.TP`) is less than 8.5 [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.Diagnosis = 'SJS' AND T2.TP > 6.0 AND T2.TP < 8.5",
+   "decision": "Which table's Diagnosis column identifies patients 'diagnosed with SJS': Patient.Diagnosis or Examination.Diagnosis. The evidence gives Diagnosis = 'SJS' without naming a table, and both columns are documented as 'disease names'.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "A patient is diagnosed with SJS if their patient record (Patient.Diagnosis) says SJS.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.Diagnosis = 'SJS' AND T2.TP > 6.0 AND T2.TP < 8.5",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "A patient is diagnosed with SJS if one of their examination records (Examination.Diagnosis) says SJS.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.ID IN (SELECT ID FROM Examination WHERE Diagnosis = 'SJS') AND T2.TP > 6.0 AND T2.TP < 8.5",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "A patient is diagnosed with SJS if either their patient record or any of their examination records says SJS.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE (T1.Diagnosis = 'SJS' OR T1.ID IN (SELECT ID FROM Examination WHERE Diagnosis = 'SJS')) AND T2.TP > 6.0 AND T2.TP < 8.5",
+     "rows": 1,
+     "differs_from_gold": false
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "aggregation_over_join",
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "repeated_entity_records"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "A patient is diagnosed with SJS only if both their patient record and at least one of their examination records say SJS.",
+      "Diagnosis = 'SJS' is matched as a substring or token within a multi-disease Diagnosis string (e.g. 'SLE, SJS'), applied to Patient.Diagnosis and/or Examination.Diagnosis."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Both repeats filtered on `e.Diagnosis = 'SJS'` from Examination, which matches no rows here, so they got 0. Gold filters on `T1.Diagnosis` from Patient. The submissions also used `COUNT(DISTINCT l.ID)`, while gold uses `COUNT(T1.ID)` over the joined lab rows (780). Even with the right table, that DISTINCT would still have given a different count.",
+    "question_gap": "no \u2014 the evidence says 'Diagnosis = 'SJS'' without naming a table (Patient and Examination both have a Diagnosis column). The question asks 'how many of them' (patients), but gold counts lab records with no DISTINCT.",
+    "supplied": "primary diagnosed disease (`Patient.Diagnosis`) equals 'SJS'; ... the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   },
+   "analysis": {
+    "task": "b006",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "the patients"
+     },
+     {
+      "requirement": "link patients to laboratory records by patient ID (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "have a normal level of total protein"
+     },
+     {
+      "requirement": "filter diagnosis equals 'SJS' on the patient record's diagnosis column",
+      "real": "via_evidence",
+      "phrase": "diagnosed with SJS refers to Diagnosis = 'SJS'"
+     },
+     {
+      "requirement": "filter TP > 6.0",
+      "real": "via_evidence",
+      "phrase": "normal level of total protein refers to TP > 6.0"
+     },
+     {
+      "requirement": "filter TP < 8.5",
+      "real": "via_evidence",
+      "phrase": "and TP < 8.5"
+     },
+     {
+      "requirement": "single aggregate row over all kept records",
+      "real": "implied",
+      "phrase": "how many of them"
+     },
+     {
+      "requirement": "count non-missing patient IDs over joined lab records (duplicates per patient counted, not distinct)",
+      "real": "contradicted",
+      "phrase": "how many of them"
+     },
+     {
+      "requirement": "output one count column",
+      "real": "stated",
+      "phrase": "how many"
+     }
+    ],
+    "choice": {
+     "decision": "which table's Diagnosis column defines being diagnosed with SJS: the patient record's primary diagnosis or an examination record's diagnosis",
+     "open_phrase": "diagnosed with SJS refers to Diagnosis = 'SJS'",
+     "why_both": "The evidence names a bare column Diagnosis without a table, and both the patient table and the examination table carry a Diagnosis column, so 'diagnosed' fits either the patient's primary diagnosis or a diagnosis recorded at an examination."
+    },
+    "pattern": [
+     "defines the condition in evidence with an unqualified column name that exists in more than one table",
+     "expresses a numeric 'normal range' as strict bounds supplied only in evidence",
+     "asks 'how many of them' about people while the computation counts joined measurement rows, leaving distinctness unaddressed",
+     "leaves the linking of person to measurements implicit in a possessive 'have a ... level'",
+     "states no handling for patients with multiple lab records or missing values"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b011",
+   "question_id": 1300,
+   "database": "thrombosis_prediction",
+   "original": "What is the disease name of the patient who has the highest level of triglyceride within the normal range?\nEvidence: disease name referse to Diagnosis; highest level of triglyceride within the normal range refers to MAX(TG < 200);",
+   "explicit": "Start from each `Examination` record; combine it with each `Laboratory` record for which identification of the patient (`Examination.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which triglyceride concentration (`Laboratory.TG`) is less than 200; for each kept record, return (1) diagnosed disease at examination (`Examination.Diagnosis`); order the result rows by triglyceride concentration (`Laboratory.TG`) descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.Diagnosis FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.TG < 200 ORDER BY T2.TG DESC LIMIT 1",
+   "decision": "Which table's Diagnosis column supplies the 'disease name': Examination.Diagnosis or Patient.Diagnosis",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Report the Diagnosis recorded on the Examination record(s) of the patient whose lab TG is the highest value below 200.",
+     "sql": "SELECT T1.Diagnosis FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.TG < 200 ORDER BY T2.TG DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Report the Diagnosis recorded on the Patient record of the patient whose lab TG is the highest value below 200.",
+     "sql": "SELECT T1.Diagnosis FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.TG < 200 ORDER BY T2.TG DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "extreme_selection",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "shared_column_names"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Report the Diagnosis values from both Patient and Examination (a union or both columns) for that patient, since the evidence names 'Diagnosis' without saying which table it means."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Take the highest TG per patient (or per lab record) among values below 200, and report the diagnosis of the single top patient. This is the same as R1 or R2 but changes how ties and repeated lab dates are handled.",
+      "Return diagnoses for all patients tied at the maximum TG below 200, rather than a single patient.",
+      "Treat the 'normal range' as TG < 200 but with the maximum taken across all lab rows first (MAX(TG) overall), then filter. This would give a different result and doesn't fit the evidence, so it is not plausible."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Failing repeat 1 used \"SELECT p.Diagnosis FROM Patient p JOIN Laboratory l\" and returned 'SLE, MCTD'. The gold uses \"T1.Diagnosis FROM Examination AS T1\" and returns 'SLE'. Repeat 0 of the original used Examination.Diagnosis and passed.",
+    "question_gap": "partly -- the evidence maps 'disease name' to Diagnosis, but both Patient and Examination have a Diagnosis column and the question does not say which one; the explicit version names Examination.Diagnosis.",
+    "supplied": "Start from each `Examination` record ... return (1) diagnosed disease at examination (`Examination.Diagnosis`)"
+   },
+   "analysis": {
+    "task": "b011",
+    "requirements": [
+     {
+      "requirement": "source of the diagnosis is the Examination table",
+      "real": "left_open",
+      "phrase": "disease name referse to Diagnosis"
+     },
+     {
+      "requirement": "link the diagnosis records to lab records by patient ID",
+      "real": "implied",
+      "phrase": "the patient who has the highest level of triglyceride"
+     },
+     {
+      "requirement": "drop records that have no match (inner join)",
+      "real": "implied",
+      "phrase": "the patient who has"
+     },
+     {
+      "requirement": "filter TG < 200",
+      "real": "via_evidence",
+      "phrase": "within the normal range refers to MAX(TG < 200)"
+     },
+     {
+      "requirement": "output only the Diagnosis column",
+      "real": "stated",
+      "phrase": "What is the disease name"
+     },
+     {
+      "requirement": "order by TG descending",
+      "real": "via_evidence",
+      "phrase": "highest level of triglyceride ... MAX(TG < 200)"
+     },
+     {
+      "requirement": "missing TG values go last / are excluded",
+      "real": "implied",
+      "phrase": "TG < 200"
+     },
+     {
+      "requirement": "limit to 1 row",
+      "real": "implied",
+      "phrase": "the patient who has the highest"
+     },
+     {
+      "requirement": "tie handling: return just one arbitrary row",
+      "real": "left_open",
+      "phrase": "the patient who has the highest level"
+     },
+     {
+      "requirement": "duplicates when a patient has several examination or lab rows",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "which table's Diagnosis column supplies the disease name (Examination vs Patient)",
+     "open_phrase": "disease name referse to Diagnosis",
+     "why_both": "The evidence names only the column Diagnosis, which exists on both the Patient and Examination tables, and 'the disease name of the patient' fits a patient-level diagnosis as naturally as one recorded at an examination."
+    },
+    "pattern": [
+     "maps a natural-language attribute to a bare column name without saying which table it comes from",
+     "describes 'normal range' through an evidence threshold written as a pseudo-aggregate MAX(col < k)",
+     "uses a singular superlative ('the patient who has the highest') to imply top-1 without stating a tie rule",
+     "leaves the join path between the lab measurements and the diagnosis source implicit",
+     "says nothing about duplicate rows when an entity has several measurements or records"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b015",
+   "question_id": 1308,
+   "database": "thrombosis_prediction",
+   "original": "Among the patients who have a normal platelet level, how many of them have other symptoms observed?\nEvidence: normal platelet level refers to PLT > 100 and PLT < 400; have other symptoms refers to Diagnosis is not null;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] platelet concentration (`Laboratory.PLT`) is greater than 100; [2] platelet concentration (`Laboratory.PLT`) is less than 400; [3] it is not true that primary diagnosed disease (`Patient.Diagnosis`) is missing [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.PLT > 100 AND T2.PLT < 400 AND T1.Diagnosis IS NOT NULL",
+   "decision": "Which table's Diagnosis column the evidence's 'Diagnosis is not null' refers to: Patient.Diagnosis or Examination.Diagnosis. Both tables have a column with that name and the same description, 'disease names'.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count the Laboratory records with a normal platelet level (100 < PLT < 400) whose patient has a non-null diagnosis in the Patient table.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.PLT > 100 AND T2.PLT < 400 AND T1.Diagnosis IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count the Laboratory records with a normal platelet level (100 < PLT < 400) whose patient has a non-null diagnosis in an Examination record.",
+     "sql": "SELECT COUNT(T1.ID) FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.PLT > 100 AND T2.PLT < 400 AND T1.Diagnosis IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "'Other symptoms observed' means the Examination.Symptoms column, whose documentation is literally 'other symptoms observed'. So count normal-platelet records whose patient has a non-null Symptoms value in an Examination record.",
+     "sql": "SELECT COUNT(T1.ID) FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.PLT > 100 AND T2.PLT < 400 AND T1.Symptoms IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Count normal-platelet records whose patient has a non-null Diagnosis in either the Patient table or an Examination record (combining both Diagnosis columns)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients (not Laboratory records) with at least one normal-platelet record and a non-null diagnosis, since the question asks 'how many of them' about patients.",
+      "Count distinct patients where a non-null Diagnosis can come from either Examination or Patient, combined with an OR.",
+      "Count joined Laboratory\u2013Examination rows, without deduplication, where PLT is normal and Examination.Diagnosis is not null."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both failing submissions used \"COUNT(DISTINCT L.ID)\" and \"E.Diagnosis IS NOT NULL\" from Examination, returning 18. The gold uses \"COUNT(T1.ID)\" over Patient\u00d7Laboratory join rows with \"T1.Diagnosis IS NOT NULL\" from Patient, returning 10079. There are two differences: DISTINCT versus row count, and which table's Diagnosis column is used.",
+    "question_gap": "no -- 'how many of them' implies distinct patients, and the evidence's 'Diagnosis' does not say which table; the gold's row count and choice of Patient.Diagnosis are not determined by the question.",
+    "supplied": "Start from each `Patient` record ... [3] it is not true that primary diagnosed disease (`Patient.Diagnosis`) is missing; ... the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   },
+   "analysis": {
+    "task": "b015",
+    "requirements": [
+     {
+      "requirement": "start from patients linked to their laboratory records by patient ID",
+      "real": "implied",
+      "phrase": "Among the patients who have a normal platelet level"
+     },
+     {
+      "requirement": "inner join, so patients without lab records are dropped",
+      "real": "implied",
+      "phrase": "patients who have a normal platelet level"
+     },
+     {
+      "requirement": "platelet concentration greater than 100",
+      "real": "via_evidence",
+      "phrase": "normal platelet level refers to PLT > 100"
+     },
+     {
+      "requirement": "platelet concentration less than 400",
+      "real": "via_evidence",
+      "phrase": "PLT < 400"
+     },
+     {
+      "requirement": "diagnosis is not missing",
+      "real": "via_evidence",
+      "phrase": "have other symptoms refers to Diagnosis is not null"
+     },
+     {
+      "requirement": "diagnosis is taken from the patient table, not another table that has a Diagnosis column",
+      "real": "left_open",
+      "phrase": "Diagnosis is not null"
+     },
+     {
+      "requirement": "single aggregate result with no grouping",
+      "real": "stated",
+      "phrase": "how many"
+     },
+     {
+      "requirement": "count joined lab rows (non-null patient ID), not distinct patients",
+      "real": "contradicted",
+      "phrase": "how many of them"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "which table's Diagnosis column the not-null filter applies to (the patient table or the examination table)",
+     "open_phrase": "have other symptoms refers to Diagnosis is not null",
+     "why_both": "The evidence names a bare column, Diagnosis, that exists in both the patient and examination tables, and 'symptoms observed' could suggest a clinical examination as easily as the patient's main diagnosis, so either table fits."
+    },
+    "pattern": [
+     "defines the population with a domain term ('normal level') and gives its numeric range only in the evidence",
+     "maps a vague clinical phrase to a bare column-is-not-null condition without saying which table the column belongs to",
+     "asks 'how many of them' about patients but the gold counts joined detail rows, with no word about duplicates or distinctness",
+     "leaves the join path between entity and measurement tables unstated",
+     "chooses the source table through an unqualified column name in the evidence"
+    ]
+   }
+  }
+ ],
+ "not_library": [
+  {
+   "version": "comm-library-v2",
+   "task": "b000",
+   "question_id": 1279,
+   "database": "thrombosis_prediction",
+   "original": "What is the percentage of patient who has a abnormal level of glutamic oxaloacetic transaminase level, yet he or she is diagnosed with SLE?\nEvidence: abnormal level of glutamic oxaloacetic transaminase refers to GOT > = 60; percentage = MULTIPLY(DIVIDE(COUNT(ID WHERE GOT > = 60 AND Diagnosis = 'SLE'), COUNT(ID WHERE GOT > = 60)), 1.0);",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which AST liver enzyme level (`Laboratory.GOT`) is at least 60; all kept records form one group, which gives one result row; for each result row, return (1) A \u00f7 B. Here A is the number of records in the group whose the value of the first rule that applies: if primary diagnosed disease (`Patient.Diagnosis`) matches the pattern '%SLE%' (ASCII letters match regardless of case; % stands for any run of characters and _ for one) then identification of the patient (`Patient.ID`); otherwise 0 is not missing; B is the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(CASE WHEN T1.Diagnosis LIKE '%SLE%' THEN T1.ID ELSE 0 END) / COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`GOT` >= 60",
+   "decision": "What to count in the ratio: each abnormal-GOT lab record (the gold's join rows) or each distinct patient. The gold's `ELSE 0` makes its numerator count every row, so it always returns 1. A real share is only possible if that branch becomes NULL.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count lab records, not patients: every Laboratory row with GOT >= 60 joined to its patient is counted once. In practice the numerator also counts all of those rows (ELSE 0 is never NULL), and integer division gives 1.",
+     "sql": "SELECT COUNT(CASE WHEN T1.Diagnosis LIKE '%SLE%' THEN T1.ID ELSE 0 END) / COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`GOT` >= 60",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Take the distinct patients who have at least one lab result with GOT >= 60. Report the percentage of them whose Patient.Diagnosis is SLE.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T1.Diagnosis LIKE '%SLE%' THEN T1.ID END) AS REAL) * 100 / COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`GOT` >= 60",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count lab records, but only count the SLE rows in the numerator: the share of abnormal-GOT lab results that belong to SLE patients.",
+     "sql": "SELECT CAST(COUNT(CASE WHEN T1.Diagnosis LIKE '%SLE%' THEN T1.ID END) AS REAL) * 100 / COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`GOT` >= 60",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Count distinct patients and require the diagnosis to be exactly 'SLE', as the evidence states (Diagnosis = 'SLE'), instead of matching any diagnosis that contains SLE.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T1.Diagnosis = 'SLE' THEN T1.ID END) AS REAL) * 100 / COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`GOT` >= 60",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "ratio",
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits",
+      "C1": "fits"
+     },
+     "other_readings": [
+      "Use Examination.Diagnosis instead of Patient.Diagnosis for the SLE condition, since both tables have a Diagnosis column described as 'disease names'.",
+      "Express the result as a fraction (multiplied by 1.0 as the evidence literally says) rather than scaled by 100."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C1": "fits",
+      "A": "does not fit",
+      "C0": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct patients, but use a LIKE '%SLE%' match so diagnoses that merely contain SLE are included. This contradicts the evidence's exact Diagnosis = 'SLE'.",
+      "Count only patients whose every lab result has GOT >= 60, or only their latest or maximum result. The question and evidence don't call for this.",
+      "Take the diagnosis from Examination.Diagnosis instead of Patient.Diagnosis. This is plausible, but the evidence's Diagnosis column most naturally refers to Patient.",
+      "Count a patient with GOT >= 60 as SLE if any Examination or Patient row lists SLE. This is a looser variant of the reading in R4."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "other",
+    "difference": "The gold query `COUNT(CASE WHEN T1.Diagnosis LIKE '%SLE%' THEN T1.ID ELSE 0 END) / COUNT(T1.ID)` counts every row, because ELSE 0 is never NULL. Integer division then gives [[1]]. The submissions computed a real share: repeat 0 used `ROUND(100.0*COUNT(DISTINCT CASE WHEN e.Diagnosis='SLE' ...)/COUNT(DISTINCT l.ID),2)` and returned 2.74; repeat 1 used DISTINCT patients with `Diagnosis = 'SLE'` and returned 26.03. The explicit runs copied the always-true count and returned 1.0.",
+    "question_gap": "no \u2014 the question asks for the share of SLE patients, and the gold's ELSE 0 makes the result always 1, so neither the question nor the evidence leads to it; the explicit version only describes this flaw in the gold.",
+    "supplied": "A is the number of records in the group whose the value of the first rule that applies: if primary diagnosed disease (`Patient.Diagnosis`) matches the pattern '%SLE%' ... then identification of the patient (`Patient.ID`); otherwise 0 is not missing; B is the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b001",
+   "question_id": 1280,
+   "database": "thrombosis_prediction",
+   "original": "How many male patients have their glutamic oxaloacetic transaminase in the normal range?\nEvidence: male refers to Sex = 'M'; glutamic oxaloacetic transaminase in the normal range refers to GOT < 60;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] AST liver enzyme level (`Laboratory.GOT`) is less than 60; [2] patient sex (`Patient.SEX`) equals 'M' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M'",
+   "decision": "Whether to count lab records or distinct patients among male patients with GOT < 60",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every laboratory record from a male patient where GOT is below 60, so a patient with several normal GOT tests is counted once per test.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct male patients who have at least one laboratory record with GOT below 60.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count distinct male patients whose recorded GOT values are all below 60, meaning no test was at or above 60.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M' AND T1.ID NOT IN (SELECT ID FROM Laboratory WHERE GOT >= 60)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct male patients whose most recent laboratory record (latest Date) has GOT below 60.",
+      "Count distinct male patients whose average GOT across their laboratory records is below 60."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Count distinct male patients whose most recent (latest-dated) GOT is below 60.",
+      "Count distinct male patients whose average or other aggregate GOT across tests is below 60.",
+      "Count male patients with GOT < 60 only among patients who also appear in Examination, which would restrict to patients with an examination record."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "The submission used `COUNT(DISTINCT l.ID)` and returned 45 patients. The gold uses `COUNT(T1.ID)` over the joined Laboratory rows and returns 1924 lab records.",
+    "question_gap": "no \u2014 'how many male patients' points to distinct patients, but the gold counts lab records, and nothing in the question or evidence calls for that.",
+    "supplied": "all kept records form one group ... return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b002",
+   "question_id": 1282,
+   "database": "thrombosis_prediction",
+   "original": "Please list the top three patients' birthdays with the highest glutamic pylvic transaminase in the normal range.\nEvidence: highest glutamic pylvic transaminase in the normal range refers to MAX(GPT < 60);",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which ALT liver enzyme level (`Laboratory.GPT`) is less than 60; for each kept record, return (1) patient date of birth (`Patient.Birthday`); order the result rows by ALT liver enzyme level (`Laboratory.GPT`) descending (missing last); keep only the first 3 rows.",
+   "gold_sql": "SELECT T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GPT < 60 ORDER BY T2.GPT DESC LIMIT 3",
+   "decision": "Whether 'top three patients' counts the top three laboratory records (one patient can show up more than once) or the top three distinct patients (each patient counted once, by their highest GPT below 60)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Take every lab test with GPT below 60, sort the tests by GPT from highest to lowest, and return the patient's birthday for each of the first three tests. The same patient or birthday can appear more than once if they had several high tests.",
+     "sql": "SELECT T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GPT < 60 ORDER BY T2.GPT DESC LIMIT 3",
+     "rows": 3,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count each patient once. Use their highest GPT test below 60, sort patients by that value, and return the birthdays of the top three patients. A patient with several tests at the same high value, such as the repeated '1943-06-02', appears only once.",
+     "sql": "SELECT T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GPT < 60 GROUP BY T1.ID ORDER BY MAX(T2.GPT) DESC LIMIT 3",
+     "rows": 3,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return the three highest-ranked distinct birthday values. Repeated birthdays are dropped no matter which patient they belong to, which is close to the agent's literal DISTINCT.",
+     "sql": "SELECT T1.Birthday FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GPT < 60 GROUP BY T1.Birthday ORDER BY MAX(T2.GPT) DESC LIMIT 3",
+     "rows": 3,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "extreme_selection",
+     "repeated_entity_records",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Rank patients by their highest GPT below 60, but break ties or cut at three by GPT value, so every patient sharing the third-highest value is included (could return more than three rows).",
+      "Take the global maximum of GPT below 60 (a single value, 59) and return the birthdays of all patients with that value, limited to three, with no per-patient ranking.",
+      "Rank patients by the maximum GPT overall and only then filter to the normal range, which would take each patient's top value first and discard those at or above 60."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 matched the gold exactly. Repeat 1 added `DISTINCT` and an extra `L.GPT` column, which dropped the duplicate '1943-06-02' row and returned rows shaped [birthday, 59].",
+    "question_gap": "partly \u2014 the question supports the gold query, which repeat 0 produced; repeat 1 added a column and DISTINCT, which the question does not determine either way.",
+    "supplied": ""
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b003",
+   "question_id": 1283,
+   "database": "thrombosis_prediction",
+   "original": "For the patients with the normal glutamic pylvic transaminase level, how many of them are male?\nEvidence: normal glutamic pylvic transaminase level refers to GOT < 60; male refers to Sex = 'M';",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] AST liver enzyme level (`Laboratory.GOT`) is less than 60; [2] patient sex (`Patient.SEX`) equals 'M' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M'",
+   "decision": "Whether to count lab records (rows of joined Laboratory entries) or distinct patients who have a normal-level lab record",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every lab record with GOT < 60 that belongs to a male patient, so a patient with several qualifying tests is counted once per test",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct male patients who have at least one lab record with GOT < 60",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.GOT < 60 AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count distinct male patients whose lab records all have GOT < 60 (every recorded GOT value is normal)",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'M' AND T2.GOT IS NOT NULL AND T1.ID NOT IN (SELECT ID FROM Laboratory WHERE GOT >= 60)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "filter_only"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct male patients whose most recent (latest-dated) lab record has GOT < 60, treating 'the GOT level' as the patient's current value"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct male patients whose most recent lab record has GOT < 60 (current normal status).",
+      "Count distinct male patients whose average or other aggregate GOT is < 60.",
+      "Count distinct male patients with at least one GOT < 60, but also include patients with no lab record or NULL GOT (not plausible since they cannot be said to have a normal level)."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "The submission used `COUNT(DISTINCT l.ID)` with `l.GPT < 60` and returned 45. The gold uses `COUNT(T1.ID)` with `T2.GOT < 60` and returns 1924. The deciding difference is counting records instead of distinct patients: a distinct count with GOT also gives 45 (see b001). The GPT/GOT column swap did not change the result.",
+    "question_gap": "partly \u2014 the evidence does name GOT < 60, even though the question says pylvic (GPT); but 'how many of them are male' suggests distinct patients, while the gold counts lab records.",
+    "supplied": "AST liver enzyme level (`Laboratory.GOT`) is less than 60 ... the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b004",
+   "question_id": 1284,
+   "database": "thrombosis_prediction",
+   "original": "For the patient with the highest lactate dehydrogenase in the normal range, when was his or her data first recorded?\nEvidence: highest lactate dehydrogenase in the normal range refers to MAX(LDH < 500); when the data first recorded refers to MIN(First Date);",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which lactate dehydrogenase level (`Laboratory.LDH`) is less than 500; for each kept record, return (1) date of first hospital visit (`Patient.First Date`); order the result rows by lactate dehydrogenase level (`Laboratory.LDH`) ascending (missing first); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.`First Date` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH < 500 ORDER BY T2.LDH ASC LIMIT 1",
+   "decision": "Sort direction for picking the LDH value under 500: ascending (lowest) or descending (highest)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Among lab records with LDH below 500, take the one with the lowest LDH and return that patient's First Date",
+     "sql": "SELECT T1.`First Date` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH < 500 ORDER BY T2.LDH ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Among lab records with LDH below 500 (the normal range), take the one with the highest LDH and return that patient's First Date, as the question and evidence (MAX) say",
+     "sql": "SELECT T1.`First Date` FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.LDH < 500 ORDER BY T2.LDH DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "other",
+    "structure": [
+     "extreme_selection",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Return Patient.Description (the 'first date when a patient data was recorded') instead of Patient.First Date, since the question says 'first recorded'. The evidence points to First Date, so this is less plausible.",
+      "Return the earliest Laboratory.Date for that patient as the 'first recorded' date. The evidence specifies MIN(First Date), which is a Patient column, so this is unlikely.",
+      "Take each patient's maximum LDH below 500, then pick the patient with the overall highest. This gives the same result as R1 apart from tie-breaking.",
+      "If several patients tie for the highest LDH below 500, return all their First Dates instead of a single one."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "other",
+    "difference": "The submission took the patient with the highest LDH below 500 (`ORDER BY l.LDH DESC LIMIT 1`) and returned '1992-09-21'. The gold sorts `ORDER BY T2.LDH ASC LIMIT 1`, taking the lowest LDH, and returns '1992-05-11'.",
+    "question_gap": "no \u2014 the question and evidence both say highest (MAX(LDH < 500)), but the gold takes the lowest, so the explicit version passed only because it spelled out the gold's ascending order.",
+    "supplied": "order the result rows by lactate dehydrogenase level (`Laboratory.LDH`) ascending (missing first); keep only the first 1 rows"
+   }
+  },
+  {
+   "task": "b007",
+   "status": "pair not built"
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b009",
+   "question_id": 1298,
+   "database": "thrombosis_prediction",
+   "original": "Among the patients whose total cholesterol is within the normal range, how many of them have a P pattern observed in the sheet of ANA examination?\nEvidence: total cholesterol is within the normal range refers to `T-CHO` < 250; P pattern observed in the sheet of ANA examination refers to ANA Pattern = 'P';",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); combine it with each `Examination` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Examination.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] antinuclear antibody immunofluorescence pattern (`Examination.ANA Pattern`) equals 'P' (compared as text, character by character); [2] total cholesterol concentration (`Laboratory.T-CHO`) is less than 250 [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T3.`ANA Pattern` = 'P' AND T2.`T-CHO` < 250",
+   "decision": "Counting unit: whether to count distinct patients or every row produced by joining Patient, Laboratory and Examination (one row per qualifying lab record paired with each qualifying exam record).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every pairing of a lab record with T-CHO < 250 and an examination record with ANA Pattern = 'P' for the same patient. A patient with several such records is counted several times.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T3.`ANA Pattern` = 'P' AND T2.`T-CHO` < 250",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count each distinct patient once if they have at least one lab record with T-CHO < 250 and at least one examination with ANA Pattern = 'P'.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T3.`ANA Pattern` = 'P' AND T2.`T-CHO` < 250",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients whose T-CHO is below 250 in every lab record (no abnormal reading at any point) and who have at least one examination with ANA Pattern = 'P'.",
+      "Count distinct patients using a single representative lab value (for example, the latest T-CHO) below 250, plus at least one examination with ANA Pattern = 'P'."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct patients whose T-CHO < 250 and ANA Pattern = 'P' hold under a stricter condition, e.g. all of their lab records have T-CHO < 250 (normal throughout), rather than at least one.",
+      "Count distinct patients using only each patient's latest lab record for T-CHO (and/or latest examination for ANA pattern) rather than any record."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both repeats used `COUNT(DISTINCT E.ID)` (or an IN subquery) and got 3. Gold uses `COUNT(T1.ID)` over the joined Patient\u00d7Laboratory\u00d7Examination rows with no DISTINCT and gets 29.",
+    "question_gap": "no \u2014 'how many of them' (patients) points to a distinct-patient count, but gold counts joined lab\u00d7exam rows.",
+    "supplied": "the number of records in the group whose identification of the patient (`Patient.ID`) is not missing (no DISTINCT), over the Patient\u2013Laboratory\u2013Examination join"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b010",
+   "question_id": 1299,
+   "database": "thrombosis_prediction",
+   "original": "Among the patients with the normal level of triglyceride, how many of them have other symptoms observed?\nEvidence: normal level of triglyceride refers to TG < 200; have other symptoms refers to Symptoms is not null;",
+   "explicit": "Start from each `Examination` record; combine it with each `Laboratory` record for which identification of the patient (`Examination.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] triglyceride concentration (`Laboratory.TG`) is less than 200; [2] it is not true that reported clinical symptom (`Examination.Symptoms`) is missing [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Examination.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.TG < 200 AND T1.Symptoms IS NOT NULL",
+   "decision": "Whether to count distinct patients, or the rows produced by joining each patient's Examination records to their Laboratory records",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every joined Examination\u00d7Laboratory row where the lab record has TG < 200 and the examination has non-null Symptoms. A patient is counted once for each matching pair of lab record and examination record.",
+     "sql": "SELECT COUNT(T1.ID) FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.TG < 200 AND T1.Symptoms IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count each patient once if they have at least one lab record with TG < 200 and at least one examination with non-null Symptoms.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.TG < 200 AND T1.Symptoms IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count examination records with observed symptoms, limited to patients who have at least one lab record with TG < 200. Multiple lab records for the same patient do not add to the count.",
+     "sql": "SELECT COUNT(T1.ID) FROM Examination AS T1 WHERE T1.Symptoms IS NOT NULL AND T1.ID IN (SELECT T2.ID FROM Laboratory AS T2 WHERE T2.TG < 200)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients whose lab records ALL have TG < 200 (that is, the patient's TG is consistently normal) and who have at least one examination with non-null Symptoms.",
+      "Count distinct patients for whom a TG < 200 lab record and a symptomatic examination fall on the same date, so the normal TG is measured at the time of the symptoms."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "C0": "does not fit",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients where ALL of their lab records have TG < 200 (no abnormal TG ever) and at least one examination with non-null Symptoms.",
+      "Count distinct patients with TG < 200 in their lab records and non-null Symptoms, where the TG<200 and Symptoms conditions need not be on the same date/visit (same as R1), versus requiring the examination date to match the lab date.",
+      "Count patients with TG < 200 using only each patient's most recent lab record, and at least one examination with non-null Symptoms."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both repeats used `COUNT(DISTINCT E.ID)` (or an IN subquery) and got 1. Gold uses `COUNT(T1.ID)` over the joined Examination\u00d7Laboratory rows and gets 14.",
+    "question_gap": "no \u2014 'how many of them' (patients) points to a distinct-patient count, but gold counts joined rows, which repeats each patient once per matching lab record.",
+    "supplied": "the number of records in the group whose identification of the patient (`Examination.ID`) is not missing (no DISTINCT), over the Examination\u2013Laboratory join"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b013",
+   "question_id": 1302,
+   "database": "thrombosis_prediction",
+   "original": "For the patients with a normal range of creatinine phosphokinase, how many of them have a positive measure of degree of coagulation?\nEvidence: normal range of creatinine phosphokinase refers to CPK < 250; positive measure of degree of coagulation refers to KCT = '+' or RVVT = '+' or LAC = '+' ;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); combine it with each `Examination` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Examination.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] creatine phosphokinase level (`Laboratory.CPK`) is less than 250; [2] at least one of the following holds: [1] kaolin clotting time coagulation result (`Examination.KCT`) equals '+' (compared as text, character by character); [2] Russell's viper venom time coagulation result (`Examination.RVVT`) equals '+' (compared as text, character by character); [3] lupus anticoagulant test result (`Examination.LAC`) equals '+' (compared as text, character by character) [end] [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T2.CPK < 250 AND (T3.KCT = '+' OR T3.RVVT = '+' OR T3.LAC = '+')",
+   "decision": "Whether to count distinct patients or every joined Laboratory\u00d7Examination row that matches the filters",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every matching row in the Patient\u2013Laboratory\u2013Examination join, so a patient with several qualifying lab tests or examinations is counted once per combination",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T2.CPK < 250 AND (T3.KCT = '+' OR T3.RVVT = '+' OR T3.LAC = '+')",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct patients who have a CPK < 250 lab result and a positive KCT, RVVT or LAC examination",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T2.CPK < 250 AND (T3.KCT = '+' OR T3.RVVT = '+' OR T3.LAC = '+')",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct patients whose CPK < 250 and positive coagulation result come from the same lab date and examination date, which requires temporal matching that the schema does not support.",
+      "Count distinct patients whose every CPK result is below 250, so they never have an abnormal CPK, and who have at least one positive coagulation examination.",
+      "Count distinct patients using only each patient's latest lab and examination records."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both failing submissions used \"COUNT(DISTINCT E.ID)\" and returned 1. The gold uses \"COUNT(T1.ID)\" over the Patient\u00d7Laboratory\u00d7Examination join rows and returns 7. The agent's patient count de-duplicated; the gold counts joined records.",
+    "question_gap": "no -- 'how many of them' asks about patients, which supports COUNT(DISTINCT); nothing in the question or evidence asks for a count of joined rows with duplicates.",
+    "supplied": "return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b014",
+   "question_id": 1305,
+   "database": "thrombosis_prediction",
+   "original": "How many patients accepted to the hospital have a normal level of white blood cells?\nEvidence: accepted to the hospital refers to Admission = '+'; normal level of white blood cells refers to WBC between 3.5 and 9.0;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] white blood cell concentration (`Laboratory.WBC`) is between 3.5 and 9, inclusive; [2] hospital admission status (admitted vs outpatient) (`Patient.Admission`) equals '+' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.WBC BETWEEN 3.5 AND 9 AND T1.Admission = '+'",
+   "decision": "Whether to count distinct patients or the joined patient-lab-test rows (lab records) that meet the WBC condition",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every laboratory record of an admitted patient whose WBC is between 3.5 and 9.0 inclusive, so a patient with several qualifying tests is counted once per test.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.WBC BETWEEN 3.5 AND 9 AND T1.Admission = '+'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct admitted patients who have at least one laboratory record with WBC between 3.5 and 9.0.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.WBC BETWEEN 3.5 AND 9 AND T1.Admission = '+'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count distinct admitted patients whose WBC values are all within the normal range (every lab record is normal).",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.Admission = '+' AND T2.WBC IS NOT NULL GROUP BY T1.ID HAVING MIN(T2.WBC) >= 3.5 AND MAX(T2.WBC) <= 9",
+     "rows": 12,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "C0": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct admitted patients whose most recent (latest-dated) WBC measurement is between 3.5 and 9.0.",
+      "Count distinct admitted patients whose average WBC across all their lab records is between 3.5 and 9.0.",
+      "Count distinct admitted patients whose first or baseline WBC measurement is between 3.5 and 9.0."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "C0": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct admitted patients whose most recent laboratory record has WBC in the normal range.",
+      "Treat the range as exclusive (3.5 < WBC < 9.0), following the documentation's 'Normal range: 3.5 < N < 9.0', instead of the inclusive BETWEEN in the evidence, with distinct patients counted."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both failing submissions used \"COUNT(DISTINCT L.ID)\" and the exclusive bounds \"WBC > 3.5 AND WBC < 9.0\", returning 115. The gold uses \"COUNT(T1.ID)\" over join rows with \"BETWEEN 3.5 AND 9\" and returns 3688. The main cause is DISTINCT versus row count; the exclusive bounds are a secondary difference.",
+    "question_gap": "partly -- the evidence says 'between' (which justifies inclusive bounds), but 'how many patients' points to distinct patients, not the row count the gold uses.",
+    "supplied": "the number of records in the group whose identification of the patient (`Patient.ID`) is not missing; ... between 3.5 and 9, inclusive"
+   }
+  }
+ ],
+ "other_causes": []
+}

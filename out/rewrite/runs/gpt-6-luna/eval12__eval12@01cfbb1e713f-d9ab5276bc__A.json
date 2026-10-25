@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-d9ab5276bc",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Sum detected features per site, then compare each site's share with the average site share.",
+ "c": {
+  "request": "Using the feature records (`scanfeatures`) and ignoring missing detected-feature counts (`traitcount`), which site codes' feature counts make up an above-average share of the overall feature total? For the top 10 by margin above the average share, show the site code, the feature count, the share, and how far the share exceeds the average share, largest margin first. Don't round. Sum detected features per site, then compare each site's share with the average site share.",
+  "sql": "WITH site_totals AS (\n  SELECT zoneref, SUM(traitcount) AS feature_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n), shares AS (\n  SELECT zoneref, feature_count,\n         feature_count * 1.0 / SUM(feature_count) OVER () AS share\n  FROM site_totals\n), compared AS (\n  SELECT zoneref, feature_count, share,\n         AVG(share) OVER () AS average_share\n  FROM shares\n)\nSELECT zoneref AS site_code,\n       feature_count,\n       share,\n       share - average_share AS margin_above_average\nFROM compared\nWHERE share > average_share\nORDER BY margin_above_average DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Sum nonmissing `scanfeatures.traitcount` values by `zoneref`, calculate each site\u2019s share of the total feature count and the average share across sites with nonmissing feature counts, then return the 10 sites with shares above average, ordered by descending margin above average, showing site code, feature count, share, and margin without rounding",
+  "sql": "WITH site_totals AS (\n  SELECT zoneref, SUM(traitcount) AS feature_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n), site_shares AS (\n  SELECT zoneref, feature_count,\n         feature_count::numeric / SUM(feature_count) OVER () AS share\n  FROM site_totals\n), average_share AS (\n  SELECT AVG(share) AS avg_share\n  FROM site_shares\n)\nSELECT zoneref AS site_code,\n       feature_count,\n       share,\n       share - avg_share AS margin\nFROM site_shares\nCROSS JOIN average_share\nWHERE share > avg_share\nORDER BY margin DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "a": {
+  "request": "Using the feature records (`scanfeatures`) and ignoring missing detected-feature counts (`traitcount`), add up the counts for each site code so that every site gets one combined total. Work out each site's share of the overall feature total, and keep only those whose share is above the average share across sites. For the 10 with the largest margin above that average, list the site code, its feature count, its share, and how far its share exceeds the average share, from the largest margin down. Don't round.",
+  "sql": "WITH site_totals AS (\n  SELECT\n    s.zoneregistry AS site_code,\n    COALESCE(SUM(f.traitcount), 0) AS feature_count\n  FROM sites AS s\n  LEFT JOIN scanfeatures AS f\n    ON f.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry\n),\nsite_shares AS (\n  SELECT\n    site_code,\n    feature_count,\n    feature_count::numeric / NULLIF(SUM(feature_count) OVER (), 0) AS share\n  FROM site_totals\n),\nranked AS (\n  SELECT\n    site_code,\n    feature_count,\n    share,\n    share - AVG(share) OVER () AS margin\n  FROM site_shares\n)\nSELECT\n  site_code,\n  feature_count,\n  share,\n  margin\nFROM ranked\nWHERE margin > 0\nORDER BY margin DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Which site codes have an above-average share of the total detected features? Sum detected features per site from the feature records (`scanfeatures`), ignoring missing detected-feature counts (`traitcount`). Show the top 10 sites by margin above the average site share, with each site code, feature count, share, and margin; list the largest margin first and do not round.",
+  "sql": "WITH site_features AS (\n  SELECT zoneref, SUM(traitcount) AS feature_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n), site_shares AS (\n  SELECT zoneref, feature_count,\n         feature_count::numeric / SUM(feature_count) OVER () AS share\n  FROM site_features\n)\nSELECT zoneref AS site_code,\n       feature_count,\n       share,\n       share - AVG(share) OVER () AS margin\nFROM site_shares\nWHERE share > AVG(share) OVER ()\nORDER BY margin DESC\nLIMIT 10;",
+  "executes": false,
+  "matches": []
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "For race names with above-average total points, the laps figure is the plain mean of each race name's average laps.",
+ "b": {
+  "request": "Calculate each race name\u2019s total result points and compare it with the average total across race names; for names above that average, return one row with their combined total points, the unweighted mean of each name\u2019s average laps completed, and the average amount their totals exceed the across-name average",
+  "sql": "WITH race_name_totals AS (\n  SELECT races.name, SUM(CAST(results.points AS REAL)) AS total_points\n  FROM races\n  JOIN results ON results.raceId = races.raceId\n  GROUP BY races.name\n),\nacross_name_average AS (\n  SELECT AVG(total_points) AS avg_total_points\n  FROM race_name_totals\n),\nabove_average_names AS (\n  SELECT name, total_points\n  FROM race_name_totals\n  WHERE total_points > (SELECT avg_total_points FROM across_name_average)\n),\nname_average_laps AS (\n  SELECT races.name, AVG(CAST(results.laps AS REAL)) AS avg_laps\n  FROM races\n  JOIN results ON results.raceId = races.raceId\n  GROUP BY races.name\n)\nSELECT\n  SUM(above_average_names.total_points) AS combined_total_points,\n  AVG(name_average_laps.avg_laps) AS mean_of_name_average_laps,\n  AVG(above_average_names.total_points - across_name_average.avg_total_points) AS average_excess_points\nFROM above_average_names\nJOIN name_average_laps ON name_average_laps.name = above_average_names.name\nCROSS JOIN across_name_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Matching each result to its race by `raceId`, group by race name (`races.name`) and compute each race name's total `points` and average `laps`. Keep race names whose total points are greater than the average of those totals across all race names. Return one row with: the sum of the kept race names' total points; the plain average of their per-race-name average laps, each race name counting equally; and the average amount by which their totals exceed the average total.",
+  "sql": "WITH race_name_totals AS (\n  SELECT ra.name, SUM(re.points) AS total_points, AVG(CAST(re.laps AS REAL)) AS avg_laps\n  FROM results AS re\n  JOIN races AS ra ON ra.raceId = re.raceId\n  GROUP BY ra.name\n), overall AS (\n  SELECT AVG(total_points) AS avg_total_points\n  FROM race_name_totals\n)\nSELECT SUM(rnt.total_points) AS sum_total_points,\n       AVG(rnt.avg_laps) AS avg_of_avg_laps,\n       AVG(rnt.total_points - o.avg_total_points) AS avg_excess_points\nFROM race_name_totals AS rnt\nCROSS JOIN overall AS o\nWHERE rnt.total_points > o.avg_total_points;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Looking at race results by race name (`races.name`, matched to results by `raceId`), which race names have a total of `points` above the average total across race names? For those race names together, give me in one row their combined total points, their average laps completed, and the average amount by which their totals exceed the average total. For race names with above-average total points, the laps figure is the plain mean of each race name's average laps.",
+  "sql": "WITH race_name_totals AS (\n  SELECT\n    r.name,\n    SUM(CAST(res.points AS REAL)) AS total_points,\n    AVG(CAST(res.laps AS REAL)) AS avg_laps\n  FROM races AS r\n  JOIN results AS res ON res.raceId = r.raceId\n  GROUP BY r.name\n),\naverage_total AS (\n  SELECT AVG(total_points) AS avg_total_points\n  FROM race_name_totals\n)\nSELECT\n  SUM(rnt.total_points) AS combined_total_points,\n  AVG(rnt.avg_laps) AS average_laps_completed,\n  AVG(rnt.total_points - at.avg_total_points) AS average_excess_points\nFROM race_name_totals AS rnt\nCROSS JOIN average_total AS at\nWHERE rnt.total_points > at.avg_total_points;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each race name in `races.name`, sum the `points` from matching results by `raceId`. Among race names whose total points exceed the average total across all race names, report in one row their combined total points, the plain average of their average laps completed, and the average amount by which their totals exceed the average total.",
+  "sql": "WITH race_name_totals AS (\n  SELECT r.name, SUM(res.points) AS total_points\n  FROM races r\n  JOIN results res ON res.raceId = r.raceId\n  GROUP BY r.name\n), above_average AS (\n  SELECT name, total_points\n  FROM race_name_totals\n  WHERE total_points > (SELECT AVG(total_points) FROM race_name_totals)\n), race_name_laps AS (\n  SELECT r.name, AVG(CAST(res.laps AS REAL)) AS avg_laps\n  FROM races r\n  JOIN results res ON res.raceId = r.raceId\n  GROUP BY r.name\n)\nSELECT SUM(a.total_points) AS combined_total_points,\n       AVG(l.avg_laps) AS plain_average_avg_laps,\n       AVG(a.total_points - (SELECT AVG(total_points) FROM race_name_totals)) AS avg_excess_points\nFROM above_average a\nJOIN race_name_laps l ON l.name = a.name;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

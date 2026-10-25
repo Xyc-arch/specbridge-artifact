@@ -1,0 +1,38 @@
+{
+ "interpretations": [
+  "Customers are grouped by CustomerId, and only customers with at least one invoice are included. Each customer's total is the sum of Invoice.Total. The share is that total divided by the sum of all invoice totals. Keep customers whose share is strictly above the average share across customers with invoices. Output one row: the average total spent by the kept customers, their average share, and the average of (share minus the average share).",
+  "Same as 1, but the average share is taken over all customers in the Customer table. Customers with no invoices count as 0 share and 0 spend.",
+  "Same as 1, but the comparison is \"greater than or equal to\" the average share.",
+  "Same as 1, but the average share is the overall mean, computed as total revenue divided by the number of customers. This is the same value as interpretation 1 when only customers with invoices are counted.",
+  "Customers are grouped by name (FirstName and LastName) rather than CustomerId, so customers with the same name are merged.",
+  "The total spent is computed from InvoiceLine (UnitPrice \u00d7 Quantity) instead of Invoice.Total.",
+  "The \"average amount those customers spent\" is the mean of the kept customers' total spend. The \"average share\" is the mean of their shares. The \"how much their share beats the average\" is the mean of (share minus the average share over all customers). This is the base reading for interpretation 1.",
+  "The \"on average how much their share beats the average share\" is the difference between the kept customers' average share and the overall average share. This is a single subtraction, which is mathematically equal to the average of the individual differences.",
+  "The share is expressed as a fraction (0\u20131) rather than a percentage (0\u2013100). \"No rounding\" means raw, unrounded values.",
+  "The output is one row with three columns: average spend, average share, and average excess share. The columns could be in a different order or have different names.",
+  "Some interpretations are missing:",
+  "The \"how much their share beats the average share\" is a relative or ratio measure, such as average of (share / average share), instead of an absolute difference.",
+  "The \"how much their share beats the average share\" is a percentage excess, such as average of (share \u2212 average share) / average share \u00d7 100.",
+  "Customers are grouped by CustomerId, but the Customer table is joined first. This matters only if customers with no invoices are included, and it differs from interpretation 2 only in how the denominator and the \"average share\" population are defined.",
+  "The overall revenue denominator is computed from InvoiceLine (UnitPrice \u00d7 Quantity), while each customer's total uses Invoice.Total, or the reverse."
+ ],
+ "queries": [
+  "WITH c AS (\n  SELECT CustomerId, SUM(Total) AS total\n  FROM Invoice\n  GROUP BY CustomerId\n),\ns AS (\n  SELECT CustomerId, total, total * 1.0 / (SELECT SUM(Total) FROM Invoice) AS share\n  FROM c\n),\na AS (\n  SELECT AVG(share) AS avg_share FROM s\n)\nSELECT AVG(s.total) AS avg_total, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_diff\nFROM s, a\nWHERE s.share > a.avg_share;\n",
+  "WITH spend AS (\n  SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total\n  FROM Customer c\n  LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId\n  GROUP BY c.CustomerId\n),\nshares AS (\n  SELECT CustomerId, total, total * 1.0 / (SELECT SUM(total) FROM spend) AS share\n  FROM spend\n)\nSELECT CustomerId\nFROM shares\nWHERE share > (SELECT AVG(share) FROM shares);\n",
+  "SELECT c.CustomerId\nFROM Customer c\nJOIN Invoice i ON i.CustomerId = c.CustomerId\nGROUP BY c.CustomerId\nHAVING SUM(i.Total) > (SELECT SUM(Total) * 1.0 / (SELECT COUNT(*) FROM Customer) FROM Invoice);\n",
+  "SELECT c.CustomerId, SUM(il.UnitPrice * il.Quantity) AS TotalSpent\nFROM Customer c\nJOIN Invoice i ON c.CustomerId = i.CustomerId\nJOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId\nGROUP BY c.CustomerId;\n"
+ ],
+ "raw": [
+  "1. Customers are grouped by CustomerId, and only customers with at least one invoice are included. Each customer's total is the sum of Invoice.Total. The share is that total divided by the sum of all invoice totals. Keep customers whose share is strictly above the average share across customers with invoices. Output one row: the average total spent by the kept customers, their average share, and the average of (share minus the average share).\n\n2. Same as 1, but the average share is taken over all customers in the Customer table. Customers with no invoices count as 0 share and 0 spend.\n\n3. Same as 1, but the comparison is \"greater than or equal to\" the average share.\n\n4. Same as 1, but the average share is the overall mean, computed as total revenue divided by the number of customers. This is the same value as interpretation 1 when only customers with invoices are counted.\n\n5. Customers are grouped by name (FirstName and LastName) rather than CustomerId, so customers with the same name are merged.\n\n6. The total spent is computed from InvoiceLine (UnitPrice \u00d7 Quantity) instead of Invoice.Total.\n\n7. The \"average amount those customers spent\" is the mean of the kept customers' total spend. The \"average share\" is the mean of their shares. The \"how much their share beats the average\" is the mean of (share minus the average share over all customers). This is the base reading for interpretation 1.\n\n8. The \"on average how much their share beats the average share\" is the difference between the kept customers' average share and the overall average share. This is a single subtraction, which is mathematically equal to the average of the individual differences.\n\n9. The share is expressed as a fraction (0\u20131) rather than a percentage (0\u2013100). \"No rounding\" means raw, unrounded values.\n\n10. The output is one row with three columns: average spend, average share, and average excess share. The columns could be in a different order or have different names.",
+  "Some interpretations are missing:\n\nThe \"how much their share beats the average share\" is a relative or ratio measure, such as average of (share / average share), instead of an absolute difference.\nThe \"how much their share beats the average share\" is a percentage excess, such as average of (share \u2212 average share) / average share \u00d7 100.\nCustomers are grouped by CustomerId, but the Customer table is joined first. This matters only if customers with no invoices are included, and it differs from interpretation 2 only in how the denominator and the \"average share\" population are defined.\nThe overall revenue denominator is computed from InvoiceLine (UnitPrice \u00d7 Quantity), while each customer's total uses Invoice.Total, or the reverse."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-d901f0eed2",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42565,
+  "chars_out": 5209
+ }
+}

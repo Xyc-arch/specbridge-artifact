@@ -1,0 +1,26 @@
+{
+ "interpretations": [
+  "For every invoice, use `Customer.Country` and the unweighted average of its `InvoiceLine.UnitPrice` values. Average those invoice averages across all invoices, then average the resulting deviations within each country. Show every invoice, including one with no lines as blank, and return the 10 highest final differences with ties and blanks last.",
+  "Apply the same calculations only to invoices that have at least one invoice line, excluding invoices whose average unit price is blank.",
+  "Treat invoices with a blank `Customer.Country` as one country group when calculating the country average deviation.",
+  "Treat a blank `Customer.Country` as having no country average deviation, leaving that invoice\u2019s final difference blank."
+ ],
+ "queries": [
+  "WITH invoice_averages AS (\n    SELECT\n        i.InvoiceId,\n        c.Country,\n        AVG(il.UnitPrice) AS invoice_average\n    FROM Invoice AS i\n    JOIN Customer AS c ON c.CustomerId = i.CustomerId\n    LEFT JOIN InvoiceLine AS il ON il.InvoiceId = i.InvoiceId\n    GROUP BY i.InvoiceId, c.Country\n),\ndeviations AS (\n    SELECT\n        InvoiceId,\n        Country,\n        invoice_average - (SELECT AVG(invoice_average) FROM invoice_averages) AS deviation\n    FROM invoice_averages\n),\ncountry_deviations AS (\n    SELECT Country, AVG(deviation) AS country_average_deviation\n    FROM deviations\n    GROUP BY Country\n),\nranked AS (\n    SELECT\n        d.InvoiceId,\n        d.Country,\n        d.deviation - cd.country_average_deviation AS final_difference,\n        RANK() OVER (\n            ORDER BY\n                (d.deviation - cd.country_average_deviation) IS NULL,\n                d.deviation - cd.country_average_deviation DESC\n        ) AS position\n    FROM deviations AS d\n    JOIN country_deviations AS cd ON cd.Country = d.Country\n)\nSELECT InvoiceId, Country, final_difference\nFROM ranked\nWHERE position <= 10\nORDER BY final_difference IS NULL, final_difference DESC, InvoiceId;\n",
+  "SELECT\n    i.Total - AVG(i.Total) OVER (\n        PARTITION BY COALESCE(TRIM(c.Country), '')\n    ) AS CountryAverageDeviation\nFROM Invoice AS i\nJOIN Customer AS c ON c.CustomerId = i.CustomerId;\n",
+  "SELECT\n    CASE\n        WHEN NULLIF(TRIM(c.Country), '') IS NULL THEN NULL\n        ELSE i.Total - AVG(i.Total) OVER (PARTITION BY c.Country)\n    END AS FinalDifference\nFROM Invoice AS i\nJOIN Customer AS c ON c.CustomerId = i.CustomerId"
+ ],
+ "raw": [
+  "For every invoice, use `Customer.Country` and the unweighted average of its `InvoiceLine.UnitPrice` values. Average those invoice averages across all invoices, then average the resulting deviations within each country. Show every invoice, including one with no lines as blank, and return the 10 highest final differences with ties and blanks last.\n\nApply the same calculations only to invoices that have at least one invoice line, excluding invoices whose average unit price is blank.\n\nTreat invoices with a blank `Customer.Country` as one country group when calculating the country average deviation.\n\nTreat a blank `Customer.Country` as having no country average deviation, leaving that invoice\u2019s final difference blank.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0fb0f319ce",
+ "wording": "precise_B",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 6,
+  "chars_in": 31966,
+  "chars_out": 2486
+ }
+}

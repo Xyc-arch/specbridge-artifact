@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-e2ae5e3b8f",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "All matched players count, including those with a blank death country (for example, living players).",
+ "c": {
+  "request": "For each player in `appearances` matched to `player`, together with the country they died in (`player.death_country`), total games at first base minus games in center field (`g_1b` \u2212 `g_cf`) across their appearance rows, skipping rows where either value is missing. Keep the players whose total is above the average total. Give a single row with two values: the sum of their totals, and the average amount by which they exceed that average. Don't round anything. All matched players count, including those with a blank death country (for example, living players).",
+  "sql": "WITH player_totals AS (\n  SELECT p.player_id, p.death_country, SUM(a.g_1b - a.g_cf) AS total\n  FROM appearances AS a\n  JOIN player AS p ON p.player_id = a.player_id\n  WHERE a.g_1b IS NOT NULL AND a.g_cf IS NOT NULL\n  GROUP BY p.player_id, p.death_country\n), above_average AS (\n  SELECT player_id, total\n  FROM player_totals\n  WHERE total > (SELECT AVG(total) FROM player_totals)\n)\nSELECT SUM(total), AVG(total - (SELECT AVG(total) FROM player_totals))\nFROM above_average",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For each player appearing in `appearances` and matched to `player`, regardless of whether `death_country` is blank, sum `g_1b - g_cf` over rows where both values are nonmissing; retain players whose total exceeds the average total across all such players, then return one row containing the sum of their totals and the average of their differences from that overall average, without rounding",
+  "sql": "WITH player_totals AS (\n    SELECT a.player_id, SUM(a.g_1b - a.g_cf) AS total\n    FROM appearances AS a\n    JOIN player AS p ON p.player_id = a.player_id\n    WHERE a.g_1b IS NOT NULL\n      AND a.g_cf IS NOT NULL\n    GROUP BY a.player_id\n),\noverall_average AS (\n    SELECT AVG(total) AS avg_total\n    FROM player_totals\n)\nSELECT SUM(pt.total) AS sum_of_totals,\n       AVG(pt.total - oa.avg_total) AS average_difference\nFROM player_totals AS pt\nCROSS JOIN overall_average AS oa\nWHERE pt.total > oa.avg_total;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "For every player in `appearances` who matches a `player` record, including those whose death country (`player.death_country`) is blank, total `g_1b` \u2212 `g_cf` across their appearance rows, skipping rows where either value is missing. Keep each player's total together with their death country. Keep the players whose total is above the average total. Give a single row with two values: the sum of their totals, and the average amount by which their totals exceed that average. Don't round anything.",
+  "sql": "WITH player_totals AS (\n    SELECT p.player_id, p.death_country, SUM(a.g_1b - a.g_cf) AS total\n    FROM player p\n    JOIN appearances a ON a.player_id = p.player_id\n    WHERE a.g_1b IS NOT NULL AND a.g_cf IS NOT NULL\n    GROUP BY p.player_id, p.death_country\n), above_average AS (\n    SELECT player_id, death_country, total\n    FROM player_totals\n    WHERE total > (SELECT AVG(total) FROM player_totals)\n)\nSELECT SUM(total), AVG(total - (SELECT AVG(total) FROM player_totals))\nFROM above_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For every player who can be matched between `appearances` and `player`, including players with a blank `death_country`, sum `g_1b \u2212 g_cf` across their appearance rows, skipping rows where either value is missing. Keep players whose total is above the average total across all matched players. Return one row with two values: the sum of the kept players\u2019 totals and their average excess above that average. Do not round either value.",
+  "sql": "WITH player_totals AS (\n    SELECT p.player_id, SUM(a.g_1b - a.g_cf) AS total\n    FROM player AS p\n    JOIN appearances AS a ON a.player_id = p.player_id\n    WHERE a.g_1b IS NOT NULL AND a.g_cf IS NOT NULL\n    GROUP BY p.player_id\n),\navg_total AS (\n    SELECT AVG(total) AS avg_total\n    FROM player_totals\n)\nSELECT SUM(pt.total), AVG(pt.total - at.avg_total)\nFROM player_totals AS pt\nCROSS JOIN avg_total AS at\nWHERE pt.total > at.avg_total;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

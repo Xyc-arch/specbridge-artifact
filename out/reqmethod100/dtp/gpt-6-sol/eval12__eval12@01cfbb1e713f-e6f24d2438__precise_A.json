@@ -1,0 +1,27 @@
+{
+ "interpretations": [
+  "Group qualifying analysis records by each non-null `tradekind` represented among them; count every analysis record and divide each count by the sum of those counts, without rounding",
+  "Group qualifying analysis records by `tradekind`, treating NULL as its own group; count every analysis record and divide each count by the sum of all group counts, without rounding",
+  "Report every non-null `tradekind` present in `trader`, including types with zero qualifying analyses; divide each count by the total count across those types, without rounding",
+  "Report every documented `tradekind` enum value, including values with zero qualifying analyses; divide each count by the total count across those values, without rounding",
+  "Report every `tradekind` present in `trader`, treating NULL as its own group and including groups with zero qualifying analyses; divide each count by the total across those groups, without rounding",
+  "Report every documented `tradekind` enum value, including values with zero qualifying analyses, and treat NULL as an additional group if present; divide each count by the total across those groups, without rounding"
+ ],
+ "queries": [
+  "SELECT t.tradekind,\n       CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS proportion\nFROM advancedbehavior AS a\nJOIN transactionrecord AS tr ON tr.transreg = a.translink\nJOIN trader AS t ON t.tradereg = tr.trdref\nWHERE t.tradekind IS NOT NULL\nGROUP BY t.tradekind",
+  "WITH group_counts AS (\n  SELECT tr.tradekind, COUNT(*) AS analysis_count\n  FROM advancedbehavior AS ab\n  LEFT JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  LEFT JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind\n)\nSELECT tradekind,\n       analysis_count,\n       analysis_count * 1.0 / SUM(analysis_count) OVER () AS proportion\nFROM group_counts",
+  "WITH counts AS (\n  SELECT t.tradekind, COUNT(a.abhvreg) AS analysis_count\n  FROM trader AS t\n  LEFT JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n  LEFT JOIN advancedbehavior AS a ON a.translink = tr.transreg\n  WHERE t.tradekind IS NOT NULL\n  GROUP BY t.tradekind\n)\nSELECT tradekind,\n       1.0 * analysis_count / NULLIF(SUM(analysis_count) OVER (), 0) AS proportion\nFROM counts",
+  "WITH tradekinds(tradekind) AS (\n  VALUES ('Market Maker'), ('Broker'), ('Individual'), ('Institution')\n),\ncounts AS (\n  SELECT k.tradekind, COUNT(a.abhvreg) AS analysis_count\n  FROM tradekinds AS k\n  LEFT JOIN trader AS t ON t.tradekind = k.tradekind\n  LEFT JOIN transactionrecord AS r ON r.trdref = t.tradereg\n  LEFT JOIN advancedbehavior AS a ON a.translink = r.transreg\n  GROUP BY k.tradekind\n)\nSELECT tradekind,\n       1.0 * analysis_count / NULLIF(SUM(analysis_count) OVER (), 0) AS proportion\nFROM counts",
+  "WITH analysis_counts AS (\n  SELECT t.tradekind, COUNT(ab.abhvreg) AS analysis_count\n  FROM trader AS t\n  LEFT JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n  LEFT JOIN advancedbehavior AS ab ON ab.translink = tr.transreg\n  GROUP BY t.tradekind\n)\nSELECT tradekind,\n       1.0 * analysis_count / NULLIF(SUM(analysis_count) OVER (), 0) AS proportion\nFROM analysis_counts",
+  "WITH tradekinds(tradekind) AS (\n    VALUES ('Market Maker'), ('Broker'), ('Individual'), ('Institution')\n),\ngroups AS (\n    SELECT tradekind FROM tradekinds\n    UNION ALL\n    SELECT NULL WHERE EXISTS (\n        SELECT 1 FROM trader WHERE tradekind IS NULL\n    )\n),\ncounts AS (\n    SELECT g.tradekind, COUNT(a.abhvreg) AS analysis_count\n    FROM groups AS g\n    LEFT JOIN trader AS t ON t.tradekind IS g.tradekind\n    LEFT JOIN transactionrecord AS tr ON tr.trdref = t.tradereg\n    LEFT JOIN advancedbehavior AS a ON a.translink = tr.transreg\n    GROUP BY g.tradekind\n)\nSELECT tradekind,\n       1.0 * analysis_count / NULLIF(SUM(analysis_count) OVER (), 0) AS proportion\nFROM counts"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e6f24d2438",
+ "wording": "precise_A",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 137049,
+  "chars_out": 3730
+ }
+}

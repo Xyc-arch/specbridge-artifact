@@ -1,0 +1,23 @@
+{
+ "clauses": [
+  "Treat players with unknown batting hand as their own group when averaging the index.",
+  "Exclude players with unknown batting hand from the hand-group averages and from the ranking."
+ ],
+ "readings": [
+  "For each player in the postseason batting data (matched to `player` on `player_id`), take their average postseason doubles per record, ignoring missing values, along with their batting hand. Divide it by the overall average of these per-player averages to get a relative index. Then show how far each player's index sits above the average index for their batting hand. Give the top 10 players by that gap, largest first (missing last), with player id, batting hand, average doubles, index, and the gap, unrounded. Treat players with unknown batting hand as their own group when averaging the index.",
+  "For each player in the postseason batting data (matched to `player` on `player_id`), take their average postseason doubles per record, ignoring missing values, along with their batting hand. Divide it by the overall average of these per-player averages to get a relative index. Then show how far each player's index sits above the average index for their batting hand. Give the top 10 players by that gap, largest first (missing last), with player id, batting hand, average doubles, index, and the gap, unrounded. Exclude players with unknown batting hand from the hand-group averages and from the ranking."
+ ],
+ "queries": [
+  "WITH per_player AS (\n    SELECT bp.player_id, p.bats, AVG(bp.\"double\") AS avg_doubles\n    FROM batting_postseason bp\n    JOIN player p ON bp.player_id = p.player_id\n    GROUP BY bp.player_id, p.bats\n),\nindexed AS (\n    SELECT player_id, bats, avg_doubles,\n           avg_doubles / (SELECT AVG(avg_doubles) FROM per_player) AS idx\n    FROM per_player\n),\nfinal AS (\n    SELECT player_id, bats, avg_doubles, idx,\n           idx - AVG(idx) OVER (PARTITION BY bats) AS gap\n    FROM indexed\n)\nSELECT player_id, bats, avg_doubles, idx, gap\nFROM final\nORDER BY gap DESC\nLIMIT 10;\n",
+  "WITH pa AS (\n  SELECT b.player_id, p.bats, AVG(b.\"double\") AS avg_doubles\n  FROM batting_postseason b\n  JOIN player p ON p.player_id = b.player_id\n  GROUP BY b.player_id, p.bats\n),\noverall AS (\n  SELECT AVG(avg_doubles) AS overall_avg FROM pa\n),\nidx AS (\n  SELECT pa.player_id, pa.bats, pa.avg_doubles, pa.avg_doubles / overall.overall_avg AS idx\n  FROM pa, overall\n),\nknown AS (\n  SELECT * FROM idx WHERE bats IS NOT NULL AND bats <> ''\n),\nhand AS (\n  SELECT bats, AVG(idx) AS hand_idx FROM known GROUP BY bats\n)\nSELECT k.player_id, k.bats, k.avg_doubles, k.idx AS index_value, k.idx - h.hand_idx AS gap\nFROM known k\nJOIN hand h ON h.bats = k.bats\nORDER BY gap DESC NULLS LAST\nLIMIT 10;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69f4c578b6",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 3,
+  "chars_in": 27605,
+  "chars_out": 1477
+ }
+}

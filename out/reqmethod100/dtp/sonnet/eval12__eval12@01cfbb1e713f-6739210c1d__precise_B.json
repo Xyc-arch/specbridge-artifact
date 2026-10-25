@@ -1,0 +1,36 @@
+{
+ "interpretations": [
+  "Count distinct sites per insurance status, where sites come from conservation records joined to sites. Records with a null insurstat form their own group, shown as NULL. The share is count divided by the sum of counts across all groups, unrounded.",
+  "Same as 1, but a conservation record whose zoneref has no match in sites also falls into the missing-status group. This means a LEFT JOIN from scanconservation to sites.",
+  "Same as 1, but only conservation records that match a site are counted. This means an INNER JOIN, and a missing status means insurstat is NULL in sites.",
+  "Same as 1, but a missing status means NULL, an empty string, or whitespace-only, and all of these are merged into one \"missing\" group.",
+  "Same as 1, but the missing group is labeled with a placeholder such as 'Unknown' or 'Missing' instead of NULL.",
+  "The share's denominator is the sum of the per-status distinct site counts. A site has exactly one insurstat, so this equals the total number of distinct sites with conservation records.",
+  "The share's denominator is the total number of conservation records. This is a less literal reading.",
+  "The share's denominator is the total number of distinct sites in the sites table, including sites with no conservation records. This is also less literal.",
+  "The count is of distinct zoneref values from scanconservation. It could instead be distinct zoneregistry values from sites. The two are equivalent after an inner join.",
+  "The share is returned as a fraction between 0 and 1 and not as a percentage. \"No rounding\" means the full-precision value, so integer division must be avoided.",
+  "The output has three columns: insurstat, site count, and share. The rows are unordered. They could instead be ordered by count descending or by status alphabetically.",
+  "\"Status\" values are taken from the documented categories (Expired, Pending), plus the missing group. Other values found in the data are also kept as their own groups.",
+  "The grouping is by the raw insurstat text as stored. Case or spacing variants could instead be normalized and merged."
+ ],
+ "queries": [
+  "SELECT s.insurstat AS insurstat,\n       COUNT(DISTINCT s.zoneregistry) AS site_count,\n       COUNT(DISTINCT s.zoneregistry) * 1.0 / SUM(COUNT(DISTINCT s.zoneregistry)) OVER () AS share\nFROM scanconservation sc\nJOIN sites s ON sc.zoneref = s.zoneregistry\nGROUP BY s.insurstat;\n",
+  "SELECT COALESCE(s.presstat, 'Missing') AS presstat, COUNT(*) AS record_count\nFROM scanconservation sc\nLEFT JOIN sites s ON sc.zoneref = s.zoneregistry\nGROUP BY COALESCE(s.presstat, 'Missing');\n",
+  "SELECT COALESCE(s.insurstat, 'Missing') AS insurstat, COUNT(*) AS record_count\nFROM scanconservation c\nINNER JOIN sites s ON c.zoneref = s.zoneregistry\nGROUP BY COALESCE(s.insurstat, 'Missing');\n",
+  "WITH c AS (\n  SELECT s.insurstat AS insurstat, COUNT(DISTINCT s.zoneregistry) AS cnt\n  FROM sites s\n  JOIN scanconservation sc ON sc.zoneref = s.zoneregistry\n  GROUP BY s.insurstat\n)\nSELECT insurstat, 100.0 * cnt / (SELECT SUM(cnt) FROM c) AS share\nFROM c;\n"
+ ],
+ "raw": [
+  "1. Count distinct sites per insurance status, where sites come from conservation records joined to sites. Records with a null insurstat form their own group, shown as NULL. The share is count divided by the sum of counts across all groups, unrounded.\n2. Same as 1, but a conservation record whose zoneref has no match in sites also falls into the missing-status group. This means a LEFT JOIN from scanconservation to sites.\n3. Same as 1, but only conservation records that match a site are counted. This means an INNER JOIN, and a missing status means insurstat is NULL in sites.\n4. Same as 1, but a missing status means NULL, an empty string, or whitespace-only, and all of these are merged into one \"missing\" group.\n5. Same as 1, but the missing group is labeled with a placeholder such as 'Unknown' or 'Missing' instead of NULL.\n6. The share's denominator is the sum of the per-status distinct site counts. A site has exactly one insurstat, so this equals the total number of distinct sites with conservation records.\n7. The share's denominator is the total number of conservation records. This is a less literal reading.\n8. The share's denominator is the total number of distinct sites in the sites table, including sites with no conservation records. This is also less literal.\n9. The count is of distinct zoneref values from scanconservation. It could instead be distinct zoneregistry values from sites. The two are equivalent after an inner join.\n10. The share is returned as a fraction between 0 and 1 and not as a percentage. \"No rounding\" means the full-precision value, so integer division must be avoided.\n11. The output has three columns: insurstat, site count, and share. The rows are unordered. They could instead be ordered by count descending or by status alphabetically.\n12. \"Status\" values are taken from the documented categories (Expired, Pending), plus the missing group. Other values found in the data are also kept as their own groups.\n13. The grouping is by the raw insurstat text as stored. Case or spacing variants could instead be normalized and merged.",
+  "Missing interpretations:\n\nRecords with a null zoneref are excluded, or counted as their own group. (zoneref is NOT NULL, so this can't happen.)\nThe share is computed with a window function over the grouped counts, versus a separate subquery total. The result is the same.\nThe distinct count includes only sites whose conservation records have non-null fields such as harmassess or curerank. This is less literal.\n\nOf these, only the first is a genuinely distinct reading, and it is moot given the NOT NULL constraint. The rest produce identical results, so the existing list is effectively complete.\n\nAll possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6739210c1d",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 327112,
+  "chars_out": 4787
+ }
+}

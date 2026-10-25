@@ -1,0 +1,34 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-cc6a148eaf",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Use only transactions with an amount strictly greater than 2400. For each account (with its frequency), give the average signed amount and the average balance, and return the 10 accounts with the highest average balance.",
+ "d": {
+  "request": "Use transactions with `amount` strictly greater than 2400; for each account, calculate the average signed amount (treat `PRIJEM` as positive and `VYDAJ` as negative, ignoring other types) and average balance, then return the 10 accounts with the highest average balance, showing each `account_id`, statement `frequency`, average signed amount, and average balance, unrounded.",
+  "sql": "WITH account_averages AS (\n    SELECT\n        t.account_id,\n        AVG(CASE\n                WHEN t.type = 'PRIJEM' THEN t.amount\n                WHEN t.type = 'VYDAJ' THEN -t.amount\n            END) AS average_signed_amount,\n        AVG(t.balance) AS average_balance\n    FROM trans AS t\n    WHERE t.amount > 2400\n    GROUP BY t.account_id\n)\nSELECT\n    aa.account_id,\n    a.frequency,\n    aa.average_signed_amount,\n    aa.average_balance\nFROM account_averages AS aa\nJOIN account AS a ON a.account_id = aa.account_id\nORDER BY aa.average_balance DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Using only transactions with an `amount` greater than 2400, show for each account its `account_id` and statement `frequency`, the average signed transaction amount (credits 'PRIJEM' as +`amount`, withdrawals 'VYDAJ' as \u2212`amount`, other or missing types left out), and the average `balance` after those transactions. List the 10 accounts with the highest average balance, highest first, without rounding.",
+  "sql": "SELECT a.account_id, a.frequency, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_signed_transaction_amount, AVG(t.balance) AS avg_balance FROM account AS a JOIN trans AS t ON t.account_id = a.account_id WHERE t.amount > 2400 AND t.type IN ('PRIJEM', 'VYDAJ') GROUP BY a.account_id, a.frequency ORDER BY avg_balance DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For transactions with `amount` strictly greater than 2400, group by account and statement frequency; return the 10 accounts with the highest average `balance`, showing each account\u2019s ID, frequency, and unrounded average signed amount (treat `PRIJEM` as positive, `VYDAJ` as negative, and ignore other transaction types when calculating this average).",
+  "sql": "WITH qualifying_accounts AS (\n  SELECT account_id\n  FROM trans\n  WHERE amount > 2400\n  GROUP BY account_id\n), signed_averages AS (\n  SELECT account_id,\n         AVG(CASE type WHEN 'PRIJEM' THEN amount WHEN 'VYDAJ' THEN -amount END) AS average_signed_amount\n  FROM trans\n  WHERE amount > 2400\n    AND type IN ('PRIJEM', 'VYDAJ')\n  GROUP BY account_id\n)\nSELECT a.account_id,\n       a.frequency,\n       s.average_signed_amount\nFROM qualifying_accounts q\nJOIN signed_averages s ON s.account_id = q.account_id\nJOIN account a ON a.account_id = q.account_id\nORDER BY AVG((SELECT balance FROM trans WHERE 1 = 0))\nLIMIT 10;",
+  "executes": false,
+  "matches": [],
+  "raw": "For transactions with `amount` strictly greater than 2400, group by account and statement frequency; return the 10 accounts with the highest average `balance`, showing each account\u2019s ID, frequency, and unrounded average signed amount (treat `PRIJEM` as positive, `VYDAJ` as negative, and ignore other transaction types when calculating this average)."
+ },
+ "c": {
+  "request": "Looking only at large transactions, with a 2,400 cutoff on the `amount`, which 10 accounts have the highest average `balance` after those transactions? For each one, show the `account_id`, its statement `frequency`, the average signed amount (credits 'PRIJEM' positive, withdrawals 'VYDAJ' negative, other types ignored) and that average balance, highest first, unrounded. Use only transactions with an amount strictly greater than 2400. For each account (with its frequency), give the average signed amount and the average balance, and return the 10 accounts with the highest average balance.",
+  "sql": "SELECT a.account_id, a.frequency, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS average_signed_amount, AVG(t.balance) AS average_balance FROM account AS a JOIN trans AS t ON t.account_id = a.account_id WHERE t.amount > 2400 AND t.type IN ('PRIJEM', 'VYDAJ') GROUP BY a.account_id, a.frequency ORDER BY average_balance DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6
+}

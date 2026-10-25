@@ -1,0 +1,53 @@
+{
+ "interpretations": [
+  "Per-site ratio is the average of the row-level ratios `facetresmm`/`geomdeltamm` over the site's mesh records. Rows with a null ratio are skipped, and rows with `geomdeltamm` = 0 are also skipped or treated as missing.",
+  "Per-site ratio is the sum of `facetresmm` divided by the sum of `geomdeltamm` (ratio of totals). Rows with a missing value are excluded.",
+  "Mesh count is the number of all mesh records for the site, including those with a missing ratio.",
+  "Mesh count is the number of mesh records with a non-missing ratio only.",
+  "The status average is the simple, unweighted mean of the per-site ratios within an `insurstat` group. Each site counts once, and sites with no valid ratio are excluded from the group.",
+  "The status average is weighted by mesh count (equivalent to the mean over all mesh records in that status).",
+  "\"Sites with no recorded insurance status are left out\" means excluding NULL `insurstat` only.",
+  "It also means excluding NULL, empty-string and whitespace-only `insurstat` values.",
+  "\"Strictly above\" means site ratio > status average. Sites equal to the average are excluded.",
+  "The output has one row per insurance status that has at least one above-average site. Its columns are the status, the average ratio of the above-average sites, the count of those sites, and the average excess (site ratio minus status average).",
+  "The average excess is the mean of (site ratio \u2212 status average) over the above-average sites. This equals the above-average sites' average ratio minus the status average.",
+  "The average excess is expressed as a percentage or relative proportion over the status average instead of an absolute difference.",
+  "The mesh count is only used as an intermediate per-site value and is not shown in the final output.",
+  "The mesh count is also reported in the output, either as a total mesh count of the above-average sites or as an average per site.",
+  "Insurance statuses are treated as the raw `insurstat` values (for example \"Expired\" and \"Pending\"). Case or whitespace variants are either kept distinct or normalized.",
+  "Sites with no mesh records are excluded, because the join is an inner join on `zoneref`.",
+  "Sites with no mesh records are included with a null ratio and then ignored, which gives the same result as excluding them.",
+  "Only statuses with at least one above-average site appear. Statuses where every site equals the average, or that have a single site, are omitted.",
+  "Statuses with no above-average sites appear with a zero count and null values.",
+  "Missing interpretations:",
+  "Per-site ratio is the average of row-level ratios, but rows where `geomdeltamm` is NULL are excluded and rows where `facetresmm` is NULL are excluded. Zero `geomdeltamm` is not guarded, so it may cause a division error or be treated as invalid.",
+  "The \"status average\" is computed over all sites with a recorded status that have at least one mesh record, before excluding sites with no valid ratio. Sites with a null ratio count as zero or are included in the denominator.",
+  "\"Strictly above\" is evaluated against a status average that includes the site itself, and not a leave-one-out average.",
+  "The average excess is the mean of (site ratio \u2212 status average) over only the above-average sites. It is reported as the absolute difference, and the statuses with no above-average sites are omitted.",
+  "The output also includes the status average itself as a column.",
+  "Mesh count is used as a weight when averaging the above-average sites' ratios, so that the \"average ratio\" is the mesh-count-weighted mean of their ratios.",
+  "The average ratio of the above-average sites is the ratio of total `facetresmm` to total `geomdeltamm` across those sites' meshes.",
+  "The `insurstat` filter excludes only NULL values, but the values \"Unknown\" or \"None\" are treated as no recorded status.",
+  "The ratio is computed using integer division, and `geomdeltamm` is cast to a different type.",
+  "The join is on `zoneref` to `zoneregistry` with case or whitespace differences normalized, so that near-matching codes are joined."
+ ],
+ "queries": [
+  "SELECT zoneref, AVG(facetresmm * 1.0 / geomdeltamm) AS ratio\nFROM scanmesh\nWHERE facetresmm IS NOT NULL AND geomdeltamm IS NOT NULL AND geomdeltamm <> 0\nGROUP BY zoneref;\n",
+  "SELECT zoneref, SUM(facetresmm) * 1.0 / SUM(geomdeltamm) AS ratio\nFROM scanmesh\nWHERE facetresmm IS NOT NULL AND geomdeltamm IS NOT NULL\nGROUP BY zoneref;\n",
+  "SELECT COUNT(*) FROM scanmesh WHERE facetfaces IS NOT NULL AND facetverts IS NOT NULL AND facetverts <> 0;\n",
+  "SELECT s.insurstat, AVG(r.ratio) AS status_average\nFROM sites s\nJOIN (\n  SELECT zoneref, CAST(SUM(articount) AS REAL) / SUM(traitcount) AS ratio\n  FROM scanfeatures\n  GROUP BY zoneref\n  HAVING SUM(traitcount) > 0 AND SUM(articount) IS NOT NULL\n) r ON r.zoneref = s.zoneregistry\nGROUP BY s.insurstat;\n"
+ ],
+ "raw": [
+  "1. Per-site ratio is the average of the row-level ratios `facetresmm`/`geomdeltamm` over the site's mesh records. Rows with a null ratio are skipped, and rows with `geomdeltamm` = 0 are also skipped or treated as missing.\n2. Per-site ratio is the sum of `facetresmm` divided by the sum of `geomdeltamm` (ratio of totals). Rows with a missing value are excluded.\n3. Mesh count is the number of all mesh records for the site, including those with a missing ratio.\n4. Mesh count is the number of mesh records with a non-missing ratio only.\n5. The status average is the simple, unweighted mean of the per-site ratios within an `insurstat` group. Each site counts once, and sites with no valid ratio are excluded from the group.\n6. The status average is weighted by mesh count (equivalent to the mean over all mesh records in that status).\n7. \"Sites with no recorded insurance status are left out\" means excluding NULL `insurstat` only.\n8. It also means excluding NULL, empty-string and whitespace-only `insurstat` values.\n9. \"Strictly above\" means site ratio > status average. Sites equal to the average are excluded.\n10. The output has one row per insurance status that has at least one above-average site. Its columns are the status, the average ratio of the above-average sites, the count of those sites, and the average excess (site ratio minus status average).\n11. The average excess is the mean of (site ratio \u2212 status average) over the above-average sites. This equals the above-average sites' average ratio minus the status average.\n12. The average excess is expressed as a percentage or relative proportion over the status average instead of an absolute difference.\n13. The mesh count is only used as an intermediate per-site value and is not shown in the final output.\n14. The mesh count is also reported in the output, either as a total mesh count of the above-average sites or as an average per site.\n15. Insurance statuses are treated as the raw `insurstat` values (for example \"Expired\" and \"Pending\"). Case or whitespace variants are either kept distinct or normalized.\n16. Sites with no mesh records are excluded, because the join is an inner join on `zoneref`.\n17. Sites with no mesh records are included with a null ratio and then ignored, which gives the same result as excluding them.\n18. Only statuses with at least one above-average site appear. Statuses where every site equals the average, or that have a single site, are omitted.\n19. Statuses with no above-average sites appear with a zero count and null values.",
+  "Missing interpretations:\n\nPer-site ratio is the average of row-level ratios, but rows where `geomdeltamm` is NULL are excluded and rows where `facetresmm` is NULL are excluded. Zero `geomdeltamm` is not guarded, so it may cause a division error or be treated as invalid.\nThe \"status average\" is computed over all sites with a recorded status that have at least one mesh record, before excluding sites with no valid ratio. Sites with a null ratio count as zero or are included in the denominator.\n\"Strictly above\" is evaluated against a status average that includes the site itself, and not a leave-one-out average.\nThe average excess is the mean of (site ratio \u2212 status average) over only the above-average sites. It is reported as the absolute difference, and the statuses with no above-average sites are omitted.\nThe output also includes the status average itself as a column.\nMesh count is used as a weight when averaging the above-average sites' ratios, so that the \"average ratio\" is the mesh-count-weighted mean of their ratios.\nThe average ratio of the above-average sites is the ratio of total `facetresmm` to total `geomdeltamm` across those sites' meshes.\nThe `insurstat` filter excludes only NULL values, but the values \"Unknown\" or \"None\" are treated as no recorded status.\nThe ratio is computed using integer division, and `geomdeltamm` is cast to a different type.\nThe join is on `zoneref` to `zoneregistry` with case or whitespace differences normalized, so that near-matching codes are joined."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 328028,
+  "chars_out": 6237
+ }
+}

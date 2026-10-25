@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-24a95ac640",
+ "model": "gpt-6-sol",
+ "reading": "A",
+ "description": "Each account's total is its net flow: credits minus withdrawals. The share is relative to the net flow summed over all accounts.",
+ "a": {
+  "request": "For each account in the transactions (`trans.account_id`), linked through its account record to its district's region (`district.A3`) and dropping transactions with no matching account or district, compute the account's net flow, i.e. the sum of `trans.amount` counted as positive when `trans.type` is 'PRIJEM' and negative when it is 'VYDAJ' (other types left out), and its number of transactions. List the account id, region, net flow, number of transactions, and its share of the net flow summed over all accounts (net flow divided by that total). Sort by that share from highest to lowest and return the top 10 rows. Don't round.",
+  "sql": "WITH account_flows AS (SELECT t.account_id, d.A3 AS region, SUM(CASE WHEN t.type = 'PRIJEM' THEN t.amount ELSE -t.amount END) AS net_flow, COUNT(*) AS transaction_count FROM trans AS t JOIN account AS a ON a.account_id = t.account_id JOIN district AS d ON d.district_id = a.district_id WHERE t.type IN ('PRIJEM', 'VYDAJ') GROUP BY t.account_id, d.A3) SELECT account_id, region, net_flow, transaction_count, net_flow * 1.0 / NULLIF(SUM(net_flow) OVER (), 0) AS net_flow_share FROM account_flows ORDER BY net_flow_share DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each account with transactions, show its account ID, branch district region, net transaction flow (credits minus withdrawals), transaction count, and unrounded share of the net flow summed across all accounts; return the 10 accounts with the highest share",
+  "sql": "WITH account_flows AS (SELECT t.account_id, d.A3 AS region, SUM(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type IN ('VYDAJ', 'VYBER') THEN -t.amount ELSE 0 END) AS net_flow, COUNT(*) AS transaction_count FROM trans AS t JOIN account AS a ON a.account_id = t.account_id JOIN district AS d ON d.district_id = a.district_id GROUP BY t.account_id, d.A3) SELECT account_id, region, net_flow, transaction_count, 1.0 * net_flow / NULLIF(SUM(net_flow) OVER (), 0) AS net_flow_share FROM account_flows ORDER BY net_flow_share DESC LIMIT 10",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "For each account that has transactions, with the region of its branch district, show the total of its transaction amounts, how many transactions it has, and what fraction that total is of the same total across all accounts. Give me the top 10 accounts by that fraction, unrounded. Each account's total is its net flow: credits minus withdrawals. The share is relative to the net flow summed over all accounts.",
+  "sql": "WITH account_flows AS (SELECT account_id, SUM(CASE WHEN type = 'PRIJEM' THEN amount WHEN type IN ('VYDAJ', 'VYBER') THEN -amount END) AS net_flow, COUNT(*) AS transaction_count FROM trans GROUP BY account_id) SELECT af.account_id, d.A3 AS region, af.net_flow AS total_transaction_amount, af.transaction_count, 1.0 * af.net_flow / (SELECT SUM(net_flow) FROM account_flows) AS fraction_of_total FROM account_flows AS af JOIN account AS a ON a.account_id = af.account_id JOIN district AS d ON d.district_id = a.district_id ORDER BY fraction_of_total DESC LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each account with transactions, show its branch district\u2019s region, net flow (credits minus withdrawals), transaction count, and unrounded share of the net flow summed across all accounts. Return the top 10 accounts by that share.",
+  "sql": "WITH account_flows AS (SELECT account_id, SUM(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount ELSE 0 END) AS net_flow, COUNT(*) AS transaction_count FROM trans GROUP BY account_id) SELECT a.account_id, d.A3 AS region, af.net_flow, af.transaction_count, 1.0 * af.net_flow / NULLIF(SUM(af.net_flow) OVER (), 0) AS net_flow_share FROM account_flows AS af JOIN account AS a ON a.account_id = af.account_id JOIN district AS d ON d.district_id = a.district_id ORDER BY net_flow_share DESC, a.account_id LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
+ "model": "haiku",
+ "reading": "B",
+ "description": "List the same ranking, but keep all equipment that ties with the 10th row, so more than 10 rows may come back.",
+ "c": {
+  "request": "Among equipment whose average relative humidity (`scanenvironment.humepct`, ignoring missing readings) is above the average across all equipment, which are the top 10 by how far they sit above the mean of that above-average group? Show the equipment reference, its average humidity, how much it exceeds the all-equipment average, and its difference from the group mean. Return nothing if either reference average is missing, and sort from highest to lowest with missing values last. List the same ranking, but keep all equipment that ties with the 10th row, so more than 10 rows may come back.",
+  "sql": "WITH equip_avg AS (\n  SELECT equipref, AVG(humepct) AS avg_humepct\n  FROM scanenvironment\n  GROUP BY equipref\n),\noverall AS (\n  SELECT AVG(avg_humepct) AS all_avg\n  FROM equip_avg\n),\nabove AS (\n  SELECT e.equipref, e.avg_humepct\n  FROM equip_avg e\n  CROSS JOIN overall o\n  WHERE e.avg_humepct > o.all_avg\n),\ngroup_stat AS (\n  SELECT AVG(avg_humepct) AS group_mean\n  FROM above\n),\nranked AS (\n  SELECT a.equipref,\n         a.avg_humepct,\n         a.avg_humepct - o.all_avg AS exceed_all,\n         a.avg_humepct - g.group_mean AS diff_group\n  FROM above a\n  CROSS JOIN overall o\n  CROSS JOIN group_stat g\n  WHERE o.all_avg IS NOT NULL\n    AND g.group_mean IS NOT NULL\n),\ntop_ranked AS (\n  SELECT r.*,\n         RANK() OVER (ORDER BY r.diff_group DESC NULLS LAST) AS rnk\n  FROM ranked r\n)\nSELECT equipref, avg_humepct, exceed_all, diff_group\nFROM top_ranked\nWHERE rnk <= 10\nORDER BY diff_group DESC NULLS LAST;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each piece of equipment (`scanenvironment.equipref`), average its relative humidity (`humepct`), ignoring missing readings. Keep only equipment whose average is above the average of all equipment averages. For these, show the equipment reference, its average humidity, how much that exceeds the all-equipment average, and how far it is from the mean humidity of just the kept equipment. Return nothing if either reference average is missing. Sort by that last difference from highest to lowest with missing values last, and return the top 10, plus any further rows that tie with the 10th.",
+  "sql": "WITH equip_avg AS (\n  SELECT equipref, AVG(humepct) AS avg_hum\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n),\noverall AS (\n  SELECT AVG(avg_hum) AS all_avg FROM equip_avg\n),\nkept AS (\n  SELECT e.equipref, e.avg_hum\n  FROM equip_avg e\n  CROSS JOIN overall o\n  WHERE e.avg_hum > o.all_avg\n),\nkept_stats AS (\n  SELECT AVG(avg_hum) AS kept_avg FROM kept\n),\nresult AS (\n  SELECT k.equipref,\n         k.avg_hum AS avg_humidity,\n         k.avg_hum - o.all_avg AS excess_over_all,\n         ABS(k.avg_hum - ks.kept_avg) AS dist_from_kept_mean\n  FROM kept k\n  CROSS JOIN overall o\n  CROSS JOIN kept_stats ks\n  WHERE o.all_avg IS NOT NULL AND ks.kept_avg IS NOT NULL\n),\nranked AS (\n  SELECT r.*, RANK() OVER (ORDER BY r.dist_from_kept_mean DESC NULLS LAST) AS rnk\n  FROM result r\n)\nSELECT equipref, avg_humidity, excess_over_all, dist_from_kept_mean\nFROM ranked\nWHERE rnk <= 10\nORDER BY dist_from_kept_mean DESC NULLS LAST;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Among equipment whose per-equipment average of `scanenvironment.humepct` (NULLs excluded) exceeds the average of those per-equipment averages across all equipment, rank by (equipment average \u2212 mean of the above-average group's averages) descending with NULLs last, return equipment ref, equipment average, (equipment average \u2212 all-equipment average), and (equipment average \u2212 group mean), and include every row tied with the 10th-ranked row",
+  "sql": "WITH eq_avg AS (SELECT equipref, AVG(humepct) AS equip_avg FROM scanenvironment GROUP BY equipref), overall AS (SELECT AVG(equip_avg) AS all_avg FROM eq_avg), above AS (SELECT e.equipref, e.equip_avg FROM eq_avg e CROSS JOIN overall o WHERE e.equip_avg > o.all_avg), grp AS (SELECT AVG(equip_avg) AS group_mean FROM above), scored AS (SELECT a.equipref, a.equip_avg, a.equip_avg - o.all_avg AS diff_all, a.equip_avg - g.group_mean AS diff_group FROM above a CROSS JOIN overall o CROSS JOIN grp g), ranked AS (SELECT s.*, RANK() OVER (ORDER BY s.diff_group DESC NULLS LAST) AS rnk FROM scored s) SELECT equipref, equip_avg, diff_all, diff_group FROM ranked WHERE rnk <= 10 ORDER BY diff_group DESC NULLS LAST;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among equipment whose average relative humidity (`scanenvironment.humepct`, ignoring missing readings) is above the average across all equipment, list the top 10 by how far they sit above the mean of that above-average group, showing the equipment reference, its average humidity, how much it exceeds the all-equipment average, and its difference from the group mean. Include every equipment that ties with the 10th-ranked row, so more than 10 rows may return. Return nothing if either reference average is missing, and sort from highest to lowest with missing values last.",
+  "sql": "WITH eq_avg AS (SELECT equipref, AVG(humepct) AS avg_humidity FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), overall AS (SELECT AVG(avg_humidity) AS overall_avg FROM eq_avg), above AS (SELECT e.equipref, e.avg_humidity FROM eq_avg e CROSS JOIN overall o WHERE e.avg_humidity > o.overall_avg), grp AS (SELECT AVG(avg_humidity) AS group_mean FROM above), ranked AS (SELECT a.equipref, a.avg_humidity, a.avg_humidity - o.overall_avg AS excess_over_overall, a.avg_humidity - g.group_mean AS diff_from_group_mean, RANK() OVER (ORDER BY a.avg_humidity - g.group_mean DESC NULLS LAST) AS rnk FROM above a CROSS JOIN overall o CROSS JOIN grp g WHERE o.overall_avg IS NOT NULL AND g.group_mean IS NOT NULL) SELECT equipref, avg_humidity, excess_over_overall, diff_from_group_mean FROM ranked WHERE rnk <= 10 ORDER BY diff_from_group_mean DESC NULLS LAST;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

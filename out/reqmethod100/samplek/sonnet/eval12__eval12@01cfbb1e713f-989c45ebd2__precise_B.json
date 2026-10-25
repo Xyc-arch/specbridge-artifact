@@ -1,0 +1,56 @@
+{
+ "queries": [
+  "WITH linked AS (SELECT DISTINCT t.tradekind, tr.transreg FROM advancedbehavior a JOIN transactionrecord tr ON a.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), counts AS (SELECT tradekind, COUNT(*) AS txn_count FROM linked GROUP BY tradekind), shares AS (SELECT tradekind, txn_count, CAST(txn_count AS NUMERIC) / SUM(txn_count) OVER () AS share FROM counts), avgs AS (SELECT tradekind, txn_count, share, AVG(share) OVER () AS avg_share FROM shares) SELECT tradekind, txn_count, share, share - avg_share AS share_minus_avg FROM avgs WHERE share > avg_share",
+  "WITH t AS (SELECT tr.tradekind, COUNT(DISTINCT x.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord x ON a.translink = x.transreg JOIN trader tr ON x.trdref = tr.tradereg GROUP BY tr.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM t), a AS (SELECT tradekind, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT tradekind, cnt AS transaction_count, share, share - avg_share AS share_minus_avg FROM a WHERE share > avg_share",
+  "WITH t AS (SELECT tr.tradekind, COUNT(DISTINCT x.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord x ON a.translink = x.transreg JOIN trader tr ON x.trdref = tr.tradereg GROUP BY tr.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM t), g AS (SELECT tradekind, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT tradekind, cnt AS transaction_count, share, share - avg_share AS share_minus_avg FROM g WHERE avg_share IS NOT NULL AND share > avg_share"
+ ],
+ "responses": [
+  {
+   "sql": "WITH linked AS (SELECT DISTINCT t.tradekind, tr.transreg FROM advancedbehavior a JOIN transactionrecord tr ON a.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg), counts AS (SELECT tradekind, COUNT(*) AS txn_count FROM linked GROUP BY tradekind), shares AS (SELECT tradekind, txn_count, CAST(txn_count AS NUMERIC) / SUM(txn_count) OVER () AS share FROM counts), avgs AS (SELECT tradekind, txn_count, share, AVG(share) OVER () AS avg_share FROM shares) SELECT tradekind, txn_count, share, share - avg_share AS share_minus_avg FROM avgs WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "The average share is the unweighted mean of the per-type shares across all groups, including the group for a missing tradekind. Types with no linked behaviour records are not groups, so they don't count toward the average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Shares use exact numeric division, not integer division, and nothing is rounded. If no rows link, the query returns no rows.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH t AS (SELECT tr.tradekind, COUNT(DISTINCT x.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord x ON a.translink = x.transreg JOIN trader tr ON x.trdref = tr.tradereg GROUP BY tr.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM t), a AS (SELECT tradekind, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT tradekind, cnt AS transaction_count, share, share - avg_share AS share_minus_avg FROM a WHERE share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "The average share is the plain mean over all groups present, including the NULL tradekind group as its own group. Each transaction has exactly one trader, so the counts sum to the number of distinct matched transactions. If no rows match, nothing is returned.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH t AS (SELECT tr.tradekind, COUNT(DISTINCT x.transreg) AS cnt FROM advancedbehavior a JOIN transactionrecord x ON a.translink = x.transreg JOIN trader tr ON x.trdref = tr.tradereg GROUP BY tr.tradekind), s AS (SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM t), g AS (SELECT tradekind, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT tradekind, cnt AS transaction_count, share, share - avg_share AS share_minus_avg FROM g WHERE avg_share IS NOT NULL AND share > avg_share",
+   "assumptions": [
+    {
+     "assumption": "Inner joins drop behaviour records with no matching transaction, and transactions with no matching trader. A trader with a NULL tradekind forms its own group, because GROUP BY keeps NULL as a group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The plain average of the per-type shares is the unweighted mean across the groups present, which equals 1 divided by the number of groups. Only groups with at least one matching transaction are counted. Shares are left as unrounded numerics.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-989c45ebd2",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 53529,
+  "chars_out": 2972
+ }
+}

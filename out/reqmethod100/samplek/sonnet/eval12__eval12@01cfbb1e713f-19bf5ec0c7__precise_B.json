@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats <> '' GROUP BY p.bats",
+  "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats IS NULL OR p.bats <> '' GROUP BY p.bats",
+  "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats <> '' GROUP BY p.bats",
+  "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats IS NULL OR p.bats <> '' GROUP BY p.bats",
+  "SELECT bats, COUNT(*) AS appearance_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) * 1.0 / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM (SELECT p.bats FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats <> '') GROUP BY bats",
+  "SELECT bats, COUNT(*) AS appearance_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) * 1.0 / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM (SELECT p.bats FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats IS NOT '') GROUP BY bats"
+ ],
+ "responses": [
+  {
+   "sql": "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats <> '' GROUP BY p.bats",
+   "assumptions": [
+    {
+     "assumption": "Players with NULL bats are kept as their own group (the request excludes only empty strings), but the condition p.bats <> '' also drops NULL bats rows, so NULL-bats players are excluded as well.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Inner join on player_id; each appearances row counts as one appearance record, and player_id is assumed unique in player.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The total and the average group count are computed over the remaining batting-hand groups only (after dropping empty-string bats).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Keep players with NULL bats as their own group (only exclude empty-string bats).",
+     "sql": "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats IS NULL OR p.bats <> '' GROUP BY p.bats"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats <> '' GROUP BY p.bats",
+   "assumptions": [
+    {
+     "assumption": "Players with NULL bats are kept as their own NULL group, since only empty-string bats were to be excluded. The WHERE p.bats <> '' filter would actually drop NULL rows, since NULL <> '' is not true.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average count per batting-hand group is the mean of the per-group appearance counts, taken over the groups that remain after the filter.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Keep players whose bats is NULL as a separate group, and exclude only those whose bats is an empty string.",
+     "sql": "SELECT p.bats AS bats, COUNT(*) AS appearance_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats IS NULL OR p.bats <> '' GROUP BY p.bats"
+    }
+   ]
+  },
+  {
+   "sql": "SELECT bats, COUNT(*) AS appearance_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) * 1.0 / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM (SELECT p.bats FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats <> '') GROUP BY bats",
+   "assumptions": [
+    {
+     "assumption": "Players whose bats is NULL are dropped along with the empty-string ones, because the filter bats <> '' is not true for NULL. The request names only the empty string, so keeping NULL as its own group is a possible reading.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The ratios are computed as non-integer values: COUNT(*) is multiplied by 1.0 so the division is not integer division. Nothing is rounded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Each appearances row counts once. The inner join to player is on player_id, and player_id is assumed unique in player, so rows are not duplicated.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Exclude only empty-string bats and keep players with NULL bats as their own group.",
+     "sql": "SELECT bats, COUNT(*) AS appearance_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS fraction_of_total, COUNT(*) * 1.0 / AVG(COUNT(*)) OVER () AS ratio_to_avg_group_count FROM (SELECT p.bats FROM appearances a JOIN player p ON a.player_id = p.player_id WHERE p.bats IS NOT '') GROUP BY bats"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-19bf5ec0c7",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 27999,
+  "chars_out": 3897
+ }
+}

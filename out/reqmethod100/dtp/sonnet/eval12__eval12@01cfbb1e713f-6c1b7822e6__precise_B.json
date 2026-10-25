@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Per order, average `product_quantity` (cast to numeric, NULLs ignored). Baseline is the average over all order-item rows (each item counts once). Output order_id, order average, order average minus baseline. Top 10 by difference descending, NULL differences last.",
+  "Same as 1, but the baseline is the average of the per-order averages (each order counts once). This contradicts the \"each item counts once\" wording, so it is a less likely reading.",
+  "Same as 1, but `product_quantity` is treated as text. Averages are computed after implicit conversion, so non-numeric strings count as 0, not as missing.",
+  "Same as 1, but only orders with a non-null order average are included, so NULL differences never appear.",
+  "Same as 1, but orders with no non-null quantities are kept and listed with NULL average and NULL difference, placed last.",
+  "Same as 1, but the order list comes from `Orders` and includes orders that have no items.",
+  "Same as 1, but the baseline is computed only over order items that join to an existing order, or to an existing product.",
+  "Same as 1, but ties in the difference are broken arbitrarily. Alternatively, ties are broken by order_id ascending.",
+  "Same as 1, but the difference is rounded, or the averages are integer-truncated because `product_quantity` is a string type.",
+  "Same as 1, but \"Return rows only if this baseline exists\" means that if the baseline is NULL (no non-null quantities anywhere), the result is empty. This is the main reading of 1, stated as a condition.",
+  "Same as 1, but \"top 10\" is applied after ties are included, so more than 10 rows can be returned.",
+  "Same as 1, but sorting is by the absolute difference rather than the signed difference. This is unlikely given \"largest to smallest\".",
+  "Missing interpretations:",
+  "Same as 1, but the baseline is computed over all `Order_Items` rows, and each order's average is also computed over those same rows. The \"ignoring missing values\" rule is applied only to non-null values. Empty-string `product_quantity` values are treated as missing, not as 0.",
+  "Same as 1, but the difference is computed as the baseline minus the order average (reversed sign), still sorted largest to smallest.",
+  "Same as 1, but the sort puts NULL differences last. The ordering of the non-null differences is ascending (smallest to largest).",
+  "Same as 1, but the output includes extra columns such as the baseline itself.",
+  "Same as 1, but the order average is computed over distinct `product_quantity` values per order (AVG DISTINCT) rather than all rows.",
+  "Same as 1, but the baseline is weighted by quantity, for example sum of quantity squared over sum of quantity, rather than a plain row average."
+ ],
+ "queries": [
+  "SELECT order_id,\n       AVG(CAST(product_quantity AS REAL)) AS order_avg,\n       AVG(CAST(product_quantity AS REAL)) - (SELECT AVG(CAST(product_quantity AS REAL)) FROM Order_Items) AS diff\nFROM Order_Items\nGROUP BY order_id\nORDER BY diff DESC\nLIMIT 10;\n",
+  "SELECT AVG(product_quantity) FROM Order_Items;\n",
+  "SELECT oi.order_item_id,\n       CAST(oi.product_quantity AS REAL) - a.avg_qty AS difference\nFROM Order_Items oi\nJOIN (\n    SELECT order_id, AVG(CAST(product_quantity AS REAL)) AS avg_qty\n    FROM Order_Items\n    GROUP BY order_id\n) a ON oi.order_id = a.order_id\nWHERE a.avg_qty IS NOT NULL;\n",
+  "SELECT o.order_id, COUNT(oi.order_item_id) AS item_count\nFROM Orders o\nLEFT JOIN Order_Items oi ON o.order_id = oi.order_id\nGROUP BY o.order_id"
+ ],
+ "raw": [
+  "1. Per order, average `product_quantity` (cast to numeric, NULLs ignored). Baseline is the average over all order-item rows (each item counts once). Output order_id, order average, order average minus baseline. Top 10 by difference descending, NULL differences last.\n2. Same as 1, but the baseline is the average of the per-order averages (each order counts once). This contradicts the \"each item counts once\" wording, so it is a less likely reading.\n3. Same as 1, but `product_quantity` is treated as text. Averages are computed after implicit conversion, so non-numeric strings count as 0, not as missing.\n4. Same as 1, but only orders with a non-null order average are included, so NULL differences never appear.\n5. Same as 1, but orders with no non-null quantities are kept and listed with NULL average and NULL difference, placed last.\n6. Same as 1, but the order list comes from `Orders` and includes orders that have no items.\n7. Same as 1, but the baseline is computed only over order items that join to an existing order, or to an existing product.\n8. Same as 1, but ties in the difference are broken arbitrarily. Alternatively, ties are broken by order_id ascending.\n9. Same as 1, but the difference is rounded, or the averages are integer-truncated because `product_quantity` is a string type.\n10. Same as 1, but \"Return rows only if this baseline exists\" means that if the baseline is NULL (no non-null quantities anywhere), the result is empty. This is the main reading of 1, stated as a condition.\n11. Same as 1, but \"top 10\" is applied after ties are included, so more than 10 rows can be returned.\n12. Same as 1, but sorting is by the absolute difference rather than the signed difference. This is unlikely given \"largest to smallest\".",
+  "Missing interpretations:\n\nSame as 1, but the baseline is computed over all `Order_Items` rows, and each order's average is also computed over those same rows. The \"ignoring missing values\" rule is applied only to non-null values. Empty-string `product_quantity` values are treated as missing, not as 0.\nSame as 1, but the difference is computed as the baseline minus the order average (reversed sign), still sorted largest to smallest.\nSame as 1, but the sort puts NULL differences last. The ordering of the non-null differences is ascending (smallest to largest).\nSame as 1, but the output includes extra columns such as the baseline itself.\nSame as 1, but the order average is computed over distinct `product_quantity` values per order (AVG DISTINCT) rather than all rows.\nSame as 1, but the baseline is weighted by quantity, for example sum of quantity squared over sum of quantity, rather than a plain row average."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c1b7822e6",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30363,
+  "chars_out": 4666
+ }
+}

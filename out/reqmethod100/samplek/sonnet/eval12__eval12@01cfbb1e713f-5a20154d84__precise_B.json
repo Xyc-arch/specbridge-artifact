@@ -1,0 +1,68 @@
+{
+ "queries": [
+  "WITH rates AS (SELECT m.Name AS Name, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name) SELECT Name, rate, rate / (SELECT AVG(rate) FROM rates) AS rate_relative_to_mean FROM rates",
+  "WITH r AS (SELECT m.Name AS Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS Rate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, Rate, Rate / (SELECT AVG(Rate) FROM r) AS RateRelativeToMean FROM r",
+  "WITH rates AS (SELECT m.Name AS Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS Rate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name) SELECT Name, Rate, Rate / (SELECT AVG(Rate) FROM rates) AS RateRelativeToMean FROM rates"
+ ],
+ "responses": [
+  {
+   "sql": "WITH rates AS (SELECT m.Name AS Name, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS rate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name) SELECT Name, rate, rate / (SELECT AVG(rate) FROM rates) AS rate_relative_to_mean FROM rates",
+   "assumptions": [
+    {
+     "assumption": "Media types are grouped by name, and the 'simple mean' is taken over the per-name rates. Media types with no tracks have no rate, so they are left out of the mean. Names are assumed unique in MediaType.",
+     "unresolved": false
+    },
+    {
+     "assumption": "SUM(Bytes) skips NULL Bytes, while SUM(Milliseconds) still counts those tracks. This follows the request's wording of summing each column over all of a type's tracks.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Multiplying by 1.0 avoids integer division, so nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH r AS (SELECT m.Name AS Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS Rate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name) SELECT Name, Rate, Rate / (SELECT AVG(Rate) FROM r) AS RateRelativeToMean FROM r",
+   "assumptions": [
+    {
+     "assumption": "Inner join of Track to MediaType, so media types with no tracks are excluded and are not counted in the mean of rates. Each remaining media type is counted once.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The sum of Bytes ignores NULL Bytes, while the sum of Milliseconds includes every track. Tracks with NULL Bytes are not excluded from the denominator.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The sum of Bytes is cast to a real number to avoid integer division. Nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH rates AS (SELECT m.Name AS Name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS Rate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name) SELECT Name, Rate, Rate / (SELECT AVG(Rate) FROM rates) AS RateRelativeToMean FROM rates",
+   "assumptions": [
+    {
+     "assumption": "Media types are grouped by name, as the request says. Media types with no tracks never appear, because tracks are inner-joined to media types. The mean is therefore taken over media types that have at least one track.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Tracks with NULL Bytes add nothing to the byte total, but their Milliseconds still count in the denominator. This is the default SUM behavior.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5a20154d84",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16641,
+  "chars_out": 2513
+ }
+}

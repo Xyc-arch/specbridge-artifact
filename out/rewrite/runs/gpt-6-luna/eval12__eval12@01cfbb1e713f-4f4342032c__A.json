@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-4f4342032c",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "Only PRIJEM (positive) and VYDAJ (negative) give a signed amount; VYBER transactions are left out of the signed-amount average.",
+ "c": {
+  "request": "Linking each transaction to its account (skipping transactions without one), for each account statement frequency work out the average signed transaction amount \u2014 credits ('PRIJEM') positive, withdrawals negative, and any transaction that is neither left out \u2014 along with the average balance after the transaction. Then take the simple mean of those per-frequency signed averages, keep the frequencies above it, and give me one row: the average of their signed averages, the average of their balance averages, and the average amount by which their signed average exceeds the mean. Don't round. Only PRIJEM (positive) and VYDAJ (negative) give a signed amount; VYBER transactions are left out of the signed-amount average.",
+  "sql": "WITH per_frequency AS (\n    SELECT\n        a.frequency,\n        AVG(CASE\n                WHEN t.type = 'PRIJEM' THEN t.amount\n                WHEN t.type = 'VYDAJ' THEN -t.amount\n            END) AS avg_signed_amount,\n        AVG(t.balance) AS avg_balance\n    FROM trans AS t\n    JOIN account AS a ON a.account_id = t.account_id\n    GROUP BY a.frequency\n),\nmean_signed AS (\n    SELECT AVG(avg_signed_amount) AS mean_signed_amount\n    FROM per_frequency\n)\nSELECT\n    AVG(p.avg_signed_amount) AS average_signed_average,\n    AVG(p.avg_balance) AS average_balance_average,\n    AVG(p.avg_signed_amount - m.mean_signed_amount) AS average_excess\nFROM per_frequency AS p\nCROSS JOIN mean_signed AS m\nWHERE p.avg_signed_amount > m.mean_signed_amount;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Join each transaction to its account, excluding transactions without a matching account; group by account statement frequency and calculate the average signed amount using PRIJEM as positive and VYDAJ as negative, excluding all other transaction types including VYBER, plus the average post-transaction balance. Take the unweighted mean of the per-frequency signed averages, retain frequencies whose signed average is above that mean, and return one row with the unweighted averages of their signed averages, balance averages, and signed-average excesses over the mean, without rounding",
+  "sql": "WITH per_frequency AS (\n    SELECT a.frequency,\n           AVG(CASE t.type\n                   WHEN 'PRIJEM' THEN t.amount\n                   WHEN 'VYDAJ' THEN -t.amount\n               END) AS avg_signed_amount,\n           AVG(t.balance) AS avg_balance\n    FROM trans AS t\n    JOIN account AS a ON a.account_id = t.account_id\n    WHERE t.type IN ('PRIJEM', 'VYDAJ')\n    GROUP BY a.frequency\n),\nfrequency_mean AS (\n    SELECT AVG(avg_signed_amount) AS mean_signed_amount\n    FROM per_frequency\n)\nSELECT AVG(p.avg_signed_amount) AS avg_signed_amount,\n       AVG(p.avg_balance) AS avg_balance,\n       AVG(p.avg_signed_amount - m.mean_signed_amount) AS avg_signed_amount_excess\nFROM per_frequency AS p\nCROSS JOIN frequency_mean AS m\nWHERE p.avg_signed_amount > m.mean_signed_amount;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Joining each transaction to its account (dropping transactions with no matching account), compute for each account statement frequency (`account.frequency`) the average signed transaction amount \u2014 `trans.amount` taken as positive when `trans.type` is 'PRIJEM', negative when it is 'VYDAJ', and left out (no value) for every other type, including 'VYBER' \u2014 and the average `trans.balance` over all its transactions. Then take the plain mean of those per-frequency average signed amounts, keep only the frequencies whose average signed amount is above that mean, and return a single row with: the average of their average signed amounts, the average of their average balances, and the average of how far their average signed amount exceeds the mean. Don't round.",
+  "sql": "WITH per_frequency AS (\n    SELECT\n        a.frequency,\n        AVG(CASE\n                WHEN t.type = 'PRIJEM' THEN t.amount\n                WHEN t.type = 'VYDAJ' THEN -t.amount\n                ELSE NULL\n            END) AS avg_signed_amount,\n        AVG(t.balance) AS avg_balance\n    FROM trans AS t\n    JOIN account AS a ON a.account_id = t.account_id\n    GROUP BY a.frequency\n),\nmean_signed AS (\n    SELECT AVG(avg_signed_amount) AS mean_avg_signed_amount\n    FROM per_frequency\n)\nSELECT\n    AVG(p.avg_signed_amount) AS average_of_above_mean_signed_amounts,\n    AVG(p.avg_balance) AS average_of_above_mean_balances,\n    AVG(p.avg_signed_amount - m.mean_avg_signed_amount) AS average_excess_signed_amount\nFROM per_frequency AS p\nCROSS JOIN mean_signed AS m\nWHERE p.avg_signed_amount > m.mean_avg_signed_amount;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Link each transaction to its account, skipping transactions without one. For each account statement frequency, calculate the average signed transaction amount, treating `PRIJEM` as positive and `VYDAJ` as negative; exclude all other transaction types from this average. Also calculate the average balance after the transaction for each frequency. Take the simple mean of the per-frequency signed averages, keep frequencies whose signed average is above that mean, and return one row with the average of those frequencies\u2019 signed averages, the average of their balance averages, and the average amount by which their signed averages exceed the mean. Do not round.",
+  "sql": "WITH frequency_averages AS (\n    SELECT\n        a.frequency,\n        AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS signed_avg,\n        AVG(t.balance) AS balance_avg\n    FROM trans AS t\n    JOIN account AS a ON a.account_id = t.account_id\n    GROUP BY a.frequency\n),\nabove_mean AS (\n    SELECT frequency, signed_avg, balance_avg\n    FROM frequency_averages\n    WHERE signed_avg > (SELECT AVG(signed_avg) FROM frequency_averages)\n)\nSELECT\n    AVG(signed_avg) AS average_signed_transaction_amount,\n    AVG(balance_avg) AS average_balance,\n    AVG(signed_avg - (SELECT AVG(signed_avg) FROM frequency_averages)) AS average_excess_over_mean\nFROM above_mean;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,1210 @@
+[
+ {
+  "id": "eval12@01cfbb1e713f-00d645c60b",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > agg > share",
+  "status": "passed",
+  "kind": "wrong column count",
+  "outputs": [],
+  "detail": "expected 3, got 2",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT s.bats, 1.0 * SUM(s.cnt) / NULLIF((SELECT COUNT(*) FROM manager_award), 0) FROM (SELECT ma.player_id, p.bats, COUNT(*) AS cnt FROM manager_award AS ma JOIN player AS p ON p.player_id = ma.player_id GROUP BY ma.player_id, p.bats) AS s GROUP BY s.bats"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-cc8ea36cdf",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > agg > baseline",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH player_country AS (SELECT a.player_id, p.death_country, AVG(a.g_rf) AS avg_rf, AVG(a.g_1b - a.g_c) AS avg_1b_minus_c FROM appearances AS a JOIN player AS p ON CAST(a.player_id AS TEXT) = CAST(p.player_id AS TEXT) GROUP BY a.player_id, p.death_country), country AS (SELECT death_country, AVG(avg_rf) AS avg_rf, AVG(avg_1b_minus_c) AS avg_1b_minus_c FROM player_country GROUP BY death_country), overall AS (SELECT AVG(avg_rf) AS avg_country_rf FROM country) SELECT c.death_country, c.avg_rf, c.avg_1b_minus_c, c.avg_rf / o.avg_country_rf AS ratio FROM country AS c CROSS JOIN overall AS o WHERE o.avg_country_rf IS NOT NULL"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-1490d5931d",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "rows extra",
+  "outputs": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "detail": "reference 2 rows, answer 4; lacks 2, adds 4",
+  "other_arm_right": false,
+  "review_flagged": [
+   "output 4",
+   "steps"
+  ],
+  "solver_sql": "WITH grouped AS (SELECT p.bats, COUNT(*) AS record_count FROM fielding AS f JOIN player AS p ON p.player_id = f.player_id GROUP BY p.bats), total AS (SELECT SUM(record_count) AS total_count FROM grouped), shares AS (SELECT bats, record_count, 1.0 * record_count / total_count AS share FROM grouped CROSS JOIN total), avg_share AS (SELECT AVG(share) AS mean_share FROM shares) SELECT bats, record_count, share, record_count - mean_share FROM shares CROSS JOIN avg_share WHERE record_count > mean_share"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-307e76f490",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4",
+   "steps"
+  ],
+  "solver_sql": "WITH team_games AS (SELECT team_id, SUM(games) AS games_sum FROM home_game GROUP BY team_id), total_games AS (SELECT SUM(games_sum) AS total FROM team_games), shares AS (SELECT team_games.team_id, team_games.games_sum, CAST(team_games.games_sum AS REAL) / total_games.total AS share FROM team_games CROSS JOIN total_games WHERE total_games.total IS NOT NULL), average_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT shares.team_id, shares.games_sum, shares.share, CAST(shares.games_sum AS REAL) / average_share.avg_share AS ratio_to_average FROM shares CROSS JOIN average_share WHERE average_share.avg_share IS NOT NULL ORDER BY ratio_to_average DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-a83a9b0bf3",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH by_country AS (\n  SELECT p.birth_country, COUNT(*) AS record_count\n  FROM player_college AS pc\n  JOIN player AS p ON p.player_id = pc.player_id\n  GROUP BY p.birth_country\n),\noverall AS (\n  SELECT SUM(record_count) AS total_count\n  FROM by_country\n),\nratios AS (\n  SELECT birth_country, record_count, 1.0 * record_count / total_count AS ratio\n  FROM by_country CROSS JOIN overall\n),\naverage_ratio AS (\n  SELECT AVG(ratio) AS avg_ratio\n  FROM ratios\n),\nfiltered AS (\n  SELECT ratios.*, record_count - avg_ratio AS difference\n  FROM ratios CROSS JOIN average_ratio\n  WHERE record_count > avg_ratio\n)\nSELECT SUM(record_count), AVG(ratio), AVG(difference)\nFROM filtered"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-0d00bc9e2f",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH per_player AS (SELECT player_id, COUNT(*) AS record_count FROM all_star GROUP BY player_id), first_average AS (SELECT AVG(record_count) AS avg_count FROM per_player), above_first_average AS (SELECT player_id, record_count, record_count - avg_count AS excess FROM per_player CROSS JOIN first_average WHERE record_count > avg_count), second_average AS (SELECT AVG(excess) AS avg_excess FROM above_first_average), above_second_average AS (SELECT player_id, record_count, excess, record_count - avg_excess AS excess_over_avg FROM above_first_average CROSS JOIN second_average WHERE record_count > avg_excess) SELECT SUM(record_count), AVG(excess), AVG(excess_over_avg) FROM above_second_average"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-696a17f661",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH college_counts AS (SELECT college_id, COUNT(*) AS record_count FROM player_college GROUP BY college_id), total AS (SELECT SUM(record_count) AS total_records FROM college_counts), ratios AS (SELECT record_count, record_count * 1.0 / total_records AS share FROM college_counts CROSS JOIN total), avg_count AS (SELECT AVG(share) AS mean_share FROM ratios) SELECT AVG(record_count), AVG(share), AVG(record_count - mean_share) FROM ratios CROSS JOIN avg_count WHERE record_count > mean_share"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-e2ae5e3b8f",
+  "S": 4,
+  "A": 2,
+  "shape": "agg > baseline > agg",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH step1 AS (\n  SELECT a.player_id,\n         p.death_country,\n         SUM(a.g_1b - a.g_cf) AS net_games\n  FROM appearances AS a\n  JOIN player AS p\n    ON CAST(a.player_id AS TEXT) = CAST(p.player_id AS TEXT)\n  GROUP BY a.player_id, p.death_country\n),\nstep2 AS (\n  SELECT AVG(net_games) AS avg_net_games\n  FROM step1\n),\nstep3 AS (\n  SELECT step1.player_id,\n         step1.death_country,\n         step1.net_games,\n         step1.net_games - step2.avg_net_games AS difference\n  FROM step1\n  CROSS JOIN step2\n  WHERE step1.net_games > step2.avg_net_games\n)\nSELECT SUM(net_games), AVG(difference)\nFROM step3"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-6782deeb9c",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > agg > share > baseline",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH batting_totals AS (SELECT p.bats, COUNT(*) AS n FROM player_award AS pa JOIN player AS p ON CAST(pa.player_id AS TEXT) = CAST(p.player_id AS TEXT) GROUP BY pa.player_id, p.bats), hand_totals AS (SELECT bats, SUM(n) AS n FROM batting_totals GROUP BY bats), shares AS (SELECT bats, n, 1.0 * n / SUM(n) OVER () AS share FROM hand_totals) SELECT bats, n, share, share - AVG(share) OVER () FROM shares WHERE share > AVG(share) OVER ()"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-156f4616e3",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > share",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [
+   "output 4",
+   "steps"
+  ],
+  "solver_sql": "WITH city_counts AS (SELECT city_id, COUNT(*) AS address_count FROM address GROUP BY city_id), avg_count AS (SELECT AVG(address_count) AS avg_address_count FROM city_counts), ratios AS (SELECT city_counts.city_id, city_counts.address_count, 1.0 * city_counts.address_count / avg_count.avg_address_count AS ratio FROM city_counts CROSS JOIN avg_count), ratio_sum AS (SELECT SUM(ratio) AS total_ratio FROM ratios) SELECT ratios.city_id, ratios.address_count, ratios.ratio, 1.0 * ratios.address_count / ratio_sum.total_ratio AS normalized_ratio FROM ratios CROSS JOIN ratio_sum ORDER BY normalized_ratio DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-e5f4d02a7e",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT store_id, COUNT(*) AS customer_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS share_of_customers, COUNT(*) * 1.0 / AVG(COUNT(*) * 1.0 / SUM(COUNT(*)) OVER ()) OVER () AS relative_to_average_share FROM customer GROUP BY store_id"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-975469f62b",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 5",
+  "outputs": [
+   5
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 5"
+  ],
+  "solver_sql": "WITH film_copy_counts AS (SELECT i.film_id, f.rating, COUNT(*) AS copy_count FROM inventory AS i JOIN film AS f ON f.film_id = i.film_id GROUP BY i.film_id, f.rating), rating_averages AS (SELECT rating, AVG(copy_count) AS avg_copy_count FROM film_copy_counts GROUP BY rating), deviations AS (SELECT c.film_id, c.rating, c.copy_count, c.copy_count - a.avg_copy_count AS rating_deviation FROM film_copy_counts AS c JOIN rating_averages AS a ON c.rating = a.rating), overall_average AS (SELECT AVG(rating_deviation) AS avg_deviation FROM deviations) SELECT d.film_id, d.rating, d.copy_count, d.rating_deviation, d.copy_count - o.avg_deviation AS final_difference FROM deviations AS d CROSS JOIN overall_average AS o ORDER BY final_difference DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-594daaf4d2",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 3",
+  "outputs": [
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH rating_counts AS (SELECT rating, COUNT(*) AS film_count FROM film GROUP BY rating), overall AS (SELECT SUM(film_count) AS total_films FROM rating_counts), above_average AS (SELECT rc.film_count, 1.0 * rc.film_count / o.total_films AS share, rc.film_count - AVG(rc.film_count) OVER () AS excess FROM rating_counts rc CROSS JOIN overall o WHERE rc.film_count > (SELECT AVG(film_count) FROM rating_counts)) SELECT AVG(film_count) AS avg_film_count, AVG(share) AS avg_share, AVG(excess) AS avg_excess FROM above_average"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-6d0476914f",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 1",
+   "output 2",
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH rating_avg AS (SELECT rating, AVG(length) AS avg_length FROM film GROUP BY rating), overall_avg AS (SELECT AVG(avg_length) AS avg_rating_length FROM rating_avg), above_avg AS (SELECT r.rating, r.avg_length, r.avg_length - o.avg_rating_length AS difference FROM rating_avg AS r CROSS JOIN overall_avg AS o WHERE r.avg_length > o.avg_rating_length), above_difference_avg AS (SELECT AVG(difference) AS avg_difference FROM above_avg), filtered AS (SELECT a.rating, a.avg_length, a.difference, a.avg_length - d.avg_difference AS excess FROM above_avg AS a CROSS JOIN above_difference_avg AS d WHERE a.avg_length > d.avg_difference) SELECT AVG(avg_length), AVG(difference), AVG(excess) FROM filtered"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-5ae33e9bfe",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH per_film AS (SELECT film_id, COUNT(*) AS actor_count FROM film_actor GROUP BY film_id), overall_avg AS (SELECT AVG(actor_count) AS avg_count FROM per_film), above_avg AS (SELECT p.film_id, p.actor_count, p.actor_count - a.avg_count AS excess FROM per_film p CROSS JOIN overall_avg a WHERE p.actor_count > a.avg_count), excess_avg AS (SELECT AVG(excess) AS avg_excess FROM above_avg), kept AS (SELECT x.actor_count, x.excess, x.actor_count - e.avg_excess AS excess_over_avg FROM above_avg x CROSS JOIN excess_avg e WHERE x.actor_count > e.avg_excess) SELECT SUM(actor_count), AVG(excess), AVG(excess_over_avg) FROM kept"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-0b823e7291",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH per_rating AS (SELECT f.rating AS rating, COUNT(*) AS record_count FROM film_category AS fc JOIN film AS f ON f.film_id = fc.film_id GROUP BY f.rating), proportions AS (SELECT rating, record_count, CAST(record_count AS REAL) / SUM(record_count) OVER () AS proportion FROM per_rating), average_proportion AS (SELECT AVG(proportion) AS avg_proportion FROM proportions) SELECT p.rating, p.record_count, p.proportion, p.proportion - a.avg_proportion AS difference FROM proportions AS p CROSS JOIN average_proportion AS a WHERE p.proportion > a.avg_proportion)"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-baa971e60e",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT\n  f.rating AS film_rating,\n  COUNT(*) AS record_count,\n  1.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share,\n  1.0 * COUNT(*) / SUM(COUNT(*)) OVER ()\n    - AVG(1.0 * COUNT(*) / SUM(COUNT(*)) OVER ()) OVER () AS difference_from_average\nFROM film_category AS fc\nJOIN film AS f ON f.film_id = fc.film_id\nGROUP BY f.rating"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-2db71a450e",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH store_counts AS (SELECT store_id, COUNT(*) AS customer_count FROM customer GROUP BY store_id), proportions AS (SELECT store_id, customer_count, 1.0 * customer_count / SUM(customer_count) OVER () AS proportion FROM store_counts), above_average AS (SELECT customer_count, proportion, proportion - AVG(proportion) OVER () AS difference FROM proportions WHERE proportion > AVG(proportion) OVER ()) SELECT AVG(customer_count), AVG(proportion), AVG(difference) FROM above_average"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-f4c15e680b",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "passed",
+  "kind": "rows extra",
+  "outputs": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "detail": "reference 1 rows, answer 2; lacks 1, adds 2",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH color_averages AS (SELECT p.product_color, AVG(ili.derived_product_cost) AS avg_cost FROM Invoice_Line_Items AS ili JOIN Products AS p ON p.product_id = ili.product_id GROUP BY p.product_color), overall_average AS (SELECT AVG(avg_cost) AS avg_of_color_averages FROM color_averages), step3 AS (SELECT ca.product_color, ca.avg_cost, ca.avg_cost - oa.avg_of_color_averages AS cost_difference FROM color_averages AS ca CROSS JOIN overall_average AS oa WHERE ca.avg_cost > oa.avg_of_color_averages), step4 AS (SELECT AVG(cost_difference) AS avg_difference FROM step3) SELECT s3.product_color, s3.avg_cost, s3.cost_difference, s3.avg_cost - s4.avg_difference AS difference_from_avg_difference FROM step3 AS s3 CROSS JOIN step4 AS s4 WHERE s3.avg_cost > s4.avg_difference"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-00d65781cc",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH color_counts AS (SELECT p.product_color AS color, COUNT(*) AS record_count FROM Invoice_Line_Items AS ili JOIN Products AS p ON p.product_id = ili.product_id GROUP BY p.product_color), normalized AS (SELECT color, record_count, CAST(record_count AS REAL) / NULLIF((SELECT SUM(record_count) FROM color_counts), 0) AS share FROM color_counts), overall_average AS (SELECT AVG(share) AS avg_share FROM normalized), filtered AS (SELECT color, record_count, share, record_count - (SELECT avg_share FROM overall_average) AS difference FROM normalized WHERE record_count > (SELECT avg_share FROM overall_average)) SELECT AVG(record_count), AVG(share), AVG(difference) FROM filtered"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-ed587ea981",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH type_avg AS (SELECT production_type_code, AVG(unit_price) AS avg_unit_price FROM Products GROUP BY production_type_code), overall_avg AS (SELECT AVG(avg_unit_price) AS avg_type_avg FROM type_avg), step3 AS (SELECT t.production_type_code, t.avg_unit_price, t.avg_unit_price - o.avg_type_avg AS difference FROM type_avg t CROSS JOIN overall_avg o WHERE t.avg_unit_price > o.avg_type_avg), step4 AS (SELECT AVG(difference) AS avg_difference FROM step3), step5 AS (SELECT s.production_type_code, s.avg_unit_price, s.difference, s.avg_unit_price - a.avg_difference AS adjusted_difference FROM step3 s CROSS JOIN step4 a WHERE s.avg_unit_price > a.avg_difference) SELECT AVG(avg_unit_price), AVG(difference), AVG(adjusted_difference) FROM step5"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-5767740452",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH category_counts AS (SELECT pc.product_type_description, COUNT(*) AS record_count FROM Products AS p JOIN Product_Categories AS pc ON CAST(pc.production_type_code AS TEXT) = CAST(p.production_type_code AS TEXT) GROUP BY pc.product_type_description), proportions AS (SELECT product_type_description, record_count, CAST(record_count AS REAL) / SUM(record_count) OVER () AS proportion FROM category_counts) SELECT product_type_description, record_count, proportion, proportion - AVG(proportion) OVER () AS difference FROM proportions WHERE proportion > AVG(proportion) OVER ()"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-69c4bd1cc2",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH per_order AS (\n  SELECT order_id, COUNT(*) AS invoice_count\n  FROM Invoices\n  GROUP BY order_id\n),\nwith_total AS (\n  SELECT order_id, invoice_count, SUM(invoice_count) OVER () AS total_invoices\n  FROM per_order\n),\nratios AS (\n  SELECT invoice_count * 1.0 / total_invoices AS ratio\n  FROM with_total\n),\nmean_ratio AS (\n  SELECT AVG(ratio) AS avg_ratio\n  FROM ratios\n),\nkept AS (\n  SELECT invoice_count, ratio, ratio - avg_ratio AS difference\n  FROM ratios CROSS JOIN mean_ratio\n  WHERE ratio > avg_ratio\n)\nSELECT SUM(invoice_count), AVG(ratio), AVG(difference)\nFROM kept"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-97769b0922",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1",
+  "outputs": [
+   1
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH product_counts AS (SELECT product_id, COUNT(*) AS item_count FROM Order_Items GROUP BY product_id), overall AS (SELECT SUM(item_count) AS total_count FROM product_counts), shares AS (SELECT item_count * 1.0 / total_count AS share FROM product_counts CROSS JOIN overall), avg_share AS (SELECT AVG(share) AS mean_share FROM shares), above AS (SELECT product_counts.item_count, shares.share, shares.share - avg_share.mean_share AS excess FROM product_counts CROSS JOIN shares CROSS JOIN avg_share WHERE shares.share > avg_share.mean_share) SELECT SUM(item_count), AVG(share), AVG(excess) FROM above"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-4f1dd2be29",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH album_counts AS (SELECT AlbumId, COUNT(*) AS track_count FROM Track GROUP BY AlbumId), total AS (SELECT SUM(track_count) AS total_tracks FROM album_counts), fractions AS (SELECT album_counts.AlbumId, track_count, 1.0 * track_count / total_tracks AS fraction FROM album_counts CROSS JOIN total), average_fraction AS (SELECT AVG(fraction) AS avg_fraction FROM fractions) SELECT AVG(fractions.track_count) AS average_track_count, AVG(fractions.fraction) AS average_fraction, AVG(fractions.track_count - average_fraction.avg_fraction) AS average_difference FROM fractions CROSS JOIN average_fraction WHERE fractions.track_count > average_fraction.avg_fraction"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-1380d1a24f",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > share > agg",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH rep_city_counts AS (\n  SELECT c.SupportRepId, e.City AS EmployeeCity, COUNT(*) AS CustomerCount\n  FROM Customer AS c\n  JOIN Employee AS e ON e.EmployeeId = c.SupportRepId\n  GROUP BY c.SupportRepId, e.City\n),\ncity_averages AS (\n  SELECT EmployeeCity, AVG(CustomerCount) AS AvgCustomerCount\n  FROM rep_city_counts\n  GROUP BY EmployeeCity\n),\nfiltered AS (\n  SELECT r.SupportRepId, r.EmployeeCity, r.CustomerCount,\n         r.CustomerCount - a.AvgCustomerCount AS CountDifference\n  FROM rep_city_counts AS r\n  JOIN city_averages AS a ON r.EmployeeCity = a.EmployeeCity\n  WHERE r.CustomerCount > a.AvgCustomerCount\n),\ntotal AS (\n  SELECT SUM(CustomerCount) AS TotalCount FROM filtered\n),\nexpanded AS (\n  SELECT f.*, f.CustomerCount / t.TotalCount AS CountShare\n  FROM filtered AS f\n  JOIN total AS t ON t.TotalCount IS NOT NULL\n)\nSELECT EmployeeCity,\n       SUM(CustomerCount),\n       AVG(CountDifference),\n       AVG(CountShare)\nFROM expanded\nGROUP BY EmployeeCity"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-351fb7579b",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1",
+  "outputs": [
+   1
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH rep_counts AS (SELECT SupportRepId, COUNT(*) AS customer_count FROM Customer GROUP BY SupportRepId), total AS (SELECT SUM(customer_count) AS total_customers FROM rep_counts), proportions AS (SELECT customer_count * 1.0 / total_customers AS proportion FROM rep_counts CROSS JOIN total), average AS (SELECT AVG(proportion) AS avg_proportion FROM proportions), kept AS (SELECT rep_counts.customer_count, proportions.proportion, proportions.proportion - average.avg_proportion AS difference FROM rep_counts CROSS JOIN proportions CROSS JOIN average WHERE proportions.proportion > average.avg_proportion) SELECT SUM(customer_count), AVG(proportion), AVG(difference) FROM kept"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-4bef70d889",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "passed",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH order_counts AS (SELECT account_id, COUNT(*) AS n FROM \"order\" GROUP BY account_id), overall_avg AS (SELECT AVG(n) AS avg_n FROM order_counts), above_avg AS (SELECT account_id, n, n - avg_n AS excess FROM order_counts CROSS JOIN overall_avg WHERE n > avg_n), excess_avg AS (SELECT AVG(excess) AS avg_excess FROM above_avg) SELECT account_id, n, excess, n - avg_excess AS adjusted_excess FROM above_avg CROSS JOIN excess_avg ORDER BY adjusted_excess DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-4548f50304",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > share",
+  "status": "passed",
+  "kind": "values in output 1,2,3,4,5",
+  "outputs": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT s1.district_id, s1.region, s1.client_count, CAST(s1.client_count AS REAL) / s2.region_total AS ratio, CAST(s1.client_count AS REAL) / s4.all_total AS overall_ratio\nFROM (\n  SELECT c.district_id, d.A3 AS region, COUNT(*) AS client_count\n  FROM client AS c\n  JOIN district AS d ON d.district_id = c.district_id\n  GROUP BY c.district_id, d.A3\n) AS s1\nJOIN (\n  SELECT region, SUM(client_count) AS region_total\n  FROM (\n    SELECT c.district_id, d.A3 AS region, COUNT(*) AS client_count\n    FROM client AS c\n    JOIN district AS d ON d.district_id = c.district_id\n    GROUP BY c.district_id, d.A3\n  )\n  GROUP BY region\n) AS s2 ON s1.region = s2.region\nCROSS JOIN (\n  SELECT SUM(client_count) AS all_total\n  FROM (\n    SELECT c.district_id, d.A3 AS region, COUNT(*) AS client_count\n    FROM client AS c\n    JOIN district AS d ON d.district_id = c.district_id\n    GROUP BY c.district_id, d.A3\n  )\n) AS s4\nORDER BY ratio DESC\nLIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-661e8a78a6",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4"
+  ],
+  "solver_sql": "WITH per_account_region AS (\n  SELECT t.account_id, d.A3 AS region, AVG(t.amount) AS avg_amount\n  FROM trans AS t\n  JOIN account AS a ON a.account_id = t.account_id\n  JOIN district AS d ON d.district_id = a.district_id\n  GROUP BY t.account_id, d.A3\n),\nper_region AS (\n  SELECT region, AVG(avg_amount) AS avg_account_amount\n  FROM per_account_region\n  GROUP BY region\n),\noverall AS (\n  SELECT AVG(avg_account_amount) AS baseline\n  FROM per_region\n),\ndifferences AS (\n  SELECT p.region, p.avg_account_amount,\n         p.avg_account_amount - o.baseline AS difference\n  FROM per_region AS p\n  CROSS JOIN overall AS o\n  WHERE p.avg_account_amount > o.baseline\n),\nmean_difference AS (\n  SELECT AVG(difference) AS mean_diff\n  FROM differences\n)\nSELECT d.region, d.avg_account_amount, d.difference,\n       d.avg_account_amount / m.mean_diff AS ratio\nFROM differences AS d\nCROSS JOIN mean_difference AS m"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-11c5e5a85e",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1",
+  "outputs": [
+   1
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH college_counts AS (SELECT ma.college AS college, COUNT(*) AS member_count FROM member AS me JOIN major AS ma ON ma.major_id = me.link_to_major GROUP BY ma.college), mean_count AS (SELECT AVG(member_count) AS avg_count FROM college_counts), differences AS (SELECT c.member_count - m.avg_count AS difference FROM college_counts AS c CROSS JOIN mean_count AS m WHERE c.member_count > m.avg_count) SELECT SUM(difference) AS sum_member_counts, AVG(difference) AS average_difference FROM differences"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-0a25f556c5",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH event_budget AS (\n  SELECT e.event_name, b.amount\n  FROM budget AS b\n  JOIN event AS e ON e.event_id = b.link_to_event\n),\nby_event AS (\n  SELECT event_name, AVG(amount) AS avg_amount\n  FROM event_budget\n  GROUP BY event_name\n),\noverall AS (\n  SELECT AVG(avg_amount) AS baseline\n  FROM by_event\n),\nabove AS (\n  SELECT be.event_name, be.avg_amount, be.avg_amount - o.baseline AS difference\n  FROM by_event AS be\n  CROSS JOIN overall AS o\n  WHERE be.avg_amount > o.baseline\n),\nmean_difference AS (\n  SELECT AVG(difference) AS avg_difference\n  FROM above\n)\nSELECT a.event_name, a.avg_amount, a.difference,\n       a.avg_amount / md.avg_difference\nFROM above AS a\nCROSS JOIN mean_difference AS md"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-7e75655320",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH per_major AS (SELECT link_to_major, COUNT(*) AS member_count FROM member GROUP BY link_to_major), overall AS (SELECT SUM(member_count) AS total_count FROM per_major), shares AS (SELECT link_to_major, member_count, 1.0 * member_count / total_count AS share FROM per_major CROSS JOIN overall), avg_share AS (SELECT AVG(share) AS mean_share FROM shares) SELECT shares.link_to_major, shares.member_count, shares.share, 1.0 * shares.member_count / avg_share AS relative_to_average FROM shares CROSS JOIN avg_share ORDER BY relative_to_average DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-df956358d7",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4"
+  ],
+  "solver_sql": "WITH event_avg AS (SELECT link_to_event, AVG(amount) AS avg_amount FROM budget GROUP BY link_to_event), overall_avg AS (SELECT AVG(avg_amount) AS avg_of_event_avgs FROM event_avg), above_avg AS (SELECT link_to_event, avg_amount, avg_amount - avg_of_event_avgs AS difference FROM event_avg CROSS JOIN overall_avg WHERE avg_amount > avg_of_event_avgs), above_avg_mean AS (SELECT AVG(difference) AS mean_difference FROM above_avg) SELECT above_avg.link_to_event, above_avg.avg_amount, above_avg.difference, above_avg.avg_amount - above_avg_mean.mean_difference AS adjusted_difference FROM above_avg CROSS JOIN above_avg_mean ORDER BY adjusted_difference DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-297a8510dc",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH source_totals AS (SELECT source, SUM(amount) AS source_amount FROM income GROUP BY source), total AS (SELECT SUM(source_amount) AS total_amount FROM source_totals), ratios AS (SELECT source, source_amount, 1.0 * source_amount / NULLIF(total_amount, 0) AS ratio FROM source_totals CROSS JOIN total), ratio_average AS (SELECT AVG(ratio) AS avg_ratio FROM ratios), kept AS (SELECT ratios.source_amount, ratios.ratio, ratios.source_amount - ratio_average.avg_ratio AS difference FROM ratios CROSS JOIN ratio_average WHERE ratios.source_amount > ratio_average.avg_ratio) SELECT AVG(source_amount), AVG(ratio), AVG(difference) FROM kept"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-372cec96f5",
+  "S": 4,
+  "A": 2,
+  "shape": "agg > agg > baseline",
+  "status": "passed",
+  "kind": "wrong column count",
+  "outputs": [],
+  "detail": "expected 3, got 2",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH step1 AS (\n  SELECT b.link_to_event, e.type,\n         AVG(CAST(b.spent AS REAL) / NULLIF(b.amount, 0)) AS event_ratio\n  FROM budget AS b\n  JOIN event AS e ON e.event_id = b.link_to_event\n  GROUP BY b.link_to_event, e.type\n),\nstep2 AS (\n  SELECT type, AVG(event_ratio) AS type_average\n  FROM step1\n  GROUP BY type\n),\nstep3 AS (\n  SELECT AVG(type_average) AS overall_average\n  FROM step2\n)\nSELECT s2.type, s2.type_average / NULLIF(s3.overall_average, 0)\nFROM step2 AS s2\nCROSS JOIN step3 AS s3\nWHERE s3.overall_average IS NOT NULL"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-8ce7840d75",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "rows missing",
+  "outputs": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "detail": "reference 5 rows, answer 0; lacks 5, adds 0",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT m.department, COUNT(*) AS member_count, 1.0 * COUNT(*) / (SELECT COUNT(*) FROM member AS m2 JOIN major AS ma2 ON CAST(ma2.major_id AS TEXT) = CAST(m2.link_to_major AS TEXT)) AS proportion, 1.0 * COUNT(*) / (SELECT COUNT(*) FROM member AS m2 JOIN major AS ma2 ON CAST(ma2.major_id AS TEXT) = CAST(m2.link_to_major AS TEXT)) - (SELECT AVG(1.0 * dept_count / total_count) FROM (SELECT COUNT(*) AS dept_count, (SELECT COUNT(*) FROM member AS m3 JOIN major AS ma3 ON CAST(ma3.major_id AS TEXT) = CAST(m3.link_to_major AS TEXT)) AS total_count FROM member AS m4 JOIN major AS ma4 ON CAST(ma4.major_id AS TEXT) = CAST(m4.link_to_major AS TEXT) GROUP BY ma4.department)) AS difference FROM member AS mem JOIN major AS m ON CAST(m.major_id AS TEXT) = CAST(mem.link_to_major AS TEXT) GROUP BY m.department HAVING 1.0 * COUNT(*) / (SELECT COUNT(*) FROM member AS m2 JOIN major AS ma2 ON CAST(ma2.major_id AS TEXT) = CAST(m2.link_to_major AS TEXT)) > (SELECT AVG(1.0 * dept_count / total_count) FROM (SELECT COUNT(*) AS dept_count, (SELECT COUNT(*) FROM member AS m3 JOIN major AS ma3 ON CAST(ma3.major_id AS TEXT) = CAST(m3.link_to_major AS TEXT)) AS total_count FROM member AS m4 JOIN major AS ma4 ON CAST(ma4.major_id AS TEXT) = CAST(mem.link_to_major AS TEXT) GROUP BY ma4.department))"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-b437ed00a4",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH dept_counts AS (SELECT maj.department, COUNT(*) AS income_count FROM income AS i JOIN member AS mem ON mem.member_id = i.link_to_member JOIN major AS maj ON maj.major_id = mem.link_to_major GROUP BY maj.department), ratios AS (SELECT income_count * 1.0 / SUM(income_count) OVER () AS ratio FROM dept_counts), avg_ratio AS (SELECT AVG(ratio) AS avg_ratio FROM ratios), selected AS (SELECT d.income_count, r.ratio, r.ratio - a.avg_ratio AS difference FROM dept_counts AS d JOIN ratios AS r ON r.ratio = d.income_count * 1.0 / (SELECT SUM(income_count) FROM dept_counts) CROSS JOIN avg_ratio AS a WHERE r.ratio > a.avg_ratio) SELECT SUM(income_count), AVG(ratio), AVG(difference) FROM selected"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-103eb91638",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > agg > baseline",
+  "status": "passed",
+  "kind": "wrong column count",
+  "outputs": [],
+  "detail": "expected 3, got 2",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT sex, AVG(patient_avg) - (SELECT AVG(sex_avg) FROM (SELECT sex, AVG(patient_avg) AS sex_avg FROM (SELECT e.ID, p.SEX AS sex, AVG(e.\"aCL IgM\") AS patient_avg FROM Examination AS e JOIN Patient AS p ON p.ID = e.ID GROUP BY e.ID, p.SEX) GROUP BY sex)) AS difference FROM (SELECT e.ID, p.SEX AS sex, AVG(e.\"aCL IgM\") AS patient_avg FROM Examination AS e JOIN Patient AS p ON p.ID = e.ID GROUP BY e.ID, p.SEX) GROUP BY sex"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-4a2d376afa",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4"
+  ],
+  "solver_sql": "WITH patient_avg AS (\n  SELECT ID, AVG(HGB) AS avg_hgb\n  FROM Laboratory\n  GROUP BY ID\n),\noverall_avg AS (\n  SELECT AVG(avg_hgb) AS avg_patient_hgb\n  FROM patient_avg\n),\ndifferences AS (\n  SELECT p.ID, p.avg_hgb, p.avg_hgb - o.avg_patient_hgb AS difference\n  FROM patient_avg AS p\n  CROSS JOIN overall_avg AS o\n  WHERE p.avg_hgb > o.avg_patient_hgb\n),\noverall_difference AS (\n  SELECT AVG(difference) AS avg_difference\n  FROM differences\n)\nSELECT d.ID, d.avg_hgb, d.difference, d.avg_hgb - od.avg_difference AS adjusted_difference\nFROM differences AS d\nCROSS JOIN overall_difference AS od\nORDER BY adjusted_difference DESC\nLIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-6514cf857d",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH sex_counts AS (SELECT p.SEX, COUNT(*) AS record_count FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY p.SEX), total AS (SELECT SUM(record_count) AS total_count FROM sex_counts), shares AS (SELECT SEX, record_count, record_count * 1.0 / total_count AS share FROM sex_counts CROSS JOIN total) SELECT SEX, record_count, share, record_count - AVG(share) OVER () AS difference FROM shares WHERE record_count > AVG(share) OVER ()"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-0a50862c56",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "rows extra",
+  "outputs": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "detail": "reference 5 rows, answer 25; lacks 5, adds 25",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4",
+   "steps"
+  ],
+  "solver_sql": "WITH counts AS (SELECT p.Diagnosis AS disease, COUNT(*) AS n FROM Examination AS e JOIN Patient AS p ON p.ID = e.ID GROUP BY p.Diagnosis), total AS (SELECT SUM(n) AS n_total FROM counts), shares AS (SELECT disease, n, 1.0 * n / n_total AS share FROM counts CROSS JOIN total), average AS (SELECT AVG(share) AS avg_share FROM shares) SELECT disease, n, share, n - avg_share AS difference FROM shares CROSS JOIN average WHERE n > avg_share"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-e43f59ddb3",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 2,3,4",
+  "outputs": [
+   2,
+   3,
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH step1 AS (SELECT e.ID AS patient_id, p.SEX AS sex, AVG(e.`aCL IgM`) AS avg_igm FROM Examination e JOIN Patient p ON p.ID = e.ID GROUP BY e.ID, p.SEX), step2 AS (SELECT sex, AVG(avg_igm) AS avg_sex_igm FROM step1 GROUP BY sex), step3 AS (SELECT s.patient_id, s.sex, s.avg_igm, s.avg_igm / t.avg_sex_igm AS ratio FROM step1 s JOIN step2 t ON s.sex = t.sex), step4 AS (SELECT AVG(ratio) AS avg_ratio FROM step3), step5 AS (SELECT s.patient_id, s.sex, s.avg_igm, s.ratio, s.avg_igm - t.avg_ratio AS difference FROM step3 s CROSS JOIN step4 t WHERE s.avg_igm > t.avg_ratio) SELECT sex, AVG(avg_igm) AS avg_igm, AVG(ratio) AS avg_ratio, AVG(difference) AS avg_difference FROM step5 GROUP BY sex"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-09d7fd413b",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 2,3",
+  "outputs": [
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH per_patient AS (SELECT ID, AVG(ANA) AS patient_avg FROM Examination GROUP BY ID), overall AS (SELECT AVG(patient_avg) AS overall_avg FROM per_patient), first_filter AS (SELECT p.ID, p.patient_avg FROM per_patient AS p CROSS JOIN overall AS o WHERE p.patient_avg > o.overall_avg), second_filter AS (SELECT AVG(patient_avg) AS filtered_avg FROM first_filter), third_filter AS (SELECT f.ID, f.patient_avg, f.patient_avg - s.filtered_avg AS difference FROM first_filter AS f CROSS JOIN second_filter AS s WHERE f.patient_avg > s.filtered_avg), fourth_filter AS (SELECT AVG(patient_avg) AS filtered_avg FROM third_filter), fifth_filter AS (SELECT t.patient_avg, t.difference, t.patient_avg - q.filtered_avg AS second_difference FROM third_filter AS t CROSS JOIN fourth_filter AS q WHERE t.patient_avg > q.filtered_avg) SELECT AVG(patient_avg), AVG(difference), AVG(second_difference) FROM fifth_filter"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-1d21023bca",
+  "S": 4,
+  "A": 2,
+  "shape": "agg > agg > baseline",
+  "status": "passed",
+  "kind": "rows missing",
+  "outputs": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "detail": "reference 2 rows, answer 0; lacks 2, adds 0",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH patient_stats AS (SELECT l.ID, p.SEX, AVG(l.APTT) AS avg_aptt, AVG(l.ALB - l.TP) AS avg_albumin_minus_protein FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID GROUP BY l.ID, p.SEX), sex_stats AS (SELECT SEX, AVG(avg_aptt) AS avg_aptt, AVG(avg_albumin_minus_protein) AS avg_albumin_minus_protein FROM patient_stats GROUP BY SEX), overall AS (SELECT AVG(avg_aptt) AS avg_aptt FROM sex_stats) SELECT s.SEX, s.avg_aptt, s.avg_albumin_minus_protein, s.avg_albumin_minus_protein - o.avg_aptt FROM sex_stats AS s CROSS JOIN overall AS o WHERE s.avg_albumin_minus_protein > o.avg_aptt"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-c759056a31",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > agg > baseline",
+  "status": "passed",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH step1 AS (SELECT cs.raceId, c.country, AVG(cs.points) AS avg_points, AVG(cs.wins) AS avg_wins FROM constructorStandings AS cs JOIN races AS r ON r.raceId = cs.raceId JOIN circuits AS c ON c.circuitId = r.circuitId GROUP BY cs.raceId, c.country), step2 AS (SELECT country, AVG(avg_points) AS avg_points, AVG(avg_wins) AS avg_wins FROM step1 GROUP BY country), step3 AS (SELECT AVG(avg_points) AS overall_avg FROM step2) SELECT step2.country, step2.avg_points, step2.avg_wins, step2.avg_points - step3.overall_avg FROM step2 CROSS JOIN step3 WHERE step3.overall_avg IS NOT NULL"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-64e48775c7",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "passed",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH race_averages AS (SELECT r.name, AVG(cs.points) AS avg_points FROM constructorStandings AS cs JOIN races AS r ON r.raceId = cs.raceId GROUP BY r.name), overall_average AS (SELECT AVG(avg_points) AS avg_points FROM race_averages), above_overall AS (SELECT ra.name, ra.avg_points, ra.avg_points - oa.avg_points AS excess FROM race_averages AS ra CROSS JOIN overall_average AS oa WHERE ra.avg_points > oa.avg_points), mean_excess AS (SELECT AVG(excess) AS avg_excess FROM above_overall) SELECT ao.name, ao.avg_points, ao.excess, ao.avg_points - me.avg_excess FROM above_overall AS ao CROSS JOIN mean_excess AS me"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-a7bcb3401e",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > agg > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2",
+  "outputs": [
+   1,
+   2
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT AVG(nationality_avg) AS avg_nationality_avg, AVG(nationality_avg - overall_avg) AS avg_positive_difference FROM (SELECT nationality, AVG(driver_avg) AS nationality_avg FROM (SELECT ds.driverId, d.nationality, AVG(ds.points) AS driver_avg FROM driverStandings AS ds JOIN drivers AS d ON d.driverId = ds.driverId GROUP BY ds.driverId, d.nationality) GROUP BY nationality) CROSS JOIN (SELECT AVG(nationality_avg) AS overall_avg FROM (SELECT AVG(driver_avg) AS nationality_avg FROM (SELECT ds.driverId, d.nationality, AVG(ds.points) AS driver_avg FROM driverStandings AS ds JOIN drivers AS d ON d.driverId = ds.driverId GROUP BY ds.driverId, d.nationality) GROUP BY nationality))"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-12e01a46fb",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 2",
+  "outputs": [
+   2
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH country_avgs AS (SELECT c.country, AVG(cs.wins) AS avg_wins FROM constructorStandings AS cs JOIN races AS r ON r.raceId = cs.raceId JOIN circuits AS c ON c.circuitId = r.circuitId GROUP BY c.country), overall_avg AS (SELECT AVG(avg_wins) AS avg_country_wins FROM country_avgs), above_overall AS (SELECT country, avg_wins FROM country_avgs, overall_avg WHERE avg_wins > avg_country_wins), avg_above AS (SELECT AVG(avg_wins) AS avg_above_wins FROM above_overall), above_avg_above AS (SELECT country, avg_wins, avg_wins - avg_above_wins AS diff FROM above_overall, avg_above WHERE avg_wins > avg_above_wins) SELECT AVG(avg_wins), AVG(diff), AVG(avg_wins - avg_above_wins) FROM above_avg_above, avg_above"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-6cae1b0182",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 3",
+  "outputs": [
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH country_counts AS (SELECT c.country, COUNT(*) AS n FROM races r JOIN circuits c ON c.circuitId = r.circuitId GROUP BY c.country), normalized AS (SELECT n * 1.0 / (SELECT SUM(n) FROM country_counts) AS share, n FROM country_counts), avg_count AS (SELECT AVG(share) AS mean_share FROM normalized), filtered AS (SELECT n, share, n * 1.0 / (SELECT SUM(n) FROM country_counts) - (SELECT mean_share FROM avg_count) AS excess FROM normalized WHERE share > (SELECT mean_share FROM avg_count)) SELECT AVG(n), AVG(share), AVG(excess) FROM filtered"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-22b0e41865",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH per_race AS (SELECT raceId, COUNT(*) AS record_count FROM constructorResults GROUP BY raceId), overall AS (SELECT SUM(record_count) AS total_count, AVG(1.0 * record_count / SUM(record_count) OVER ()) AS average_share FROM per_race) SELECT p.raceId, p.record_count, 1.0 * p.record_count / o.total_count AS share, 1.0 * p.record_count / o.total_count - o.average_share AS difference FROM per_race AS p CROSS JOIN overall AS o ORDER BY difference DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-c1a8ce4d18",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH counts AS (SELECT c.location AS city, COUNT(*) AS n FROM qualifying q JOIN races r ON r.raceId = q.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY c.location), ratios AS (SELECT city, n, 1.0 * n / SUM(n) OVER () AS ratio FROM counts) SELECT city, n, ratio, ratio - AVG(ratio) OVER () AS difference FROM ratios WHERE ratio > AVG(ratio) OVER ()"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-b6c41d0861",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH counts AS (\n  SELECT r.name AS race_name, COUNT(*) AS record_count\n  FROM driverStandings AS ds\n  JOIN races AS r ON r.raceId = ds.raceId\n  GROUP BY r.name\n),\nshares AS (\n  SELECT race_name, record_count,\n         CAST(record_count AS REAL) / SUM(record_count) OVER () AS share\n  FROM counts\n)\nSELECT race_name, record_count, share,\n       share - AVG(share) OVER () AS difference\nFROM shares\nWHERE share > AVG(share) OVER ()"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-93eb8cae64",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "SELECT SUM(group_points), AVG(race_share), AVG(excess_share) FROM (SELECT race_points AS group_points, race_points * 1.0 / total_points AS race_share, race_points * 1.0 / total_points - avg_share AS excess_share FROM (SELECT raceId, SUM(points) AS race_points FROM constructorResults GROUP BY raceId) AS by_race CROSS JOIN (SELECT SUM(race_points) AS total_points FROM (SELECT SUM(points) AS race_points FROM constructorResults GROUP BY raceId)) AS totals CROSS JOIN (SELECT AVG(race_points * 1.0 / total_points) AS avg_share FROM (SELECT race_points, total_points FROM (SELECT SUM(points) AS race_points FROM constructorResults GROUP BY raceId) AS x CROSS JOIN (SELECT SUM(race_points) AS total_points FROM (SELECT SUM(points) AS race_points FROM constructorResults GROUP BY raceId)) AS y)) AS mean_share CROSS JOIN (SELECT AVG(race_points * 1.0 / total_points) AS avg_share FROM (SELECT race_points, total_points FROM (SELECT raceId, SUM(points) AS race_points FROM constructorResults GROUP BY raceId) AS x CROSS JOIN (SELECT SUM(race_points) AS total_points FROM (SELECT SUM(points) AS race_points FROM constructorResults GROUP BY raceId)) AS y)) AS ignored CROSS JOIN (SELECT AVG(race_points * 1.0 / total_points) AS avg_share FROM (SELECT x.race_points, y.total_points FROM (SELECT SUM(points) AS race_points FROM constructorResults GROUP BY raceId) AS x CROSS JOIN (SELECT SUM(race_points) AS total_points FROM (SELECT SUM(points) AS race_points FROM constructorResults GROUP BY raceId)) AS y)) AS ignored2"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-1a73aa1ae0",
+  "S": 3,
+  "A": 1,
+  "shape": "agg > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT s.entrystat, AVG(e.ambictemp), AVG(e.imgcount), AVG(e.imgcount) - (SELECT AVG(e2.imgcount) FROM scanenvironment AS e2 JOIN sites AS s2 ON s2.zoneregistry = e2.zoneref) FROM scanenvironment AS e JOIN sites AS s ON s.zoneregistry = e.zoneref GROUP BY s.entrystat"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-7bc96052e6",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > agg > share",
+  "status": "passed",
+  "kind": "wrong column count",
+  "outputs": [],
+  "detail": "expected 3, got 2",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT s.fundflux, SUM(s.record_count) * 1.0 / NULLIF(SUM(SUM(s.record_count)) OVER (), 0) AS ratio FROM (SELECT q.arcref, p.fundflux, COUNT(*) AS record_count FROM scanqc AS q JOIN projects AS p ON p.arcregistry = q.arcref GROUP BY q.arcref, p.fundflux) AS s GROUP BY s.fundflux"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-356f860727",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4",
+   "steps"
+  ],
+  "solver_sql": "WITH per_equipment AS (\n  SELECT equipref, AVG(articount) AS avg_artifacts\n  FROM scanfeatures\n  GROUP BY equipref\n),\noverall AS (\n  SELECT AVG(avg_artifacts) AS overall_avg\n  FROM per_equipment\n),\nkept AS (\n  SELECT p.equipref, p.avg_artifacts,\n         p.avg_artifacts - o.overall_avg AS difference\n  FROM per_equipment AS p\n  CROSS JOIN overall AS o\n  WHERE p.avg_artifacts > o.overall_avg\n),\nmean_difference AS (\n  SELECT AVG(difference) AS avg_difference\n  FROM kept\n)\nSELECT k.equipref, k.avg_artifacts, k.difference,\n       k.avg_artifacts / m.avg_difference AS ratio\nFROM kept AS k\nCROSS JOIN mean_difference AS m\nORDER BY ratio DESC\nLIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-fea75e8f25",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "passed",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH equipment_avgs AS (SELECT equipref, AVG(humepct) AS avg_humidity FROM scanenvironment GROUP BY equipref), overall_avg AS (SELECT AVG(avg_humidity) AS avg_humidity FROM equipment_avgs), differences AS (SELECT e.equipref, e.avg_humidity, e.avg_humidity - o.avg_humidity AS humidity_diff FROM equipment_avgs e CROSS JOIN overall_avg o WHERE e.avg_humidity > o.avg_humidity), mean_diff AS (SELECT AVG(humidity_diff) AS avg_diff FROM differences) SELECT d.equipref, d.avg_humidity, d.humidity_diff, d.avg_humidity - m.avg_diff AS adjusted_diff FROM differences d CROSS JOIN mean_diff m ORDER BY adjusted_diff DESC NULLS LAST LIMIT 10."
+ },
+ {
+  "id": "eval12@01cfbb1e713f-d58457ff41",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4"
+  ],
+  "solver_sql": "WITH step1 AS (SELECT pc.arcref, p.fundflux, COUNT(*) AS record_count FROM scanpointcloud AS pc JOIN projects AS p ON CAST(p.arcregistry AS TEXT) = CAST(pc.arcref AS TEXT) GROUP BY pc.arcref, p.fundflux), step2 AS (SELECT fundflux, AVG(record_count) AS avg_count FROM step1 GROUP BY fundflux), step3 AS (SELECT AVG(avg_count) AS overall_avg FROM step2), step4 AS (SELECT s2.fundflux, s2.avg_count, s2.avg_count - s3.overall_avg AS difference FROM step2 AS s2 CROSS JOIN step3 AS s3 WHERE s2.avg_count > s3.overall_avg), step5 AS (SELECT AVG(difference) AS avg_difference FROM step4) SELECT s4.fundflux, s4.avg_count, s4.difference, s4.avg_count / s5.avg_difference AS ratio FROM step4 AS s4 CROSS JOIN step5 AS s5"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-4781ec3c60",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH step1 AS (\n  SELECT arcref, COUNT(*) AS record_count\n  FROM scanqc\n  GROUP BY arcref\n),\nstep2 AS (\n  SELECT SUM(record_count) AS total_count\n  FROM step1\n),\nstep3 AS (\n  SELECT s1.arcref, s1.record_count, 1.0 * s1.record_count / s2.total_count AS ratio\n  FROM step1 AS s1\n  CROSS JOIN step2 AS s2\n  WHERE s2.total_count IS NOT NULL\n),\nstep4 AS (\n  SELECT AVG(ratio) AS avg_ratio\n  FROM step3\n),\nstep5 AS (\n  SELECT s3.arcref, s3.record_count, s3.ratio, s3.record_count - s4.avg_ratio AS difference\n  FROM step3 AS s3\n  CROSS JOIN step4 AS s4\n  WHERE s4.avg_ratio IS NOT NULL\n    AND s3.record_count > s4.avg_ratio\n)\nSELECT SUM(record_count) AS sum_record_count,\n       AVG(ratio) AS avg_ratio,\n       AVG(difference) AS avg_difference\nFROM step5"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-ae5002d112",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > share > agg",
+  "status": "revised",
+  "kind": "values in output 2,3",
+  "outputs": [
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT t.tradekind, AVG(g.n) AS avg_group_count, AVG(g.n * 1.0 / total.total_n) AS avg_group_share\nFROM advancedbehavior AS a\nJOIN transactionrecord AS r ON r.transreg = a.translink\nJOIN trader AS t ON t.tradereg = r.trdref\nJOIN (\n  SELECT a.translink, t.tradekind, COUNT(*) AS n\n  FROM advancedbehavior AS a\n  JOIN transactionrecord AS r ON r.transreg = a.translink\n  JOIN trader AS t ON t.tradereg = r.trdref\n  GROUP BY a.translink, t.tradekind\n) AS g ON g.translink = a.translink AND g.tradekind IS t.tradekind\nCROSS JOIN (\n  SELECT SUM(n) AS total_n\n  FROM (\n    SELECT COUNT(*) AS n\n    FROM advancedbehavior AS a\n    JOIN transactionrecord AS r ON r.transreg = a.translink\n    JOIN trader AS t ON t.tradereg = r.trdref\n    GROUP BY a.translink, t.tradekind\n  )\n) AS total\nGROUP BY t.tradekind"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-3a20179886",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "revised",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 1",
+   "output 2",
+   "output 3",
+   "steps"
+  ],
+  "solver_sql": "WITH step1 AS (SELECT tr.tradekind, COUNT(*) AS n FROM advancedbehavior AS ab JOIN transactionrecord AS tx ON tx.transreg = ab.translink JOIN trader AS tr ON tr.tradereg = tx.trdref GROUP BY tr.tradekind), step2 AS (SELECT SUM(n) AS total_n FROM step1), step3 AS (SELECT s1.tradekind, s1.n, 1.0 * s1.n / s2.total_n AS share FROM step1 AS s1 CROSS JOIN step2 AS s2 WHERE s2.total_n IS NOT NULL), step4 AS (SELECT AVG(share) AS avg_share FROM step3), step5 AS (SELECT s3.tradekind, s3.n, s3.share, s3.n - s4.avg_share AS delta FROM step3 AS s3 CROSS JOIN step4 AS s4 WHERE s4.avg_share IS NOT NULL AND s3.n > s4.avg_share) SELECT SUM(n) AS sum_n, AVG(share) AS avg_share, AVG(delta) AS avg_delta FROM step5"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-65eee834c9",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > baseline > agg",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT SUM(deal_count) AS sum_of_step3_column2, AVG(group_count - (SELECT AVG(group_count) FROM (SELECT o.dealedge, COUNT(*) AS group_count FROM riskandmargin AS r JOIN orders AS o ON o.recordvault = r.ordervault GROUP BY o.dealedge))) AS average_of_step3_column3 FROM (SELECT o.dealedge, COUNT(*) AS deal_count FROM riskandmargin AS r JOIN orders AS o ON o.recordvault = r.ordervault GROUP BY o.dealedge) AS step1 WHERE deal_count > (SELECT AVG(group_count) FROM (SELECT COUNT(*) AS group_count FROM riskandmargin AS r JOIN orders AS o ON o.recordvault = r.ordervault GROUP BY o.dealedge))"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-12d93c67a7",
+  "S": 4,
+  "A": 1,
+  "shape": "agg > baseline > agg",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT AVG(group_avg_ratio), SUM(group_count), AVG(group_count - avg_group_count) FROM (SELECT timespan, AVG(rebrate / NULLIF(feerate, 0)) AS group_avg_ratio, COUNT(*) AS group_count, AVG(COUNT(*)) OVER () AS avg_group_count FROM fees JOIN orders ON CAST(orders.recordvault AS TEXT) = CAST(fees.orderslink AS TEXT) GROUP BY timespan HAVING COUNT(*) > AVG(COUNT(*)) OVER ())"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-40434115e8",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > baseline > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4"
+  ],
+  "solver_sql": "WITH step1 AS (\n  SELECT o.orderbase, AVG(e.fillcount) AS avg_fill\n  FROM orderexecutions AS e\n  JOIN orders AS o ON o.recordvault = e.ordersmark\n  GROUP BY o.orderbase\n),\nstep2 AS (\n  SELECT AVG(avg_fill) AS overall_avg\n  FROM step1\n),\nstep3 AS (\n  SELECT s1.orderbase, s1.avg_fill, s1.avg_fill - s2.overall_avg AS difference\n  FROM step1 AS s1\n  JOIN step2 AS s2 ON s2.overall_avg IS NOT NULL\n  WHERE s1.avg_fill > s2.overall_avg\n),\nstep4 AS (\n  SELECT AVG(difference) AS avg_difference\n  FROM step3\n)\nSELECT s3.orderbase, s3.avg_fill, s3.difference,\n       s3.avg_fill - s4.avg_difference AS final_difference\nFROM step3 AS s3\nJOIN step4 AS s4 ON s4.avg_difference IS NOT NULL"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-5f1a57a3d8",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH per_order AS (SELECT ordervault, COUNT(*) AS record_count FROM riskandmargin GROUP BY ordervault), totals AS (SELECT SUM(record_count) AS total_count FROM per_order), qualifying AS (SELECT p.ordervault, p.record_count, 1.0 * p.record_count / NULLIF(t.total_count, 0) AS share FROM per_order AS p CROSS JOIN totals AS t WHERE p.record_count > (SELECT AVG(1.0 * record_count / NULLIF(total_count, 0)) FROM per_order CROSS JOIN totals)) SELECT SUM(record_count) AS sum_record_count, AVG(share) AS avg_share, AVG(record_count - (SELECT AVG(record_count) FROM per_order)) AS avg_excess FROM qualifying"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-4aa1861890",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > agg > share > baseline",
+  "status": "passed",
+  "kind": "rows extra",
+  "outputs": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "detail": "reference 4 rows, answer 999; lacks 4, adds 999",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH grouped AS (\n  SELECT rm.ordervault, u.acctscope, COUNT(*) AS record_count\n  FROM riskandmargin AS rm\n  JOIN orders AS o ON o.recordvault = rm.ordervault\n  JOIN users AS u ON u.userstamp = o.userlink\n  GROUP BY rm.ordervault, u.acctscope\n),\nscope_totals AS (\n  SELECT acctscope, SUM(record_count) AS scope_total\n  FROM grouped\n  GROUP BY acctscope\n),\nshares AS (\n  SELECT g.ordervault, g.acctscope, g.record_count,\n         1.0 * s.scope_total / SUM(s.scope_total) OVER () AS share\n  FROM grouped AS g\n  JOIN scope_totals AS s ON s.acctscope = g.acctscope\n)\nSELECT ordervault, acctscope, record_count, 1.0 * scope_total / SUM(scope_total) OVER () AS result\nFROM (\n  SELECT sh.*, st.scope_total\n  FROM shares AS sh\n  JOIN scope_totals AS st ON st.acctscope = sh.acctscope\n)"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-be554083e6",
+  "S": 4,
+  "A": 2,
+  "shape": "agg > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 3",
+  "outputs": [
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT AVG(avg_rebtotal), AVG(avg_rate_diff), AVG(avg_rebtotal) - (SELECT AVG(avg_rebtotal) FROM (SELECT AVG(rebtotal) AS avg_rebtotal, AVG((rebrate - feerate) / feerate) AS avg_rate_diff FROM fees GROUP BY feecoin) WHERE avg_rebtotal > (SELECT AVG(avg_rebtotal) FROM (SELECT AVG(rebtotal) AS avg_rebtotal FROM fees GROUP BY feecoin))) FROM (SELECT AVG(rebtotal) AS avg_rebtotal, AVG((rebrate - feerate) / feerate) AS avg_rate_diff FROM fees GROUP BY feecoin) WHERE avg_rebtotal > (SELECT AVG(avg_rebtotal) FROM (SELECT AVG(rebtotal) AS avg_rebtotal FROM fees GROUP BY feecoin))"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-0edaef52cd",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT rm.riskandmargin_ordervault AS trading_pair, COUNT(*) AS record_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () - AVG(COUNT(*) * 1.0 / SUM(COUNT(*)) OVER ()) OVER () AS difference FROM riskandmargin AS rm JOIN orders AS o ON o.recordvault = rm.ordervault GROUP BY o.mktnote HAVING COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () > AVG(COUNT(*) * 1.0 / SUM(COUNT(*)) OVER ()) OVER ()"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-96d38a34f5",
+  "S": 5,
+  "A": 2,
+  "shape": "agg > share > baseline",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": false,
+  "review_flagged": [],
+  "solver_sql": "WITH group_counts AS (SELECT ordersmark, COUNT(*) AS record_count FROM orderexecutions GROUP BY ordersmark), total AS (SELECT SUM(record_count) AS total_count FROM group_counts), ratios AS (SELECT ordersmark, record_count, 1.0 * record_count / total_count AS ratio FROM group_counts), average_ratio AS (SELECT AVG(ratio) AS avg_ratio FROM ratios) SELECT ordersmark, record_count, ratio, ratio - avg_ratio FROM ratios CROSS JOIN average_ratio WHERE ratio > avg_ratio ORDER BY ratio - avg_ratio DESC LIMIT 10"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-9e932237ed",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "SELECT SUM(match_count) AS total_match_count, AVG(match_count * 1.0 / total_match_count) AS avg_group_share, AVG(match_count * 1.0 / total_match_count - overall_avg) AS avg_above_overall_difference FROM (SELECT timespan, COUNT(*) AS match_count, SUM(COUNT(*)) OVER () AS total_match_count, AVG(COUNT(*) * 1.0 / SUM(COUNT(*)) OVER ()) OVER () AS overall_avg FROM riskandmargin JOIN orders ON riskandmargin.ordervault = orders.recordvault GROUP BY timespan HAVING COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () > AVG(COUNT(*) * 1.0 / SUM(COUNT(*)) OVER ()) OVER ())"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-65650763a2",
+  "S": 5,
+  "A": 1,
+  "shape": "agg > share > baseline",
+  "status": "revised",
+  "kind": "values in output 4",
+  "outputs": [
+   4
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "output 4",
+   "steps"
+  ],
+  "solver_sql": "WITH phase_counts AS (SELECT o.lunarstage, COUNT(*) AS n FROM telescopes AS t JOIN observatories AS o ON o.observstation = t.observstation GROUP BY o.lunarstage), total AS (SELECT SUM(n) AS n_total FROM phase_counts), shares AS (SELECT p.lunarstage, p.n, 1.0 * p.n / t.n_total AS share FROM phase_counts AS p CROSS JOIN total AS t), mean_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.lunarstage, s.n, s.share, 1.0 * s.n / m.avg_share FROM shares AS s CROSS JOIN mean_share AS m"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-6069419682",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH step1 AS (SELECT t.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bandusage FROM telescopes AS t JOIN observatories AS o ON t.observstation = o.observstation GROUP BY t.observstation, o.lunarstage), step2 AS (SELECT lunarstage, AVG(avg_bandusage) AS phase_avg_bandusage FROM step1 GROUP BY lunarstage), step3 AS (SELECT s.observstation, s.lunarstage, s.avg_bandusage, s.avg_bandusage / p.phase_avg_bandusage AS ratio FROM step1 AS s JOIN step2 AS p ON s.lunarstage = p.lunarstage), step4 AS (SELECT AVG(ratio) AS avg_ratio FROM step3), step5 AS (SELECT s.observstation, s.lunarstage, s.avg_bandusage, s.ratio, s.avg_bandusage - a.avg_ratio AS difference FROM step3 AS s CROSS JOIN step4 AS a WHERE s.avg_bandusage > a.avg_ratio) SELECT AVG(avg_bandusage), AVG(ratio), AVG(difference) FROM step5"
+ },
+ {
+  "id": "eval12@01cfbb1e713f-d31fb48995",
+  "S": 6,
+  "A": 1,
+  "shape": "agg > baseline > baseline > agg",
+  "status": "revised",
+  "kind": "does not execute",
+  "outputs": [],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [
+   "steps"
+  ],
+  "solver_sql": "WITH step1 AS (SELECT telescref, AVG(pulsepersec) AS avg_pulse FROM signals GROUP BY telescref), step2 AS (SELECT AVG(avg_pulse) AS overall_avg FROM step1), step3 AS (SELECT s.telescref, s.avg_pulse, s.avg_pulse - t.overall_avg AS diff FROM step1 AS s CROSS JOIN step2 AS t WHERE s.avg_pulse > t.overall_avg), step4 AS (SELECT AVG(avg_pulse) AS kept_avg FROM step3), step5 AS (SELECT s.avg_pulse, s.diff, s.avg_pulse - t.kept_avg AS second_diff FROM step3 AS s CROSS JOIN step4 AS t WHERE s.avg_pulse > t.kept_avg) SELECT AVG(avg_pulse), AVG(diff), AVG(second_diff) FROM step5."
+ },
+ {
+  "id": "eval12@01cfbb1e713f-55907567ca",
+  "S": 6,
+  "A": 2,
+  "shape": "agg > share > baseline > agg",
+  "status": "passed",
+  "kind": "values in output 1,2,3",
+  "outputs": [
+   1,
+   2,
+   3
+  ],
+  "detail": "",
+  "other_arm_right": true,
+  "review_flagged": [],
+  "solver_sql": "WITH per_station AS (SELECT observstation, COUNT(*) AS n FROM telescopes GROUP BY observstation), overall AS (SELECT SUM(n) AS total FROM per_station), ratios AS (SELECT n * 1.0 / total AS ratio FROM per_station CROSS JOIN overall WHERE total IS NOT NULL), avg_ratio AS (SELECT AVG(ratio) AS avg_ratio FROM ratios), kept AS (SELECT p.n, r.ratio, r.ratio - a.avg_ratio AS diff FROM per_station p CROSS JOIN overall o CROSS JOIN avg_ratio a JOIN ratios r ON r.ratio = p.n * 1.0 / o.total WHERE r.ratio > a.avg_ratio) SELECT SUM(n), AVG(ratio), AVG(diff) FROM kept"
+ }
+]

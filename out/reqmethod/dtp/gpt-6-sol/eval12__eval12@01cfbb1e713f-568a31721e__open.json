@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "For each patient, average the HGB/HCT ratios from lab records with both values present; compare that ratio with the equal-weight mean of all patients\u2019 ratios. For patients above that mean, report the mean of their per-patient average PIC, the mean of their ratios, and the mean excess",
+  "For each patient, divide their average nonmissing HGB by their average nonmissing HCT; compare the result with the equal-weight mean of all patients\u2019 resulting ratios. Report the same three means for patients above it",
+  "For each patient, divide average HGB by average HCT using only lab records where both are present; compare the result with the equal-weight mean of all patients\u2019 resulting ratios. Report the same three means for patients above it",
+  "Average each patient\u2019s valid record-level HGB/HCT ratios, but compare that ratio with the mean across all valid lab-record ratios, so patients with more records carry more weight in the threshold. Report the same three means for qualifying patients",
+  "Use each patient\u2019s most recent valid lab-record HGB/HCT ratio as their ratio; compare it with the mean of those ratios across patients. Report the same three means for qualifying patients",
+  "Use each patient\u2019s earliest valid lab-record HGB/HCT ratio as their ratio; compare it with the mean of those ratios across patients. Report the same three means for qualifying patients",
+  "For qualifying patients, calculate average PIC from all their lab records with PIC present",
+  "For qualifying patients, calculate average PIC only from lab records that also have a valid HGB/HCT ratio"
+ ],
+ "queries": [
+  "WITH per_patient AS (\n    SELECT\n        ID,\n        AVG(HGB / NULLIF(HCT, 0)) AS avg_ratio,\n        AVG(PIC) AS avg_pic\n    FROM Laboratory\n    GROUP BY ID\n),\noverall AS (\n    SELECT AVG(avg_ratio) AS mean_ratio\n    FROM per_patient\n)\nSELECT\n    AVG(p.avg_pic) AS mean_pic,\n    AVG(p.avg_ratio) AS mean_ratio,\n    AVG(p.avg_ratio - o.mean_ratio) AS mean_excess\nFROM per_patient AS p\nCROSS JOIN overall AS o\nWHERE p.avg_ratio > o.mean_ratio",
+  "WITH patient_averages AS (\n    SELECT\n        ID,\n        AVG(HGB) AS avg_hgb,\n        AVG(HCT) AS avg_hct\n    FROM Laboratory\n    GROUP BY ID\n),\npatient_ratios AS (\n    SELECT\n        avg_hgb,\n        avg_hct,\n        avg_hgb / NULLIF(avg_hct, 0) AS ratio\n    FROM patient_averages\n)\nSELECT\n    AVG(avg_hgb) AS mean_hgb,\n    AVG(avg_hct) AS mean_hct,\n    AVG(ratio) AS mean_ratio\nFROM patient_ratios\nWHERE ratio > (SELECT AVG(ratio) FROM patient_ratios)",
+  "WITH patient_averages AS (\n    SELECT\n        ID,\n        AVG(HGB) AS avg_hgb,\n        AVG(HCT) AS avg_hct\n    FROM Laboratory\n    WHERE HGB IS NOT NULL\n      AND HCT IS NOT NULL\n    GROUP BY ID\n),\npatient_ratios AS (\n    SELECT\n        ID,\n        avg_hgb,\n        avg_hct,\n        avg_hgb / NULLIF(avg_hct, 0) AS hgb_hct_ratio\n    FROM patient_averages\n)\nSELECT ID, avg_hgb, avg_hct, hgb_hct_ratio\nFROM patient_ratios\nWHERE hgb_hct_ratio > (\n    SELECT AVG(hgb_hct_ratio)\n    FROM patient_ratios\n)",
+  "WITH valid_records AS (\n    SELECT ID, HGB, HCT, HGB / HCT AS hgb_hct_ratio\n    FROM Laboratory\n    WHERE HGB IS NOT NULL\n      AND HCT > 0\n),\npatient_means AS (\n    SELECT ID,\n           AVG(HGB) AS mean_hgb,\n           AVG(HCT) AS mean_hct,\n           AVG(hgb_hct_ratio) AS mean_hgb_hct_ratio\n    FROM valid_records\n    GROUP BY ID\n)\nSELECT ID, mean_hgb, mean_hct, mean_hgb_hct_ratio\nFROM patient_means\nWHERE mean_hgb_hct_ratio > (\n    SELECT AVG(hgb_hct_ratio)\n    FROM valid_records\n)",
+  "WITH ranked_labs AS (\n    SELECT\n        ID,\n        HGB,\n        HCT,\n        ROW_NUMBER() OVER (PARTITION BY ID ORDER BY Date DESC) AS rn\n    FROM Laboratory\n    WHERE HGB IS NOT NULL\n      AND HCT IS NOT NULL\n      AND HCT <> 0\n),\nlatest_ratios AS (\n    SELECT ID, HGB, HCT, HGB / HCT AS ratio\n    FROM ranked_labs\n    WHERE rn = 1\n)\nSELECT\n    AVG(HGB) AS mean_hgb,\n    AVG(HCT) AS mean_hct,\n    AVG(ratio) AS mean_ratio\nFROM latest_ratios\nWHERE ratio > (SELECT AVG(ratio) FROM latest_ratios);\n",
+  "WITH ranked_labs AS (\n    SELECT\n        ID,\n        HGB,\n        HCT,\n        HGB / HCT AS ratio,\n        ROW_NUMBER() OVER (PARTITION BY ID ORDER BY Date) AS rn\n    FROM Laboratory\n    WHERE HGB > 0 AND HCT > 0\n),\nearliest AS (\n    SELECT HGB, HCT, ratio\n    FROM ranked_labs\n    WHERE rn = 1\n)\nSELECT\n    AVG(HGB) AS mean_hgb,\n    AVG(HCT) AS mean_hct,\n    AVG(ratio) AS mean_ratio\nFROM earliest\nWHERE ratio > (SELECT AVG(ratio) FROM earliest)"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-568a31721e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67327,
+  "chars_out": 4447
+ }
+}

@@ -1,0 +1,61 @@
+{
+ "interpretations": [
+  "Cutoff inclusivity: \"high-rate\" means `feerate` strictly greater than 0.0009, and only fees above the cutoff are kept.",
+  "Cutoff inclusivity: \"high-rate\" means `feerate` greater than or equal to 0.0009, so fees at exactly 0.0009 are kept.",
+  "Grouping: each group is one distinct `orderslink` and `dealedge` pair. Since each order has one side, this is effectively one group per order.",
+  "Grouping: groups are formed after the join, so an order that matches several fee records gets a single group with a record count above 1.",
+  "Join: an inner join on `fees.orderslink` = `orders.recordvault` by exact text match, with unmatched fees dropped. Padded or differently cased values do not match.",
+  "Join: if `orders.recordvault` is not unique, a fee matches several orders and its records are duplicated. This affects the counts and averages.",
+  "Net fee rate: `feerate` minus `rebrate`, where a null `rebrate` makes the net null and the record is excluded from the average.",
+  "Net fee rate: the average is taken over non-null net values only, but the record count includes all records in the group, including those with a null net rate.",
+  "Net fee rate: the record count counts only records with a non-null net rate.",
+  "Net fee rate: a null `rebrate` is treated as 0, so the net equals `feerate`. This contradicts \"ignoring missing values\", so it is less likely.",
+  "Record count: counts fee records (`feesnode`) in the group after the cutoff filter and join.",
+  "Side average: for each `dealedge` (Buy or Sell), the unweighted mean of the group-level average net fee rates, so each group counts equally regardless of its record count.",
+  "Side average: the mean of net fee rates over all individual records on that side, weighted by record count. This differs from the stated \"average of those group averages\".",
+  "Side average: groups with a null average net rate, because every record in the group has a null `rebrate`, are excluded from the side average.",
+  "Side average: groups with a null average are counted as zero in the side average. This is less likely.",
+  "Side average scope: computed over all groups on that side, including those that fail the strict-greater-than test. It is not computed over the filtered output.",
+  "Filter: keep groups whose average net fee rate is strictly greater than their side's average, so ties and nulls are excluded.",
+  "Output columns: `orderslink`, `dealedge`, the group average net fee rate, the record count, and the group average minus the side average.",
+  "Sorting: by the difference descending, with nulls last. The filter already removes nulls, so this has no practical effect.",
+  "Sorting tie-break: groups with equal differences have no specified order, so they come out in arbitrary order or are broken by `orderslink`.",
+  "Limit: the top 10 rows overall across both sides, after sorting.",
+  "Limit: the top 10 within each side, giving up to 20 rows. This is less likely.",
+  "Precision: no rounding is applied to any output value.",
+  "Side values: orders with a null `dealedge` form their own group and side. They are either included as a null side or excluded.",
+  "Missing interpretations:",
+  "Cutoff value: the 0.0009 cutoff is compared against `feerate` as stored, a real(8,5) value, so floating-point representation could affect values at exactly 0.0009.",
+  "Cutoff scope: the cutoff filter applies to `feerate` only, not to the net fee rate (`feerate` minus `rebrate`).",
+  "Cutoff nulls: fees with a null `feerate` fail the cutoff and are excluded.",
+  "Join: fees with a null `orderslink` have no match and are dropped.",
+  "Join: orders with no fee records do not appear.",
+  "Side average: the side average is computed over all groups for that side after the cutoff and join, before the strictly-greater filter.",
+  "Side average: groups with a null `dealedge` have no side. They are excluded from the comparison, or form their own null side whose average comparison is null, so they are excluded.",
+  "Side average: a group with a null `dealedge` is compared to the average of the null-side groups, and the comparison is valid if that side exists.",
+  "Record count: the record count in a group with partly null net rates counts all fee records, not only the non-null ones. This is an alternative to counting only non-null net rates.",
+  "Difference: the difference is the group average net fee rate minus the side average, and it is positive for every row that passes the filter.",
+  "Sorting tie-break: ties in the difference are broken by `orderslink` or `dealedge` ascending, or are left arbitrary.",
+  "Limit: when fewer than 10 groups qualify, all qualifying groups are returned.",
+  "Output: the side column is shown under the name `dealedge`, or under an alias such as \"side\"."
+ ],
+ "queries": [
+  "SELECT feesnode FROM fees WHERE feerate > 0.0009;\n",
+  "SELECT feesnode FROM fees WHERE feerate >= 0.0009;\n",
+  "SELECT f.orderslink, o.dealedge\nFROM fees f\nJOIN orders o ON f.orderslink = o.recordvault\nGROUP BY f.orderslink, o.dealedge;\n",
+  "SELECT * FROM fees INNER JOIN orders ON fees.orderslink = orders.recordvault"
+ ],
+ "raw": [
+  "1. Cutoff inclusivity: \"high-rate\" means `feerate` strictly greater than 0.0009, and only fees above the cutoff are kept.\n2. Cutoff inclusivity: \"high-rate\" means `feerate` greater than or equal to 0.0009, so fees at exactly 0.0009 are kept.\n3. Grouping: each group is one distinct `orderslink` and `dealedge` pair. Since each order has one side, this is effectively one group per order.\n4. Grouping: groups are formed after the join, so an order that matches several fee records gets a single group with a record count above 1.\n5. Join: an inner join on `fees.orderslink` = `orders.recordvault` by exact text match, with unmatched fees dropped. Padded or differently cased values do not match.\n6. Join: if `orders.recordvault` is not unique, a fee matches several orders and its records are duplicated. This affects the counts and averages.\n7. Net fee rate: `feerate` minus `rebrate`, where a null `rebrate` makes the net null and the record is excluded from the average.\n8. Net fee rate: the average is taken over non-null net values only, but the record count includes all records in the group, including those with a null net rate.\n9. Net fee rate: the record count counts only records with a non-null net rate.\n10. Net fee rate: a null `rebrate` is treated as 0, so the net equals `feerate`. This contradicts \"ignoring missing values\", so it is less likely.\n11. Record count: counts fee records (`feesnode`) in the group after the cutoff filter and join.\n12. Side average: for each `dealedge` (Buy or Sell), the unweighted mean of the group-level average net fee rates, so each group counts equally regardless of its record count.\n13. Side average: the mean of net fee rates over all individual records on that side, weighted by record count. This differs from the stated \"average of those group averages\".\n14. Side average: groups with a null average net rate, because every record in the group has a null `rebrate`, are excluded from the side average.\n15. Side average: groups with a null average are counted as zero in the side average. This is less likely.\n16. Side average scope: computed over all groups on that side, including those that fail the strict-greater-than test. It is not computed over the filtered output.\n17. Filter: keep groups whose average net fee rate is strictly greater than their side's average, so ties and nulls are excluded.\n18. Output columns: `orderslink`, `dealedge`, the group average net fee rate, the record count, and the group average minus the side average.\n19. Sorting: by the difference descending, with nulls last. The filter already removes nulls, so this has no practical effect.\n20. Sorting tie-break: groups with equal differences have no specified order, so they come out in arbitrary order or are broken by `orderslink`.\n21. Limit: the top 10 rows overall across both sides, after sorting.\n22. Limit: the top 10 within each side, giving up to 20 rows. This is less likely.\n23. Precision: no rounding is applied to any output value.\n24. Side values: orders with a null `dealedge` form their own group and side. They are either included as a null side or excluded.",
+  "Missing interpretations:\n\nCutoff value: the 0.0009 cutoff is compared against `feerate` as stored, a real(8,5) value, so floating-point representation could affect values at exactly 0.0009.\nCutoff scope: the cutoff filter applies to `feerate` only, not to the net fee rate (`feerate` minus `rebrate`).\nCutoff nulls: fees with a null `feerate` fail the cutoff and are excluded.\nJoin: fees with a null `orderslink` have no match and are dropped.\nJoin: orders with no fee records do not appear.\nSide average: the side average is computed over all groups for that side after the cutoff and join, before the strictly-greater filter.\nSide average: groups with a null `dealedge` have no side. They are excluded from the comparison, or form their own null side whose average comparison is null, so they are excluded.\nSide average: a group with a null `dealedge` is compared to the average of the null-side groups, and the comparison is valid if that side exists.\nRecord count: the record count in a group with partly null net rates counts all fee records, not only the non-null ones. This is an alternative to counting only non-null net rates.\nDifference: the difference is the group average net fee rate minus the side average, and it is positive for every row that passes the filter.\nSorting tie-break: ties in the difference are broken by `orderslink` or `dealedge` ascending, or are left arbitrary.\nLimit: when fewer than 10 groups qualify, all qualifying groups are returned.\nOutput: the side column is shown under the name `dealedge`, or under an alias such as \"side\"."
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 108743,
+  "chars_out": 6322
+ }
+}

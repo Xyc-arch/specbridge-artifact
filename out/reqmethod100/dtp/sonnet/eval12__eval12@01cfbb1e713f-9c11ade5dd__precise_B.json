@@ -1,0 +1,49 @@
+{
+ "interpretations": [
+  "Ratio per lab test is CPK/GPT using real (floating-point) division. Tests where GPT is 0 or NULL, or CPK is NULL, are excluded because the ratio is missing or undefined.",
+  "Same as 1, but integer division is used because CPK and GPT are INTEGER columns, so ratios are truncated before averaging.",
+  "Tests with GPT = 0 are treated as missing (NULLIF), versus errors or NULL from division by zero. Either way they are excluded.",
+  "Patients with SEX NULL or '' are removed. Other values such as whitespace-only strings are kept as separate groups.",
+  "Patients with SEX NULL or '' are removed, and values are normalized, for example case-insensitive or trimmed, so 'F' and 'f' form one group.",
+  "Groups are distinct SEX values taken from Patient.SEX, joined to Laboratory on ID. Patients with no lab tests form no group.",
+  "The group average is the mean of per-test ratios, so each test counts equally. Alternatively it is the mean of per-patient averages, so each patient counts equally.",
+  "The first mean is the plain, unweighted mean of the group averages, not weighted by test count. Alternatively it is the overall mean of all test ratios across all groups.",
+  "Groups whose average is strictly above the first mean are kept (\">\"). Alternatively groups at or above it are kept (\">=\").",
+  "The second mean is the mean of the kept groups' averages. Groups strictly above the second mean remain.",
+  "If only one group is kept after the first filter, it equals the second mean, so no groups remain. The result is then NULL or an empty row.",
+  "If there are only two sex groups, the higher group is kept first, then removed by the second filter. The result is NULL or empty.",
+  "The output has three values in one row: (a) the average of the remaining groups' ratio averages, (b) the average of (group avg \u2212 first mean), (c) the average of (group avg \u2212 second mean).",
+  "\"Exceed\" is read as a signed difference (avg \u2212 mean), versus an absolute difference. Both give the same result here, because the remaining groups are above both means.",
+  "The first mean used in the output is the one from step 1 (all groups), not a recomputed mean of the kept groups.",
+  "The output is unrounded, with full floating-point precision.",
+  "Laboratory rows with multiple dates per patient each count as separate tests. Alternatively tests are deduplicated per patient or per date.",
+  "Only Laboratory rows with a matching Patient (inner join) are used. Alternatively a left join is used, with the SEX filter removing unmatched rows anyway.",
+  "Missing interpretations:",
+  "The ratio is computed only where both CPK and GPT are non-NULL, so a CPK of 0 with a nonzero GPT gives a valid ratio of 0 that is kept, not treated as missing.",
+  "Ratios where GPT is negative or CPK is negative are kept as valid values (no range filtering).",
+  "\"Missing\" ratio also covers non-numeric or empty values stored in CPK/GPT, which are dropped.",
+  "Groups are formed by exact-case SEX values with no normalization, so 'F' and 'f' stay separate (the opposite of the normalization reading).",
+  "The first mean is computed after the SEX filter and after dropping missing ratios, so a group with no valid ratios forms no group and does not enter the mean.",
+  "The final \"average amount exceeding the first mean\" is computed over only the remaining groups (after the second filter), not over all groups kept by the first filter.",
+  "If no groups remain after the second filter (for example when all kept groups are equal, or only one is kept), the three outputs are NULL, versus the query returning zero rows.",
+  "When kept groups have identical averages, none is strictly above the second mean, so the result is empty or NULL."
+ ],
+ "queries": [
+  "SELECT CAST(CPK AS REAL) / GPT AS ratio\nFROM Laboratory\nWHERE GPT IS NOT NULL AND GPT != 0 AND CPK IS NOT NULL",
+  "SELECT AVG(CPK / GPT) FROM Laboratory WHERE CPK IS NOT NULL AND GPT IS NOT NULL AND GPT <> 0;\n",
+  "SELECT DISTINCT Patient.SEX FROM Patient INNER JOIN Laboratory ON Patient.ID = Laboratory.ID"
+ ],
+ "raw": [
+  "1. Ratio per lab test is CPK/GPT using real (floating-point) division. Tests where GPT is 0 or NULL, or CPK is NULL, are excluded because the ratio is missing or undefined.\n2. Same as 1, but integer division is used because CPK and GPT are INTEGER columns, so ratios are truncated before averaging.\n3. Tests with GPT = 0 are treated as missing (NULLIF), versus errors or NULL from division by zero. Either way they are excluded.\n4. Patients with SEX NULL or '' are removed. Other values such as whitespace-only strings are kept as separate groups.\n5. Patients with SEX NULL or '' are removed, and values are normalized, for example case-insensitive or trimmed, so 'F' and 'f' form one group.\n6. Groups are distinct SEX values taken from Patient.SEX, joined to Laboratory on ID. Patients with no lab tests form no group.\n7. The group average is the mean of per-test ratios, so each test counts equally. Alternatively it is the mean of per-patient averages, so each patient counts equally.\n8. The first mean is the plain, unweighted mean of the group averages, not weighted by test count. Alternatively it is the overall mean of all test ratios across all groups.\n9. Groups whose average is strictly above the first mean are kept (\">\"). Alternatively groups at or above it are kept (\">=\").\n10. The second mean is the mean of the kept groups' averages. Groups strictly above the second mean remain.\n11. If only one group is kept after the first filter, it equals the second mean, so no groups remain. The result is then NULL or an empty row.\n12. If there are only two sex groups, the higher group is kept first, then removed by the second filter. The result is NULL or empty.\n13. The output has three values in one row: (a) the average of the remaining groups' ratio averages, (b) the average of (group avg \u2212 first mean), (c) the average of (group avg \u2212 second mean).\n14. \"Exceed\" is read as a signed difference (avg \u2212 mean), versus an absolute difference. Both give the same result here, because the remaining groups are above both means.\n15. The first mean used in the output is the one from step 1 (all groups), not a recomputed mean of the kept groups.\n16. The output is unrounded, with full floating-point precision.\n17. Laboratory rows with multiple dates per patient each count as separate tests. Alternatively tests are deduplicated per patient or per date.\n18. Only Laboratory rows with a matching Patient (inner join) are used. Alternatively a left join is used, with the SEX filter removing unmatched rows anyway.",
+  "Missing interpretations:\n\nThe ratio is computed only where both CPK and GPT are non-NULL, so a CPK of 0 with a nonzero GPT gives a valid ratio of 0 that is kept, not treated as missing.\nRatios where GPT is negative or CPK is negative are kept as valid values (no range filtering).\n\"Missing\" ratio also covers non-numeric or empty values stored in CPK/GPT, which are dropped.\nGroups are formed by exact-case SEX values with no normalization, so 'F' and 'f' stay separate (the opposite of the normalization reading).\nThe first mean is computed after the SEX filter and after dropping missing ratios, so a group with no valid ratios forms no group and does not enter the mean.\nThe final \"average amount exceeding the first mean\" is computed over only the remaining groups (after the second filter), not over all groups kept by the first filter.\nIf no groups remain after the second filter (for example when all kept groups are equal, or only one is kept), the three outputs are NULL, versus the query returning zero rows.\nWhen kept groups have identical averages, none is strictly above the second mean, so the result is empty or NULL."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-9c11ade5dd",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68321,
+  "chars_out": 4753
+ }
+}

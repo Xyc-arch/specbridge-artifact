@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fc09eb5c8c",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Each album's rate is the sum of its tracks' Bytes divided by the sum of their Milliseconds; compare it with the average of these rates across albums and show the top 10 albums by how far above the average they are.",
+ "a": {
+  "request": "Group tracks by `AlbumId` (tracks with no album id together count as one group). For each group, show the album id, the average track `UnitPrice`, the album's bytes-per-millisecond rate (the album's total `Bytes` \u00f7 its total `Milliseconds`), and how far that rate is above the average rate across all albums. Ignore missing values in averages and don't round. List the 10 albums with the largest difference, largest first.",
+  "sql": "WITH album_rates AS (SELECT AlbumId, AVG(UnitPrice) AS average_unit_price, SUM(Bytes) * 1.0 / NULLIF(SUM(Milliseconds), 0) AS bytes_per_millisecond FROM Track GROUP BY AlbumId), overall AS (SELECT AVG(bytes_per_millisecond) AS average_rate FROM album_rates) SELECT ar.AlbumId, ar.average_unit_price, ar.bytes_per_millisecond, ar.bytes_per_millisecond - o.average_rate AS rate_difference FROM album_rates AS ar CROSS JOIN overall AS o WHERE ar.bytes_per_millisecond IS NOT NULL ORDER BY rate_difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Group tracks by `AlbumId`, treating all tracks with a null `AlbumId` as one group; for each group, calculate the average non-null track `UnitPrice` and its bytes-per-millisecond rate as the sum of non-null `Bytes` divided by the sum of non-null `Milliseconds`, then show the album id, average track price, rate, and unrounded difference between that rate and the average rate across all album groups for the 10 groups with the largest differences, sorted by difference descending",
+  "sql": "WITH album_rates AS (SELECT AlbumId, AVG(UnitPrice) AS average_track_price, 1.0 * SUM(Bytes) / NULLIF(SUM(Milliseconds), 0) AS bytes_per_millisecond FROM Track GROUP BY AlbumId) SELECT AlbumId, average_track_price, bytes_per_millisecond, bytes_per_millisecond - (SELECT AVG(bytes_per_millisecond) FROM album_rates) AS difference FROM album_rates ORDER BY difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Which 10 albums have the highest bytes-per-millisecond rate compared with the average across all albums? Group tracks by `AlbumId`, with tracks that have no album id counted together as one group. For each album, show the album id, the average track `UnitPrice`, the album's average bytes per millisecond, and how far it is above the all-album average. Ignore missing values, don't round, and sort by that difference, largest first. Each album's rate is the sum of its tracks' Bytes divided by the sum of their Milliseconds; compare it with the average of these rates across albums and show the top 10 albums by how far above the average they are.",
+  "sql": "WITH album_rates AS (SELECT AlbumId, AVG(UnitPrice) AS average_unit_price, 1.0 * SUM(CASE WHEN Bytes IS NOT NULL AND Milliseconds IS NOT NULL THEN Bytes END) / NULLIF(SUM(CASE WHEN Bytes IS NOT NULL AND Milliseconds IS NOT NULL THEN Milliseconds END), 0) AS bytes_per_millisecond FROM Track GROUP BY AlbumId), all_album_average AS (SELECT AVG(bytes_per_millisecond) AS average_rate FROM album_rates) SELECT a.AlbumId, a.average_unit_price, a.bytes_per_millisecond, a.bytes_per_millisecond - g.average_rate AS above_average FROM album_rates AS a CROSS JOIN all_album_average AS g WHERE a.bytes_per_millisecond IS NOT NULL ORDER BY above_average DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Which 10 album groups have the highest bytes-per-millisecond rate above the average rate across all album groups? Group tracks by `AlbumId`, counting tracks with no album id as one group. Calculate each group\u2019s rate as the sum of its tracks\u2019 `Bytes` divided by the sum of their `Milliseconds`, ignoring missing values. Show the album id, average track `UnitPrice`, group rate, and difference from the average of the group rates. Do not round; sort by the difference, largest first.",
+  "sql": "WITH album_rates AS (SELECT AlbumId, AVG(UnitPrice) AS average_unit_price, 1.0 * SUM(Bytes) / NULLIF(SUM(Milliseconds), 0) AS group_rate FROM Track GROUP BY AlbumId), overall AS (SELECT AVG(group_rate) AS average_group_rate FROM album_rates) SELECT a.AlbumId, a.average_unit_price, a.group_rate, a.group_rate - o.average_group_rate AS difference_from_average FROM album_rates AS a CROSS JOIN overall AS o WHERE a.group_rate > o.average_group_rate ORDER BY difference_from_average DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1490d5931d",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Count the distinct players with fielding records for each batting hand.",
+ "b": {
+  "request": "Count DISTINCT player_id from fielding joined to player on player_id, grouped by player.bats (NULL/blank as separate groups), returning each hand's distinct-player count, its share of the total distinct-player count, and its unrounded excess over the average count across hands, keeping only hands above that average",
+  "sql": "WITH fp AS (SELECT p.bats AS bats, COUNT(DISTINCT f.player_id) AS cnt FROM fielding f JOIN player p ON p.player_id = f.player_id GROUP BY p.bats), tot AS (SELECT COUNT(DISTINCT f.player_id) AS total FROM fielding f JOIN player p ON p.player_id = f.player_id), avg_c AS (SELECT AVG(cnt) AS avg_cnt FROM fp) SELECT fp.bats, fp.cnt AS distinct_players, 1.0 * fp.cnt / tot.total AS share, fp.cnt - avg_c.avg_cnt AS excess_over_avg FROM fp, tot, avg_c WHERE fp.cnt > avg_c.avg_cnt;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Break fielding down by batting hand: match fielding to players on `player_id` and give the fielding count for each batting hand (`player.bats`), with blank or missing hands as their own groups. Give each hand's share of the total. Keep only the hands whose count is above the average across hands. For each, show the batting hand, the count, the share, and how far the count is above that average, unrounded. Count the distinct players with fielding records for each batting hand.",
+  "sql": "WITH fa AS (SELECT COALESCE(NULLIF(TRIM(p.bats), ''), 'Unknown') AS bats_hand, f.player_id FROM fielding f LEFT JOIN player p ON p.player_id = f.player_id), hand_counts AS (SELECT bats_hand, COUNT(*) AS cnt, COUNT(DISTINCT player_id) AS distinct_players FROM fa GROUP BY bats_hand), totals AS (SELECT SUM(cnt) AS total_cnt, AVG(cnt) AS avg_cnt FROM hand_counts) SELECT h.bats_hand, h.cnt AS fielding_count, h.distinct_players, 1.0 * h.cnt / t.total_cnt AS share, h.cnt - t.avg_cnt AS above_avg FROM hand_counts h CROSS JOIN totals t WHERE h.cnt > t.avg_cnt ORDER BY h.cnt DESC;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Matching fielding records to players on `player_id`, count the distinct players with fielding records for each batting hand (`player.bats`), treating each value, including blank or missing ones, as its own group. Give each hand's share of the total of those counts. Show only the batting hands whose count is above the average count per hand. For each, list the batting hand, the count, its share, and how far the count is above that average, unrounded and in no particular order.",
+  "sql": "WITH hand_counts AS (SELECT p.bats AS bats, COUNT(DISTINCT f.player_id) AS cnt FROM fielding f JOIN player p ON p.player_id = f.player_id GROUP BY p.bats), stats AS (SELECT bats, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt) OVER () AS avg_cnt FROM hand_counts) SELECT bats, cnt, share, cnt - avg_cnt AS above_avg FROM stats WHERE cnt > avg_cnt;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Among players with fielding records, how many distinct players are there for each batting hand (`player.bats`), with blank or missing hands as their own groups?",
+  "sql": "SELECT CASE WHEN p.bats IS NULL OR TRIM(p.bats) = '' THEN 'blank' ELSE p.bats END AS bats_group, COUNT(DISTINCT p.player_id) AS player_count FROM player p WHERE p.player_id IN (SELECT f.player_id FROM fielding f) GROUP BY CASE WHEN p.bats IS NULL OR TRIM(p.bats) = '' THEN 'blank' ELSE p.bats END;",
+  "executes": true,
+  "matches": []
+ }
+}

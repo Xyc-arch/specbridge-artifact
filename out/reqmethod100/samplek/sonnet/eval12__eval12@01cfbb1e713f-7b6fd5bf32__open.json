@@ -1,0 +1,90 @@
+{
+ "queries": [
+  "WITH c AS (SELECT o.ordertune, COUNT(DISTINCT o.orderspivot) AS cnt FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(cnt) AS av FROM c) SELECT AVG(c.cnt) AS avg_count_above_avg, AVG(c.cnt - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.cnt > a.av",
+  "WITH c AS (SELECT o.ordertune, COUNT(*) AS cnt FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(cnt) AS av FROM c) SELECT AVG(c.cnt) AS avg_count_above_avg, AVG(c.cnt - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.cnt > a.av",
+  "WITH c AS (SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS n FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault WHERE o.ordertune IS NOT NULL GROUP BY o.ordertune), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT AVG(c.n) AS avg_count_above_average, AVG(c.n - a.avg_n) AS avg_excess_over_average FROM c CROSS JOIN a WHERE c.n > a.avg_n",
+  "WITH c AS (SELECT o.ordertune, COUNT(*) AS n FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault WHERE o.ordertune IS NOT NULL GROUP BY o.ordertune), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT AVG(c.n) AS avg_count_above_average, AVG(c.n - a.avg_n) AS avg_excess_over_average FROM c CROSS JOIN a WHERE c.n > a.avg_n",
+  "WITH c AS (SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(n) AS av FROM c) SELECT AVG(c.n) AS avg_count_above_avg, AVG(c.n - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.n > a.av",
+  "WITH c AS (SELECT o.ordertune, COUNT(*) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(n) AS av FROM c) SELECT AVG(c.n) AS avg_count_above_avg, AVG(c.n - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.n > a.av"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT o.ordertune, COUNT(DISTINCT o.orderspivot) AS cnt FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(cnt) AS av FROM c) SELECT AVG(c.cnt) AS avg_count_above_avg, AVG(c.cnt - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.cnt > a.av",
+   "assumptions": [
+    {
+     "assumption": "Each order is counted once per order type (distinct orders that have at least one matching risk/margin record), not once per risk/margin row.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average across types is the unweighted mean of per-type counts, taken only over order types that have at least one matched order. Types with no matched orders are excluded. A NULL ordertype, if present, is treated as its own group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'Above the average' means strictly greater than the mean. The excess is each type's count minus the unrounded mean.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count matched risk/margin rows (join rows) per order type instead of distinct orders. This differs only if an order has multiple risk/margin records.",
+     "sql": "WITH c AS (SELECT o.ordertune, COUNT(*) AS cnt FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(cnt) AS av FROM c) SELECT AVG(c.cnt) AS avg_count_above_avg, AVG(c.cnt - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.cnt > a.av"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS n FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault WHERE o.ordertune IS NOT NULL GROUP BY o.ordertune), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT AVG(c.n) AS avg_count_above_average, AVG(c.n - a.avg_n) AS avg_excess_over_average FROM c CROSS JOIN a WHERE c.n > a.avg_n",
+   "assumptions": [
+    {
+     "assumption": "Each order is counted once per order type (distinct orders), even if several risk/margin records match it.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Orders with a NULL order type are not treated as a type and are excluded from the groups and the average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only types strictly above the average count are kept. If no type is above it (all counts equal), the query returns one row of NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count matched risk/margin records (join rows) per order type instead of distinct orders.",
+     "sql": "WITH c AS (SELECT o.ordertune, COUNT(*) AS n FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault WHERE o.ordertune IS NOT NULL GROUP BY o.ordertune), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT AVG(c.n) AS avg_count_above_average, AVG(c.n - a.avg_n) AS avg_excess_over_average FROM c CROSS JOIN a WHERE c.n > a.avg_n"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(n) AS av FROM c) SELECT AVG(c.n) AS avg_count_above_avg, AVG(c.n - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.n > a.av",
+   "assumptions": [
+    {
+     "assumption": "Each order is counted once per order type, using COUNT(DISTINCT recordvault), even if it has several risk/margin records.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The average across types is the unweighted mean of the per-type counts. 'Above average' means strictly greater than that mean. Averages are returned unrounded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Any NULL ordertune is treated as its own group, since the request does not mention it.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Count matched risk/margin records (join rows) per order type instead of distinct orders.",
+     "sql": "WITH c AS (SELECT o.ordertune, COUNT(*) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.ordertune), a AS (SELECT AVG(n) AS av FROM c) SELECT AVG(c.n) AS avg_count_above_avg, AVG(c.n - a.av) AS avg_excess_over_avg FROM c CROSS JOIN a WHERE c.n > a.av"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7b6fd5bf32",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 40602,
+  "chars_out": 3958
+ }
+}

@@ -1,0 +1,38 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-828cf14373",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Every team is included. Teams without `manager_half` records get a zero count and no average.",
+ "c": {
+  "request": "For each team, what is its average half-season win rate (wins `w` divided by games managed `g` for each `manager_half` record, averaged and ignoring missing values) and how many `manager_half` records does it have? Also show how far its average is above the mean of all the team averages (ignoring missing ones, and only if that mean exists). List `team_id`, average win rate, record count and the difference, sorted by the difference from highest to lowest with missing values last, top 10. Every team is included. Teams without `manager_half` records get a zero count and no average.",
+  "sql": "WITH team_averages AS (\n    SELECT\n        t.team_id,\n        AVG(CAST(mh.w AS REAL) / NULLIF(mh.g, 0)) AS average_win_rate,\n        COUNT(mh.team_id) AS record_count\n    FROM (SELECT DISTINCT team_id FROM team) AS t\n    LEFT JOIN manager_half AS mh ON mh.team_id = t.team_id\n    GROUP BY t.team_id\n),\nwith_differences AS (\n    SELECT\n        team_id,\n        average_win_rate,\n        record_count,\n        average_win_rate - AVG(average_win_rate) OVER () AS difference\n    FROM team_averages\n)\nSELECT team_id, average_win_rate, record_count, difference\nFROM with_differences\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For every team in the `team` table, report its average `manager_half` win rate (`w / g` per record, averaged while ignoring missing values), the number of its `manager_half` records (zero if none), and the difference between that average and the mean of all teams\u2019 nonmissing averages (null if that mean does not exist); sort by the difference descending with nulls last and return the top 10.",
+  "sql": "WITH team_avg AS (\n    SELECT\n        t.team_id,\n        t.year,\n        AVG(1.0 * mh.w / NULLIF(mh.g, 0)) AS avg_win_rate,\n        COUNT(mh.team_id) AS manager_half_record_count\n    FROM team AS t\n    LEFT JOIN manager_half AS mh\n        ON mh.team_id = t.team_id\n    GROUP BY t.team_id, t.year\n),\nwith_mean AS (\n    SELECT\n        team_id,\n        year,\n        avg_win_rate,\n        manager_half_record_count,\n        AVG(avg_win_rate) OVER () AS mean_team_avg_win_rate\n    FROM team_avg\n)\nSELECT\n    team_id,\n    year,\n    avg_win_rate,\n    manager_half_record_count,\n    avg_win_rate - mean_team_avg_win_rate AS difference\nFROM with_mean\nORDER BY difference DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [],
+  "raw": "For every team in the `team` table, report its average `manager_half` win rate (`w / g` per record, averaged while ignoring missing values), the number of its `manager_half` records (zero if none), and the difference between that average and the mean of all teams\u2019 nonmissing averages (null if that mean does not exist); sort by the difference descending with nulls last and return the top 10."
+ },
+ "a": {
+  "request": "For every team in the `team` table, including teams with no `manager_half` records (which get a count of zero and no average), compute its average win rate (wins `w` divided by games managed `g` for each `manager_half` record, averaged and ignoring missing values) and its number of `manager_half` records. Then take the mean of those team averages across teams (ignoring missing ones), and, provided that mean exists, show each team's `team_id`, average win rate, record count, and its average minus that mean, sorted by the difference from highest to lowest with missing values last, top 10.",
+  "sql": "WITH team_averages AS (\n    SELECT\n        t.team_id,\n        AVG(1.0 * mh.w / NULLIF(mh.g, 0)) AS average_win_rate,\n        COUNT(mh.team_id) AS record_count\n    FROM team AS t\n    LEFT JOIN manager_half AS mh\n        ON t.team_id = mh.team_id\n    GROUP BY t.team_id\n),\nteam_mean AS (\n    SELECT AVG(average_win_rate) AS mean_win_rate\n    FROM team_averages\n)\nSELECT\n    ta.team_id,\n    ta.average_win_rate,\n    ta.record_count,\n    ta.average_win_rate - tm.mean_win_rate AS difference_from_mean\nFROM team_averages AS ta\nCROSS JOIN team_mean AS tm\nWHERE tm.mean_win_rate IS NOT NULL\nORDER BY difference_from_mean DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "d": {
+  "request": "For every team in `team`, including those without `manager_half` records, calculate the average of `w / g` across its records, ignoring missing values; return zero as the record count and a missing average when there are no records. Also calculate the difference between each team\u2019s average and the mean of all nonmissing team averages, leaving the difference missing if that mean does not exist or the team average is missing. List `team_id`, average win rate, record count, and difference, sorted by difference descending with missing values last, and return the top 10.",
+  "sql": "WITH team_rates AS (\n  SELECT\n    t.team_id,\n    AVG(1.0 * mh.w / NULLIF(mh.g, 0)) AS average_win_rate,\n    COUNT(1.0 * mh.w / NULLIF(mh.g, 0)) AS record_count\n  FROM team AS t\n  LEFT JOIN manager_half AS mh\n    ON mh.team_id = t.team_id\n  GROUP BY t.team_id\n),\nwith_differences AS (\n  SELECT\n    team_id,\n    average_win_rate,\n    record_count,\n    average_win_rate - AVG(average_win_rate) OVER () AS difference\n  FROM team_rates\n)\nSELECT team_id, average_win_rate, record_count, difference\nFROM with_differences\nORDER BY difference DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

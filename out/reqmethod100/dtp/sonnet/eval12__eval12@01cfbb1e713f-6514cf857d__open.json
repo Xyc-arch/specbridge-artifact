@@ -1,0 +1,52 @@
+{
+ "interpretations": [
+  "Count all Laboratory records whose ID matches a Patient (inner join on ID), grouped by Patient.SEX. Return sexes whose count is above the average count per sex. Show sex, count, share of the total (count divided by the total matched records), and the difference between count and the average, unrounded.",
+  "Same as above, but \"average per sex\" is the mean of per-sex record counts across only the sexes that appear in the matched data (excluding NULL or empty SEX groups).",
+  "Same as above, but a NULL or empty SEX is treated as its own group, and it is included when computing the average and in the output.",
+  "Same as above, but \"average per sex\" is the total number of matched records divided by the number of distinct sexes in the Patient table (including sexes with no lab records).",
+  "Same as above, but \"average per sex\" is the average number of records per patient within each sex (records \u00f7 patients of that sex), and the comparison is on this per-patient rate.",
+  "\"Share of the total\" is the sex's count as a fraction (0\u20131) of all matched lab records.",
+  "\"Share of the total\" is the sex's count as a percentage (0\u2013100) of all matched lab records.",
+  "\"Share of the total\" is computed against all Laboratory records, including those with no matching patient.",
+  "\"How far above the average\" is the absolute difference (count \u2212 average).",
+  "\"How far above the average\" is the relative difference ((count \u2212 average) \u00f7 average), as a fraction.",
+  "\"How far above the average\" is the relative difference expressed as a percentage.",
+  "\"Test records\" are counted as the number of Laboratory rows (each ID/Date pair).",
+  "\"Test records\" are counted as distinct test dates per sex.",
+  "\"Test records\" include Examination records instead of Laboratory records (the Examination table also holds test results).",
+  "\"Test records\" are Laboratory rows plus Examination rows combined per sex.",
+  "\"Test records\" are counted as the number of distinct patients with at least one lab record, per sex.",
+  "\"Unrounded\" means that no rounding or formatting is applied to the average, share, or difference values (raw floating-point or exact decimals).",
+  "\"Unrounded\" applies only to the \"how far above\" value, while the share may be rounded.",
+  "Integer division risk: the share and the difference are computed with decimal (non-integer) arithmetic so they are not truncated.",
+  "Missing interpretations:",
+  "\"Above the average\" is a comparison against the average of per-sex counts, where the average is taken over all sexes in the matched data. This includes any NULL or empty SEX group as a group in the average, but the NULL or empty group is excluded from the output.",
+  "\"Above the average\" is a greater-than-or-equal comparison (count >= average), so sexes exactly at the average are included.",
+  "\"Share of the total\" is computed against the sum of counts over only the sexes returned (those above the average), not all matched records.",
+  "\"Test records\" are counted as distinct (ID, Date) combinations per sex, which differs from raw row counts if duplicates exist.",
+  "\"Matches a patient\" means a left join from Laboratory to Patient, so records with no matching patient form their own group (NULL sex) and are included in the counts, total and average.",
+  "\"Average per sex\" is the average number of records per patient across all patients (total matched records \u00f7 total patients), and each sex's count is compared against that.",
+  "\"How far above the average\" is the ratio count \u00f7 average, as a multiplier.",
+  "\"How far above the average\" is the difference between the sex's share and the average share (1 \u00f7 number of sexes)."
+ ],
+ "queries": [
+  "WITH counts AS (\n    SELECT P.SEX AS SEX, COUNT(*) AS cnt\n    FROM Laboratory L\n    INNER JOIN Patient P ON L.ID = P.ID\n    GROUP BY P.SEX\n),\nstats AS (\n    SELECT AVG(cnt * 1.0) AS avg_cnt, SUM(cnt) AS total_cnt\n    FROM counts\n)\nSELECT c.SEX,\n       c.cnt AS count,\n       c.cnt * 1.0 / s.total_cnt AS share,\n       c.cnt - s.avg_cnt AS diff_from_avg\nFROM counts c, stats s\nWHERE c.cnt > s.avg_cnt;\n",
+  "SELECT AVG(cnt) FROM (SELECT COUNT(*) AS cnt FROM Patient WHERE SEX IS NOT NULL AND SEX <> '' GROUP BY SEX);\n",
+  "SELECT COALESCE(NULLIF(SEX, ''), 'Unknown') AS SEX, AVG(strftime('%Y', 'now') - strftime('%Y', Birthday)) AS avg_age FROM Patient GROUP BY COALESCE(NULLIF(SEX, ''), 'Unknown');\n",
+  "SELECT CAST(COUNT(*) AS REAL) / (SELECT COUNT(DISTINCT SEX) FROM Patient)\nFROM Laboratory L\nJOIN Patient P ON L.ID = P.ID;\n",
+  "SELECT P.SEX, CAST(COUNT(L.ID) AS REAL) / COUNT(DISTINCT P.ID) AS avg_records_per_patient\nFROM Patient P\nLEFT JOIN Laboratory L ON P.ID = L.ID\nGROUP BY P.SEX\nORDER BY avg_records_per_patient DESC;\n"
+ ],
+ "raw": [
+  "- Count all Laboratory records whose ID matches a Patient (inner join on ID), grouped by Patient.SEX. Return sexes whose count is above the average count per sex. Show sex, count, share of the total (count divided by the total matched records), and the difference between count and the average, unrounded.\n- Same as above, but \"average per sex\" is the mean of per-sex record counts across only the sexes that appear in the matched data (excluding NULL or empty SEX groups).\n- Same as above, but a NULL or empty SEX is treated as its own group, and it is included when computing the average and in the output.\n- Same as above, but \"average per sex\" is the total number of matched records divided by the number of distinct sexes in the Patient table (including sexes with no lab records).\n- Same as above, but \"average per sex\" is the average number of records per patient within each sex (records \u00f7 patients of that sex), and the comparison is on this per-patient rate.\n- \"Share of the total\" is the sex's count as a fraction (0\u20131) of all matched lab records.\n- \"Share of the total\" is the sex's count as a percentage (0\u2013100) of all matched lab records.\n- \"Share of the total\" is computed against all Laboratory records, including those with no matching patient.\n- \"How far above the average\" is the absolute difference (count \u2212 average).\n- \"How far above the average\" is the relative difference ((count \u2212 average) \u00f7 average), as a fraction.\n- \"How far above the average\" is the relative difference expressed as a percentage.\n- \"Test records\" are counted as the number of Laboratory rows (each ID/Date pair).\n- \"Test records\" are counted as distinct test dates per sex.\n- \"Test records\" include Examination records instead of Laboratory records (the Examination table also holds test results).\n- \"Test records\" are Laboratory rows plus Examination rows combined per sex.\n- \"Test records\" are counted as the number of distinct patients with at least one lab record, per sex.\n- \"Unrounded\" means that no rounding or formatting is applied to the average, share, or difference values (raw floating-point or exact decimals).\n- \"Unrounded\" applies only to the \"how far above\" value, while the share may be rounded.\n- Integer division risk: the share and the difference are computed with decimal (non-integer) arithmetic so they are not truncated.",
+  "Missing interpretations:\n\n\"Above the average\" is a comparison against the average of per-sex counts, where the average is taken over all sexes in the matched data. This includes any NULL or empty SEX group as a group in the average, but the NULL or empty group is excluded from the output.\n\"Above the average\" is a greater-than-or-equal comparison (count >= average), so sexes exactly at the average are included.\n\"Share of the total\" is computed against the sum of counts over only the sexes returned (those above the average), not all matched records.\n\"Test records\" are counted as distinct (ID, Date) combinations per sex, which differs from raw row counts if duplicates exist.\n\"Matches a patient\" means a left join from Laboratory to Patient, so records with no matching patient form their own group (NULL sex) and are included in the counts, total and average.\n\"Average per sex\" is the average number of records per patient across all patients (total matched records \u00f7 total patients), and each sex's count is compared against that.\n\"How far above the average\" is the ratio count \u00f7 average, as a multiplier.\n\"How far above the average\" is the difference between the sex's share and the average share (1 \u00f7 number of sexes)."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6514cf857d",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 67605,
+  "chars_out": 5411
+ }
+}

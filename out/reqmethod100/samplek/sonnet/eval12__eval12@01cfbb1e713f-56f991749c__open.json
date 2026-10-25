@@ -1,0 +1,84 @@
+{
+ "queries": [
+  "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), o AS (SELECT AVG(modelconf) AS m FROM compliancecase), q AS (SELECT s.brokrepstat, s.a, o.m FROM s CROSS JOIN o WHERE s.a > o.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS amount_above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+  "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), o AS (SELECT AVG(modelconf) AS m FROM compliancecase), q AS (SELECT g.brokrepstat, g.a, o.m FROM g CROSS JOIN o WHERE g.a > o.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS diff_above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+  "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), o AS (SELECT AVG(a) AS m FROM g), q AS (SELECT g.brokrepstat, g.a, o.m FROM g CROSS JOIN o WHERE g.a > o.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS diff_above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+  "WITH overall AS (SELECT AVG(modelconf) AS o FROM compliancecase), g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), q AS (SELECT g.brokrepstat, g.a, g.a - overall.o AS diff FROM g CROSS JOIN overall WHERE g.a > overall.o) SELECT brokrepstat, a AS avg_modelconf, diff AS above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+  "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), overall AS (SELECT AVG(a) AS o FROM g), q AS (SELECT g.brokrepstat, g.a, g.a - overall.o AS diff FROM g CROSS JOIN overall WHERE g.a > overall.o) SELECT brokrepstat, a AS avg_modelconf, diff AS above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q"
+ ],
+ "responses": [
+  {
+   "sql": "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), o AS (SELECT AVG(modelconf) AS m FROM compliancecase), q AS (SELECT s.brokrepstat, s.a, o.m FROM s CROSS JOIN o WHERE s.a > o.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS amount_above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+   "assumptions": [
+    {
+     "assumption": "The 'average' benchmark is the overall mean modelconf across all compliance cases (row-level, NULL modelconf ignored). A status qualifies if its own average is strictly greater than this. If that overall average is NULL, no rows are returned.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Cases with NULL brokrepstat form their own group (shown as a NULL status). Statuses whose modelconf values are all NULL have a NULL average and do not qualify.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The ratio divides each qualifying status's average by the unweighted mean of the qualifying statuses' averages. Values are not rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), o AS (SELECT AVG(modelconf) AS m FROM compliancecase), q AS (SELECT g.brokrepstat, g.a, o.m FROM g CROSS JOIN o WHERE g.a > o.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS diff_above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+   "assumptions": [
+    {
+     "assumption": "The reference 'average' is the overall mean modelconf across all compliance cases (row-level, NULL modelconf ignored). Each status's average is compared with it. If the overall mean is NULL, no rows are returned.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Cases with a NULL brokrepstat form their own group. A group whose modelconf values are all NULL has a NULL average and is not returned.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How far above average' is the plain difference (status average minus overall average), not a percentage. The ratio is the status average divided by the mean of the qualifying statuses' averages. No rounding is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The reference average is the mean of the per-status averages (each status weighted equally), not the row-level mean.",
+     "sql": "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), o AS (SELECT AVG(a) AS m FROM g), q AS (SELECT g.brokrepstat, g.a, o.m FROM g CROSS JOIN o WHERE g.a > o.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS diff_above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q"
+    }
+   ]
+  },
+  {
+   "sql": "WITH overall AS (SELECT AVG(modelconf) AS o FROM compliancecase), g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), q AS (SELECT g.brokrepstat, g.a, g.a - overall.o AS diff FROM g CROSS JOIN overall WHERE g.a > overall.o) SELECT brokrepstat, a AS avg_modelconf, diff AS above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q",
+   "assumptions": [
+    {
+     "assumption": "The reference 'average' is the overall mean of modelconf across all compliance cases (row-level, NULL modelconf ignored), not the mean of the per-status averages.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Cases with NULL brokrepstat form their own group, shown with a NULL status. Statuses whose modelconf values are all NULL have no average and are excluded. If the overall average is NULL, no rows are returned.",
+     "unresolved": false
+    },
+    {
+     "assumption": "'How far above average' is the status average minus the overall average, as an absolute difference with no rounding.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The reference average is the mean of the per-status averages, with each status weighted equally, rather than the case-level mean.",
+     "sql": "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), overall AS (SELECT AVG(a) AS o FROM g), q AS (SELECT g.brokrepstat, g.a, g.a - overall.o AS diff FROM g CROSS JOIN overall WHERE g.a > overall.o) SELECT brokrepstat, a AS avg_modelconf, diff AS above_overall_avg, a / AVG(a) OVER () AS ratio_to_mean_of_qualifying_avgs FROM q"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-56f991749c",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 52479,
+  "chars_out": 4165
+ }
+}

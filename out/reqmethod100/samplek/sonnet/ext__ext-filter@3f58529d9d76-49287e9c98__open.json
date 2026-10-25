@@ -1,0 +1,78 @@
+{
+ "queries": [
+  "WITH counts AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY (c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0)) IS NULL, RatioToAverage DESC LIMIT 10",
+  "WITH counts AS (SELECT PlaylistId, COUNT(TrackId) AS TrackCount FROM PlaylistTrack GROUP BY PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY (c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0)) IS NULL, RatioToAverage DESC LIMIT 10",
+  "WITH counts AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY RatioToAverage IS NULL, RatioToAverage DESC, c.PlaylistId LIMIT 10",
+  "WITH counts AS (SELECT PlaylistId, COUNT(TrackId) AS TrackCount FROM PlaylistTrack GROUP BY PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY RatioToAverage IS NULL, RatioToAverage DESC, c.PlaylistId LIMIT 10",
+  "WITH c AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), a AS (SELECT AVG(TrackCount * 1.0) AS avg_c FROM c) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.avg_c, 0) AS Ratio FROM c CROSS JOIN a ORDER BY Ratio DESC NULLS LAST, c.PlaylistId LIMIT 10;",
+  "WITH c AS (SELECT PlaylistId, COUNT(TrackId) AS TrackCount FROM PlaylistTrack GROUP BY PlaylistId), a AS (SELECT AVG(TrackCount * 1.0) AS avg_c FROM c) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.avg_c, 0) AS Ratio FROM c CROSS JOIN a ORDER BY Ratio DESC NULLS LAST, c.PlaylistId LIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH counts AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY (c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0)) IS NULL, RatioToAverage DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average is taken over all playlists in the Playlist table, so playlists with no tracks count as 0 tracks. Ties at the cutoff are broken arbitrarily.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The ratio is NULL only if the average is 0, because of the NULLIF guard. Those rows sort last.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is taken only over playlists that have at least one track, so empty playlists are excluded from the average. The ratios change but the ranking does not.",
+     "sql": "WITH counts AS (SELECT PlaylistId, COUNT(TrackId) AS TrackCount FROM PlaylistTrack GROUP BY PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY (c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0)) IS NULL, RatioToAverage DESC LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH counts AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY RatioToAverage IS NULL, RatioToAverage DESC, c.PlaylistId LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average tracks per playlist is taken over all playlists in the Playlist table, so playlists with no tracks count as 0 tracks.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Track count is the number of PlaylistTrack rows per playlist. The ratio is NULL if the average is 0, and NULL ratios sort last. Ties are broken by PlaylistId.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is taken only over playlists that have at least one track, so empty playlists are excluded from the average.",
+     "sql": "WITH counts AS (SELECT PlaylistId, COUNT(TrackId) AS TrackCount FROM PlaylistTrack GROUP BY PlaylistId), avg_c AS (SELECT AVG(TrackCount * 1.0) AS AvgCount FROM counts) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.AvgCount, 0) AS RatioToAverage FROM counts c CROSS JOIN avg_c a ORDER BY RatioToAverage IS NULL, RatioToAverage DESC, c.PlaylistId LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH c AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), a AS (SELECT AVG(TrackCount * 1.0) AS avg_c FROM c) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.avg_c, 0) AS Ratio FROM c CROSS JOIN a ORDER BY Ratio DESC NULLS LAST, c.PlaylistId LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "The average tracks per playlist is taken over every row in Playlist, so playlists with no tracks count as 0 and pull the average down.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The ratio is computed in floating point without rounding. It is NULL only if the average is 0, and NULLs sort last. Ties are broken by PlaylistId.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average is taken only over playlists that have at least one track, so empty playlists are excluded from the average.",
+     "sql": "WITH c AS (SELECT PlaylistId, COUNT(TrackId) AS TrackCount FROM PlaylistTrack GROUP BY PlaylistId), a AS (SELECT AVG(TrackCount * 1.0) AS avg_c FROM c) SELECT c.PlaylistId, c.TrackCount, c.TrackCount * 1.0 / NULLIF(a.avg_c, 0) AS Ratio FROM c CROSS JOIN a ORDER BY Ratio DESC NULLS LAST, c.PlaylistId LIMIT 10;"
+    }
+   ]
+  }
+ ],
+ "case": "ext:ext-filter@3f58529d9d76-49287e9c98",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 16185,
+  "chars_out": 4064
+ }
+}

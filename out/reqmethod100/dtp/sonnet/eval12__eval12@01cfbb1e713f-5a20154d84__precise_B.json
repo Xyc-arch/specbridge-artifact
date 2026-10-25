@@ -1,0 +1,41 @@
+{
+ "interpretations": [
+  "Inner join Track to MediaType, then group by media type name (so media types sharing a name are merged). Rate = SUM(Bytes)/SUM(Milliseconds) per name. Third column = rate divided by the simple mean of the per-name rates (each distinct name counted once).",
+  "Same as 1, but group by MediaTypeId (and show the name), so media types with duplicate names stay separate. The mean is taken over the per-MediaTypeId rates.",
+  "Same as 1 or 2, but the \"mean of the rates of all media types\" includes media types with no tracks. Their rate is NULL or 0, which changes the mean depending on how it is treated.",
+  "Same as 1 or 2, but the mean is computed only over the media types that have matched tracks (the inner-join result). Media types without tracks are excluded.",
+  "Tracks with NULL Bytes are handled differently. In one reading, SUM ignores the NULL Bytes but their Milliseconds still count in the denominator. In another, tracks with NULL Bytes are excluded from both sums.",
+  "Integer division. Bytes and Milliseconds are integers, so the rate could be truncated to an integer in some SQL dialects. Under \"don't round anything\" the rate is instead a full-precision decimal or float.",
+  "Rate units. The rate is raw bytes per millisecond, with no conversion to bytes per second, kilobytes, or similar.",
+  "Media types whose total Milliseconds is 0 give a divide-by-zero or NULL rate. They are either kept with a NULL rate or dropped.",
+  "The third column is the ratio rate / mean_rate (a relative index, where 1 means average). It is not a difference from the mean or a percentage.",
+  "The \"simple mean of the rates\" is the unweighted average of the per-media-type rates. It is not the overall total Bytes / total Milliseconds across all tracks.",
+  "A media type with a NULL name. It is shown with a NULL name, or it is excluded, or it is merged with other NULL names under grouping by name.",
+  "Missing interpretations:",
+  "Tracks with a NULL MediaTypeId. The column is NOT NULL, so this can't happen. Tracks whose MediaTypeId has no row in MediaType are dropped by the inner join, but they would be kept under a left join from Track, which the question rules out.",
+  "The \"mean of the rates of all media types\" is taken over all media type rows, including duplicate names. The third column is then computed per name against a mean over MediaTypeId-level rates, which mixes the grain of the first two columns.",
+  "The mean is a weighted or pooled mean (total Bytes / total Milliseconds), not the simple mean of the rates. The existing interpretations list this as an alternative that is ruled out, so it is not a new reading.",
+  "Division uses a window function (AVG over the grouped rates) versus a scalar subquery or CTE. Both give the same result, so this is not a new reading.",
+  "Rows with NULL Bytes in all tracks of a media type. SUM(Bytes) is NULL, so the rate is NULL and the ratio is NULL. That media type is also left out of the mean (AVG skips NULLs), or it is treated as 0 and included."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT m.Name AS Name, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS Rate\n  FROM Track t\n  INNER JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.Name\n)\nSELECT Name, Rate, Rate / (SELECT AVG(Rate) FROM r) AS RelativeRate\nFROM r",
+  "WITH rates AS (\n  SELECT m.MediaTypeId, m.Name, COALESCE(AVG(t.UnitPrice), 0) AS rate\n  FROM MediaType m\n  LEFT JOIN Track t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT Name\nFROM rates\nWHERE rate > (SELECT AVG(rate) FROM rates);\n",
+  "SELECT AVG(cnt) FROM (SELECT COUNT(t.TrackId) AS cnt FROM MediaType m JOIN Track t ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId)",
+  "SELECT CAST(SUM(Bytes) AS REAL) / SUM(Milliseconds) FROM Track;\n",
+  "SELECT Name, CAST(Bytes AS REAL) / Milliseconds AS Rate FROM Track;\n"
+ ],
+ "raw": [
+  "1. Inner join Track to MediaType, then group by media type name (so media types sharing a name are merged). Rate = SUM(Bytes)/SUM(Milliseconds) per name. Third column = rate divided by the simple mean of the per-name rates (each distinct name counted once).\n2. Same as 1, but group by MediaTypeId (and show the name), so media types with duplicate names stay separate. The mean is taken over the per-MediaTypeId rates.\n3. Same as 1 or 2, but the \"mean of the rates of all media types\" includes media types with no tracks. Their rate is NULL or 0, which changes the mean depending on how it is treated.\n4. Same as 1 or 2, but the mean is computed only over the media types that have matched tracks (the inner-join result). Media types without tracks are excluded.\n5. Tracks with NULL Bytes are handled differently. In one reading, SUM ignores the NULL Bytes but their Milliseconds still count in the denominator. In another, tracks with NULL Bytes are excluded from both sums.\n6. Integer division. Bytes and Milliseconds are integers, so the rate could be truncated to an integer in some SQL dialects. Under \"don't round anything\" the rate is instead a full-precision decimal or float.\n7. Rate units. The rate is raw bytes per millisecond, with no conversion to bytes per second, kilobytes, or similar.\n8. Media types whose total Milliseconds is 0 give a divide-by-zero or NULL rate. They are either kept with a NULL rate or dropped.\n9. The third column is the ratio rate / mean_rate (a relative index, where 1 means average). It is not a difference from the mean or a percentage.\n10. The \"simple mean of the rates\" is the unweighted average of the per-media-type rates. It is not the overall total Bytes / total Milliseconds across all tracks.\n11. A media type with a NULL name. It is shown with a NULL name, or it is excluded, or it is merged with other NULL names under grouping by name.",
+  "Missing interpretations:\n\nTracks with a NULL MediaTypeId. The column is NOT NULL, so this can't happen. Tracks whose MediaTypeId has no row in MediaType are dropped by the inner join, but they would be kept under a left join from Track, which the question rules out.\nThe \"mean of the rates of all media types\" is taken over all media type rows, including duplicate names. The third column is then computed per name against a mean over MediaTypeId-level rates, which mixes the grain of the first two columns.\nThe mean is a weighted or pooled mean (total Bytes / total Milliseconds), not the simple mean of the rates. The existing interpretations list this as an alternative that is ruled out, so it is not a new reading.\nDivision uses a window function (AVG over the grouped rates) versus a scalar subquery or CTE. Both give the same result, so this is not a new reading.\nRows with NULL Bytes in all tracks of a media type. SUM(Bytes) is NULL, so the rate is NULL and the ratio is NULL. That media type is also left out of the mean (AVG skips NULLs), or it is treated as 0 and included."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5a20154d84",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42722,
+  "chars_out": 4834
+ }
+}

@@ -1,0 +1,49 @@
+{
+ "interpretations": [
+  "Average quantity per invoice is computed over line items grouped by invoice number. The relative gap is computed per line item and then averaged per invoice. Rows are then filtered to invoices whose average quantity exceeds the mean of the per-invoice averages.",
+  "Average quantity per invoice, with the relative gap computed from per-invoice sums of `derived_product_cost` and `derived_total_cost`, i.e. (SUM(cost) \u2212 SUM(total)) \u00f7 SUM(total).",
+  "Average quantity per invoice, with the relative gap computed from per-invoice averages of `derived_product_cost` and `derived_total_cost`.",
+  "The relative gap is computed row by row for every line item, so an invoice with several line items yields several rows. The average quantity is the invoice-level average repeated on each row.",
+  "The overall average is the average of the per-invoice averages, so each invoice has equal weight.",
+  "The overall average is the average `product_quantity` across all line items, so invoices with more line items weigh more.",
+  "`product_quantity` is stored as VARCHAR, so it is cast to a number before averaging. A non-numeric value is either treated as missing or left uncast.",
+  "\"Above\" means strictly greater than the overall average (>). Invoices equal to the average are excluded.",
+  "\"Above\" means greater than or equal to the overall average (>=).",
+  "The difference is the invoice's average quantity minus the overall average quantity, which is always positive after filtering.",
+  "The sort is descending by that difference. Rows where the difference is NULL come last, and ties are broken arbitrarily.",
+  "The sort is descending by that difference, with ties broken by invoice number ascending.",
+  "The top 10 is a plain LIMIT 10 on the sorted rows.",
+  "The top 10 includes all rows tied at the 10th place.",
+  "No rounding is applied to any column.",
+  "NULLs in `product_quantity` are ignored when computing the average, so an invoice with all-NULL quantities has a NULL average.",
+  "The overall average ignores invoices whose average is NULL.",
+  "Line items with NULL `derived_total_cost` or NULL `derived_product_cost` are excluded from the gap calculation only.",
+  "Line items with a NULL in any of the relevant columns are excluded from every calculation.",
+  "A `derived_total_cost` of zero gives a NULL gap, or a division-by-zero error is avoided.",
+  "The gap is signed, (product cost \u2212 total cost) \u00f7 total cost, and is typically negative or zero when total cost includes VAT.",
+  "The gap is reported as an absolute value.",
+  "The invoice set is every invoice number in `Invoice_Line_Items`, not every invoice in `Invoices`. Invoices with no line items are excluded.",
+  "Invoices are grouped by `invoice_number` only, not by `invoice_number` and `order_item_id` or `product_id`.",
+  "The output columns are invoice number, average quantity, relative gap and difference from the overall average, in that order."
+ ],
+ "queries": [
+  "WITH inv_avg AS (\n  SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_qty\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n),\ngaps AS (\n  SELECT l.invoice_number,\n         AVG(ABS(CAST(l.product_quantity AS REAL) - a.avg_qty) / a.avg_qty) AS avg_relative_gap\n  FROM Invoice_Line_Items l\n  JOIN inv_avg a ON l.invoice_number = a.invoice_number\n  GROUP BY l.invoice_number\n)\nSELECT g.invoice_number, g.avg_relative_gap\nFROM gaps g\nJOIN inv_avg a ON g.invoice_number = a.invoice_number\nWHERE a.avg_qty > (SELECT AVG(avg_qty) FROM inv_avg);\n",
+  "SELECT AVG(qty) AS avg_quantity_per_invoice,\n       (SUM(cost) - SUM(total)) * 1.0 / SUM(total) AS relative_gap\nFROM (\n  SELECT invoice_number,\n         SUM(CAST(product_quantity AS REAL)) AS qty,\n         SUM(derived_product_cost) AS cost,\n         SUM(derived_total_cost) AS total\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n)",
+  "WITH per_invoice AS (\n  SELECT invoice_number,\n         AVG(CAST(product_quantity AS REAL)) AS avg_qty,\n         AVG(derived_product_cost) AS avg_product_cost,\n         AVG(derived_total_cost) AS avg_total_cost\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n)\nSELECT AVG(avg_qty) AS avg_quantity_per_invoice,\n       AVG((avg_total_cost - avg_product_cost) / avg_product_cost) AS relative_gap\nFROM per_invoice;\n",
+  "SELECT AVG(inv_avg) FROM (SELECT AVG(derived_total_cost) AS inv_avg FROM Invoice_Line_Items GROUP BY invoice_number);\n",
+  "SELECT AVG(CAST(product_quantity AS REAL)) FROM Invoice_Line_Items;\n"
+ ],
+ "raw": [
+  "1. Average quantity per invoice is computed over line items grouped by invoice number. The relative gap is computed per line item and then averaged per invoice. Rows are then filtered to invoices whose average quantity exceeds the mean of the per-invoice averages.\n2. Average quantity per invoice, with the relative gap computed from per-invoice sums of `derived_product_cost` and `derived_total_cost`, i.e. (SUM(cost) \u2212 SUM(total)) \u00f7 SUM(total).\n3. Average quantity per invoice, with the relative gap computed from per-invoice averages of `derived_product_cost` and `derived_total_cost`.\n4. The relative gap is computed row by row for every line item, so an invoice with several line items yields several rows. The average quantity is the invoice-level average repeated on each row.\n5. The overall average is the average of the per-invoice averages, so each invoice has equal weight.\n6. The overall average is the average `product_quantity` across all line items, so invoices with more line items weigh more.\n7. `product_quantity` is stored as VARCHAR, so it is cast to a number before averaging. A non-numeric value is either treated as missing or left uncast.\n8. \"Above\" means strictly greater than the overall average (>). Invoices equal to the average are excluded.\n9. \"Above\" means greater than or equal to the overall average (>=).\n10. The difference is the invoice's average quantity minus the overall average quantity, which is always positive after filtering.\n11. The sort is descending by that difference. Rows where the difference is NULL come last, and ties are broken arbitrarily.\n12. The sort is descending by that difference, with ties broken by invoice number ascending.\n13. The top 10 is a plain LIMIT 10 on the sorted rows.\n14. The top 10 includes all rows tied at the 10th place.\n15. No rounding is applied to any column.\n16. NULLs in `product_quantity` are ignored when computing the average, so an invoice with all-NULL quantities has a NULL average.\n17. The overall average ignores invoices whose average is NULL.\n18. Line items with NULL `derived_total_cost` or NULL `derived_product_cost` are excluded from the gap calculation only.\n19. Line items with a NULL in any of the relevant columns are excluded from every calculation.\n20. A `derived_total_cost` of zero gives a NULL gap, or a division-by-zero error is avoided.\n21. The gap is signed, (product cost \u2212 total cost) \u00f7 total cost, and is typically negative or zero when total cost includes VAT.\n22. The gap is reported as an absolute value.\n23. The invoice set is every invoice number in `Invoice_Line_Items`, not every invoice in `Invoices`. Invoices with no line items are excluded.\n24. Invoices are grouped by `invoice_number` only, not by `invoice_number` and `order_item_id` or `product_id`.\n25. The output columns are invoice number, average quantity, relative gap and difference from the overall average, in that order.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b4231a9afb",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 31638,
+  "chars_out": 5306
+ }
+}

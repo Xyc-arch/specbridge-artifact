@@ -1,0 +1,38 @@
+{
+ "interpretations": [
+  "Per rating: average replacement_cost, and average per-day rental price computed as rental_rate / rental_duration for each film and then averaged across the films in that rating. Ratio = that rating's value divided by the unweighted mean of the five rating-level values",
+  "Per rating: average replacement_cost, and per-day price computed as AVG(rental_rate) / AVG(rental_duration) within the rating (ratio of averages). Ratio = that rating's value divided by the unweighted mean of the five rating-level values",
+  "Per rating: average replacement_cost, and per-day price computed as SUM(rental_rate) / SUM(rental_duration) within the rating. Ratio = that rating's value divided by the unweighted mean of the five rating-level values",
+  "Per rating: average replacement_cost over films, and per-day price computed per film as rental_rate / rental_duration. Ratio = rating's average per-day price divided by the plain average of the five rating averages (each rating counted once, not weighted by film count)",
+  "Same as 1, but the comparison baseline is the average of the five per-rating per-day values, and the ratio is expressed as the rating's value over that baseline (not as a difference or percentage)",
+  "Same as 1, but the averages are weighted by inventory copies (replacement_cost and per-day price averaged over inventory copies of films in each rating rather than over film records). Ratio uses the unweighted mean across the five ratings",
+  "Same as 1, but the averages are weighted by rentals (replacement_cost and per-day price averaged over rental transactions per rating). Ratio uses the unweighted mean across the five ratings",
+  "Same as 1, but \"rental price per day of rental\" is read as the actual amount paid per day of actual rental (payment.amount divided by days between rental_date and return_date) for each rating, with replacement_cost averaged per rating. Ratio uses the unweighted mean across ratings",
+  "Same as 1, but the baseline is the plain average over all films of the per-day price (every film counted once) rather than over the five ratings. This reading is less consistent with \"each rating counted once.\"",
+  "Same as 1, but the ratio is expressed in the opposite direction: the plain average of the five rating-level per-day values divided by each rating's per-day value",
+  "Same as 1, but only films that appear in inventory (or only films that have been rented) are included",
+  "Same as 1, but the output also includes the plain average itself as a column alongside the ratio, with all values unrounded",
+  "Missing interpretations:",
+  "Same as 1, but \"rental price per day of rental\" is film.rental_rate divided by the actual days rented (return_date minus rental_date) for each rental, then averaged per rating. Replacement_cost is averaged per rating, and the ratio uses the unweighted mean across ratings",
+  "Same as 1, but \"rental price per day of rental\" is the actual amount paid (payment.amount) divided by the film's scheduled rental_duration, averaged per rating",
+  "Same as 1, but the averages are weighted by payments (payment records for films in each rating). The ratio uses the unweighted mean across the five ratings",
+  "Same as 2, but the baseline is the ratio of the overall AVG(rental_rate) to the overall AVG(rental_duration) across all films, instead of the mean of the five rating-level values"
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT rating,\n         AVG(replacement_cost) AS avg_replacement_cost,\n         AVG(rental_rate * 1.0 / rental_duration) AS avg_per_day_price\n  FROM film\n  GROUP BY rating\n)\nSELECT rating,\n       avg_replacement_cost,\n       avg_per_day_price,\n       avg_replacement_cost / (SELECT AVG(avg_replacement_cost) FROM r) AS replacement_cost_ratio,\n       avg_per_day_price / (SELECT AVG(avg_per_day_price) FROM r) AS per_day_price_ratio\nFROM r;\n",
+  "WITH r AS (\n  SELECT rating,\n         AVG(replacement_cost) AS avg_replacement_cost,\n         AVG(rental_rate) / AVG(rental_duration) AS price_per_day\n  FROM film\n  GROUP BY rating\n)\nSELECT rating,\n       avg_replacement_cost,\n       price_per_day,\n       avg_replacement_cost / AVG(avg_replacement_cost) OVER () AS replacement_cost_ratio,\n       price_per_day / AVG(price_per_day) OVER () AS price_per_day_ratio\nFROM r;\n",
+  "WITH r AS (\n  SELECT rating,\n         AVG(replacement_cost) AS avg_replacement_cost,\n         SUM(rental_rate) * 1.0 / SUM(rental_duration) AS per_day_price\n  FROM film\n  GROUP BY rating\n)\nSELECT rating,\n       avg_replacement_cost,\n       per_day_price,\n       avg_replacement_cost / (SELECT AVG(avg_replacement_cost) FROM r) AS replacement_cost_ratio,\n       per_day_price / (SELECT AVG(per_day_price) FROM r) AS per_day_price_ratio\nFROM r;\n",
+  "WITH r AS (\n  SELECT rating,\n         AVG(replacement_cost) AS avg_replacement_cost,\n         AVG(rental_rate * 1.0 / rental_duration) AS avg_per_day_price\n  FROM film\n  GROUP BY rating\n)\nSELECT rating,\n       avg_replacement_cost,\n       avg_per_day_price,\n       avg_per_day_price / (SELECT AVG(avg_per_day_price) FROM r) AS ratio\nFROM r;\n",
+  "WITH r AS (\n  SELECT rating, AVG(rental_rate * 1.0 / rental_duration) AS v\n  FROM film\n  GROUP BY rating\n)\nSELECT rating, v / (SELECT AVG(v) FROM r) AS ratio_to_baseline\nFROM r;\n",
+  "WITH r AS (\n  SELECT f.rating,\n         AVG(f.replacement_cost) AS avg_replacement_cost,\n         AVG(f.rental_rate * 1.0 / f.rental_duration) AS avg_per_day_price\n  FROM inventory i\n  JOIN film f ON f.film_id = i.film_id\n  GROUP BY f.rating\n)\nSELECT rating,\n       avg_replacement_cost,\n       avg_per_day_price,\n       AVG(avg_replacement_cost) OVER () / AVG(avg_per_day_price) OVER () AS ratio\nFROM r\nORDER BY rating;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-06768b2b94",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 113065,
+  "chars_out": 5925
+ }
+}

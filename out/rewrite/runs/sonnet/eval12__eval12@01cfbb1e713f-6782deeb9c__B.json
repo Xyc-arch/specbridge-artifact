@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6782deeb9c",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "For each batting hand, count the distinct players with that hand who won at least one award. Compute each hand's share of all such players. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
+ "a": {
+  "request": "Using player award records matched to their players by `player_id` (dropping awards with no matching player), group by the winner's batting hand (`bats`), with a blank or missing hand as its own group. For each hand, count the distinct award-winning players with that hand and work out that count's share of the total award-winning players across all hands. List only the hands whose share is above the simple average of the shares across hands. Show the batting hand, the player count, the share, and how far the share is above that average, with no rounding.",
+  "sql": "WITH j AS (SELECT DISTINCT pa.player_id, CASE WHEN p.bats IS NULL OR TRIM(p.bats) = '' THEN '' ELSE p.bats END AS hand FROM player_award pa JOIN player p ON p.player_id = pa.player_id), g AS (SELECT hand, COUNT(DISTINCT player_id) AS player_count FROM j GROUP BY hand), s AS (SELECT hand, player_count, player_count * 1.0 / (SELECT COUNT(DISTINCT player_id) FROM j) AS share FROM g), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.hand AS bats, s.player_count, s.share, s.share - a.avg_share AS share_above_average FROM s CROSS JOIN a WHERE s.share > a.avg_share ORDER BY s.share DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each batting hand in `player.bats` (with blank or missing hand as its own group), count the distinct players who won at least one award in `player_award` and match a known player in `player`. Compute each hand's share of the total of those distinct players, keep only the hands whose share is above the simple average share across hands, and report the hand, the count, the share, and the share minus the average share, with no rounding",
+  "sql": "WITH hands AS (SELECT COALESCE(NULLIF(TRIM(p.bats), ''), '') AS hand, COUNT(DISTINCT p.player_id) AS cnt FROM player p JOIN player_award a ON a.player_id = p.player_id GROUP BY COALESCE(NULLIF(TRIM(p.bats), ''), '')), shares AS (SELECT hand, cnt, CAST(cnt AS REAL) / SUM(cnt) OVER () AS share FROM hands), avg_s AS (SELECT hand, cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT hand, cnt AS count, share, share - avg_share AS share_minus_avg FROM avg_s WHERE share > avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "How do player award winners break down by batting hand (`bats`), counting awards matched to a known player and treating a blank or missing hand as its own group? For each hand, give the tally and its share of the overall total. Keep only the hands whose share is above the simple average share across hands, and show the hand, the tally, the share, and how much the share exceeds that average (no rounding). For each batting hand, count the distinct players with that hand who won at least one award. Compute each hand's share of all such players. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
+  "sql": "WITH w AS (SELECT COALESCE(NULLIF(TRIM(p.bats), ''), '') AS hand, COUNT(DISTINCT p.player_id) AS cnt FROM player_award a JOIN player p ON p.player_id = a.player_id GROUP BY 1), s AS (SELECT hand, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM w) AS share FROM w), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.hand, s.cnt AS count, s.share, s.share - a.avg_share AS excess_over_avg FROM s, a WHERE s.share > a.avg_share ORDER BY s.share DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each batting hand (`bats`), count the distinct players with that hand who won at least one award, treating a blank or missing hand as its own group. Compute each hand's share of the total across all hands. Keep only the hands whose share is above the simple average share across hands. For those, report the hand, the distinct-player count, the share, and how much the share exceeds that average, with no rounding.",
+  "sql": "WITH w AS (SELECT DISTINCT player_id FROM player_award), c AS (SELECT COALESCE(NULLIF(TRIM(p.bats), ''), '') AS bats, COUNT(DISTINCT p.player_id) AS n FROM player p JOIN w ON w.player_id = p.player_id GROUP BY 1), s AS (SELECT bats, n, n * 1.0 / SUM(n) OVER () AS share FROM c), a AS (SELECT bats, n, share, AVG(share) OVER () AS avg_share FROM s) SELECT bats, n AS player_count, share, share - avg_share AS excess_over_avg FROM a WHERE share > avg_share",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

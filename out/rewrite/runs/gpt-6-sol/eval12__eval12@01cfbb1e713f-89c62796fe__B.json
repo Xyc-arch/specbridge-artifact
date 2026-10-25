@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-89c62796fe",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Return the top 10 pairs by difference plus every pair tied with the 10th row's difference.",
+ "a": {
+  "request": "Link each risk/margin record to its order (`riskandmargin.ordervault` = `orders.recordvault`, dropping records with no matching order), and count the records for each combination of order reference (`ordervault`) and order status (`orderflow`). For each combination, compute its share of the total count for that status, then compare that share with the average share across all combinations with the same status. Keep only the combinations whose share is above their status's average. List the order reference, status, count, share and share minus the status average, without rounding, sorted by that difference from largest to smallest. Show the top 10 rows, plus every other row whose difference ties with the 10th row's.",
+  "sql": "WITH counts AS (SELECT r.ordervault, o.orderflow, COUNT(*) AS record_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY r.ordervault, o.orderflow), shares AS (SELECT ordervault, orderflow, record_count, record_count::numeric / SUM(record_count) OVER (PARTITION BY orderflow) AS share FROM counts), differences AS (SELECT ordervault, orderflow, record_count, share, share - AVG(share) OVER (PARTITION BY orderflow) AS share_difference FROM shares), ranked AS (SELECT *, RANK() OVER (ORDER BY share_difference DESC) AS position FROM differences) SELECT ordervault, orderflow, record_count, share, share_difference FROM ranked WHERE position <= 10 ORDER BY share_difference DESC, ordervault, orderflow;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Inner join `riskandmargin` to `orders` on `ordervault = recordvault`, group by order reference and `orderflow`, and count the risk/margin records in each pair. For each pair, divide its count by the total count for its status, then subtract the average share across all pairs with that status. Return the 10 pairs with the largest unrounded differences, plus every pair tied with the 10th, showing order reference, status, count, share, and difference in descending difference order",
+  "sql": "WITH pair_counts AS (SELECT o.recordvault AS order_reference, o.orderflow AS status, COUNT(*) AS risk_margin_count FROM riskandmargin AS r INNER JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.recordvault, o.orderflow), shares AS (SELECT order_reference, status, risk_margin_count, risk_margin_count::numeric / SUM(risk_margin_count) OVER (PARTITION BY status) AS share FROM pair_counts), differences AS (SELECT order_reference, status, risk_margin_count, share, share - AVG(share) OVER (PARTITION BY status) AS difference FROM shares), ranked AS (SELECT *, RANK() OVER (ORDER BY difference DESC) AS difference_rank FROM differences) SELECT order_reference, status, risk_margin_count, share, difference FROM ranked WHERE difference_rank <= 10 ORDER BY difference DESC, order_reference, status;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "Link each risk/margin record to its order (`riskandmargin.ordervault` = `orders.recordvault`, dropping records with no matching order), and count the records for each combination of order reference and order status (`orderflow`). Compute each combination's share of the total count for its status. Which 10 combinations stand out most above their status's average share? For each one, show the order reference, status, count, share and how far the share is above the average, without rounding, from largest gap to smallest. Return the top 10 pairs by difference plus every pair tied with the 10th row's difference.",
+  "sql": "WITH pair_counts AS (SELECT o.recordvault AS order_reference, o.orderflow AS status, COUNT(*) AS record_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.recordvault, o.orderflow), shares AS (SELECT order_reference, status, record_count, record_count::numeric / SUM(record_count) OVER (PARTITION BY status) AS share FROM pair_counts), gaps AS (SELECT order_reference, status, record_count, share, share - AVG(share) OVER (PARTITION BY status) AS above_average FROM shares), ranked AS (SELECT *, RANK() OVER (ORDER BY above_average DESC) AS gap_rank FROM gaps) SELECT order_reference, status, record_count, share, above_average FROM ranked WHERE gap_rank <= 10 ORDER BY above_average DESC, order_reference, status",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6,
+ "d": {
+  "request": "Link each risk/margin record to its order using `riskandmargin.ordervault = orders.recordvault`, excluding records without a matching order. For each order reference and `orderflow` status pair, count the records and calculate its share of the total count for that status. How far is each pair\u2019s share above the average share for its status? Return the 10 pairs with the largest differences, plus every pair tied with the 10th pair. Show the order reference, status, count, share, and difference without rounding, ordered from largest difference to smallest.",
+  "sql": "WITH pair_counts AS (SELECT o.recordvault AS order_reference, o.orderflow AS status, COUNT(*) AS record_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.recordvault, o.orderflow), shares AS (SELECT order_reference, status, record_count, record_count::numeric / SUM(record_count) OVER (PARTITION BY status) AS share FROM pair_counts), differences AS (SELECT order_reference, status, record_count, share, share - AVG(share) OVER (PARTITION BY status) AS difference FROM shares), ranked AS (SELECT *, RANK() OVER (ORDER BY difference DESC) AS position FROM differences) SELECT order_reference, status, record_count, share, difference FROM ranked WHERE position <= 10 ORDER BY difference DESC, order_reference, status",
+  "executes": false,
+  "matches": []
+ }
+}

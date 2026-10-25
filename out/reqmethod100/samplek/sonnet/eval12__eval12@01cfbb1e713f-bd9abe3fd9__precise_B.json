@@ -1,0 +1,64 @@
+{
+ "queries": [
+  "WITH g AS (SELECT sp.zoneref AS zoneref, s.insurstat AS insurstat, AVG(sp.remaingb) AS avg_remaininggb, AVG(ABS(sp.proccpu - sp.procgpu)) AS avg_abs_cpu_gpu_diff FROM scanprocessing sp JOIN sites s ON s.zoneregistry = sp.zoneref GROUP BY sp.zoneref, s.insurstat), m AS (SELECT g.*, AVG(avg_remaininggb) OVER () AS mean_of_avgs FROM g) SELECT zoneref, insurstat, avg_remaininggb, avg_abs_cpu_gpu_diff, avg_remaininggb / mean_of_avgs AS ratio_to_mean FROM m WHERE mean_of_avgs IS NOT NULL ORDER BY (avg_remaininggb / mean_of_avgs) IS NULL, avg_remaininggb / mean_of_avgs DESC LIMIT 10",
+  "WITH g AS (SELECT p.zoneref AS zoneref, s.insurstat AS insurstat, AVG(p.remaingb) AS avg_remaingb, AVG(ABS(p.proccpu - p.procgpu)) AS avg_abs_cpu_gpu_diff FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref GROUP BY p.zoneref, s.insurstat), m AS (SELECT AVG(avg_remaingb) AS mean_avg_remaingb FROM g) SELECT g.zoneref, g.insurstat, g.avg_remaingb, g.avg_abs_cpu_gpu_diff, g.avg_remaingb / m.mean_avg_remaingb AS remaingb_ratio FROM g CROSS JOIN m WHERE m.mean_avg_remaingb IS NOT NULL ORDER BY remaingb_ratio DESC NULLS LAST LIMIT 10",
+  "WITH g AS (\n  SELECT sp.zoneref AS site_code,\n         s.insurstat AS insurance_status,\n         AVG(sp.remaingb) AS avg_remaining_gb,\n         AVG(ABS(sp.proccpu - sp.procgpu)) AS avg_abs_cpu_gpu_diff\n  FROM scanprocessing sp\n  JOIN sites s ON s.zoneregistry = sp.zoneref\n  GROUP BY sp.zoneref, s.insurstat\n), m AS (\n  SELECT g.*, AVG(avg_remaining_gb) OVER () AS mean_of_avgs\n  FROM g\n)\nSELECT site_code,\n       insurance_status,\n       avg_remaining_gb,\n       avg_abs_cpu_gpu_diff,\n       avg_remaining_gb / NULLIF(mean_of_avgs, 0) AS remaining_ratio\nFROM m\nWHERE mean_of_avgs IS NOT NULL\nORDER BY remaining_ratio DESC NULLS LAST\nLIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH g AS (SELECT sp.zoneref AS zoneref, s.insurstat AS insurstat, AVG(sp.remaingb) AS avg_remaininggb, AVG(ABS(sp.proccpu - sp.procgpu)) AS avg_abs_cpu_gpu_diff FROM scanprocessing sp JOIN sites s ON s.zoneregistry = sp.zoneref GROUP BY sp.zoneref, s.insurstat), m AS (SELECT g.*, AVG(avg_remaininggb) OVER () AS mean_of_avgs FROM g) SELECT zoneref, insurstat, avg_remaininggb, avg_abs_cpu_gpu_diff, avg_remaininggb / mean_of_avgs AS ratio_to_mean FROM m WHERE mean_of_avgs IS NOT NULL ORDER BY (avg_remaininggb / mean_of_avgs) IS NULL, avg_remaininggb / mean_of_avgs DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "An inner join to sites keeps only processing records with a matching site. Groups whose average remaining storage is NULL still count as groups and appear with a NULL ratio, but they are left out of the mean of group averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties in the ratio are broken arbitrarily because the request gives no tie-breaker.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (SELECT p.zoneref AS zoneref, s.insurstat AS insurstat, AVG(p.remaingb) AS avg_remaingb, AVG(ABS(p.proccpu - p.procgpu)) AS avg_abs_cpu_gpu_diff FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref GROUP BY p.zoneref, s.insurstat), m AS (SELECT AVG(avg_remaingb) AS mean_avg_remaingb FROM g) SELECT g.zoneref, g.insurstat, g.avg_remaingb, g.avg_abs_cpu_gpu_diff, g.avg_remaingb / m.mean_avg_remaingb AS remaingb_ratio FROM g CROSS JOIN m WHERE m.mean_avg_remaingb IS NOT NULL ORDER BY remaingb_ratio DESC NULLS LAST LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The ratio's denominator is the unweighted mean of the per-group average remaingb values. It is not the overall row-level average. Groups whose average is NULL are skipped, and a zero mean would give a NULL or error ratio.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The inner join to sites keeps only processing records whose site exists. Each site code appears in only one group because zoneregistry is the primary key.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The absolute difference is computed per row, and rows where either proccpu or procgpu is NULL are ignored in that average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH g AS (\n  SELECT sp.zoneref AS site_code,\n         s.insurstat AS insurance_status,\n         AVG(sp.remaingb) AS avg_remaining_gb,\n         AVG(ABS(sp.proccpu - sp.procgpu)) AS avg_abs_cpu_gpu_diff\n  FROM scanprocessing sp\n  JOIN sites s ON s.zoneregistry = sp.zoneref\n  GROUP BY sp.zoneref, s.insurstat\n), m AS (\n  SELECT g.*, AVG(avg_remaining_gb) OVER () AS mean_of_avgs\n  FROM g\n)\nSELECT site_code,\n       insurance_status,\n       avg_remaining_gb,\n       avg_abs_cpu_gpu_diff,\n       avg_remaining_gb / NULLIF(mean_of_avgs, 0) AS remaining_ratio\nFROM m\nWHERE mean_of_avgs IS NOT NULL\nORDER BY remaining_ratio DESC NULLS LAST\nLIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "Groups whose average remaining storage is NULL (all remaingb missing) are still returned, with a NULL ratio, and sort last. They are excluded from the overall mean.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If the mean of group averages is exactly 0, the ratio is treated as missing (NULL) rather than raising a division error.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd9abe3fd9",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 124242,
+  "chars_out": 3271
+ }
+}

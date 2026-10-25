@@ -1,0 +1,52 @@
+{
+ "interpretations": [
+  "Row-level: each joined Examination\u2013Patient row is one entry; the overall mean is the average `aCL IgM` over all joined rows (non-null only); the deviation is `aCL IgM` minus that mean (signed); the sex average deviation is the mean of those deviations per exact `SEX` text; keep rows with deviation > their sex average, ordered by (deviation \u2212 sex average) descending, top 10.",
+  "Same as above, but the overall mean is computed over all Examination rows with non-null `aCL IgM` before the join, so examinations without a matching patient still count toward the mean.",
+  "Patient-level: collapse to one entry per patient `ID` (average `aCL IgM` across their examinations), then compute the overall mean as the average of the per-patient values, deviations, per-sex averages and top 10.",
+  "Patient-level with the overall mean still taken over examination rows (each patient weighted by their number of examinations), but entries listed once per patient.",
+  "Deviation is the absolute difference |`aCL IgM` \u2212 mean| rather than signed.",
+  "Rows with NULL `aCL IgM` are excluded from the entries (NULL deviation never exceeds the sex average).",
+  "Rows with NULL `aCL IgM` are kept in the ranking with NULL deviation and NULL excess, placed last, if fewer than 10 rows qualify.",
+  "Rows whose `SEX` is NULL are excluded because they match no sex group (their sex average is NULL).",
+  "Rows whose `SEX` is NULL are shown with NULL excess and ranked last.",
+  "Rows whose `SEX` is an empty or blank string form their own group with its own average deviation and may appear in the results.",
+  "\"Exceeds\" means strictly greater than (deviation > sex average deviation).",
+  "\"Exceeds\" means greater than or equal to (deviation \u2265 sex average deviation).",
+  "Ties at the 10th position are cut arbitrarily by the LIMIT 10.",
+  "Ties at the 10th position are all included, which may return more than 10 rows.",
+  "Ties are broken by `ID` or `Examination Date` for a deterministic order.",
+  "The excess column is the deviation minus the sex average deviation (equivalently `aCL IgM` minus the sex mean `aCL IgM`).",
+  "The output has one row per examination, so the same patient `ID` can appear multiple times with different `aCL IgM` values.",
+  "The output keeps only each patient's highest-ranked examination (one row per `ID`).",
+  "The sex average is computed across all non-null rows in the sex group, including rows that are later filtered out, so the filter and the average use the same population.",
+  "Missing interpretations:",
+  "Overall mean computed over all Examination rows, including those with no matching patient, with the sex group average still computed only over joined rows. This is a variant of the second listed interpretation that applies only to the overall mean.",
+  "Examinations with duplicate Patient rows are impossible, because `Patient.ID` is the primary key. So the join does not multiply rows.",
+  "The \"sex average deviation\" is computed over rows before any NULL-`aCL IgM` exclusion, so NULL deviations are ignored in the average but those rows still appear as candidates (NULL ranks last).",
+  "The excess is `NULL` and ranked last when the sex average is `NULL`. This happens for a NULL-sex group, or for a sex group where every `aCL IgM` is NULL.",
+  "The ranking puts rows that have a non-NULL deviation but a NULL excess (NULL sex) after all rows with a non-NULL excess. This is distinct from the rows that have a NULL deviation.",
+  "\"Top 10 entries whose deviation is above their sex's average\" is applied as a filter before ranking, and then NULL-excess rows are dropped. In this reading \"missing last\" is moot.",
+  "The output's \"its deviation\" column is the signed deviation from the overall mean, while the ranking uses the excess. This is stated only implicitly in the existing list.",
+  "Sex group matching is case-sensitive and whitespace-sensitive, so \"F\", \"f\" and \"F \" are different groups.",
+  "The overall mean is computed over the distinct (`ID`, `aCL IgM`) pairs, so duplicate examinations with identical values are counted once."
+ ],
+ "queries": [
+  "WITH j AS (\n    SELECT e.ID AS ID, e.`aCL IgM` AS igm, p.SEX AS SEX\n    FROM Examination e\n    JOIN Patient p ON e.ID = p.ID\n    WHERE e.`aCL IgM` IS NOT NULL\n),\nd AS (\n    SELECT ID, SEX, igm - (SELECT AVG(igm) FROM j) AS dev\n    FROM j\n),\ns AS (\n    SELECT SEX, AVG(dev) AS avgdev\n    FROM d\n    GROUP BY SEX\n)\nSELECT d.ID\nFROM d\nJOIN s ON d.SEX = s.SEX\nWHERE d.dev > s.avgdev\nORDER BY d.dev - s.avgdev DESC\nLIMIT 10;\n",
+  "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Examination AS T2 ON T1.ID = T2.ID WHERE T1.Admission = '-' AND T2.`aCL IgM` > (SELECT AVG(`aCL IgM`) * 1.2 FROM Examination WHERE `aCL IgM` IS NOT NULL);\n",
+  "WITH per_patient AS (\n    SELECT e.ID, p.SEX, AVG(e.\"aCL IgM\") AS avg_igm\n    FROM Examination e\n    JOIN Patient p ON p.ID = e.ID\n    WHERE e.\"aCL IgM\" IS NOT NULL\n    GROUP BY e.ID, p.SEX\n),\noverall AS (\n    SELECT AVG(avg_igm) AS overall_mean FROM per_patient\n),\nsex_avg AS (\n    SELECT SEX, AVG(avg_igm) AS sex_mean FROM per_patient GROUP BY SEX\n)\nSELECT pp.ID,\n       pp.SEX,\n       pp.avg_igm,\n       o.overall_mean,\n       pp.avg_igm - o.overall_mean AS deviation,\n       s.sex_mean\nFROM per_patient pp\nCROSS JOIN overall o\nJOIN sex_avg s ON s.SEX = pp.SEX\nORDER BY pp.avg_igm DESC\nLIMIT 10;\n",
+  "SELECT e.ID\nFROM Examination e\nJOIN Patient p ON e.ID = p.ID\nWHERE e.`aCL IgM` IS NOT NULL\n  AND e.`aCL IgM` > (\n    SELECT AVG(e2.`aCL IgM`)\n    FROM Examination e2\n    JOIN Patient p2 ON e2.ID = p2.ID\n    WHERE p2.SEX = p.SEX\n  );\n"
+ ],
+ "raw": [
+  "- Row-level: each joined Examination\u2013Patient row is one entry; the overall mean is the average `aCL IgM` over all joined rows (non-null only); the deviation is `aCL IgM` minus that mean (signed); the sex average deviation is the mean of those deviations per exact `SEX` text; keep rows with deviation > their sex average, ordered by (deviation \u2212 sex average) descending, top 10.\n- Same as above, but the overall mean is computed over all Examination rows with non-null `aCL IgM` before the join, so examinations without a matching patient still count toward the mean.\n- Patient-level: collapse to one entry per patient `ID` (average `aCL IgM` across their examinations), then compute the overall mean as the average of the per-patient values, deviations, per-sex averages and top 10.\n- Patient-level with the overall mean still taken over examination rows (each patient weighted by their number of examinations), but entries listed once per patient.\n- Deviation is the absolute difference |`aCL IgM` \u2212 mean| rather than signed.\n- Rows with NULL `aCL IgM` are excluded from the entries (NULL deviation never exceeds the sex average).\n- Rows with NULL `aCL IgM` are kept in the ranking with NULL deviation and NULL excess, placed last, if fewer than 10 rows qualify.\n- Rows whose `SEX` is NULL are excluded because they match no sex group (their sex average is NULL).\n- Rows whose `SEX` is NULL are shown with NULL excess and ranked last.\n- Rows whose `SEX` is an empty or blank string form their own group with its own average deviation and may appear in the results.\n- \"Exceeds\" means strictly greater than (deviation > sex average deviation).\n- \"Exceeds\" means greater than or equal to (deviation \u2265 sex average deviation).\n- Ties at the 10th position are cut arbitrarily by the LIMIT 10.\n- Ties at the 10th position are all included, which may return more than 10 rows.\n- Ties are broken by `ID` or `Examination Date` for a deterministic order.\n- The excess column is the deviation minus the sex average deviation (equivalently `aCL IgM` minus the sex mean `aCL IgM`).\n- The output has one row per examination, so the same patient `ID` can appear multiple times with different `aCL IgM` values.\n- The output keeps only each patient's highest-ranked examination (one row per `ID`).\n- The sex average is computed across all non-null rows in the sex group, including rows that are later filtered out, so the filter and the average use the same population.",
+  "Missing interpretations:\n\nOverall mean computed over all Examination rows, including those with no matching patient, with the sex group average still computed only over joined rows. This is a variant of the second listed interpretation that applies only to the overall mean.\nExaminations with duplicate Patient rows are impossible, because `Patient.ID` is the primary key. So the join does not multiply rows.\nThe \"sex average deviation\" is computed over rows before any NULL-`aCL IgM` exclusion, so NULL deviations are ignored in the average but those rows still appear as candidates (NULL ranks last).\nThe excess is `NULL` and ranked last when the sex average is `NULL`. This happens for a NULL-sex group, or for a sex group where every `aCL IgM` is NULL.\nThe ranking puts rows that have a non-NULL deviation but a NULL excess (NULL sex) after all rows with a non-NULL excess. This is distinct from the rows that have a NULL deviation.\n\"Top 10 entries whose deviation is above their sex's average\" is applied as a filter before ranking, and then NULL-excess rows are dropped. In this reading \"missing last\" is moot.\nThe output's \"its deviation\" column is the signed deviation from the overall mean, while the ranking uses the excess. This is stated only implicitly in the existing list.\nSex group matching is case-sensitive and whitespace-sensitive, so \"F\", \"f\" and \"F \" are different groups.\nThe overall mean is computed over the distinct (`ID`, `aCL IgM`) pairs, so duplicate examinations with identical values are counted once."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-de5cec30a7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68497,
+  "chars_out": 6094
+ }
+}

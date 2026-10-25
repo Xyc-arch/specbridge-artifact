@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
+ "model": "haiku",
+ "reading": "B",
+ "description": "An operator's number of scans is how many scan records they have.",
+ "b": {
+  "request": "Per operator, average `gbsize / spanmin` over their scans (NULLs ignored, scans with NULL either field excluded from that operator's average), keep operators whose per-operator average exceeds the unweighted mean of those per-operator averages across all operators, then return one row: the count of scans by those operators (total scan records), the mean of their per-operator GB-per-minute averages, and the mean excess over the all-operator figure, unrounded",
+  "sql": "WITH op_avg AS (SELECT crewref, AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gpm FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL GROUP BY crewref), overall AS (SELECT AVG(avg_gpm) AS mean_avg FROM op_avg), sel AS (SELECT o.crewref, o.avg_gpm FROM op_avg o CROSS JOIN overall ov WHERE o.avg_gpm > ov.mean_avg) SELECT (SELECT COUNT(*) FROM scans s WHERE s.crewref IN (SELECT crewref FROM sel)) AS scan_count, (SELECT AVG(avg_gpm) FROM sel) AS mean_op_avg_gb_per_min, (SELECT AVG(avg_gpm) FROM sel) - (SELECT mean_avg FROM overall) AS mean_excess_over_overall;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Look at the operators (`scans.crewref`) whose average file size per minute, computed per scan as `gbsize` \u00f7 `spanmin` with missing values ignored, is above the simple average of that figure across all operators. In a single row, how many scans have these operators done on average, what is their average GB per minute, and by how much on average do they exceed the all-operator figure? Don't round. An operator's number of scans is how many scan records they have.",
+  "sql": "WITH op_stats AS (SELECT crewref, COUNT(*) AS scan_count, AVG(gbsize / NULLIF(spanmin, 0)) AS op_avg FROM scans GROUP BY crewref), overall AS (SELECT AVG(op_avg) AS overall_avg FROM op_stats), above AS (SELECT o.scan_count, o.op_avg FROM op_stats o CROSS JOIN overall v WHERE o.op_avg > v.overall_avg) SELECT AVG(scan_count) AS avg_scans_per_operator, AVG(op_avg) AS avg_gb_per_min, AVG(op_avg) - (SELECT overall_avg FROM overall) AS avg_excess_over_all FROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each operator (`scans.crewref`), find their number of scans by counting their scan records, and find their average file size per minute, computed per scan as `gbsize` \u00f7 `spanmin`. Ignore missing values. Consider only operators whose average GB per minute is above the simple average of that figure across all operators. In a single row, give the average number of scans of those operators, their average GB per minute, and their average margin above the all-operator average, with no rounding.",
+  "sql": "WITH valid AS (SELECT crewref, gbsize / spanmin AS gb_per_min FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0), op AS (SELECT crewref, COUNT(*) AS scan_count, AVG(gb_per_min) AS avg_gb_per_min FROM valid GROUP BY crewref), overall AS (SELECT AVG(avg_gb_per_min) AS overall_avg FROM op), above AS (SELECT op.scan_count, op.avg_gb_per_min, op.avg_gb_per_min - overall.overall_avg AS margin FROM op CROSS JOIN overall WHERE op.avg_gb_per_min > overall.overall_avg) SELECT AVG(scan_count) AS avg_scan_count, AVG(avg_gb_per_min) AS avg_gb_per_min, AVG(margin) AS avg_margin_above_overall FROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Across the operators in `scans.crewref`, find those whose average GB per minute is above the simple average of that figure across all operators. Compute each scan's GB per minute as `gbsize` \u00f7 `spanmin`, ignoring missing values. An operator's number of scans is the count of their scan records. In a single row, return the average number of scans for these operators, their average GB per minute, and how much on average they exceed the all-operator figure. Don't round.",
+  "sql": "WITH op_gpm AS (SELECT crewref, AVG(gbsize / spanmin) AS avg_gpm FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0 GROUP BY crewref), op_scans AS (SELECT crewref, COUNT(*) AS scan_n FROM scans GROUP BY crewref), overall AS (SELECT AVG(avg_gpm) AS all_avg FROM op_gpm), above AS (SELECT g.avg_gpm, s.scan_n, o.all_avg FROM op_gpm g JOIN op_scans s ON s.crewref = g.crewref CROSS JOIN overall o WHERE g.avg_gpm > o.all_avg) SELECT AVG(scan_n) AS avg_scan_count, AVG(avg_gpm) AS avg_gb_per_min, AVG(avg_gpm - all_avg) AS avg_excess_gb_per_min FROM above;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

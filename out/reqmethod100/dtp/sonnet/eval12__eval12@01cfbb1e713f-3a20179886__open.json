@@ -1,0 +1,57 @@
+{
+ "interpretations": [
+  "\"Analysed trade records\" are advancedbehavior rows that join to a transactionrecord and then to a trader (inner joins). Count the rows per trader type.",
+  "\"Analysed trade records\" are distinct transactionrecord records that have at least one advancedbehavior row, and that also have a matching trader. Count distinct transreg per trader type.",
+  "\"Analysed trade records\" are distinct advancedbehavior records (abhvreg) per trader type, counted after the joins.",
+  "\"Share of the overall total\" is each type's count divided by the sum of counts across all trader types, as a fraction from 0 to 1.",
+  "\"Share of the overall total\" is each type's count divided by the sum of counts across all trader types, as a percentage from 0 to 100.",
+  "The overall total includes only records that matched a trader, so shares sum to 1 (or 100%).",
+  "The overall total includes all advancedbehavior records, including those with no matching trade or trader, so shares may sum to less than 1.",
+  "\"Average across trader types\" is the mean of the per-type counts, taken over the trader types that have at least one analysed record.",
+  "\"Average across trader types\" is the mean of the per-type counts, taken over all trader types, including those with zero analysed records. The enum has four types: Market Maker, Broker, Individual, Institution.",
+  "\"Strictly above the average\" means count > mean count, with ties excluded.",
+  "The single output row has the combined number as the sum of counts across the above-average types.",
+  "The single output row has the average share as the mean of the share values of the above-average types.",
+  "The average share could instead be the combined share, meaning the sum of the above-average types' counts divided by the overall total.",
+  "\"On average how far above that average number they sit\" is the mean of (count \u2212 overall average count) across the above-average types.",
+  "\"How far above\" could instead be the mean of the percentage excess, (count \u2212 average) / average \u00d7 100.",
+  "\"How far above\" could instead be the mean of the ratio count / average.",
+  "\"How far above\" could instead be the combined excess, the sum of (count \u2212 average) across the above-average types, rather than the mean.",
+  "\"That average number\" could be the average count across all trader types, including those below the average.",
+  "\"That average number\" could instead be the average count across only the above-average trader types. Each type's distance from this average would then be measured, which averages to zero.",
+  "The trader link could be advancedbehavior \u2192 transactionrecord (translink = transreg) \u2192 trader (trdref = tradereg).",
+  "The trader link could instead go through compliancecase (abhvref) \u2192 transactionrecord (transref) \u2192 trader. This is less likely.",
+  "\"Only where the trade and its trader can be found\" means inner joins that drop advancedbehavior rows with no matching transaction or trader.",
+  "\"Don't round\" means output the raw unrounded numeric values, with no ROUND or truncation.",
+  "A trader type with a NULL tradekind could be excluded, or included as its own group, in the per-type counts and the average.",
+  "The output could be one row with three columns: combined number, average share, average excess.",
+  "Missing interpretations:",
+  "\"Share of the overall total\" could be computed with a window function over the per-type counts, giving the same result as the sum-of-counts denominator. This is an implementation variant and not a distinct meaning.",
+  "\"Average share\" could be the share of the overall total expressed relative to the average (count / average), as a different reading of \"share\".",
+  "\"Strictly above the average\" could be tested against the average of the per-type shares instead of the counts. This gives the same set of types, so it is only a variant.",
+  "\"How far above\" could be measured in share terms (share \u2212 average share) instead of count terms.",
+  "\"Combined number\" could be the count of distinct traders (tradereg) in the above-average types, instead of the sum of record counts.",
+  "\"Trader type\" could be read from trader.trading_performance (JSONB) or another grouping, instead of tradekind. This is unlikely.",
+  "The \"only where the trade and its trader can be found\" condition could also require that the trader link goes through both transactionrecord and compliancecase. This is unlikely."
+ ],
+ "queries": [
+  "SELECT t.tradekind, COUNT(*) FROM advancedbehavior a JOIN transactionrecord r ON a.translink = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind",
+  "SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt\nFROM transactionrecord tr\nJOIN trader t ON tr.trdref = t.tradereg\nWHERE EXISTS (SELECT 1 FROM advancedbehavior ab WHERE ab.translink = tr.transreg)\nGROUP BY t.tradekind",
+  "SELECT t.tradekind, COUNT(DISTINCT a.abhvreg) AS analysed_trade_records\nFROM advancedbehavior a\nJOIN transactionrecord tr ON a.translink = tr.transreg\nJOIN trader t ON tr.trdref = t.tradereg\nGROUP BY t.tradekind",
+  "SELECT tradekind, CAST(COUNT(*) AS REAL) / (SELECT COUNT(*) FROM trader) AS share FROM trader GROUP BY tradekind",
+  "SELECT tradekind,\n       COUNT(*) AS trader_count,\n       COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS share_of_total\nFROM trader\nGROUP BY tradekind;\n"
+ ],
+ "raw": [
+  "1. \"Analysed trade records\" are advancedbehavior rows that join to a transactionrecord and then to a trader (inner joins). Count the rows per trader type.\n2. \"Analysed trade records\" are distinct transactionrecord records that have at least one advancedbehavior row, and that also have a matching trader. Count distinct transreg per trader type.\n3. \"Analysed trade records\" are distinct advancedbehavior records (abhvreg) per trader type, counted after the joins.\n4. \"Share of the overall total\" is each type's count divided by the sum of counts across all trader types, as a fraction from 0 to 1.\n5. \"Share of the overall total\" is each type's count divided by the sum of counts across all trader types, as a percentage from 0 to 100.\n6. The overall total includes only records that matched a trader, so shares sum to 1 (or 100%).\n7. The overall total includes all advancedbehavior records, including those with no matching trade or trader, so shares may sum to less than 1.\n8. \"Average across trader types\" is the mean of the per-type counts, taken over the trader types that have at least one analysed record.\n9. \"Average across trader types\" is the mean of the per-type counts, taken over all trader types, including those with zero analysed records. The enum has four types: Market Maker, Broker, Individual, Institution.\n10. \"Strictly above the average\" means count > mean count, with ties excluded.\n11. The single output row has the combined number as the sum of counts across the above-average types.\n12. The single output row has the average share as the mean of the share values of the above-average types.\n13. The average share could instead be the combined share, meaning the sum of the above-average types' counts divided by the overall total.\n14. \"On average how far above that average number they sit\" is the mean of (count \u2212 overall average count) across the above-average types.\n15. \"How far above\" could instead be the mean of the percentage excess, (count \u2212 average) / average \u00d7 100.\n16. \"How far above\" could instead be the mean of the ratio count / average.\n17. \"How far above\" could instead be the combined excess, the sum of (count \u2212 average) across the above-average types, rather than the mean.\n18. \"That average number\" could be the average count across all trader types, including those below the average.\n19. \"That average number\" could instead be the average count across only the above-average trader types. Each type's distance from this average would then be measured, which averages to zero.\n20. The trader link could be advancedbehavior \u2192 transactionrecord (translink = transreg) \u2192 trader (trdref = tradereg).\n21. The trader link could instead go through compliancecase (abhvref) \u2192 transactionrecord (transref) \u2192 trader. This is less likely.\n22. \"Only where the trade and its trader can be found\" means inner joins that drop advancedbehavior rows with no matching transaction or trader.\n23. \"Don't round\" means output the raw unrounded numeric values, with no ROUND or truncation.\n24. A trader type with a NULL tradekind could be excluded, or included as its own group, in the per-type counts and the average.\n25. The output could be one row with three columns: combined number, average share, average excess.",
+  "Missing interpretations:\n\n\"Share of the overall total\" could be computed with a window function over the per-type counts, giving the same result as the sum-of-counts denominator. This is an implementation variant and not a distinct meaning.\n\n\"Average share\" could be the share of the overall total expressed relative to the average (count / average), as a different reading of \"share\".\n\n\"Strictly above the average\" could be tested against the average of the per-type shares instead of the counts. This gives the same set of types, so it is only a variant.\n\n\"How far above\" could be measured in share terms (share \u2212 average share) instead of count terms.\n\n\"Combined number\" could be the count of distinct traders (tradereg) in the above-average types, instead of the sum of record counts.\n\n\"Trader type\" could be read from trader.trading_performance (JSONB) or another grouping, instead of tradekind. This is unlikely.\n\nThe \"only where the trade and its trader can be found\" condition could also require that the trader link goes through both transactionrecord and compliancecase. This is unlikely."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-3a20179886",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 139355,
+  "chars_out": 5667
+ }
+}

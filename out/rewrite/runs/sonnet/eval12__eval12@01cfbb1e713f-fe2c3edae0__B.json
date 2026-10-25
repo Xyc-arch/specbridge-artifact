@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fe2c3edae0",
+ "model": "sonnet",
+ "reading": "B",
+ "description": "Compare each circuit's average round with the average round of all races in its country.",
+ "c": {
+  "request": "For each circuit (`races.circuitId`, with its `circuits.country`, counting only races whose circuit is in the circuits table), what is the average round number (`races.round`) at which it hosts races, and how far is that above or below its country's average round? List circuit id, country, the circuit's average round and the difference (circuit minus country). Sort by the difference from largest to smallest (missing last), show the top 10, and don't round. Compare each circuit's average round with the average round of all races in its country.",
+  "sql": "WITH r AS (SELECT ra.circuitId, c.country, ra.round FROM races ra JOIN circuits c ON c.circuitId = ra.circuitId), country_avg AS (SELECT country, AVG(round) AS country_avg_round FROM r GROUP BY country), circuit_avg AS (SELECT circuitId, country, AVG(round) AS circuit_avg_round FROM r GROUP BY circuitId, country) SELECT ca.circuitId, ca.country, ca.circuit_avg_round, ca.circuit_avg_round - cy.country_avg_round AS diff FROM circuit_avg ca JOIN country_avg cy ON cy.country = ca.country ORDER BY diff DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each circuit in the circuits table that hosts races, compute the average `races.round` per `circuitId` (with its `circuits.country`) and subtract the average `races.round` across all races at circuits in that same country (the mean over all those races, not the mean of circuit averages), then list circuit id, country, circuit average round and difference (circuit minus country), sorted by difference descending with NULLs last, top 10, unrounded",
+  "sql": "SELECT c.circuitId, c.country, AVG(r.round) AS circuit_avg_round, AVG(r.round) - (SELECT AVG(r2.round) FROM races r2 JOIN circuits c2 ON r2.circuitId = c2.circuitId WHERE c2.country = c.country) AS diff FROM circuits c JOIN races r ON r.circuitId = c.circuitId GROUP BY c.circuitId, c.country ORDER BY diff DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For each circuit, identified by `races.circuitId` together with its country (`circuits.country`) and counting only races whose circuit is in the circuits table, find the average round number (`races.round`) of the races held there. Set a baseline for each country as the average round over all races held in that country, so circuits with more races count for more. Show the circuit id, the country, the circuit's average round, and the circuit's average minus its country's baseline. Sort by that difference from largest to smallest (missing values last), keep the top 10, and don't round.",
+  "sql": "WITH c AS (SELECT r.circuitId AS circuitId, ci.country AS country, AVG(r.round) AS avg_round, SUM(r.round) AS sum_round, COUNT(*) AS n FROM races r JOIN circuits ci ON r.circuitId = ci.circuitId GROUP BY r.circuitId, ci.country), b AS (SELECT country, CAST(SUM(sum_round) AS REAL) / SUM(n) AS baseline FROM c GROUP BY country) SELECT c.circuitId, c.country, c.avg_round, c.avg_round - b.baseline AS diff FROM c JOIN b ON c.country = b.country ORDER BY diff DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each circuit (`races.circuitId`, with its `circuits.country`, counting only races whose circuit is in the circuits table), what is the average round number (`races.round`) at which it hosts races, and how far is that above or below the average round of all races in its country? List circuit id, country, the circuit's average round, and the difference (circuit average minus country average). Sort by the difference from largest to smallest (missing values last), show the top 10, and don't round.",
+  "sql": "SELECT r.circuitId, c.country, AVG(r.round) AS circuit_avg_round, AVG(r.round) - (SELECT AVG(r2.round) FROM races r2 JOIN circuits c2 ON r2.circuitId = c2.circuitId WHERE c2.country = c.country) AS diff FROM races r JOIN circuits c ON r.circuitId = c.circuitId GROUP BY r.circuitId, c.country ORDER BY diff DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,46 @@
+{
+ "interpretations": [
+  "Inner join risk/margin \u2192 orders \u2192 users. For each `acctscope`, count all joined risk/margin rows (an order with two records counts twice). Also give each count's share of the grand total (count / sum of counts), and the ratio of each count to the mean per-scope count. All values are unrounded.",
+  "Same as 1, but the \"average of those numbers across scopes\" is taken only over scopes that have at least one matched record. This is the same as 1, because scopes with no matches never appear after the inner join.",
+  "Same as 1, but the average is taken over all possible scope values (Margin, Spot, Options, Futures), with a count of 0 for scopes that have no matches. Scopes with a zero count are listed.",
+  "Same as 1, but the average is taken over all scopes present in `users`, including scopes with no matched risk/margin records. Those scopes show a count of 0.",
+  "Same as 1, but the fraction is expressed as a percentage (0\u2013100) rather than a 0\u20131 value.",
+  "Same as 1, but the ratio to the average is computed as count / (total / number of scopes). This is the same value as in 1, written another way.",
+  "Users are joined on `orders.userlink = users.userstamp`. A user with duplicate `userstamp` rows would multiply the counts. Each match is counted as a join row.",
+  "Users are joined as in 7, but duplicate users are collapsed first, so each risk/margin record is counted once.",
+  "Orders are matched on `riskandmargin.ordervault = orders.recordvault`. Duplicate `recordvault` values in `orders` would multiply the counts. Each match is counted as a join row.",
+  "Orders are matched as in 9, but the count is of distinct `riskandmarginpivot` values per scope, so each risk/margin record is counted once.",
+  "The count is of risk/margin records, not of orders. An order with two records counts twice, as the question states.",
+  "Records with a NULL `acctscope` form their own group, shown as a NULL scope row. They count toward the total and the average.",
+  "Records with a NULL `acctscope` are excluded. The total and the average cover only the non-NULL scopes.",
+  "The \"fraction of the total\" is the integer-division result (0 or 1) in a SQL engine that truncates, rather than a decimal fraction.",
+  "The \"ratio to the average\" is the integer-division result in a SQL engine that truncates, rather than a decimal ratio.",
+  "The output has one row per scope with four columns: scope, count, fraction of total, ratio to average. Rows are in no particular order.",
+  "The same output as 16, with rows ordered by count descending.",
+  "The same output as 16, with rows ordered alphabetically by scope.",
+  "Missing interpretations:",
+  "The fraction's denominator is the total number of risk/margin records before dropping unmatched ones, not the total across matched scopes.",
+  "Join keys are compared after trimming whitespace or ignoring case (CHAR(36) padding or UUID case differences), so more records match.",
+  "The average is the mean of the per-scope counts computed across all scopes, with NULL-scope records excluded from the numerators but included in the total."
+ ],
+ "queries": [
+  "WITH counts AS (\n  SELECT u.acctscope AS acctscope, COUNT(*) AS cnt\n  FROM riskandmargin r\n  JOIN orders o ON r.ordervault = o.recordvault\n  JOIN users u ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n)\nSELECT acctscope,\n       cnt AS record_count,\n       cnt * 1.0 / (SELECT SUM(cnt) FROM counts) AS share_of_total,\n       cnt * 1.0 / (SELECT AVG(cnt) FROM counts) AS ratio_to_mean\nFROM counts;\n",
+  "SELECT AVG(order_count) FROM (SELECT u.acctscope, COUNT(*) AS order_count FROM users u JOIN orders o ON o.userlink = u.userstamp GROUP BY u.acctscope);\n",
+  "SELECT s.scope, COUNT(o.orderspivot) AS order_count\nFROM (SELECT 'Margin' AS scope UNION ALL SELECT 'Spot' UNION ALL SELECT 'Options' UNION ALL SELECT 'Futures') s\nLEFT JOIN users u ON u.acctscope = s.scope\nLEFT JOIN orders o ON o.userlink = u.userstamp\nGROUP BY s.scope;\n",
+  "SELECT acctscope, record_count, AVG(record_count) OVER () AS avg_record_count\nFROM (\n  SELECT u.acctscope AS acctscope, COUNT(r.riskandmarginpivot) AS record_count\n  FROM users u\n  LEFT JOIN orders o ON o.userlink = u.userstamp\n  LEFT JOIN riskandmargin r ON r.ordervault = o.recordvault\n  GROUP BY u.acctscope\n);\n",
+  "SELECT acctscope,\n       COUNT(*) AS user_count,\n       COUNT(*) * 1.0 / ((SELECT COUNT(*) FROM users) * 1.0 / (SELECT COUNT(DISTINCT acctscope) FROM users)) AS ratio_to_average\nFROM users\nGROUP BY acctscope;\n"
+ ],
+ "raw": [
+  "1. Inner join risk/margin \u2192 orders \u2192 users. For each `acctscope`, count all joined risk/margin rows (an order with two records counts twice). Also give each count's share of the grand total (count / sum of counts), and the ratio of each count to the mean per-scope count. All values are unrounded.\n2. Same as 1, but the \"average of those numbers across scopes\" is taken only over scopes that have at least one matched record. This is the same as 1, because scopes with no matches never appear after the inner join.\n3. Same as 1, but the average is taken over all possible scope values (Margin, Spot, Options, Futures), with a count of 0 for scopes that have no matches. Scopes with a zero count are listed.\n4. Same as 1, but the average is taken over all scopes present in `users`, including scopes with no matched risk/margin records. Those scopes show a count of 0.\n5. Same as 1, but the fraction is expressed as a percentage (0\u2013100) rather than a 0\u20131 value.\n6. Same as 1, but the ratio to the average is computed as count / (total / number of scopes). This is the same value as in 1, written another way.\n7. Users are joined on `orders.userlink = users.userstamp`. A user with duplicate `userstamp` rows would multiply the counts. Each match is counted as a join row.\n8. Users are joined as in 7, but duplicate users are collapsed first, so each risk/margin record is counted once.\n9. Orders are matched on `riskandmargin.ordervault = orders.recordvault`. Duplicate `recordvault` values in `orders` would multiply the counts. Each match is counted as a join row.\n10. Orders are matched as in 9, but the count is of distinct `riskandmarginpivot` values per scope, so each risk/margin record is counted once.\n11. The count is of risk/margin records, not of orders. An order with two records counts twice, as the question states.\n12. Records with a NULL `acctscope` form their own group, shown as a NULL scope row. They count toward the total and the average.\n13. Records with a NULL `acctscope` are excluded. The total and the average cover only the non-NULL scopes.\n14. The \"fraction of the total\" is the integer-division result (0 or 1) in a SQL engine that truncates, rather than a decimal fraction.\n15. The \"ratio to the average\" is the integer-division result in a SQL engine that truncates, rather than a decimal ratio.\n16. The output has one row per scope with four columns: scope, count, fraction of total, ratio to average. Rows are in no particular order.\n17. The same output as 16, with rows ordered by count descending.\n18. The same output as 16, with rows ordered alphabetically by scope.",
+  "Missing interpretations:\n\nThe fraction's denominator is the total number of risk/margin records before dropping unmatched ones, not the total across matched scopes.\nJoin keys are compared after trimming whitespace or ignoring case (CHAR(36) padding or UUID case differences), so more records match.\nThe average is the mean of the per-scope counts computed across all scopes, with NULL-scope records excluded from the numerators but included in the total."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 107858,
+  "chars_out": 5401
+ }
+}

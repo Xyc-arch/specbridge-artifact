@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f2fce9cad5",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH pair_counts AS (SELECT td.tradekind, ab.translink, COUNT(*) AS rec_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader td ON td.tradereg = tx.trdref GROUP BY td.tradekind, ab.translink), shares AS (SELECT tradekind, translink, rec_count, rec_count::numeric / SUM(rec_count) OVER (PARTITION BY tradekind) AS share FROM pair_counts), type_avg AS (SELECT tradekind, rec_count, share, AVG(share) OVER (PARTITION BY tradekind) AS type_avg_share FROM shares), kept AS (SELECT * FROM type_avg WHERE share >= type_avg_share) SELECT tradekind AS trader_type, AVG(rec_count) AS avg_record_count, AVG(share) AS avg_share, AVG(share - type_avg_share) AS avg_share_excess FROM kept GROUP BY tradekind;",
+  "assumptions": [
+   {
+    "assumption": "Trader type is trader.tradekind, and a pair is a distinct (translink, tradekind) combination. Each transaction has one trader, so this matches pairing by trader.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Records with no matching transaction or trader are dropped by the inner joins, as the request says.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A pair's share is its record count divided by the total record count of all pairs of the same trader type. The trader type's average share is the mean share over all pairs of that type, before the filter is applied.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A NULL tradekind is treated as its own trader type group rather than being excluded. The request does not say how to handle missing trader types.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Exclude trader records with a NULL tradekind so that only real trader types are grouped.",
+    "sql": "WITH pair_counts AS (SELECT td.tradekind, ab.translink, COUNT(*) AS rec_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader td ON td.tradereg = tx.trdref WHERE td.tradekind IS NOT NULL GROUP BY td.tradekind, ab.translink), shares AS (SELECT tradekind, translink, rec_count, rec_count::numeric / SUM(rec_count) OVER (PARTITION BY tradekind) AS share FROM pair_counts), type_avg AS (SELECT tradekind, rec_count, share, AVG(share) OVER (PARTITION BY tradekind) AS type_avg_share FROM shares), kept AS (SELECT * FROM type_avg WHERE share >= type_avg_share) SELECT tradekind AS trader_type, AVG(rec_count) AS avg_record_count, AVG(share) AS avg_share, AVG(share - type_avg_share) AS avg_share_excess FROM kept GROUP BY tradekind;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": false,
+ "primary_matches": [],
+ "seconds": 14.2
+}

@@ -1,0 +1,98 @@
+{
+ "queries": [
+  "WITH per_source AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS src_size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), overall AS (SELECT AVG(src_size) AS avg_size FROM per_source) SELECT AVG(ps.avg_ratio) AS avg_of_ratios, SUM(ps.src_size) AS combined_size, AVG(ps.src_size - o.avg_size) AS avg_excess_over_average FROM per_source ps CROSS JOIN overall o WHERE ps.src_size > o.avg_size",
+  "WITH per_source AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, SUM(s.aream2) AS src_size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), overall AS (SELECT AVG(src_size) AS avg_size FROM per_source) SELECT AVG(ps.avg_ratio) AS avg_of_ratios, SUM(ps.src_size) AS combined_size, AVG(ps.src_size - o.avg_size) AS avg_excess_over_average FROM per_source ps CROSS JOIN overall o WHERE ps.src_size > o.avg_size",
+  "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT src, avg_ratio, size, AVG(size * 1.0) OVER () AS avg_size FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(size) AS combined_size, AVG(size - avg_size) AS avg_excess_over_avg_size FROM a WHERE size > avg_size",
+  "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, SUM(s.volm3) AS size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT src, avg_ratio, size, AVG(size) OVER () AS avg_size FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(size) AS combined_size, AVG(size - avg_size) AS avg_excess_over_avg_size FROM a WHERE size > avg_size",
+  "WITH g AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz * 1.0) AS m FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratio, SUM(g.sz) AS combined_size, AVG(g.sz - a.m) AS avg_excess_over_mean_size FROM g CROSS JOIN a WHERE g.sz > a.m",
+  "WITH g AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, SUM(s.volm3) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS m FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratio, SUM(g.sz) AS combined_size, AVG(g.sz - a.m) AS avg_excess_over_mean_size FROM g CROSS JOIN a WHERE g.sz > a.m"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_source AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS src_size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), overall AS (SELECT AVG(src_size) AS avg_size FROM per_source) SELECT AVG(ps.avg_ratio) AS avg_of_ratios, SUM(ps.src_size) AS combined_size, AVG(ps.src_size - o.avg_size) AS avg_excess_over_average FROM per_source ps CROSS JOIN overall o WHERE ps.src_size > o.avg_size",
+   "assumptions": [
+    {
+     "assumption": "A funding source's 'size' is the number of scanspatial records linked to its projects (all records counted, including those with a missing or zero boxy/boxz).",
+     "unresolved": true
+    },
+    {
+     "assumption": "A NULL fundflux forms its own group (GROUP BY treats NULLs as one group).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Missing ratios are ignored via AVG skipping NULLs; boxz = 0 is treated as missing through NULLIF to avoid division by zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'average of their ratios' is the unweighted mean of the per-source average ratios, and the average size is the unweighted mean of per-source sizes. Only projects with at least one spatial record are included (inner join).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Size means the total surface area (sum of aream2) of the spatial records for each funding source, rather than the record count.",
+     "sql": "WITH per_source AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, SUM(s.aream2) AS src_size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), overall AS (SELECT AVG(src_size) AS avg_size FROM per_source) SELECT AVG(ps.avg_ratio) AS avg_of_ratios, SUM(ps.src_size) AS combined_size, AVG(ps.src_size - o.avg_size) AS avg_excess_over_average FROM per_source ps CROSS JOIN overall o WHERE ps.src_size > o.avg_size"
+    }
+   ]
+  },
+  {
+   "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT src, avg_ratio, size, AVG(size * 1.0) OVER () AS avg_size FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(size) AS combined_size, AVG(size - avg_size) AS avg_excess_over_avg_size FROM a WHERE size > avg_size",
+   "assumptions": [
+    {
+     "assumption": "A funding source's 'size' is the number of scanspatial records linked to its projects. Records with a missing ratio still count toward size.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A missing fundflux is its own group, which GROUP BY already does with NULLs. The 'average size across funding sources' is the unweighted mean of the per-source sizes, with each group counted once.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The ratio is boxy/boxz per record. Records where boxz is 0 or boxy or boxz is NULL are ignored in the average, and an inner join drops scanspatial rows with no matching project.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Size means the total volume (volm3) of the spatial records per funding source, not the record count.",
+     "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, SUM(s.volm3) AS size FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT src, avg_ratio, size, AVG(size) OVER () AS avg_size FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(size) AS combined_size, AVG(size - avg_size) AS avg_excess_over_avg_size FROM a WHERE size > avg_size"
+    }
+   ]
+  },
+  {
+   "sql": "WITH g AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz * 1.0) AS m FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratio, SUM(g.sz) AS combined_size, AVG(g.sz - a.m) AS avg_excess_over_mean_size FROM g CROSS JOIN a WHERE g.sz > a.m",
+   "assumptions": [
+    {
+     "assumption": "A funding source's 'size' is the number of scanspatial records linked to its projects. The request does not say which measure to use.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Rows with a NULL fundflux form one group. Rows with a NULL boxy or boxz, or with boxz = 0, add nothing to the ratio average (NULLIF avoids division by zero). They still count toward size.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'average size across funding sources' is the unweighted mean of the per-source sizes. The 'average of their ratios' is the unweighted mean of the per-source average ratios.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only spatial records that match a project (inner join) are included.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Size is the total volume (sum of volm3) of a funding source's spatial records, instead of the record count.",
+     "sql": "WITH g AS (SELECT p.fundflux, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, SUM(s.volm3) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS m FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratio, SUM(g.sz) AS combined_size, AVG(g.sz - a.m) AS avg_excess_over_mean_size FROM g CROSS JOIN a WHERE g.sz > a.m"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-e14588a994",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 123726,
+  "chars_out": 5277
+ }
+}

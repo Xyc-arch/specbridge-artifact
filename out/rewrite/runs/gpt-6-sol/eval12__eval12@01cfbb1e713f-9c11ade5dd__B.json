@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9c11ade5dd",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Records with a blank or missing SEX are excluded before grouping, so only the real sex values form groups.",
+ "b": {
+  "request": "Join laboratory tests to patients by ID; exclude patients with null or blank `SEX` and tests with an undefined CPK/GPT ratio; compute each sex\u2019s mean ratio, retain sexes above the mean of those sex means, then retain sexes above the mean of the retained sex means; return one unrounded row containing the final sexes\u2019 mean ratio and their mean differences from the first and second means",
+  "sql": "WITH sex_means AS (SELECT TRIM(p.SEX) AS sex, AVG(CAST(l.CPK AS REAL) / l.GPT) AS mean_ratio FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY TRIM(p.SEX)), first_mean AS (SELECT AVG(mean_ratio) AS value FROM sex_means), first_retained AS (SELECT s.mean_ratio FROM sex_means AS s CROSS JOIN first_mean AS f WHERE s.mean_ratio > f.value), second_mean AS (SELECT AVG(mean_ratio) AS value FROM first_retained) SELECT AVG(s.mean_ratio) AS mean_ratio, AVG(s.mean_ratio - f.value) AS mean_difference_from_first, AVG(s.mean_ratio - m.value) AS mean_difference_from_second FROM first_retained AS s CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m WHERE s.mean_ratio > m.value",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Matching lab tests to patients, average the CPK-to-GPT ratio for each `SEX` value, ignoring tests where the ratio is missing. Keep the sexes whose average is above the mean of those averages, then among them keep the ones above their own mean. In one unrounded row, give the average ratio of the sexes left, how far above the first mean they are on average, and how far above the second mean they are on average. Records with a blank or missing SEX are excluded before grouping, so only the real sex values form groups.",
+  "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / NULLIF(l.GPT, 0)) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> '' GROUP BY p.SEX HAVING COUNT(CASE WHEN l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 THEN 1 END) > 0), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), above_first AS (SELECT s.* FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM above_first) SELECT AVG(a.avg_ratio) AS average_ratio, AVG(a.avg_ratio - f.value) AS average_above_first_mean, AVG(a.avg_ratio - s.value) AS average_above_second_mean FROM above_first AS a CROSS JOIN first_mean AS f CROSS JOIN second_mean AS s WHERE a.avg_ratio > s.value",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Join each lab test to its patient and compute the CPK \u00f7 GPT ratio per test, ignoring tests where the ratio is missing. Average the ratio separately for every distinct `SEX` value. Patients whose `SEX` is an empty string '' or missing are dropped first, so only real sex values form groups. Take the plain mean of all these group averages and keep the groups whose average is above it. Then take the mean of the kept groups' averages and keep the groups above that second mean. Return one unrounded row with: the average of the remaining groups' ratio averages, the average amount by which they exceed the first mean, and the average amount by which they exceed the second mean.",
+  "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / l.GPT) AS avg_ratio FROM Laboratory AS l JOIN Patient AS p ON p.ID = l.ID WHERE p.SEX IS NOT NULL AND p.SEX <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_kept AS (SELECT s.avg_ratio FROM sex_averages AS s CROSS JOIN first_mean AS f WHERE s.avg_ratio > f.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_kept) SELECT AVG(k.avg_ratio) AS avg_ratio, AVG(k.avg_ratio - f.value) AS avg_above_first_mean, AVG(k.avg_ratio - m.value) AS avg_above_second_mean FROM first_kept AS k CROSS JOIN first_mean AS f CROSS JOIN second_mean AS m WHERE k.avg_ratio > m.value;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match lab tests to patients and calculate the average CPK-to-GPT ratio for each nonblank, nonmissing `SEX` value, ignoring tests with a missing ratio. Keep sex groups whose averages exceed the mean of all sex-group averages, then keep those whose averages exceed the mean of the remaining groups. In one unrounded row, report the average ratio of the final groups, their average amount above the first mean, and their average amount above the second mean.",
+  "sql": "WITH sex_averages AS (SELECT p.SEX, AVG(1.0 * l.CPK / NULLIF(l.GPT, 0)) AS avg_ratio FROM Patient AS p JOIN Laboratory AS l ON l.ID = p.ID WHERE p.SEX IS NOT NULL AND TRIM(p.SEX) <> '' AND l.CPK IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT <> 0 GROUP BY p.SEX), first_mean AS (SELECT AVG(avg_ratio) AS value FROM sex_averages), first_groups AS (SELECT s.avg_ratio FROM sex_averages AS s CROSS JOIN first_mean AS m WHERE s.avg_ratio > m.value), second_mean AS (SELECT AVG(avg_ratio) AS value FROM first_groups) SELECT AVG(g.avg_ratio) AS avg_ratio, AVG(g.avg_ratio - m1.value) AS avg_above_first_mean, AVG(g.avg_ratio - m2.value) AS avg_above_second_mean FROM first_groups AS g CROSS JOIN first_mean AS m1 CROSS JOIN second_mean AS m2 WHERE g.avg_ratio > m2.value;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

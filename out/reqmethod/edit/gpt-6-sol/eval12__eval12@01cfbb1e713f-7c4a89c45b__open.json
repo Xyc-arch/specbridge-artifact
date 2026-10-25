@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Compare status averages with the overall signal mean; report both differences as signed values.",
+  "Compare status averages with the overall signal mean; report both differences as percentages.",
+  "Compare status averages with the unweighted mean of all status averages; report signed differences.",
+  "Compare status averages with the unweighted mean of all status averages; report percentage differences."
+ ],
+ "edited": [
+  "Which RFI statuses (`rfistat`) have an above-average modulation index (`modindex`)? Ignore missing index values, and treat signals with no status as their own group. For each such status, show the status, its average modulation index, how far above average it is, and how it differs from the mean of the qualifying statuses' averages. Leave all values unrounded. Compare status averages with the overall signal mean; report both differences as signed values.",
+  "Which RFI statuses (`rfistat`) have an above-average modulation index (`modindex`)? Ignore missing index values, and treat signals with no status as their own group. For each such status, show the status, its average modulation index, how far above average it is, and how it differs from the mean of the qualifying statuses' averages. Leave all values unrounded. Compare status averages with the overall signal mean; report both differences as percentages.",
+  "Which RFI statuses (`rfistat`) have an above-average modulation index (`modindex`)? Ignore missing index values, and treat signals with no status as their own group. For each such status, show the status, its average modulation index, how far above average it is, and how it differs from the mean of the qualifying statuses' averages. Leave all values unrounded. Compare status averages with the unweighted mean of all status averages; report signed differences.",
+  "Which RFI statuses (`rfistat`) have an above-average modulation index (`modindex`)? Ignore missing index values, and treat signals with no status as their own group. For each such status, show the status, its average modulation index, how far above average it is, and how it differs from the mean of the qualifying statuses' averages. Leave all values unrounded. Compare status averages with the unweighted mean of all status averages; report percentage differences."
+ ],
+ "queries": [
+  "WITH status_averages AS (\n    SELECT rfistat, AVG(modindex) AS avg_modindex\n    FROM signals\n    WHERE modindex IS NOT NULL\n    GROUP BY rfistat\n),\nqualifying AS (\n    SELECT rfistat, avg_modindex,\n           avg_modindex - (SELECT AVG(modindex) FROM signals) AS above_overall\n    FROM status_averages\n    WHERE avg_modindex > (SELECT AVG(modindex) FROM signals)\n)\nSELECT rfistat,\n       avg_modindex,\n       above_overall,\n       avg_modindex - AVG(avg_modindex) OVER () AS difference_from_qualifying_mean\nFROM qualifying;\n",
+  "WITH status_averages AS (\n  SELECT rfistat, AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\noverall_average AS (\n  SELECT AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nqualifying AS (\n  SELECT sa.rfistat, sa.avg_modindex\n  FROM status_averages AS sa\n  CROSS JOIN overall_average AS oa\n  WHERE sa.avg_modindex > oa.avg_modindex\n)\nSELECT\n  q.rfistat,\n  q.avg_modindex,\n  100.0 * (q.avg_modindex - oa.avg_modindex) / oa.avg_modindex AS pct_above_overall,\n  100.0 * (q.avg_modindex - qm.avg_modindex) / qm.avg_modindex AS pct_from_qualifying_mean\nFROM qualifying AS q\nCROSS JOIN overall_average AS oa\nCROSS JOIN (\n  SELECT AVG(avg_modindex) AS avg_modindex\n  FROM qualifying\n) AS qm",
+  "WITH status_averages AS (\n    SELECT rfistat, AVG(modindex) AS avg_modindex\n    FROM signals\n    WHERE modindex IS NOT NULL\n    GROUP BY rfistat\n),\noverall_average AS (\n    SELECT AVG(avg_modindex) AS mean_status_average\n    FROM status_averages\n),\nqualifying AS (\n    SELECT\n        s.rfistat,\n        s.avg_modindex,\n        s.avg_modindex - o.mean_status_average AS above_average\n    FROM status_averages AS s\n    CROSS JOIN overall_average AS o\n    WHERE s.avg_modindex > o.mean_status_average\n)\nSELECT\n    rfistat,\n    avg_modindex,\n    above_average,\n    avg_modindex - AVG(avg_modindex) OVER () AS difference_from_qualifying_mean\nFROM qualifying;\n",
+  "WITH status_averages AS (\n    SELECT rfistat, AVG(modindex) AS avg_modindex\n    FROM signals\n    WHERE modindex IS NOT NULL\n    GROUP BY rfistat\n),\noverall_average AS (\n    SELECT AVG(avg_modindex) AS avg_of_status_averages\n    FROM status_averages\n),\nqualifying AS (\n    SELECT sa.rfistat, sa.avg_modindex\n    FROM status_averages AS sa\n    CROSS JOIN overall_average AS oa\n    WHERE sa.avg_modindex > oa.avg_of_status_averages\n)\nSELECT\n    q.rfistat,\n    q.avg_modindex,\n    100.0 * (q.avg_modindex - oa.avg_of_status_averages)\n        / NULLIF(oa.avg_of_status_averages, 0) AS percent_above_average,\n    100.0 * (q.avg_modindex - (SELECT AVG(avg_modindex) FROM qualifying))\n        / NULLIF((SELECT AVG(avg_modindex) FROM qualifying), 0) AS percent_from_qualifying_average\nFROM qualifying AS q\nCROSS JOIN overall_average AS oa;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 485903,
+  "chars_out": 6498
+ }
+}

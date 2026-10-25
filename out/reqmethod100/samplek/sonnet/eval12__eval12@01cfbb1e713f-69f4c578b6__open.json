@@ -1,0 +1,76 @@
+{
+ "queries": [
+  "WITH pa AS (SELECT bp.player_id, p.bats, AVG(bp.\"double\") AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id GROUP BY bp.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles * 1.0 / (SELECT AVG(avg_doubles) FROM pa) AS idx FROM pa), g AS (SELECT player_id, bats, avg_doubles, idx, idx - AVG(idx) OVER (PARTITION BY bats) AS gap FROM idx) SELECT player_id, bats, avg_doubles, idx, gap FROM g ORDER BY gap DESC NULLS LAST LIMIT 10;",
+  "WITH pa AS (SELECT bp.player_id, p.bats, AVG(bp.\"double\") AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id GROUP BY bp.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / AVG(avg_doubles) OVER () AS rel_index FROM pa), g AS (SELECT player_id, bats, avg_doubles, rel_index, rel_index - AVG(rel_index) OVER (PARTITION BY bats) AS gap FROM idx) SELECT player_id, bats, avg_doubles, rel_index, gap FROM g ORDER BY gap DESC NULLS LAST LIMIT 10;",
+  "WITH p AS (SELECT bp.player_id, pl.bats, AVG(bp.double) AS avg_doubles FROM batting_postseason bp JOIN player pl ON pl.player_id = bp.player_id GROUP BY bp.player_id, pl.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / AVG(avg_doubles) OVER () AS idx FROM p), g AS (SELECT player_id, bats, avg_doubles, idx, idx - AVG(idx) OVER (PARTITION BY bats) AS gap FROM idx) SELECT player_id, bats, avg_doubles, idx, gap FROM g ORDER BY gap DESC NULLS LAST LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH pa AS (SELECT bp.player_id, p.bats, AVG(bp.\"double\") AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id GROUP BY bp.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles * 1.0 / (SELECT AVG(avg_doubles) FROM pa) AS idx FROM pa), g AS (SELECT player_id, bats, avg_doubles, idx, idx - AVG(idx) OVER (PARTITION BY bats) AS gap FROM idx) SELECT player_id, bats, avg_doubles, idx, gap FROM g ORDER BY gap DESC NULLS LAST LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "player.player_id is unique, so the inner join does not duplicate postseason rows; players absent from player are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Each postseason batting row counts as one 'record' and AVG skips NULL doubles. The overall average is the unweighted mean of the per-player averages, so players whose doubles are all NULL are excluded from it.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The batting-hand average index is the mean of the per-player indexes within each bats value. Players with a NULL bats value are treated as one group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Output values are unrounded, and NULL gaps sort last (NULLS LAST needs SQLite 3.30+).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH pa AS (SELECT bp.player_id, p.bats, AVG(bp.\"double\") AS avg_doubles FROM batting_postseason bp JOIN player p ON p.player_id = bp.player_id GROUP BY bp.player_id, p.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / AVG(avg_doubles) OVER () AS rel_index FROM pa), g AS (SELECT player_id, bats, avg_doubles, rel_index, rel_index - AVG(rel_index) OVER (PARTITION BY bats) AS gap FROM idx) SELECT player_id, bats, avg_doubles, rel_index, gap FROM g ORDER BY gap DESC NULLS LAST LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "player.player_id is unique, so the inner join does not duplicate postseason records; players absent from player are dropped.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average and the per-hand average index are each taken over players (one row per player), not over individual postseason records. Players whose doubles are all NULL have a NULL average and are excluded from those averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Players with a NULL batting hand form their own group for the per-hand average.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Ties at the 10th place are broken arbitrarily by LIMIT.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH p AS (SELECT bp.player_id, pl.bats, AVG(bp.double) AS avg_doubles FROM batting_postseason bp JOIN player pl ON pl.player_id = bp.player_id GROUP BY bp.player_id, pl.bats), idx AS (SELECT player_id, bats, avg_doubles, avg_doubles / AVG(avg_doubles) OVER () AS idx FROM p), g AS (SELECT player_id, bats, avg_doubles, idx, idx - AVG(idx) OVER (PARTITION BY bats) AS gap FROM idx) SELECT player_id, bats, avg_doubles, idx, gap FROM g ORDER BY gap DESC NULLS LAST LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "Each batting_postseason row is a 'record'. Players are inner-joined to player, so postseason rows with no matching player are dropped. Players whose doubles are all NULL have a NULL average and are left out of both overall and per-hand averages.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The overall average is the unweighted mean of the per-player averages across all players. The hand average is the mean of the per-player indexes within each batting hand. Players with a NULL batting hand are grouped together as one group.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69f4c578b6",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 28104,
+  "chars_out": 3638
+ }
+}

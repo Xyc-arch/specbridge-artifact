@@ -1,0 +1,35 @@
+{
+ "interpretations": [
+  "Per-film copy counts are computed from the inventory table, summed across both stores. Films with no inventory records are excluded. The share is the film's copies divided by the total of all inventory records (4581). Results are ordered by share descending. The top 10 rows are kept, plus any film whose copy count equals the 10th film's copy count (ties at the cutoff are included, as in RANK() <= 10 on copy count).",
+  "Same as 1, but the cutoff is defined by the first 10 distinct share or copy-count values (DENSE_RANK() <= 10). This returns all films in the top 10 distinct copy-count levels, which can be far more than 10 rows.",
+  "Same as 1, but films in the film table with zero inventory copies are also listed with a count of 0 and a share of 0. Because of the ties at the cutoff, these zero-copy films would matter only if the 10th film has zero copies.",
+  "Same as 1, but the total used as the denominator is the total of copies for films present in the film table only. This differs from 1 only if the inventory holds orphan film_ids.",
+  "Same as 1, but \"number of copies\" is counted per store. Each row is a film and store pair, with the share computed against the overall total of 4581 copies. The top 10 plus ties are then taken over these pairs.",
+  "Same as 5, but the share is computed against the store's own total copies, not the overall total. Each store's total is about 2270 for store 1 and 2311 for store 2.",
+  "Same as 1, but with the share expressed as a percentage (multiplied by 100). It is still unrounded.",
+  "Same as 1, but the tie-break among films with equal shares is by film_id ascending, and the output is ordered by share descending and then film_id. The set of rows returned is the same as in 1, and only the row order differs.",
+  "Same as 1, but \"the 10th film\" is read as the 10th row after a deterministic ordering. Ties with that film's copy count are included, so the result is the same set as in 1.",
+  "Same as 1, but the output is limited to the top 10 films only, and tied films beyond the 10th are cut by an arbitrary or film_id-based tie-break. This ignores the \"every other film tied\" clause."
+ ],
+ "queries": [
+  "WITH c AS (\n  SELECT film_id, COUNT(*) AS copies\n  FROM inventory\n  GROUP BY film_id\n),\nr AS (\n  SELECT film_id, copies, RANK() OVER (ORDER BY copies DESC) AS rnk\n  FROM c\n)\nSELECT film_id, copies, copies * 1.0 / (SELECT COUNT(*) FROM inventory) AS share\nFROM r\nWHERE rnk <= 10\nORDER BY share DESC;\n",
+  "SELECT title, copies\nFROM (\n  SELECT f.title, COUNT(i.inventory_id) AS copies,\n         DENSE_RANK() OVER (ORDER BY COUNT(i.inventory_id) DESC) AS rnk\n  FROM film f\n  JOIN inventory i ON i.film_id = f.film_id\n  GROUP BY f.film_id, f.title\n)\nWHERE rnk <= 10\nORDER BY copies DESC, title",
+  "SELECT title, copies, share\nFROM (\n  SELECT f.title,\n         COUNT(i.inventory_id) AS copies,\n         COUNT(i.inventory_id) * 1.0 / (SELECT COUNT(*) FROM inventory) AS share,\n         RANK() OVER (ORDER BY COUNT(i.inventory_id) DESC) AS rnk\n  FROM film f\n  LEFT JOIN inventory i ON i.film_id = f.film_id\n  GROUP BY f.film_id, f.title\n)\nWHERE rnk <= 10\nORDER BY copies DESC, title;\n",
+  "SELECT f.rating, COUNT(*) * 100.0 / (SELECT COUNT(*) FROM inventory i2 JOIN film f2 ON f2.film_id = i2.film_id) AS pct\nFROM inventory i\nJOIN film f ON f.film_id = i.film_id\nGROUP BY f.rating;\n",
+  "SELECT title, store_id, copies, share\nFROM (\n  SELECT f.title AS title,\n         i.store_id AS store_id,\n         COUNT(*) AS copies,\n         COUNT(*) * 1.0 / (SELECT COUNT(*) FROM inventory) AS share,\n         RANK() OVER (ORDER BY COUNT(*) DESC) AS rnk\n  FROM inventory i\n  JOIN film f ON f.film_id = i.film_id\n  GROUP BY f.film_id, i.store_id\n)\nWHERE rnk <= 10\nORDER BY copies DESC, title, store_id;\n",
+  "SELECT i.store_id, f.rating, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER (PARTITION BY i.store_id) AS share\nFROM inventory i\nJOIN film f ON f.film_id = i.film_id\nGROUP BY i.store_id, f.rating"
+ ],
+ "raw": [
+  "1. Per-film copy counts are computed from the inventory table, summed across both stores. Films with no inventory records are excluded. The share is the film's copies divided by the total of all inventory records (4581). Results are ordered by share descending. The top 10 rows are kept, plus any film whose copy count equals the 10th film's copy count (ties at the cutoff are included, as in RANK() <= 10 on copy count).\n\n2. Same as 1, but the cutoff is defined by the first 10 distinct share or copy-count values (DENSE_RANK() <= 10). This returns all films in the top 10 distinct copy-count levels, which can be far more than 10 rows.\n\n3. Same as 1, but films in the film table with zero inventory copies are also listed with a count of 0 and a share of 0. Because of the ties at the cutoff, these zero-copy films would matter only if the 10th film has zero copies.\n\n4. Same as 1, but the total used as the denominator is the total of copies for films present in the film table only. This differs from 1 only if the inventory holds orphan film_ids.\n\n5. Same as 1, but \"number of copies\" is counted per store. Each row is a film and store pair, with the share computed against the overall total of 4581 copies. The top 10 plus ties are then taken over these pairs.\n\n6. Same as 5, but the share is computed against the store's own total copies, not the overall total. Each store's total is about 2270 for store 1 and 2311 for store 2.\n\n7. Same as 1, but with the share expressed as a percentage (multiplied by 100). It is still unrounded.\n\n8. Same as 1, but the tie-break among films with equal shares is by film_id ascending, and the output is ordered by share descending and then film_id. The set of rows returned is the same as in 1, and only the row order differs.\n\n9. Same as 1, but \"the 10th film\" is read as the 10th row after a deterministic ordering. Ties with that film's copy count are included, so the result is the same set as in 1.\n\n10. Same as 1, but the output is limited to the top 10 films only, and tied films beyond the 10th are cut by an arbitrary or film_id-based tie-break. This ignores the \"every other film tied\" clause.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b77a784ee8",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 112870,
+  "chars_out": 4447
+ }
+}

@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Count telescopes (matched rows) per phase, with share as that count over total matched telescopes.",
+  "Count distinct observatory stations per phase, with share over total distinct stations.",
+  "Count distinct telescopes per phase, with share over total distinct matched telescopes.",
+  "Count only telescopes with non-null bandwidth usage, with share over the total of such telescopes."
+ ],
+ "edited": [
+  "Match each telescope to its observatory on `observstation`, and drop telescopes without a match. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), show four things. First, the phase. Second, the average bandwidth usage (`telescopes.bandusagepct`), averaging per station first and then across stations (missing values ignored). Third, how many there are with that phase. Fourth, what share of the overall total that is. Don't round. Count telescopes (matched rows) per phase, with share as that count over total matched telescopes.",
+  "Match each telescope to its observatory on `observstation`, and drop telescopes without a match. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), show four things. First, the phase. Second, the average bandwidth usage (`telescopes.bandusagepct`), averaging per station first and then across stations (missing values ignored). Third, how many there are with that phase. Fourth, what share of the overall total that is. Don't round. Count distinct observatory stations per phase, with share over total distinct stations.",
+  "Match each telescope to its observatory on `observstation`, and drop telescopes without a match. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), show four things. First, the phase. Second, the average bandwidth usage (`telescopes.bandusagepct`), averaging per station first and then across stations (missing values ignored). Third, how many there are with that phase. Fourth, what share of the overall total that is. Don't round. Count distinct telescopes per phase, with share over total distinct matched telescopes.",
+  "Match each telescope to its observatory on `observstation`, and drop telescopes without a match. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), show four things. First, the phase. Second, the average bandwidth usage (`telescopes.bandusagepct`), averaging per station first and then across stations (missing values ignored). Third, how many there are with that phase. Fourth, what share of the overall total that is. Don't round. Count only telescopes with non-null bandwidth usage, with share over the total of such telescopes."
+ ],
+ "queries": [
+  "WITH matched AS (\n  SELECT o.lunarstage AS lunarstage, t.observstation AS observstation, t.bandusagepct AS bandusagepct\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n),\nstation_avg AS (\n  SELECT lunarstage, observstation, AVG(bandusagepct) AS station_avg\n  FROM matched\n  GROUP BY lunarstage, observstation\n),\nphase_avg AS (\n  SELECT lunarstage, AVG(station_avg) AS avg_bandwidth_usage\n  FROM station_avg\n  GROUP BY lunarstage\n),\nphase_cnt AS (\n  SELECT lunarstage, COUNT(*) AS telescope_count\n  FROM matched\n  GROUP BY lunarstage\n)\nSELECT c.lunarstage,\n       a.avg_bandwidth_usage,\n       c.telescope_count,\n       c.telescope_count * 1.0 / (SELECT COUNT(*) FROM matched) AS share\nFROM phase_cnt c\nJOIN phase_avg a ON a.lunarstage IS c.lunarstage;\n",
+  "WITH station_stats AS (\n  SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_avg\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n  GROUP BY o.observstation, o.lunarstage\n)\nSELECT\n  lunarstage,\n  AVG(station_avg) AS avg_bandwidth_usage,\n  COUNT(DISTINCT observstation) AS station_count,\n  COUNT(DISTINCT observstation) * 1.0 / (SELECT COUNT(DISTINCT observstation) FROM station_stats) AS share_of_total\nFROM station_stats\nGROUP BY lunarstage;\n",
+  "WITH matched AS (\n  SELECT t.telescregistry, t.observstation, t.bandusagepct, o.lunarstage\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n),\nstation_avg AS (\n  SELECT observstation, lunarstage, AVG(bandusagepct) AS station_avg\n  FROM matched\n  GROUP BY observstation, lunarstage\n),\nphase_avg AS (\n  SELECT lunarstage, AVG(station_avg) AS avg_bandwidth_usage\n  FROM station_avg\n  GROUP BY lunarstage\n),\nphase_count AS (\n  SELECT lunarstage, COUNT(DISTINCT telescregistry) AS telescope_count\n  FROM matched\n  GROUP BY lunarstage\n)\nSELECT\n  pc.lunarstage,\n  pa.avg_bandwidth_usage,\n  pc.telescope_count,\n  pc.telescope_count * 1.0 / (SELECT COUNT(DISTINCT telescregistry) FROM matched) AS share\nFROM phase_count pc\nJOIN phase_avg pa ON pa.lunarstage IS pc.lunarstage;\n",
+  "WITH station AS (\n  SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_avg, COUNT(t.bandusagepct) AS cnt\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n  WHERE t.bandusagepct IS NOT NULL\n  GROUP BY o.observstation, o.lunarstage\n)\nSELECT lunarstage,\n       AVG(station_avg) AS avg_bandwidth_usage,\n       SUM(cnt) AS telescope_count,\n       SUM(cnt) * 1.0 / (SELECT SUM(cnt) FROM station) AS share\nFROM station\nGROUP BY lunarstage;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 486833,
+  "chars_out": 8495
+ }
+}

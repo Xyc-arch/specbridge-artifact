@@ -1,0 +1,64 @@
+{
+ "queries": [
+  "WITH film_copies AS (SELECT film_id, COUNT(*) AS copies FROM inventory GROUP BY film_id), ranked AS (SELECT film_id, copies, CAST(copies AS REAL) / SUM(copies) OVER () AS share, RANK() OVER (ORDER BY copies DESC) AS rnk, ROW_NUMBER() OVER (ORDER BY copies DESC, film_id) AS rn FROM film_copies), cutoff AS (SELECT copies AS cutoff_copies FROM ranked WHERE rn = 10) SELECT r.film_id, r.copies, r.share FROM ranked r, cutoff c WHERE r.copies >= c.cutoff_copies ORDER BY r.share DESC, r.film_id",
+  "WITH film_copies AS (SELECT film_id, COUNT(*) AS copies FROM inventory GROUP BY film_id), ranked AS (SELECT film_id, copies, CAST(copies AS REAL) / SUM(copies) OVER () AS share, RANK() OVER (ORDER BY copies DESC) AS rnk FROM film_copies), cutoff AS (SELECT copies AS cutoff_copies FROM (SELECT copies, ROW_NUMBER() OVER (ORDER BY copies DESC, film_id) AS rn FROM film_copies) WHERE rn = 10) SELECT r.film_id, r.copies AS copy_count, r.share FROM ranked r, cutoff c WHERE r.copies >= c.cutoff_copies ORDER BY r.share DESC, r.film_id",
+  "WITH c AS (SELECT film_id, COUNT(*) AS copies, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS share FROM inventory GROUP BY film_id), r AS (SELECT film_id, copies, share, RANK() OVER (ORDER BY copies DESC) AS rnk FROM c), cut AS (SELECT copies AS cut_copies FROM (SELECT copies, ROW_NUMBER() OVER (ORDER BY copies DESC) AS rn FROM c) WHERE rn = 10) SELECT film_id, copies, share FROM c WHERE copies >= (SELECT cut_copies FROM cut) ORDER BY share DESC, film_id"
+ ],
+ "responses": [
+  {
+   "sql": "WITH film_copies AS (SELECT film_id, COUNT(*) AS copies FROM inventory GROUP BY film_id), ranked AS (SELECT film_id, copies, CAST(copies AS REAL) / SUM(copies) OVER () AS share, RANK() OVER (ORDER BY copies DESC) AS rnk, ROW_NUMBER() OVER (ORDER BY copies DESC, film_id) AS rn FROM film_copies), cutoff AS (SELECT copies AS cutoff_copies FROM ranked WHERE rn = 10) SELECT r.film_id, r.copies, r.share FROM ranked r, cutoff c WHERE r.copies >= c.cutoff_copies ORDER BY r.share DESC, r.film_id",
+   "assumptions": [
+    {
+     "assumption": "Only films that have at least one inventory record are listed, and the total is the count of all inventory rows (4581). Films with no copies are excluded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The tie rule is applied by copy count. The 10th film is the one in position 10 when sorted by copies descending, with film_id breaking ties only to choose it. Every film with copies >= that film's count is kept. Share is a decimal fraction, not a percentage.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH film_copies AS (SELECT film_id, COUNT(*) AS copies FROM inventory GROUP BY film_id), ranked AS (SELECT film_id, copies, CAST(copies AS REAL) / SUM(copies) OVER () AS share, RANK() OVER (ORDER BY copies DESC) AS rnk FROM film_copies), cutoff AS (SELECT copies AS cutoff_copies FROM (SELECT copies, ROW_NUMBER() OVER (ORDER BY copies DESC, film_id) AS rn FROM film_copies) WHERE rn = 10) SELECT r.film_id, r.copies AS copy_count, r.share FROM ranked r, cutoff c WHERE r.copies >= c.cutoff_copies ORDER BY r.share DESC, r.film_id",
+   "assumptions": [
+    {
+     "assumption": "Only films that have at least one inventory record are included (films with zero copies are not shown), and the total is the count of all inventory rows.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties at the cutoff are determined by copy count equal to the 10th film's copy count; ties among the top 10 are ordered by film_id as a tiebreaker for display only.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Share is computed as a non-rounded floating-point ratio (copies / total copies).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT film_id, COUNT(*) AS copies, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS share FROM inventory GROUP BY film_id), r AS (SELECT film_id, copies, share, RANK() OVER (ORDER BY copies DESC) AS rnk FROM c), cut AS (SELECT copies AS cut_copies FROM (SELECT copies, ROW_NUMBER() OVER (ORDER BY copies DESC) AS rn FROM c) WHERE rn = 10) SELECT film_id, copies, share FROM c WHERE copies >= (SELECT cut_copies FROM cut) ORDER BY share DESC, film_id",
+   "assumptions": [
+    {
+     "assumption": "Only films that have at least one inventory record are included (films with no copies are omitted), and the total is the count of all inventory rows.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Ties at the 10th film's copy count are all included, so more than 10 rows may be returned; ties are broken by film_id in the display order only.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-b77a784ee8",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 42663,
+  "chars_out": 3016
+ }
+}

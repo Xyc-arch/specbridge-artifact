@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "For each moon phase, count the observatory stations, and give each phase's share of the total number of stations.",
+ "c": {
+  "request": "Match each telescope to its observatory on `observstation`, and drop telescopes without a match. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), show four things. First, the phase. Second, the average bandwidth usage (`telescopes.bandusagepct`), averaging per station first and then across stations (missing values ignored). Third, how many there are with that phase. Fourth, what share of the overall total that is. Don't round. For each moon phase, count the observatory stations, and give each phase's share of the total number of stations.",
+  "sql": "WITH station_usage AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bandwidth_usage FROM observatories AS o JOIN telescopes AS t ON t.observstation = o.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(avg_bandwidth_usage) AS avg_bandwidth_usage, COUNT(*) AS station_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS station_share FROM station_usage GROUP BY lunarstage",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Match each telescope to its observatory on `observstation`, and drop telescopes without a matching observatory. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), return four columns. First, the phase. Second, the average bandwidth usage (`telescopes.bandusagepct`), computed by averaging per observatory station first and then averaging those station averages (missing values ignored). Third, the number of observatory stations in that phase. Fourth, that count as a fraction of the total number of observatory stations across all phases. Don't round.",
+  "sql": "WITH station_averages AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_avg_usage FROM observatories AS o JOIN telescopes AS t ON t.observstation = o.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(station_avg_usage) AS avg_bandwidth_usage, COUNT(*) AS station_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM station_averages) AS station_fraction FROM station_averages GROUP BY lunarstage",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each moon phase, including missing phases as a separate group, report the phase, the average station bandwidth usage (average each station\u2019s nonmissing telescope values first, then average across stations), the number of matched observatory stations, and that count\u2019s share of all matched observatory stations, without rounding",
+  "sql": "WITH station_averages AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_bandwidth_usage FROM observatories AS o JOIN telescopes AS t ON t.observstation = o.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage AS phase, AVG(station_bandwidth_usage) AS average_station_bandwidth_usage, COUNT(*) AS matched_station_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share_of_matched_stations FROM station_averages GROUP BY lunarstage;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each moon phase in `observatories.lunarstage`, including missing phases as their own group, count the observatory stations that have at least one matching telescope on `observstation`, and give each phase\u2019s share of the total count of those stations. Drop telescopes without a matching observatory, and don\u2019t round.",
+  "sql": "WITH matched_stations AS (SELECT o.observstation, o.lunarstage FROM observatories AS o WHERE EXISTS (SELECT 1 FROM telescopes AS t WHERE t.observstation = o.observstation)) SELECT lunarstage, COUNT(*) AS station_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share_of_total FROM matched_stations GROUP BY lunarstage",
+  "executes": true,
+  "matches": []
+ }
+}

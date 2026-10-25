@@ -1,0 +1,38 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-be554083e6",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH currency_avgs AS (\n  SELECT \n    feecoin,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(CASE WHEN feerate <> 0 THEN (rebrate - feerate) / feerate END) as avg_rel_gap\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_rebtotal) as bench_value\n  FROM currency_avgs\n),\nabove_benchmark AS (\n  SELECT \n    ca.avg_rebtotal,\n    ca.avg_rel_gap,\n    ca.avg_rebtotal - b.bench_value as excess\n  FROM currency_avgs ca, benchmark b\n  WHERE b.bench_value IS NOT NULL\n    AND ca.avg_rebtotal > b.bench_value\n)\nSELECT \n  AVG(avg_rebtotal) as mean_avg_rebtotal,\n  AVG(avg_rel_gap) as mean_avg_rel_gap,\n  AVG(excess) as mean_excess\nFROM above_benchmark",
+  "assumptions": [
+   {
+    "assumption": "Records with NULL feecoin are treated as one currency group in the benchmark calculation, along with all other feecoin values",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"the mean of their average relative gap\" could be the global average of (rebrate - feerate) / feerate across all individual records in currencies above the benchmark, rather than the mean of per-currency averages.",
+    "sql": "WITH currency_avgs AS (\n  SELECT \n    feecoin,\n    AVG(rebtotal) as avg_rebtotal\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_rebtotal) as bench_value\n  FROM currency_avgs\n),\nabove_benchmark_currencies AS (\n  SELECT ca.feecoin, ca.avg_rebtotal\n  FROM currency_avgs ca, benchmark b\n  WHERE b.bench_value IS NOT NULL\n    AND ca.avg_rebtotal > b.bench_value\n)\nSELECT \n  (SELECT AVG(avg_rebtotal) FROM above_benchmark_currencies) as mean_avg_rebtotal,\n  AVG(CASE WHEN f.feerate <> 0 THEN (f.rebrate - f.feerate) / f.feerate END) as mean_avg_rel_gap,\n  (SELECT AVG(abc.avg_rebtotal - b.bench_value) FROM above_benchmark_currencies abc, benchmark b) as mean_excess\nFROM fees f\nWHERE f.feecoin IN (SELECT feecoin FROM above_benchmark_currencies)"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"the mean of their average relative gap\" could be the global average of (rebrate - feerate) / feerate across all individual records in currencies above the benchmark, rather than the mean of per-currency averages.",
+   "sql": "WITH currency_avgs AS (\n  SELECT \n    feecoin,\n    AVG(rebtotal) as avg_rebtotal\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_rebtotal) as bench_value\n  FROM currency_avgs\n),\nabove_benchmark_currencies AS (\n  SELECT ca.feecoin, ca.avg_rebtotal\n  FROM currency_avgs ca, benchmark b\n  WHERE b.bench_value IS NOT NULL\n    AND ca.avg_rebtotal > b.bench_value\n)\nSELECT \n  (SELECT AVG(avg_rebtotal) FROM above_benchmark_currencies) as mean_avg_rebtotal,\n  AVG(CASE WHEN f.feerate <> 0 THEN (f.rebrate - f.feerate) / f.feerate END) as mean_avg_rel_gap,\n  (SELECT AVG(abc.avg_rebtotal - b.bench_value) FROM above_benchmark_currencies abc, benchmark b) as mean_excess\nFROM fees f\nWHERE f.feecoin IN (SELECT feecoin FROM above_benchmark_currencies)",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 113.2,
+ "chars_out": 1993
+}

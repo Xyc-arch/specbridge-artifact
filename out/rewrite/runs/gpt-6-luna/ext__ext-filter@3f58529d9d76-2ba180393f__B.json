@@ -1,0 +1,40 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Only fee records with a fee rate strictly above 0.0009 are included; exactly 0.0009 is excluded.",
+ "d": {
+  "request": "Filter to fee records where `feerate` is strictly greater than 0.0009, join each fee to its order on an exact text match between `fees.orderslink` and `orders.recordvault`, and exclude fees without a matching order. Group by `orderslink` and `dealedge`, computing the average of `feerate - rebrate` while ignoring rows where either value is missing, and the number of records in each group. For each side, compute the average of its group averages; return groups whose average net fee rate is strictly greater than that side average, showing `orderslink`, side, group average net fee rate, record count, and the group average minus the side average. Sort by that difference descending with missing values last, limit to 10, and do not round values.",
+  "sql": "WITH group_rates AS (SELECT f.orderslink, o.dealedge AS side, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate, COUNT(*) AS record_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate > 0.0009 AND f.feerate IS NOT NULL AND f.rebrate IS NOT NULL GROUP BY f.orderslink, o.dealedge), side_averages AS (SELECT side, AVG(avg_net_fee_rate) AS side_avg FROM group_rates GROUP BY side) SELECT g.orderslink, g.side, g.avg_net_fee_rate, g.record_count, g.avg_net_fee_rate - s.side_avg AS difference FROM group_rates g JOIN side_averages s ON g.side = s.side WHERE g.avg_net_fee_rate > s.side_avg ORDER BY difference DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Take fee records with a fee rate (`feerate`) strictly greater than 0.0009 and match each to its order (`fees.orderslink` = `orders.recordvault`, exact text match; drop fees with no matching order). For each combination of `orderslink` and order side (`dealedge`), compute the average net fee rate (`feerate` minus `rebrate`, ignoring missing values) and the number of records. Then compute each side's average of those group averages. List the groups whose average net fee rate is strictly greater than their side's average. Show `orderslink`, side, the group's average net fee rate, its record count, and the group average minus the side average. Sort by that difference from highest to lowest (missing last), keep the top 10, and don't round anything.",
+  "sql": "WITH group_averages AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    AVG(f.feerate - f.rebrate) AS avg_net_fee_rate,\n    COUNT(*) AS record_count\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n  GROUP BY f.orderslink, o.dealedge\n),\nside_averages AS (\n  SELECT\n    side,\n    AVG(avg_net_fee_rate) AS side_avg_net_fee_rate\n  FROM group_averages\n  GROUP BY side\n)\nSELECT\n  g.orderslink,\n  g.side,\n  g.avg_net_fee_rate,\n  g.record_count,\n  g.avg_net_fee_rate - s.side_avg_net_fee_rate AS difference\nFROM group_averages AS g\nJOIN side_averages AS s\n  ON g.side = s.side\nWHERE g.avg_net_fee_rate > s.side_avg_net_fee_rate\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "Using only high-rate fee records, with 0.0009 on the fee rate (`feerate`) as the cutoff, match each fee to its order (`fees.orderslink` = `orders.recordvault`, exact text match; drop fees with no matching order). For each combination of `orderslink` and order side (`dealedge`), compute the average net fee rate (`feerate` minus `rebrate`, ignoring missing values) and the number of records. Then compute each side's average of those group averages. List the groups whose average net fee rate is strictly greater than their side's average. Show `orderslink`, side, the group's average net fee rate, its record count, and the group average minus the side average. Sort by that difference from highest to lowest (missing last), keep the top 10, and don't round anything. Only fee records with a fee rate strictly above 0.0009 are included; exactly 0.0009 is excluded.",
+  "sql": "WITH grouped_fees AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    AVG(f.feerate - f.rebrate) AS avg_net_fee_rate,\n    COUNT(*) AS record_count\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n  GROUP BY f.orderslink, o.dealedge\n),\nscored_groups AS (\n  SELECT\n    orderslink,\n    side,\n    avg_net_fee_rate,\n    record_count,\n    AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg_net_fee_rate\n  FROM grouped_fees\n)\nSELECT\n  orderslink,\n  side,\n  avg_net_fee_rate,\n  record_count,\n  avg_net_fee_rate - side_avg_net_fee_rate AS difference\nFROM scored_groups\nWHERE avg_net_fee_rate > side_avg_net_fee_rate\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Include only fee records where `feerate` is strictly greater than 0.0009, match them to orders by exact text equality of `fees.orderslink` and `orders.recordvault`, and exclude unmatched fees. Group by `orderslink` and `dealedge`; for each group, calculate the average of `feerate - rebrate`, ignoring rows where either value is missing, and count the records. For each side, calculate the unweighted average of its group averages. Return groups whose average net fee rate is strictly greater than their side\u2019s average, showing `orderslink`, side, group average net fee rate, record count, and the difference between the group and side averages; sort by this difference descending, with missing differences last, return the top 10, and do not round values.",
+  "sql": "WITH group_rates AS (\n  SELECT f.orderslink, o.dealedge AS side,\n         AVG(f.feerate - f.rebrate) AS avg_net_fee_rate,\n         COUNT(*) AS record_count\n  FROM fees AS f\n  INNER JOIN orders AS o\n    ON CAST(f.orderslink AS TEXT) = CAST(o.recordvault AS TEXT)\n  WHERE f.feerate > 0.0009\n    AND f.feerate IS NOT NULL\n    AND f.rebrate IS NOT NULL\n  GROUP BY f.orderslink, o.dealedge\n), ranked_groups AS (\n  SELECT orderslink, side, avg_net_fee_rate, record_count,\n         AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg\n  FROM group_rates\n)\nSELECT orderslink, side, avg_net_fee_rate, record_count,\n       avg_net_fee_rate - side_avg AS difference\nFROM ranked_groups\nWHERE avg_net_fee_rate > side_avg\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "Include only fee records where `feerate` is strictly greater than 0.0009, match them to orders by exact text equality of `fees.orderslink` and `orders.recordvault`, and exclude unmatched fees. Group by `orderslink` and `dealedge`; for each group, calculate the average of `feerate - rebrate`, ignoring rows where either value is missing, and count the records. For each side, calculate the unweighted average of its group averages. Return groups whose average net fee rate is strictly greater than their side\u2019s average, showing `orderslink`, side, group average net fee rate, record count, and the difference between the group and side averages; sort by this difference descending, with missing differences last, return the top 10, and do not round values."
+ },
+ "calls": 6
+}

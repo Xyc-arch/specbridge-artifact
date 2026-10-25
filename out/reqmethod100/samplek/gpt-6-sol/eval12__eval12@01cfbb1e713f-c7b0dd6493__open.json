@@ -1,0 +1,66 @@
+{
+ "queries": [
+  "WITH account_counts AS (SELECT a.account_id, a.customer_id, COUNT(ft.account_id) AS transaction_count FROM Accounts AS a LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id GROUP BY a.account_id, a.customer_id), average_count AS (SELECT AVG(transaction_count * 1.0) AS value FROM account_counts), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM account_counts AS ac JOIN Customers AS c ON c.customer_id = ac.customer_id WHERE c.town_city IS NOT NULL) SELECT e.account_id, e.town_city, e.transaction_count, e.transaction_count * 1.0 / NULLIF(SUM(e.transaction_count) OVER (PARTITION BY e.town_city), 0) AS town_transaction_share, e.transaction_count * 1.0 / NULLIF(av.value, 0) AS ratio_to_average FROM eligible AS e CROSS JOIN average_count AS av ORDER BY ratio_to_average DESC, e.account_id LIMIT 10",
+  "WITH eligible AS (SELECT a.account_id, c.town_city, COUNT(ft.account_id) AS transaction_count FROM Accounts AS a JOIN Customers AS c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id, c.town_city), average_count AS (SELECT AVG(transaction_count * 1.0) AS value FROM eligible) SELECT e.account_id, e.town_city, e.transaction_count, e.transaction_count * 1.0 / NULLIF(SUM(e.transaction_count) OVER (PARTITION BY e.town_city), 0) AS town_transaction_share, e.transaction_count * 1.0 / NULLIF(av.value, 0) AS ratio_to_average FROM eligible AS e CROSS JOIN average_count AS av ORDER BY ratio_to_average DESC, e.account_id LIMIT 10",
+  "WITH account_counts AS (SELECT a.account_id, c.town_city, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a JOIN Customers AS c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id, c.town_city), metrics AS (SELECT account_id, town_city, transaction_count, 1.0 * transaction_count / NULLIF(SUM(transaction_count) OVER (PARTITION BY town_city), 0) AS town_transaction_share, 1.0 * transaction_count / NULLIF((SELECT AVG(transaction_count) FROM account_counts), 0) AS ratio_to_average FROM account_counts) SELECT account_id, town_city, transaction_count, town_transaction_share, ratio_to_average FROM metrics ORDER BY ratio_to_average DESC, transaction_count DESC, account_id LIMIT 10",
+  "WITH all_account_counts AS (SELECT a.account_id, a.customer_id, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id GROUP BY a.account_id, a.customer_id), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM all_account_counts AS ac JOIN Customers AS c ON c.customer_id = ac.customer_id WHERE c.town_city IS NOT NULL), metrics AS (SELECT account_id, town_city, transaction_count, 1.0 * transaction_count / NULLIF(SUM(transaction_count) OVER (PARTITION BY town_city), 0) AS town_transaction_share, 1.0 * transaction_count / NULLIF((SELECT AVG(transaction_count) FROM all_account_counts), 0) AS ratio_to_average FROM eligible) SELECT account_id, town_city, transaction_count, town_transaction_share, ratio_to_average FROM metrics ORDER BY ratio_to_average DESC, transaction_count DESC, account_id LIMIT 10",
+  "WITH account_counts AS (SELECT a.account_id, c.town_city, COUNT(ft.transaction_id) AS transaction_count FROM Accounts a JOIN Customers c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id, c.town_city), totals AS (SELECT account_id, town_city, transaction_count, SUM(transaction_count) OVER (PARTITION BY town_city) AS town_transaction_count, AVG(1.0 * transaction_count) OVER () AS average_transaction_count FROM account_counts) SELECT account_id, town_city, transaction_count, 1.0 * transaction_count / NULLIF(town_transaction_count, 0) AS town_transaction_share, 1.0 * transaction_count / NULLIF(average_transaction_count, 0) AS ratio_to_average FROM totals ORDER BY ratio_to_average DESC, account_id LIMIT 10",
+  "WITH all_counts AS (SELECT a.account_id, COUNT(ft.transaction_id) AS transaction_count FROM Accounts a LEFT JOIN Financial_Transactions ft ON ft.account_id = a.account_id GROUP BY a.account_id), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM all_counts ac JOIN Accounts a ON a.account_id = ac.account_id JOIN Customers c ON c.customer_id = a.customer_id WHERE c.town_city IS NOT NULL), totals AS (SELECT e.account_id, e.town_city, e.transaction_count, SUM(e.transaction_count) OVER (PARTITION BY e.town_city) AS town_transaction_count FROM eligible e) SELECT t.account_id, t.town_city, t.transaction_count, 1.0 * t.transaction_count / NULLIF(t.town_transaction_count, 0) AS town_transaction_share, 1.0 * t.transaction_count / NULLIF((SELECT AVG(1.0 * transaction_count) FROM all_counts), 0) AS ratio_to_average FROM totals t ORDER BY ratio_to_average DESC, t.account_id LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH account_counts AS (SELECT a.account_id, a.customer_id, COUNT(ft.account_id) AS transaction_count FROM Accounts AS a LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id GROUP BY a.account_id, a.customer_id), average_count AS (SELECT AVG(transaction_count * 1.0) AS value FROM account_counts), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM account_counts AS ac JOIN Customers AS c ON c.customer_id = ac.customer_id WHERE c.town_city IS NOT NULL) SELECT e.account_id, e.town_city, e.transaction_count, e.transaction_count * 1.0 / NULLIF(SUM(e.transaction_count) OVER (PARTITION BY e.town_city), 0) AS town_transaction_share, e.transaction_count * 1.0 / NULLIF(av.value, 0) AS ratio_to_average FROM eligible AS e CROSS JOIN average_count AS av ORDER BY ratio_to_average DESC, e.account_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average covers every account, including accounts with zero transactions. A share or ratio with a zero denominator is NULL.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Calculate the average only across accounts eligible to appear in the results.",
+     "sql": "WITH eligible AS (SELECT a.account_id, c.town_city, COUNT(ft.account_id) AS transaction_count FROM Accounts AS a JOIN Customers AS c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id, c.town_city), average_count AS (SELECT AVG(transaction_count * 1.0) AS value FROM eligible) SELECT e.account_id, e.town_city, e.transaction_count, e.transaction_count * 1.0 / NULLIF(SUM(e.transaction_count) OVER (PARTITION BY e.town_city), 0) AS town_transaction_share, e.transaction_count * 1.0 / NULLIF(av.value, 0) AS ratio_to_average FROM eligible AS e CROSS JOIN average_count AS av ORDER BY ratio_to_average DESC, e.account_id LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH account_counts AS (SELECT a.account_id, c.town_city, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a JOIN Customers AS c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id, c.town_city), metrics AS (SELECT account_id, town_city, transaction_count, 1.0 * transaction_count / NULLIF(SUM(transaction_count) OVER (PARTITION BY town_city), 0) AS town_transaction_share, 1.0 * transaction_count / NULLIF((SELECT AVG(transaction_count) FROM account_counts), 0) AS ratio_to_average FROM account_counts) SELECT account_id, town_city, transaction_count, town_transaction_share, ratio_to_average FROM metrics ORDER BY ratio_to_average DESC, transaction_count DESC, account_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average is calculated across accounts eligible for the result, including those with zero transactions. Shares and ratios are NULL when their denominator is zero.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Calculate the average across every account, including accounts excluded from the result because their holder or town is missing.",
+     "sql": "WITH all_account_counts AS (SELECT a.account_id, a.customer_id, COUNT(ft.transaction_id) AS transaction_count FROM Accounts AS a LEFT JOIN Financial_Transactions AS ft ON ft.account_id = a.account_id GROUP BY a.account_id, a.customer_id), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM all_account_counts AS ac JOIN Customers AS c ON c.customer_id = ac.customer_id WHERE c.town_city IS NOT NULL), metrics AS (SELECT account_id, town_city, transaction_count, 1.0 * transaction_count / NULLIF(SUM(transaction_count) OVER (PARTITION BY town_city), 0) AS town_transaction_share, 1.0 * transaction_count / NULLIF((SELECT AVG(transaction_count) FROM all_account_counts), 0) AS ratio_to_average FROM eligible) SELECT account_id, town_city, transaction_count, town_transaction_share, ratio_to_average FROM metrics ORDER BY ratio_to_average DESC, transaction_count DESC, account_id LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH account_counts AS (SELECT a.account_id, c.town_city, COUNT(ft.transaction_id) AS transaction_count FROM Accounts a JOIN Customers c ON c.customer_id = a.customer_id LEFT JOIN Financial_Transactions ft ON ft.account_id = a.account_id WHERE c.town_city IS NOT NULL GROUP BY a.account_id, c.town_city), totals AS (SELECT account_id, town_city, transaction_count, SUM(transaction_count) OVER (PARTITION BY town_city) AS town_transaction_count, AVG(1.0 * transaction_count) OVER () AS average_transaction_count FROM account_counts) SELECT account_id, town_city, transaction_count, 1.0 * transaction_count / NULLIF(town_transaction_count, 0) AS town_transaction_share, 1.0 * transaction_count / NULLIF(average_transaction_count, 0) AS ratio_to_average FROM totals ORDER BY ratio_to_average DESC, account_id LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The average includes accounts eligible for the result, including those with zero transactions.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "Calculate the average across every account, including accounts later excluded because their customer or town is missing.",
+     "sql": "WITH all_counts AS (SELECT a.account_id, COUNT(ft.transaction_id) AS transaction_count FROM Accounts a LEFT JOIN Financial_Transactions ft ON ft.account_id = a.account_id GROUP BY a.account_id), eligible AS (SELECT ac.account_id, c.town_city, ac.transaction_count FROM all_counts ac JOIN Accounts a ON a.account_id = ac.account_id JOIN Customers c ON c.customer_id = a.customer_id WHERE c.town_city IS NOT NULL), totals AS (SELECT e.account_id, e.town_city, e.transaction_count, SUM(e.transaction_count) OVER (PARTITION BY e.town_city) AS town_transaction_count FROM eligible e) SELECT t.account_id, t.town_city, t.transaction_count, 1.0 * t.transaction_count / NULLIF(t.town_transaction_count, 0) AS town_transaction_share, 1.0 * t.transaction_count / NULLIF((SELECT AVG(1.0 * transaction_count) FROM all_counts), 0) AS ratio_to_average FROM totals t ORDER BY ratio_to_average DESC, t.account_id LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c7b0dd6493",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12081,
+  "chars_out": 6256
+ }
+}

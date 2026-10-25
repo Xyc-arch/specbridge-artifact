@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Exclude missing event types and report absolute differences.",
+  "Exclude missing event types and report signed differences.",
+  "Exclude missing event types and report absolute percentage differences.",
+  "Treat missing event types as a separate group."
+ ],
+ "edited": [
+  "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, ignoring missing values? Also show how far each type's average is from the mean of the per-type averages. Exclude missing event types and report absolute differences.",
+  "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, ignoring missing values? Also show how far each type's average is from the mean of the per-type averages. Exclude missing event types and report signed differences.",
+  "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, ignoring missing values? Also show how far each type's average is from the mean of the per-type averages. Exclude missing event types and report absolute percentage differences.",
+  "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, ignoring missing values? Also show how far each type's average is from the mean of the per-type averages. Treat missing event types as a separate group."
+ ],
+ "queries": [
+  "WITH type_averages AS (\n    SELECT e.type,\n           AVG(b.spent / b.amount) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n    GROUP BY e.type\n)\nSELECT type,\n       average_ratio,\n       ABS(average_ratio - (SELECT AVG(average_ratio) FROM type_averages)) AS absolute_difference\nFROM type_averages;\n",
+  "WITH type_averages AS (\n    SELECT\n        e.type,\n        AVG(b.spent / NULLIF(b.amount, 0)) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n    GROUP BY e.type\n)\nSELECT\n    type,\n    average_ratio,\n    average_ratio - (SELECT AVG(average_ratio) FROM type_averages) AS difference_from_mean\nFROM type_averages\nWHERE average_ratio IS NOT NULL",
+  "WITH type_averages AS (\n    SELECT\n        e.type,\n        AVG(b.spent * 1.0 / NULLIF(b.amount, 0)) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n    GROUP BY e.type\n)\nSELECT\n    type,\n    average_ratio,\n    ABS(average_ratio - (SELECT AVG(average_ratio) FROM type_averages))\n        * 100.0 / NULLIF((SELECT AVG(average_ratio) FROM type_averages), 0)\n        AS absolute_percentage_difference\nFROM type_averages",
+  "WITH per_type AS (\n    SELECT\n        e.type AS event_type,\n        AVG(1.0 * b.spent / NULLIF(b.amount, 0)) AS average_ratio\n    FROM budget AS b\n    JOIN event AS e ON e.event_id = b.link_to_event\n    GROUP BY e.type\n)\nSELECT\n    event_type,\n    average_ratio,\n    ABS(average_ratio - (SELECT AVG(average_ratio) FROM per_type)) AS distance_from_mean\nFROM per_type"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5d1920435b",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "edit",
+ "cost": {
+  "calls": 13,
+  "chars_in": 91498,
+  "chars_out": 5793
+ }
+}

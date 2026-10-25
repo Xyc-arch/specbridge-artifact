@@ -1,0 +1,32 @@
+{
+ "interpretations": [
+  "For each time-in-force group, count all matched fee\u2013order rows, average each row\u2019s `rebrate / feerate` where both values are present, then return the three requested aggregates for groups whose row count exceeds the unweighted average group count.",
+  "Count only matched fee\u2013order rows with a defined `rebrate / feerate` ratio when calculating each group\u2019s match count and the cross-group average count.",
+  "Count distinct matched orders in each group, while calculating the group\u2019s average ratio from its fee rows.",
+  "Treat orders with a missing `timespan` as their own group when calculating the cross-group average and selecting groups.",
+  "Exclude orders with a missing `timespan` from grouping and all subsequent calculations.",
+  "Treat a zero `feerate` as a missing ratio and exclude that fee row from ratio averages while retaining its match in the count.",
+  "Count distinct matched fee records in each group if multiple orders share a `recordvault`.",
+  "Calculate each group\u2019s ratio as `AVG(rebrate) / AVG(feerate)` rather than averaging row-level ratios.",
+  "Retain selected groups with no defined ratio in the count and excess aggregates, while omitting their null group averages from the average of averages."
+ ],
+ "queries": [
+  "WITH grouped AS (\n  SELECT\n    o.timespan,\n    COUNT(*) AS row_count,\n    AVG(CASE\n      WHEN f.rebrate IS NOT NULL AND f.feerate IS NOT NULL\n      THEN f.rebrate / NULLIF(f.feerate, 0)\n    END) AS avg_rebate_fee_ratio\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  GROUP BY o.timespan\n)\nSELECT timespan, row_count, avg_rebate_fee_ratio\nFROM grouped\nWHERE row_count > (SELECT AVG(row_count) FROM grouped)",
+  "WITH ratio_counts AS (\n  SELECT\n    f.rebrate / f.feerate AS rebate_fee_ratio,\n    COUNT(*) AS match_count\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  WHERE f.rebrate IS NOT NULL\n    AND f.feerate IS NOT NULL\n    AND f.feerate <> 0\n  GROUP BY f.rebrate / f.feerate\n)\nSELECT\n  rebate_fee_ratio,\n  match_count,\n  AVG(match_count) OVER () AS average_match_count\nFROM ratio_counts",
+  "SELECT\n  f.feerange,\n  COUNT(DISTINCT o.recordvault) AS matched_orders,\n  AVG(f.rebtotal / NULLIF(f.feetotal, 0)) AS average_ratio\nFROM fees AS f\nJOIN orders AS o ON o.recordvault = f.orderslink\nGROUP BY f.feerange",
+  "SELECT timespan\nFROM orders\nGROUP BY timespan\nHAVING COUNT(*) > (\n    SELECT AVG(order_count)\n    FROM (\n        SELECT COUNT(*) AS order_count\n        FROM orders\n        GROUP BY timespan\n    )\n)"
+ ],
+ "raw": [
+  "For each time-in-force group, count all matched fee\u2013order rows, average each row\u2019s `rebrate / feerate` where both values are present, then return the three requested aggregates for groups whose row count exceeds the unweighted average group count.\n\nCount only matched fee\u2013order rows with a defined `rebrate / feerate` ratio when calculating each group\u2019s match count and the cross-group average count.\n\nCount distinct matched orders in each group, while calculating the group\u2019s average ratio from its fee rows.\n\nTreat orders with a missing `timespan` as their own group when calculating the cross-group average and selecting groups.\n\nExclude orders with a missing `timespan` from grouping and all subsequent calculations.\n\nTreat a zero `feerate` as a missing ratio and exclude that fee row from ratio averages while retaining its match in the count.",
+  "Count distinct matched fee records in each group if multiple orders share a `recordvault`.\n\nCalculate each group\u2019s ratio as `AVG(rebrate) / AVG(feerate)` rather than averaging row-level ratios.\n\nRetain selected groups with no defined ratio in the count and excess aggregates, while omitting their null group averages from the average of averages."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 106190,
+  "chars_out": 2649
+ }
+}

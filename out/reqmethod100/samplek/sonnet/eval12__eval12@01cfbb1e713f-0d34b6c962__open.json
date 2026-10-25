@@ -1,0 +1,86 @@
+{
+ "queries": [
+  "WITH r AS (SELECT link_to_event, SUM(spent) * 1.0 / SUM(amount) AS ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), a AS (SELECT AVG(ratio) AS avg_ratio FROM r) SELECT r.link_to_event AS event_id, r.ratio AS spend_ratio, r.ratio / a.avg_ratio AS relative_ratio FROM r CROSS JOIN a ORDER BY (r.ratio / a.avg_ratio) IS NULL, r.ratio / a.avg_ratio DESC LIMIT 10;",
+  "WITH r AS (SELECT link_to_event, SUM(spent) * 1.0 / SUM(amount) AS ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), a AS (SELECT SUM(spent) * 1.0 / SUM(amount) AS avg_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL) SELECT r.link_to_event AS event_id, r.ratio AS spend_ratio, r.ratio / a.avg_ratio AS relative_ratio FROM r CROSS JOIN a ORDER BY (r.ratio / a.avg_ratio) IS NULL, r.ratio / a.avg_ratio DESC LIMIT 10;",
+  "WITH ev AS (SELECT link_to_event AS event_id, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), avg_r AS (SELECT AVG(spend_ratio) AS avg_ratio FROM ev) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM ev CROSS JOIN avg_r ORDER BY (ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;",
+  "WITH ev AS (SELECT link_to_event AS event_id, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), avg_r AS (SELECT SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS avg_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM ev CROSS JOIN avg_r ORDER BY (ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;",
+  "WITH r AS (SELECT link_to_event AS event_id, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event) SELECT event_id, spend_ratio, spend_ratio / (SELECT AVG(spend_ratio) FROM r) AS relative_ratio FROM r ORDER BY (spend_ratio / (SELECT AVG(spend_ratio) FROM r)) IS NULL, relative_ratio DESC LIMIT 10;",
+  "WITH r AS (SELECT link_to_event AS event_id, AVG(spent * 1.0 / amount) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL AND amount <> 0 GROUP BY link_to_event) SELECT event_id, spend_ratio, spend_ratio / (SELECT AVG(spend_ratio) FROM r) AS relative_ratio FROM r ORDER BY (spend_ratio / (SELECT AVG(spend_ratio) FROM r)) IS NULL, relative_ratio DESC LIMIT 10;"
+ ],
+ "responses": [
+  {
+   "sql": "WITH r AS (SELECT link_to_event, SUM(spent) * 1.0 / SUM(amount) AS ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), a AS (SELECT AVG(ratio) AS avg_ratio FROM r) SELECT r.link_to_event AS event_id, r.ratio AS spend_ratio, r.ratio / a.avg_ratio AS relative_ratio FROM r CROSS JOIN a ORDER BY (r.ratio / a.avg_ratio) IS NULL, r.ratio / a.avg_ratio DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "An event's spend ratio is SUM(spent)/SUM(amount) over its budget lines. Only lines where both spent and amount are non-null count. Events with no such lines are left out.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'average spend ratio across all events' is the simple mean of the per-event ratios, so each event counts equally. It is not the pooled total spent divided by total amount.",
+     "unresolved": true
+    },
+    {
+     "assumption": "An event whose summed amount is 0 gets a NULL ratio, because SQLite returns NULL for division by zero. Those events sort last, and AVG skips them.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average spend ratio is the pooled ratio across all budget lines (total spent / total amount), not the mean of the per-event ratios.",
+     "sql": "WITH r AS (SELECT link_to_event, SUM(spent) * 1.0 / SUM(amount) AS ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), a AS (SELECT SUM(spent) * 1.0 / SUM(amount) AS avg_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL) SELECT r.link_to_event AS event_id, r.ratio AS spend_ratio, r.ratio / a.avg_ratio AS relative_ratio FROM r CROSS JOIN a ORDER BY (r.ratio / a.avg_ratio) IS NULL, r.ratio / a.avg_ratio DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH ev AS (SELECT link_to_event AS event_id, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), avg_r AS (SELECT AVG(spend_ratio) AS avg_ratio FROM ev) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM ev CROSS JOIN avg_r ORDER BY (ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "An event's spend ratio is SUM(spent)/SUM(amount) over its budget lines. Only lines where both spent and amount are non-null are used. Events whose total amount is 0 get a NULL ratio.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average spend ratio across all events is the simple mean of the per-event ratios, with events that have a NULL ratio excluded. Each event counts equally.",
+     "unresolved": true
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The average spend ratio is the pooled ratio across all budget lines (total spent / total amount), not the mean of per-event ratios.",
+     "sql": "WITH ev AS (SELECT link_to_event AS event_id, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event), avg_r AS (SELECT SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS avg_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL) SELECT ev.event_id, ev.spend_ratio, ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0) AS relative_ratio FROM ev CROSS JOIN avg_r ORDER BY (ev.spend_ratio / NULLIF(avg_r.avg_ratio, 0)) IS NULL, relative_ratio DESC LIMIT 10;"
+    }
+   ]
+  },
+  {
+   "sql": "WITH r AS (SELECT link_to_event AS event_id, SUM(spent) * 1.0 / NULLIF(SUM(amount), 0) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL GROUP BY link_to_event) SELECT event_id, spend_ratio, spend_ratio / (SELECT AVG(spend_ratio) FROM r) AS relative_ratio FROM r ORDER BY (spend_ratio / (SELECT AVG(spend_ratio) FROM r)) IS NULL, relative_ratio DESC LIMIT 10;",
+   "assumptions": [
+    {
+     "assumption": "An event's spend ratio is SUM(spent)/SUM(amount) over its budget lines, using only lines where both spent and amount are non-null. An event whose total amount is 0 gets a NULL ratio.",
+     "unresolved": true
+    },
+    {
+     "assumption": "The 'average spend ratio across all events' is the unweighted mean of the per-event ratios, ignoring events with a NULL ratio.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Events appear only if they have at least one budget row with a non-null link_to_event, spent and amount.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The event's spend ratio is the average of the per-line ratios spent/amount, not the ratio of totals. Lines with a zero or missing amount or a missing spent value are ignored.",
+     "sql": "WITH r AS (SELECT link_to_event AS event_id, AVG(spent * 1.0 / amount) AS spend_ratio FROM budget WHERE link_to_event IS NOT NULL AND spent IS NOT NULL AND amount IS NOT NULL AND amount <> 0 GROUP BY link_to_event) SELECT event_id, spend_ratio, spend_ratio / (SELECT AVG(spend_ratio) FROM r) AS relative_ratio FROM r ORDER BY (spend_ratio / (SELECT AVG(spend_ratio) FROM r)) IS NULL, relative_ratio DESC LIMIT 10;"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-0d34b6c962",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23601,
+  "chars_out": 5161
+ }
+}

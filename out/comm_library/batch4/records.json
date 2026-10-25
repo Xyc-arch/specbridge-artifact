@@ -1,0 +1,2479 @@
+{
+ "library": [
+  {
+   "version": "comm-library-v2",
+   "task": "b000",
+   "question_id": 50,
+   "database": "california_schools",
+   "original": "What is the postal street address for the school with the 7th highest Math average? Indicate the school's name.\nEvidence: Postal street and mailing street are synonyms.",
+   "explicit": "Start from each `satscores` record; combine it with each `schools` record for which California Department Schools (`satscores.cds`) equals Central District School Code (`schools.CDSCode`) (compared as text, character by character), one combined record per match (a record without a match is dropped); for each kept record, return (1) mailing street address (`schools.MailStreet`); (2) school name (`schools.School`); order the result rows by average SAT math score (`satscores.AvgScrMath`) descending (missing last); keep only the first 1 rows after skipping 6.",
+   "gold_sql": "SELECT T2.MailStreet, T2.School FROM satscores AS T1 INNER JOIN schools AS T2 ON T1.cds = T2.CDSCode ORDER BY T1.AvgScrMath DESC LIMIT 6, 1",
+   "decision": "Which mailing-street column counts as the 'postal street address': the full MailStreet or the abbreviated MailStrAbr",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "The postal street address is the full mailing street, stored in MailStreet (e.g., '5172 Orange Avenue').",
+     "sql": "SELECT T2.MailStreet, T2.School FROM satscores AS T1 INNER JOIN schools AS T2 ON T1.cds = T2.CDSCode ORDER BY T1.AvgScrMath DESC LIMIT 6, 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "The postal street address is the abbreviated mailing street, stored in MailStrAbr (e.g., '5172 Orange Ave.'). The documentation describes this column as the 'mailing street address'.",
+     "sql": "SELECT T2.MailStrAbr, T2.School FROM satscores AS T1 INNER JOIN schools AS T2 ON T1.cds = T2.CDSCode ORDER BY T1.AvgScrMath DESC LIMIT 6, 1",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "The postal street address is the physical street address in the full Street column.",
+     "sql": "SELECT T2.Street, T2.School FROM satscores AS T1 INNER JOIN schools AS T2 ON T1.cds = T2.CDSCode ORDER BY T1.AvgScrMath DESC LIMIT 6, 1",
+     "rows": 1,
+     "differs_from_gold": false
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "extreme_selection",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "shared_column_names"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Return both MailStreet and MailStrAbr, since either could be the intended postal street address.",
+      "Use the full mailing address, combining MailStreet with MailCity, MailState and MailZip, instead of the street line alone.",
+      "Rank by the 7th highest distinct AvgScrMath value instead of the 7th row in sorted order. This only matters if scores are tied, and it is a separate decision from the address column."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Repeat 0 returned `s.MailStrAbr` ('5172 Orange Ave.') where the gold returns `T2.MailStreet` ('5172 Orange Avenue'). The gold also puts the columns in the order MailStreet, School. Repeat 1 also used MailStrAbr. In addition, its LEFT JOIN kept a satscores row with no matching school, so the 7th row was [None, '25 Churchill Ave.', 671], and it added an AvgScrMath column.",
+    "question_gap": "partly: the evidence equates postal street with mailing street, but it does not say whether that means the full MailStreet or the abbreviated MailStrAbr.",
+    "supplied": "return (1) mailing street address (`schools.MailStreet`)"
+   },
+   "analysis": {
+    "task": "b000",
+    "requirements": [
+     {
+      "requirement": "start from SAT score records joined to schools on the CDS code (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "the school with the 7th highest Math average"
+     },
+     {
+      "requirement": "rank by average SAT math score",
+      "real": "stated",
+      "phrase": "Math average"
+     },
+     {
+      "requirement": "descending order (highest first)",
+      "real": "stated",
+      "phrase": "highest"
+     },
+     {
+      "requirement": "missing math averages placed last",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "skip 6 rows, keep 1 (the 7th position)",
+      "real": "stated",
+      "phrase": "7th highest"
+     },
+     {
+      "requirement": "ties at the 7th position resolved by plain row position, not distinct values or rank",
+      "real": "left_open",
+      "phrase": "7th highest"
+     },
+     {
+      "requirement": "output column 1: mailing street address (MailStreet)",
+      "real": "via_evidence",
+      "phrase": "postal street address ... Postal street and mailing street are synonyms."
+     },
+     {
+      "requirement": "output column 2: school name",
+      "real": "stated",
+      "phrase": "Indicate the school's name."
+     },
+     {
+      "requirement": "output column order: street first, then name",
+      "real": "implied",
+      "phrase": "What is the postal street address ... Indicate the school's name."
+     },
+     {
+      "requirement": "one row per SAT record, no deduplication",
+      "real": "implied",
+      "phrase": "the school"
+     }
+    ],
+    "choice": {
+     "decision": "which mailing-street column to return: the full MailStreet or the abbreviated MailStrAbr",
+     "open_phrase": "postal street address ... Postal street and mailing street are synonyms.",
+     "why_both": "The evidence only maps 'postal' to 'mailing street', and both the full and the abbreviated columns are documented as the mailing street address, so either one fits the wording."
+    },
+    "pattern": [
+     "names the target attribute with a lay synonym and uses evidence to map it to a schema concept that more than one column matches",
+     "gives the rank position as an ordinal plus superlative ('Nth highest') and says nothing about ties or distinct values",
+     "asks for a second output field in a separate imperative sentence after the main question",
+     "leaves the link between the score table and the entity table unstated",
+     "says nothing about how missing values in the ranking measure are handled"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b002",
+   "question_id": 54,
+   "database": "california_schools",
+   "original": "Please specify all of the schools and their related mailing zip codes that are under Avetik Atoian's administration.",
+   "explicit": "Start from each `schools` record; keep only the records for which all of the following hold: [1] primary administrator first name (`schools.AdmFName1`) equals 'Avetik' (compared as text, character by character); [2] primary administrator last name (`schools.AdmLName1`) equals 'Atoian' (compared as text, character by character) [end]; for each kept record, return (1) school name (`schools.School`); (2) mailing zip code (`schools.MailZip`).",
+   "gold_sql": "SELECT School, MailZip FROM schools WHERE AdmFName1 = 'Avetik' AND AdmLName1 = 'Atoian'",
+   "decision": "Which administrator slots count as being 'under Avetik Atoian's administration': only the primary administrator columns (AdmFName1/AdmLName1), or any of the three administrator slots.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "A school is under Avetik Atoian's administration only if they are listed as the primary administrator (administrator 1).",
+     "sql": "SELECT School, MailZip FROM schools WHERE AdmFName1 = 'Avetik' AND AdmLName1 = 'Atoian'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "A school is under Avetik Atoian's administration if they are listed in any of the three administrator slots (1, 2, or 3).",
+     "sql": "SELECT School, MailZip FROM schools WHERE (AdmFName1 = 'Avetik' AND AdmLName1 = 'Atoian') OR (AdmFName2 = 'Avetik' AND AdmLName2 = 'Atoian') OR (AdmFName3 = 'Avetik' AND AdmLName3 = 'Atoian')",
+     "rows": 5,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "competing_roles",
+     "shared_column_names"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Match the name in the administrator 1 slot only, but also require StatusType to be Active or Pending, because administrator information is only displayed for those schools.",
+      "Treat the question as asking for both the school name and the MailZip, returning one row per school and distinct pairs only, so a school matched in several slots is not repeated."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 also matched `AdmFName2/AdmLName2` and `AdmFName3/AdmLName3`. That gave 5 rows, adding 4 Madera schools with zip 93637, where the gold has 1 row ('Fairview Middle', '93926-0238'). Repeat 1 of the original filtered only on AdmFName1/AdmLName1 and passed.",
+    "question_gap": "partly: 'under Avetik Atoian's administration' does not say that only the primary administrator columns count.",
+    "supplied": "primary administrator first name (`schools.AdmFName1`) equals 'Avetik' ... primary administrator last name (`schools.AdmLName1`) equals 'Atoian'"
+   },
+   "analysis": {
+    "task": "b002",
+    "requirements": [
+     {
+      "requirement": "start from school records",
+      "real": "stated",
+      "phrase": "all of the schools"
+     },
+     {
+      "requirement": "administrator first name equals 'Avetik'",
+      "real": "implied",
+      "phrase": "Avetik Atoian's administration"
+     },
+     {
+      "requirement": "administrator last name equals 'Atoian'",
+      "real": "implied",
+      "phrase": "Avetik Atoian's administration"
+     },
+     {
+      "requirement": "match only on the primary administrator slot (administrator 1)",
+      "real": "left_open",
+      "phrase": "under Avetik Atoian's administration"
+     },
+     {
+      "requirement": "exact case-sensitive text comparison of names",
+      "real": "implied",
+      "phrase": "Avetik Atoian"
+     },
+     {
+      "requirement": "output school name",
+      "real": "stated",
+      "phrase": "specify all of the schools"
+     },
+     {
+      "requirement": "output mailing zip code",
+      "real": "stated",
+      "phrase": "their related mailing zip codes"
+     },
+     {
+      "requirement": "no ordering, limit, or deduplication",
+      "real": "implied",
+      "phrase": "all of the schools"
+     }
+    ],
+    "choice": {
+     "decision": "whether to match the person only in the primary administrator slot or in any of the three administrator slots",
+     "open_phrase": "under Avetik Atoian's administration",
+     "why_both": "Being 'under someone's administration' could mean the person is the school's main administrator, or just that they are one of its listed administrators, and the question never says which slot counts."
+    },
+    "pattern": [
+     "names a person as one full name, so the reader has to split it into first-name and last-name fields",
+     "describes the relationship loosely ('under X's administration') and never says which of several parallel role slots to check",
+     "asks for each output column with a plain noun phrase ('schools', 'mailing zip codes')",
+     "uses 'all of' to ask for every matching record, with no ordering or limit",
+     "gives no evidence to settle how the role is mapped onto the schema"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b007",
+   "question_id": 72,
+   "database": "california_schools",
+   "original": "How many students from the ages of 5 to 17 are enrolled at the State Special School school in Fremont for the 2014-2015 academic year?\nEvidence: State Special School means EdOpsCode = 'SSS'",
+   "explicit": "Start from each `frpm` record; combine it with each `schools` record for which Central Directory System Code (`frpm.CDSCode`) equals Central District School Code (`schools.CDSCode`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] Ed Ops Code (`schools.EdOpsCode`) equals 'SSS' (compared as text, character by character); [2] city name (`schools.City`) equals 'Fremont' (compared as text, character by character); [3] school year (`frpm.Academic Year`) is between 2014 and 2015, inclusive (compared as text: the number is written as text first) [end]; for each kept record, return (1) enrolled students (`frpm.Enrollment (Ages 5-17)`).",
+   "gold_sql": "SELECT T1.`Enrollment (Ages 5-17)` FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode WHERE T2.EdOpsCode = 'SSS' AND T2.City = 'Fremont' AND T1.`Academic Year` BETWEEN 2014 AND 2015",
+   "decision": "Whether to give one enrollment figure per matching State Special School in Fremont, or add them into a single total, given that the question says 'the ... school' (singular) but two schools match the filters.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the ages 5-17 enrollment of each State Special School in Fremont for 2014-2015 as its own row (40 and 335).",
+     "sql": "SELECT T1.`Enrollment (Ages 5-17)` FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode WHERE T2.EdOpsCode = 'SSS' AND T2.City = 'Fremont' AND T1.`Academic Year` BETWEEN 2014 AND 2015",
+     "rows": 2,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "'How many students' asks for one number: the combined ages 5-17 enrollment across all State Special Schools in Fremont for 2014-2015 (375).",
+     "sql": "SELECT SUM(T1.`Enrollment (Ages 5-17)`) FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode WHERE T2.EdOpsCode = 'SSS' AND T2.City = 'Fremont' AND T1.`Academic Year` BETWEEN 2014 AND 2015",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Give the enrollment for each matching school separately, and label each row with the school's name so it is clear which figure belongs to which school.",
+     "sql": "SELECT T2.School, T1.`Enrollment (Ages 5-17)` FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode WHERE T2.EdOpsCode = 'SSS' AND T2.City = 'Fremont' AND T1.`Academic Year` BETWEEN 2014 AND 2015",
+     "rows": 2,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "aggregation_level",
+    "structure": [
+     "aggregation_over_join",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": []
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 0 aggregated with `SUM(...)` and returned 375.0, where the gold returns 2 rows (40.0, 335.0). Repeat 1 returned the correct values but added a `s.School` column. The year filter `= '2014-2015'` selected the same rows as the gold's `BETWEEN 2014 AND 2015`.",
+    "question_gap": "no: 'How many students' reasonably reads as asking for one total. The gold returns one row per school, and nothing in the question says to do that.",
+    "supplied": "for each kept record, return (1) enrolled students (`frpm.Enrollment (Ages 5-17)`)"
+   },
+   "analysis": {
+    "task": "b007",
+    "requirements": [
+     {
+      "requirement": "start from frpm enrollment records",
+      "real": "implied",
+      "phrase": "students from the ages of 5 to 17 are enrolled"
+     },
+     {
+      "requirement": "join frpm to schools on CDSCode, drop records with no match",
+      "real": "implied",
+      "phrase": "enrolled at the State Special School school in Fremont"
+     },
+     {
+      "requirement": "filter EdOpsCode = 'SSS'",
+      "real": "via_evidence",
+      "phrase": "State Special School means EdOpsCode = 'SSS'"
+     },
+     {
+      "requirement": "filter City = 'Fremont'",
+      "real": "stated",
+      "phrase": "in Fremont"
+     },
+     {
+      "requirement": "Academic Year between 2014 and 2015, inclusive, compared as text",
+      "real": "implied",
+      "phrase": "for the 2014-2015 academic year"
+     },
+     {
+      "requirement": "output column Enrollment (Ages 5-17)",
+      "real": "stated",
+      "phrase": "students from the ages of 5 to 17 are enrolled"
+     },
+     {
+      "requirement": "one row per matching record, no aggregation",
+      "real": "contradicted",
+      "phrase": "How many students"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "how to handle more than one matching school",
+      "real": "left_open",
+      "phrase": "the State Special School school"
+     }
+    ],
+    "choice": {
+     "decision": "Return each matching school's ages 5-17 enrollment as its own row, or sum them into one total",
+     "open_phrase": "How many students ... are enrolled at the State Special School school",
+     "why_both": "'the ... school' (singular) suggests a single school whose stored enrollment value is the answer, so returning the row(s) as they are fits, but 'How many students' asks for one count, and when two schools match, adding them up is the natural way to give one number."
+    },
+    "pattern": [
+     "asks 'how many' while the answer is a stored count column, so it is unclear whether to read the value or aggregate it",
+     "uses a singular definite noun phrase for the target entity, assuming it is unique when more than one record matches",
+     "leaves the meaning of a category label to evidence that maps it to a code value",
+     "names the time period as a hyphenated year span, and the filter on the stored year text follows from that",
+     "names the output column by paraphrasing its label (age range plus 'enrolled')",
+     "leaves the join between entities unstated; the location and type filters imply it"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b010",
+   "question_id": 80,
+   "database": "california_schools",
+   "original": "What is the school type of the school with the highest latitude? Indicate the name of the school as well as the latitude coordinates.",
+   "explicit": "Start from each `frpm` record; combine it with each `schools` record for which Central Directory System Code (`frpm.CDSCode`) equals Central District School Code (`schools.CDSCode`) (compared as text, character by character), one combined record per match (a record without a match is dropped); for each kept record, return (1) school type (`frpm.School Type`); (2) school name (`frpm.School Name`); (3) latitude of school location (`schools.Latitude`); order the result rows by latitude of school location (`schools.Latitude`) descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.`School Type`, T1.`School Name`, T2.Latitude FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode ORDER BY T2.Latitude DESC LIMIT 1",
+   "decision": "The order of the output columns: school type first and then name, or name first and then school type.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return the school type, then the school name, then the latitude, following the order the question mentions them.",
+     "sql": "SELECT T1.`School Type`, T1.`School Name`, T2.Latitude FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode ORDER BY T2.Latitude DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the school name, then its school type, then the latitude. This treats 'the school with the highest latitude' as the main item and its type as an attribute. Both readings return the same three values.",
+     "sql": "SELECT T1.`School Name`, T1.`School Type`, T2.Latitude FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode ORDER BY T2.Latitude DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the school type, then the latitude, then the school name, treating the name and latitude as one unordered group of extra details; this still gives the same three values."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "The 'school type' could mean frpm.`School Type`, schools.SOCType, schools.EILName or schools.EdOpsName, and the documentation does not say which one is meant.",
+      "The question could be read as asking for only the school type, with the name and latitude as identifying context. That would return the same three values in some order.",
+      "Ties at the maximum latitude could be handled by returning every tied school or by returning a single row with LIMIT 1. The question says 'the school', which suggests one row.",
+      "The highest latitude could be taken among all records, including closed schools and district or administrative entries with null or non-school types. Alternatively, it could be limited to active schools or to schools that appear in frpm."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 0 found the right school and values but put the columns in a different order: ['Leggett Valley High','High Schools (Public)',44.219305] vs gold ['High Schools (Public)','Leggett Valley High',44.219305]. It also used `schools.SOCType` instead of `frpm.School Type`, though the value is the same. Repeat 1 failed to run because it uses the alias `s` without defining it.",
+    "question_gap": "partly. The question names school type first, then name, then latitude, which suggests the gold's column order but doesn't strictly require it.",
+    "supplied": "return (1) school type (`frpm.School Type`); (2) school name (`frpm.School Name`); (3) latitude of school location (`schools.Latitude`)"
+   },
+   "analysis": {
+    "task": "b010",
+    "requirements": [
+     {
+      "requirement": "start from free-meal (frpm) school records",
+      "real": "implied",
+      "phrase": "the school"
+     },
+     {
+      "requirement": "inner join frpm to schools on CDSCode; unmatched records dropped",
+      "real": "implied",
+      "phrase": "school type of the school with the highest latitude"
+     },
+     {
+      "requirement": "output school type",
+      "real": "stated",
+      "phrase": "What is the school type"
+     },
+     {
+      "requirement": "output school name",
+      "real": "stated",
+      "phrase": "Indicate the name of the school"
+     },
+     {
+      "requirement": "output latitude",
+      "real": "stated",
+      "phrase": "as well as the latitude coordinates"
+     },
+     {
+      "requirement": "order by latitude descending",
+      "real": "stated",
+      "phrase": "highest latitude"
+     },
+     {
+      "requirement": "keep only 1 row",
+      "real": "implied",
+      "phrase": "the school with the highest latitude"
+     },
+     {
+      "requirement": "missing latitude sorted last",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "tie rule for equal top latitude (arbitrary single row)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output column order: type, name, latitude",
+      "real": "left_open",
+      "phrase": "What is the school type ... Indicate the name of the school as well as the latitude coordinates"
+     }
+    ],
+    "choice": {
+     "decision": "order of output columns (school type first vs school name first)",
+     "open_phrase": "What is the school type of the school with the highest latitude? Indicate the name of the school as well as the latitude coordinates.",
+     "why_both": "The question asks for the type first and then adds name and latitude, which suggests type-name-latitude, but a reader could just as well treat the school as the main thing and list its name before its type and latitude."
+    },
+    "pattern": [
+     "asks for one main attribute first, then adds more output fields in a second sentence",
+     "picks out the target record with a singular superlative and gives no tie rule",
+     "says nothing about missing values in the ranking column",
+     "leaves the join between the two record sources implied, with no stated key",
+     "does not fix the output column order, apart from the order the fields are mentioned in"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b013",
+   "question_id": 120,
+   "database": "financial",
+   "original": "From Year 1995 to 2000, who are the accounts holders from 'east Bohemia'. State the account ID the frequency of statement issuance.\nEvidence: Accounts holder refers to the person who own this account.",
+   "explicit": "Start from each `account` record; combine it with each `district` record for which location of branch (`account.district_id`) equals location of branch (`district.district_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] region name (`district.A3`) equals 'east Bohemia' (compared as text, character by character); [2] the year of account opening date (`account.date`) (as text, `%Y`) is between '1995' and '2000', inclusive (compared as text, character by character) [end]; for each kept record, return (1) the id of the account (`account.account_id`); (2) account statement issuance frequency (`account.frequency`).",
+   "gold_sql": "SELECT T1.account_id, T1.frequency FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id WHERE T2.A3 = 'east Bohemia' AND STRFTIME('%Y', T1.date) BETWEEN '1995' AND '2000'",
+   "decision": "Whether 'who are the accounts holders' means returning the owning client's identity (client_id via disp.type = 'OWNER') alongside account_id and frequency, or listing only the accounts (account_id, frequency).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Identify the account holders by their accounts: for accounts opened between 1995 and 2000 at branches in the 'east Bohemia' region, return only the account ID and the statement issuance frequency.",
+     "sql": "SELECT T1.account_id, T1.frequency FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id WHERE T2.A3 = 'east Bohemia' AND STRFTIME('%Y', T1.date) BETWEEN '1995' AND '2000'",
+     "rows": 364,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Identify the account holders as people: for the same accounts, return the owning client's ID (the disposition of type OWNER) along with the account ID and the statement issuance frequency.",
+     "sql": "SELECT T3.client_id, T1.account_id, T1.frequency FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id WHERE T2.A3 = 'east Bohemia' AND STRFTIME('%Y', T1.date) BETWEEN '1995' AND '2000' AND T3.type = 'OWNER'",
+     "rows": 364,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return the owner client's ID, account ID and frequency, but filter 'east Bohemia' on the owner client's own district (client.district_id \u2192 district.A3) instead of the account's branch district.",
+      "Include all clients linked to the account through disp (OWNER and DISPONENT), not just the OWNER, since the question says 'account holders' in the plural."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Filter on the client's district (client.district_id) being in east Bohemia rather than the account's branch district (account.district_id).",
+      "Interpret 'From Year 1995 to 2000' as a transaction or statement activity window (trans.date) rather than the account's creation date (account.date).",
+      "Treat the year range as inclusive of all of 2000 (date < 2001-01-01) versus ending at 2000-01-01, which affects the boundary.",
+      "Return one row per account with every disposition holder (OWNER, USER, DISPONENT) rather than only OWNER."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 1 joined `disp` with `disp.type = 'OWNER'` and added a leading `client_id` column ([19,14,'POPLATEK MESICNE'] vs gold [14,'POPLATEK MESICNE']). The row count (364) matches. Repeat 0 also added `c.client_id`, and its numeric date filter `a.date BETWEEN 950101 AND 001231` returned 0 rows, where the gold uses `STRFTIME('%Y', T1.date) BETWEEN '1995' AND '2000'`.",
+    "question_gap": "partly. 'who are the accounts holders' plus the evidence about the person who owns the account invites returning client identity, but the gold returns only account_id and frequency.",
+    "supplied": "return (1) the id of the account (`account.account_id`); (2) account statement issuance frequency (`account.frequency`)"
+   },
+   "analysis": {
+    "task": "b013",
+    "requirements": [
+     {
+      "requirement": "start from account records",
+      "real": "implied",
+      "phrase": "accounts holders ... State the account ID"
+     },
+     {
+      "requirement": "link account to district via district_id (inner join)",
+      "real": "implied",
+      "phrase": "from 'east Bohemia'"
+     },
+     {
+      "requirement": "filter region name = 'east Bohemia'",
+      "real": "stated",
+      "phrase": "from 'east Bohemia'"
+     },
+     {
+      "requirement": "filter account opening year between 1995 and 2000 inclusive",
+      "real": "stated",
+      "phrase": "From Year 1995 to 2000"
+     },
+     {
+      "requirement": "the year filter applies to the account opening date",
+      "real": "implied",
+      "phrase": "From Year 1995 to 2000"
+     },
+     {
+      "requirement": "output account ID",
+      "real": "stated",
+      "phrase": "State the account ID"
+     },
+     {
+      "requirement": "output statement issuance frequency",
+      "real": "stated",
+      "phrase": "the frequency of statement issuance"
+     },
+     {
+      "requirement": "no extra person/client identifier in output",
+      "real": "left_open",
+      "phrase": "who are the accounts holders"
+     },
+     {
+      "requirement": "no ordering, limit, or deduplication",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to return a client (owner) ID for the account holder in addition to the account ID and frequency, which needs a join through the disposition table restricted to OWNER",
+     "open_phrase": "who are the accounts holders ... State the account ID the frequency of statement issuance. Evidence: Accounts holder refers to the person who own this account.",
+     "why_both": "\"who are the accounts holders\" and the evidence defining a holder as a person suggest identifying owning clients, but the follow-up sentence \"State the account ID the frequency\" can be read as the full list of output columns, so the holders are identified only by their accounts."
+    },
+    "pattern": [
+     "asks 'who' about people but then names only account-level output columns in a separate sentence",
+     "gives evidence that defines the entity as a person without saying which person attribute to return",
+     "states the year range as a bare span without naming which date field it applies to",
+     "names the region filter by a quoted value and leaves the join path to the reader",
+     "says nothing about ordering, duplicates or missing values"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b021",
+   "question_id": 145,
+   "database": "financial",
+   "original": "Who are the account holder identification numbers whose who have transactions on the credit card with the amount is less than the average, in 1998?\nEvidence: Operation = 'VYBER KARTOU' refers to credit card withdrawal",
+   "explicit": "Start from each `trans` record; combine it with each `account` record for which Account number (`trans.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of transaction date (`trans.date`) (as text, `%Y`) equals '1998' (compared as text, character by character); [2] transaction channel/mode (`trans.operation`) equals 'VYBER KARTOU' (compared as text, character by character); [3] transaction amount (`trans.amount`) is less than the single value returned by [start from each `trans` record; keep only the records for which the year of transaction date (`trans.date`) (as text, `%Y`) equals '1998' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) the average of transaction amount (`trans.amount`) in the group (missing values ignored; missing when there are none)] (missing when it returns no row) [end]; for each kept record, return (1) Account number (`trans.account_id`).",
+   "gold_sql": "SELECT T1.account_id FROM trans AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1998' AND T1.operation = 'VYBER KARTOU' AND T1.amount < (SELECT AVG(amount) FROM trans WHERE STRFTIME('%Y', date) = '1998')",
+   "decision": "Which transactions the 'average' amount threshold is computed over",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "The average is taken over all 1998 transactions of any type. A card withdrawal qualifies if its amount is below that average.",
+     "sql": "SELECT T1.account_id FROM trans AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1998' AND T1.operation = 'VYBER KARTOU' AND T1.amount < (SELECT AVG(amount) FROM trans WHERE STRFTIME('%Y', date) = '1998')",
+     "rows": 4484,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "The average is taken over 1998 credit card withdrawals only (operation = 'VYBER KARTOU'). A card withdrawal qualifies if its amount is below the average of the other 1998 card withdrawals.",
+     "sql": "SELECT T1.account_id FROM trans AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1998' AND T1.operation = 'VYBER KARTOU' AND T1.amount < (SELECT AVG(amount) FROM trans WHERE STRFTIME('%Y', date) = '1998' AND operation = 'VYBER KARTOU')",
+     "rows": 2373,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "The average is taken over credit card withdrawals from every year, not just 1998. Only the transactions themselves are limited to 1998.",
+     "sql": "SELECT T1.account_id FROM trans AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1998' AND T1.operation = 'VYBER KARTOU' AND T1.amount < (SELECT AVG(amount) FROM trans WHERE operation = 'VYBER KARTOU')",
+     "rows": 2373,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "other",
+    "structure": [
+     "filter_only",
+     "other"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "The average is the plain mean over every 1998 card withdrawal, including the one being compared (R1 without the leave-one-out twist).",
+      "The average is taken over all transactions of any type from every year, and only the card withdrawals being selected are limited to 1998."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "The average is taken over 1998 credit card withdrawals, and each withdrawal is compared with it, including the withdrawal being compared (the standard AVG over the filtered set). This differs from R2's 'other' wording only in a tiny edge effect.",
+      "The average is computed per account (each account's own 1998 card withdrawals), and a transaction qualifies if it is below that account's average.",
+      "The average is taken over all credit card withdrawals in the data across all years, with the 1998 filter applied only to the transactions (this is R1)."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The original repeats returned \"DISTINCT d.client_id\" through `disp`, where the gold returns \"T1.account_id\". They also computed the threshold as \"AVG(amount) ... WHERE operation = 'VYBER KARTOU' AND strftime('%Y', date) = '1998'\", where the gold uses \"AVG(amount) FROM trans WHERE STRFTIME('%Y', T1.date) = '1998'\" over all 1998 transactions. DISTINCT does not matter: explicit repeat 1 used DISTINCT and still passed under set grading.",
+    "question_gap": "partly - 'account holder identification numbers' plausibly means client ids, and 'the average' does not say whether it covers card withdrawals only or all 1998 transactions; the gold picks account_id and the all-transactions average.",
+    "supplied": "for each kept record, return (1) Account number (`trans.account_id`); the average is taken from [start from each `trans` record; keep only the records for which the year ... equals '1998'] (no operation filter)"
+   },
+   "analysis": null
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b025",
+   "question_id": 225,
+   "database": "toxicology",
+   "original": "Please list top five molecules that have double bonds in alphabetical order.\nEvidence: double bond refers to bond_type = ' = ';",
+   "explicit": "Start from each `bond` record; keep only the records for which bond order/type between two atoms (`bond.bond_type`) equals '=' (compared as text, character by character); for each kept record, return (1) molecule id (`bond.molecule_id`); remove duplicate result rows; order the result rows by molecule id (`bond.molecule_id`) ascending in character order (missing first); keep only the first 5 rows.",
+   "gold_sql": "SELECT DISTINCT T.molecule_id FROM bond AS T WHERE T.bond_type = '=' ORDER BY T.molecule_id LIMIT 5",
+   "decision": "Whether a molecule ID taken from bond rows must also have a matching row in the molecule table to count as a molecule",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Any molecule_id that shows up on a double-bond row in the bond table counts as a molecule, even if the molecule table has no row for it",
+     "sql": "SELECT DISTINCT T.molecule_id FROM bond AS T WHERE T.bond_type = '=' ORDER BY T.molecule_id LIMIT 5",
+     "rows": 5,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Only molecules that are recorded in the molecule table and have at least one double bond count",
+     "sql": "SELECT DISTINCT T.molecule_id FROM bond AS T JOIN molecule AS M ON T.molecule_id = M.molecule_id WHERE T.bond_type = '=' ORDER BY T.molecule_id LIMIT 5",
+     "rows": 5,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "missing_values",
+    "structure": [
+     "filter_only",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "The evidence writes bond_type = ' = ' with surrounding spaces, but the documentation lists the value as '=' without spaces. Matching the literal padded string is one reading, and matching the trimmed '=' is another.",
+      "'Top five in alphabetical order' could mean the first five molecule_ids sorted ascending after de-duplication. It could also mean the first five by some other ranking, such as the number of double bonds, and then displayed alphabetically. The wording most plausibly supports the first meaning.",
+      "Whether duplicates are removed matters: listing molecules requires DISTINCT molecule_ids, not one row per double-bond row."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "The failing repeat 0 joined \"molecule m JOIN bond b ON m.molecule_id = b.molecule_id\". That dropped 'TR005', so it returned [..., 'TR006', 'TR007'] instead of the gold's [..., 'TR005', 'TR006']. The gold reads `bond` only. Original repeat 1 also read `bond` only and passed.",
+    "question_gap": "partly - the question does not say whether to require a matching `molecule` row, and the join only matters because 'TR005' in `bond` has no matching `molecule` row; the agent read only `bond` in one repeat.",
+    "supplied": "Start from each `bond` record (no join to `molecule`)"
+   },
+   "analysis": {
+    "task": "b025",
+    "requirements": [
+     {
+      "requirement": "source records are bond rows (molecules identified via their bonds)",
+      "real": "implied",
+      "phrase": "molecules that have double bonds"
+     },
+     {
+      "requirement": "filter bond_type equals '='",
+      "real": "via_evidence",
+      "phrase": "double bond refers to bond_type = ' = '"
+     },
+     {
+      "requirement": "output molecule id only",
+      "real": "implied",
+      "phrase": "list top five molecules"
+     },
+     {
+      "requirement": "remove duplicate molecule ids",
+      "real": "implied",
+      "phrase": "list ... molecules"
+     },
+     {
+      "requirement": "order by molecule id ascending in character order",
+      "real": "stated",
+      "phrase": "in alphabetical order"
+     },
+     {
+      "requirement": "missing ids sort first",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "keep first 5 rows",
+      "real": "stated",
+      "phrase": "top five"
+     },
+     {
+      "requirement": "no requirement that molecule exists in molecule table",
+      "real": "left_open",
+      "phrase": "molecules"
+     }
+    ],
+    "choice": {
+     "decision": "whether a molecule must also exist in the molecule table, or whether any molecule_id on a double-bond row counts",
+     "open_phrase": "molecules that have double bonds",
+     "why_both": "'Molecules' could mean entities registered in the molecule table, or just the molecule ids found on bond rows, and these match unless some bond rows point to molecule ids that the molecule table doesn't have."
+    },
+    "pattern": [
+     "names the output entity by a general noun ('molecules') without saying which table defines its population",
+     "uses evidence to map a domain term to a literal code value, with stray spacing in the literal",
+     "states the ordering with an everyday phrase ('alphabetical order') rather than naming a column",
+     "uses 'top N' to mean a row limit after sorting, not a ranking by any measure",
+     "leaves deduplication implied by listing entities that have a property",
+     "says nothing about null ids or rows that don't join"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b026",
+   "question_id": 226,
+   "database": "toxicology",
+   "original": "What is the percentage of double bonds in the molecule TR008? Please provide your answer as a percentage with five decimal places.\nEvidence: double bond refers to bond_type = '='; TR008 is the molecule id; percentage = DIVIDE(SUM(bond_type = '='), COUNT(bond_id)) as percent where molecule_id = 'TR008'",
+   "explicit": "Start from each `bond` record; keep only the records for which molecule id (`bond.molecule_id`) equals 'TR008' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) round((A \u00d7 100) \u00f7 B, 5). Here A is the number of records in the group whose the value of the first rule that applies: if bond order/type between two atoms (`bond.bond_type`) equals '=' (compared as text, character by character) then unique id representing bonds (`bond.bond_id`); otherwise None is not missing; B is the number of records in the group whose unique id representing bonds (`bond.bond_id`) is not missing.",
+   "gold_sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T.bond_type = '=' THEN T.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T.bond_id),5) FROM bond AS T WHERE T.molecule_id = 'TR008'",
+   "decision": "Whether the five-decimal percentage is returned as a rounded number or as text formatted to exactly five decimal places",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return the percentage as a number rounded to five decimal places (ROUND(..., 5)), e.g. 3.84615",
+     "sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T.bond_type = '=' THEN T.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T.bond_id),5) FROM bond AS T WHERE T.molecule_id = 'TR008'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the percentage as a string formatted with exactly five decimal places (PRINTF('%.5f', ...)), e.g. '3.84615'",
+     "sql": "SELECT PRINTF('%.5f', CAST(COUNT(CASE WHEN T.bond_type = '=' THEN T.bond_id ELSE NULL END) AS REAL) * 100 / COUNT(T.bond_id)) FROM bond AS T WHERE T.molecule_id = 'TR008'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "ratio",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the unrounded full-precision percentage (e.g. 3.846153846...) and leave the five-decimal presentation to the display layer",
+      "Return a numeric value with exactly five decimals via CAST(... AS DECIMAL(p,5)) or equivalent fixed-precision type",
+      "Truncate (not round) to five decimal places"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the unrounded or full-precision percentage (100.0 * SUM(...) / COUNT(...)) and treat the five decimals as presentation only, though this ignores the explicit instruction.",
+      "Return the percentage as a string with a '%' sign appended (e.g. '3.84615%'), reading \"as a percentage\" as including the symbol."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "numeric precision / grading sensitivity",
+    "difference": "The failing repeat 1 used \"PRINTF('%.5f', ...)\", which returned the string '3.84615'. The gold's \"ROUND(..., 5)\" returns the real number 3.84615. The value is the same but the type differs. Original repeat 0 used ROUND and passed.",
+    "question_gap": "partly - 'provide your answer as a percentage with five decimal places' fixes the precision but not whether the result should be a number or formatted text.",
+    "supplied": "round((A \u00d7 100) \u00f7 B, 5)"
+   },
+   "analysis": {
+    "task": "b026",
+    "requirements": [
+     {
+      "requirement": "source records are bonds",
+      "real": "implied",
+      "phrase": "double bonds in the molecule"
+     },
+     {
+      "requirement": "filter molecule_id = 'TR008'",
+      "real": "via_evidence",
+      "phrase": "TR008 is the molecule id; ... where molecule_id = 'TR008'"
+     },
+     {
+      "requirement": "double bond means bond_type = '='",
+      "real": "via_evidence",
+      "phrase": "double bond refers to bond_type = '='"
+     },
+     {
+      "requirement": "single aggregate row over all kept bonds",
+      "real": "implied",
+      "phrase": "What is the percentage"
+     },
+     {
+      "requirement": "numerator: count of bonds with bond_type '='",
+      "real": "via_evidence",
+      "phrase": "SUM(bond_type = '=')"
+     },
+     {
+      "requirement": "denominator: count of non-missing bond_id",
+      "real": "via_evidence",
+      "phrase": "COUNT(bond_id)"
+     },
+     {
+      "requirement": "multiply ratio by 100",
+      "real": "stated",
+      "phrase": "as a percentage"
+     },
+     {
+      "requirement": "round to 5 decimal places",
+      "real": "stated",
+      "phrase": "with five decimal places"
+     },
+     {
+      "requirement": "output is a numeric value, not a formatted string",
+      "real": "left_open",
+      "phrase": "provide your answer as a percentage with five decimal places"
+     },
+     {
+      "requirement": "real (non-integer) division",
+      "real": "implied",
+      "phrase": "percentage"
+     }
+    ],
+    "choice": {
+     "decision": "Whether 'five decimal places' means numeric rounding (ROUND(x,5)) or fixed-width string formatting (PRINTF('%.5f'))",
+     "open_phrase": "Please provide your answer as a percentage with five decimal places",
+     "why_both": "'Provide with five decimal places' can mean either round the number to five places, or display it with exactly five digits after the point, and the wording doesn't say which result type it wants."
+    },
+    "pattern": [
+     "defines the domain term and the filter value through evidence mappings",
+     "gives the computation as a pseudo-formula in the evidence, so numerator and denominator are explicit",
+     "says 'percentage', which implies scaling by 100 even though the evidence formula leaves it out",
+     "states the precision as a presentation instruction ('provide your answer ... with N decimal places') without saying whether the result is a rounded number or a formatted string",
+     "implies a single scalar answer for one named entity"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b027",
+   "question_id": 227,
+   "database": "toxicology",
+   "original": "What is the percentage of molecules that are carcinogenic? Please provide your answer as a percentage with three decimal places.\nEvidence: label = '+' mean molecules are carcinogenic; percentage = DIVIDE(SUM(label = '+'), COUNT(molecule_id)) as percent",
+   "explicit": "Start from each `molecule` record; all kept records form one group, which gives one result row; for each result row, return (1) round((A \u00d7 100) \u00f7 B, 3). Here A is the number of records in the group whose the value of the first rule that applies: if carcinogenicity status of the molecule (`molecule.label`) equals '+' (compared as text, character by character) then unique id of molecule (`molecule.molecule_id`); otherwise None is not missing; B is the number of records in the group whose unique id of molecule (`molecule.molecule_id`) is not missing.",
+   "gold_sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T.label = '+' THEN T.molecule_id ELSE NULL END) AS REAL) * 100 / COUNT(T.molecule_id),3) FROM molecule t",
+   "decision": "How the result is presented to three decimal places: as a number rounded to three decimals, or as a text string formatted with exactly three decimals",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Give the percentage as a number, rounded to three decimal places (ROUND(x, 3)).",
+     "sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T.label = '+' THEN T.molecule_id ELSE NULL END) AS REAL) * 100 / COUNT(T.molecule_id),3) FROM molecule t",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Give the percentage as text formatted to show exactly three decimal places (PRINTF('%.3f', x)), e.g. '44.315'.",
+     "sql": "SELECT PRINTF('%.3f', CAST(COUNT(CASE WHEN T.label = '+' THEN T.molecule_id ELSE NULL END) AS REAL) * 100 / COUNT(T.molecule_id)) FROM molecule t",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "ratio"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Truncate the number to three decimal places instead of rounding it (e.g., CAST(x * 1000 AS INTEGER) / 1000.0)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the unrounded percentage (full floating-point precision) and leave the three-decimal presentation to the client, though this fits the wording less well.",
+      "Compute the percentage using COUNT(*) vs COUNT(molecule_id) vs COUNT(DISTINCT molecule_id) as the denominator (equivalent here since molecule_id is a primary key), and count NULL labels in the denominator.",
+      "Append a '%' sign to the formatted value (e.g. '44.315%'), treating 'as a percentage' as requiring the symbol."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Failing repeat 1 used \"PRINTF('%.3f', ...)\" and returned the string '44.315'. Gold uses \"ROUND(..., 3)\" and returns the numeric 44.315. Original repeat 0 used ROUND and passed.",
+    "question_gap": "partly -- 'three decimal places' does not say whether to round the number or format it as text, but the agent got it right in one original repeat.",
+    "supplied": "round((A \u00d7 100) \u00f7 B, 3)"
+   },
+   "analysis": {
+    "task": "b027",
+    "requirements": [
+     {
+      "requirement": "records: every molecule row, all in one group",
+      "real": "implied",
+      "phrase": "percentage of molecules"
+     },
+     {
+      "requirement": "numerator: count of molecules with label = '+'",
+      "real": "via_evidence",
+      "phrase": "label = '+' mean molecules are carcinogenic; SUM(label = '+')"
+     },
+     {
+      "requirement": "denominator: count of non-missing molecule_id",
+      "real": "via_evidence",
+      "phrase": "COUNT(molecule_id)"
+     },
+     {
+      "requirement": "multiply ratio by 100 to express as percent",
+      "real": "stated",
+      "phrase": "as a percentage"
+     },
+     {
+      "requirement": "real (non-integer) division",
+      "real": "implied",
+      "phrase": "percentage with three decimal places"
+     },
+     {
+      "requirement": "round to 3 decimal places",
+      "real": "stated",
+      "phrase": "three decimal places"
+     },
+     {
+      "requirement": "output: single numeric value",
+      "real": "implied",
+      "phrase": "What is the percentage"
+     },
+     {
+      "requirement": "label compared as exact text '+'",
+      "real": "via_evidence",
+      "phrase": "label = '+'"
+     }
+    ],
+    "choice": {
+     "decision": "numeric rounding (ROUND(x,3)) vs. fixed-format text showing exactly three decimals (PRINTF('%.3f'))",
+     "open_phrase": "Please provide your answer as a percentage with three decimal places",
+     "why_both": "'Provide your answer with three decimal places' can mean either rounding the number to three decimal places or showing it with exactly three digits after the decimal point, and the output type differs between the two."
+    },
+    "pattern": [
+     "asks for a single aggregate proportion over the whole table",
+     "defines the qualifying condition and the ratio formula only in the evidence",
+     "evidence formula omits the \u00d7100 scaling, which comes from the word 'percentage'",
+     "states precision as 'three decimal places' without saying whether to round numerically or format as text",
+     "leaves the integer-vs-real division detail to convention"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b028",
+   "question_id": 228,
+   "database": "toxicology",
+   "original": "How much of the hydrogen in molecule TR206 is accounted for? Please provide your answer as a percentage with four decimal places.\nEvidence: hydrogen refers to element = 'h'; TR206 is the molecule id; percentage = DIVIDE(SUM(element = 'h'), COUNT(atom_id)) as percent where molecule_id = 'TR206'",
+   "explicit": "Start from each `atom` record; keep only the records for which molecule id (`atom.molecule_id`) equals 'TR206' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) round((A \u00d7 100) \u00f7 B, 4). Here A is the number of records in the group whose the value of the first rule that applies: if chemical element of the atom (`atom.element`) equals 'h' (compared as text, character by character) then the unique id of atoms (`atom.atom_id`); otherwise None is not missing; B is the number of records in the group whose the unique id of atoms (`atom.atom_id`) is not missing.",
+   "gold_sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T.element = 'h' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id),4) FROM atom AS T WHERE T.molecule_id = 'TR206'",
+   "decision": "How to present the percentage 'with four decimal places': as a number rounded to 4 decimals, or as text formatted to show exactly 4 decimals",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Work out the share of TR206's atoms that are hydrogen as a percentage, then return it as a number rounded to four decimal places",
+     "sql": "SELECT ROUND(CAST(COUNT(CASE WHEN T.element = 'h' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id),4) FROM atom AS T WHERE T.molecule_id = 'TR206'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Work out the share of TR206's atoms that are hydrogen as a percentage, then return it as text that always shows exactly four decimal places",
+     "sql": "SELECT PRINTF('%.4f', CAST(COUNT(CASE WHEN T.element = 'h' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id)) FROM atom AS T WHERE T.molecule_id = 'TR206'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "ratio",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return the percentage as text that shows four decimal places and ends with a '%' sign (e.g., '12.3456%')",
+      "Truncate rather than round the percentage to four decimal places"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the percentage with a trailing '%' sign appended as a string (e.g. '12.3457%'), reading 'as a percentage' as requiring the symbol.",
+      "Truncate the percentage to four decimal places rather than rounding it."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Failing repeat 1 used \"PRINTF('%.4f', ...)\" and returned the string '45.4545'. Gold uses \"ROUND(..., 4)\" and returns the numeric 45.4545. Original repeat 0 used ROUND and passed.",
+    "question_gap": "partly -- 'four decimal places' does not say whether to round the number or format it as text, but the agent got it right in one original repeat.",
+    "supplied": "round((A \u00d7 100) \u00f7 B, 4)"
+   },
+   "analysis": {
+    "task": "b028",
+    "requirements": [
+     {
+      "requirement": "use atom records",
+      "real": "implied",
+      "phrase": "How much of the hydrogen in molecule TR206"
+     },
+     {
+      "requirement": "restrict to molecule_id = 'TR206'",
+      "real": "via_evidence",
+      "phrase": "TR206 is the molecule id; ... where molecule_id = 'TR206'"
+     },
+     {
+      "requirement": "hydrogen identified as element = 'h' (exact, case-sensitive)",
+      "real": "via_evidence",
+      "phrase": "hydrogen refers to element = 'h'"
+     },
+     {
+      "requirement": "single aggregate row over all kept atoms",
+      "real": "implied",
+      "phrase": "How much of the hydrogen in molecule TR206"
+     },
+     {
+      "requirement": "numerator = count of hydrogen atoms",
+      "real": "via_evidence",
+      "phrase": "SUM(element = 'h')"
+     },
+     {
+      "requirement": "denominator = count of non-null atom_id",
+      "real": "via_evidence",
+      "phrase": "COUNT(atom_id)"
+     },
+     {
+      "requirement": "multiply by 100 to express as percentage",
+      "real": "stated",
+      "phrase": "as a percentage"
+     },
+     {
+      "requirement": "round to 4 decimal places",
+      "real": "stated",
+      "phrase": "with four decimal places"
+     },
+     {
+      "requirement": "output type: numeric rounded value vs fixed-format text",
+      "real": "left_open",
+      "phrase": "provide your answer as a percentage with four decimal places"
+     },
+     {
+      "requirement": "single output column (the percentage only)",
+      "real": "implied",
+      "phrase": "Please provide your answer as a percentage"
+     }
+    ],
+    "choice": {
+     "decision": "whether 'four decimal places' means numeric rounding (ROUND) or fixed-width text formatting that always shows four decimals (PRINTF '%.4f')",
+     "open_phrase": "Please provide your answer as a percentage with four decimal places",
+     "why_both": "'With four decimal places' can mean either rounding the value to four decimals or showing it with exactly four digits after the point, and these give different results when there are trailing zeros or when the output type matters."
+    },
+    "pattern": [
+     "frames a ratio as a vague 'how much of X is accounted for' question and relies on the evidence formula for the actual numerator and denominator",
+     "gives the entity filter and category value as literal codes in the evidence rather than in the question",
+     "states the output scale (percentage) and precision (four decimal places) but not whether the precision is numeric rounding or display formatting",
+     "uses pseudo-SQL in the evidence (DIVIDE, SUM of a boolean, COUNT) that the gold query implements with an equivalent conditional count",
+     "implies one aggregate result without saying so explicitly"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b032",
+   "question_id": 233,
+   "database": "toxicology",
+   "original": "Please list top two bonds that happened with the molecule TR006 in alphabetical order.\nEvidence: TR006 is the molecule id",
+   "explicit": "Start from each `atom` record; combine it with each `connected` record for which the unique id of atoms (`atom.atom_id`) equals id of the first atom (`connected.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which molecule id (`atom.molecule_id`) equals 'TR006' (compared as text, character by character); for each kept record, return (1) bond id (`connected.bond_id`); remove duplicate result rows; order the result rows by bond id (`connected.bond_id`) ascending in character order (missing first); keep only the first 2 rows.",
+   "gold_sql": "SELECT DISTINCT T2.bond_id FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id WHERE T1.molecule_id = 'TR006' ORDER BY T2.bond_id LIMIT 2",
+   "decision": "Which columns to return for each of the top two bonds: only the bond identifier, or the full bond record.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List only the bond IDs of the first two bonds of molecule TR006, sorted alphabetically by bond ID.",
+     "sql": "SELECT DISTINCT T2.bond_id FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id WHERE T1.molecule_id = 'TR006' ORDER BY T2.bond_id LIMIT 2",
+     "rows": 2,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List the first two bonds of molecule TR006, sorted alphabetically by bond ID, with all their attributes (bond ID, molecule ID and bond type).",
+     "sql": "SELECT DISTINCT T2.bond_id, T3.molecule_id, T3.bond_type FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T1.molecule_id = 'TR006' ORDER BY T2.bond_id LIMIT 2",
+     "rows": 2,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "List the first two bonds of TR006 sorted alphabetically by bond ID, returning the bond ID with its bond type and leaving out the redundant molecule ID.",
+      "List the bond IDs of the first two bonds together with the two atom IDs each bond connects, taken from the connected table, since a bond is defined by the pair of atoms it joins."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the two bonds' bond_id together with bond_type only (omitting the redundant molecule_id, since it is fixed to TR006).",
+      "Interpret 'bonds' as bond types (e.g., '-', '=', '#') and list the first two bond types alphabetically, possibly distinct, for TR006.",
+      "Pick the top two bonds by alphabetical order and then present them in a different order (e.g., not re-sorted), i.e., 'top two' selected by some other criterion such as bond frequency, then sorted alphabetically."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Failing repeat 0 used \"SELECT * FROM bond\" and returned the extra columns molecule_id and bond_type. Gold returns only bond_id. Original repeat 1 selected only bond_id and passed.",
+    "question_gap": "partly -- 'list top two bonds' does not say which columns to return, but bond_id is the natural reading and the agent chose it in one original repeat.",
+    "supplied": "return (1) bond id (`connected.bond_id`)"
+   },
+   "analysis": {
+    "task": "b032",
+    "requirements": [
+     {
+      "requirement": "start from atoms joined to connected on first atom id",
+      "real": "implied",
+      "phrase": "bonds that happened with the molecule"
+     },
+     {
+      "requirement": "drop atoms with no connection (inner join)",
+      "real": "implied",
+      "phrase": "bonds that happened with"
+     },
+     {
+      "requirement": "filter molecule_id = 'TR006'",
+      "real": "via_evidence",
+      "phrase": "the molecule TR006; TR006 is the molecule id"
+     },
+     {
+      "requirement": "output only bond id",
+      "real": "left_open",
+      "phrase": "list top two bonds"
+     },
+     {
+      "requirement": "remove duplicate rows",
+      "real": "implied",
+      "phrase": "two bonds"
+     },
+     {
+      "requirement": "order by bond id ascending",
+      "real": "stated",
+      "phrase": "in alphabetical order"
+     },
+     {
+      "requirement": "missing values sort first",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "keep first 2 rows",
+      "real": "stated",
+      "phrase": "top two"
+     }
+    ],
+    "choice": {
+     "decision": "whether to output only the bond identifier or the full bond record (id, molecule, type)",
+     "open_phrase": "list top two bonds",
+     "why_both": "'Bonds' can mean the bond identifiers themselves or the bond entities with all their attributes, and the question never says which columns to show."
+    },
+    "pattern": [
+     "names the output entity as a plural noun ('bonds') without saying which attributes to show",
+     "gives the ordering with an everyday phrase ('alphabetical order') and doesn't name the sort key",
+     "states the limit with 'top N' paired with alphabetical ordering, not with a ranking measure",
+     "uses evidence only to say what kind of identifier a literal value is",
+     "leaves the join path to be worked out from 'happened with', and doesn't name the linking table"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b048",
+   "question_id": 1167,
+   "database": "thrombosis_prediction",
+   "original": "For the year that concluded on December 31, 1998, how many male patients on average were tested in the lab each month?\nEvidence: the year that concluded on December 31, 1998 refers to Date BETWEEN '1998-01-01' AND '1998-12-31'; male refers to SEX = 'M'; calculation = DIVIDE(COUNT(ID), 12)",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of laboratory test date (`Laboratory.Date`) (as text, `%Y`) equals '1998' (compared as text, character by character); [2] patient sex (`Patient.SEX`) equals 'M' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) A \u00f7 12. Here A is the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT CAST(COUNT(T1.ID) AS REAL) / 12 FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T2.Date) = '1998' AND T1.SEX = 'M'",
+   "decision": "What unit to count: every male lab-test record in 1998, or the distinct male patients tested in each month",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count all lab-test records for male patients dated in 1998 and divide by 12, so a patient tested several times is counted once per test",
+     "sql": "SELECT CAST(COUNT(T1.ID) AS REAL) / 12 FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T2.Date) = '1998' AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "For each month of 1998, count the distinct male patients tested that month, add up the monthly counts and divide by 12, so a patient is counted at most once per month",
+     "sql": "SELECT CAST(SUM(cnt) AS REAL) / 12 FROM (SELECT COUNT(DISTINCT T1.ID) AS cnt FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T2.Date) = '1998' AND T1.SEX = 'M' GROUP BY STRFTIME('%m', T2.Date))",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count the distinct male patients tested at any point in 1998 and divide by 12, so each patient is counted once for the whole year",
+     "sql": "SELECT CAST(COUNT(DISTINCT T1.ID) AS REAL) / 12 FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T2.Date) = '1998' AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "grouping"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "C0": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count male patients (distinct or not) only among the months that actually had tests in 1998 and divide by the number of such months instead of 12"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Count distinct (patient, month) pairs, which is the same as R1 and gives the same number, so it is not a separate reading.",
+      "Count male patients who have a Laboratory record in 1998 using COUNT(ID) over a join with Examination or other tables, which would inflate the count. This is not supported because the question concerns lab tests."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both failing repeats counted distinct patients per month and summed them, `SUM(COUNT(DISTINCT p.ID) ... GROUP BY strftime('%m', l.Date))` -> 5.4167. Gold counts all joined lab records, `COUNT(T1.ID)/12` -> 7.5833. Gold applies no DISTINCT and no per-month grouping.",
+    "question_gap": "partly -- the evidence gives DIVIDE(COUNT(ID), 12) with no DISTINCT, but 'how many male patients ... were tested' suggests counting distinct patients, so the gold's count of lab rows is not clearly fixed by the question.",
+    "supplied": "A is the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   },
+   "analysis": {
+    "task": "b048",
+    "requirements": [
+     {
+      "requirement": "start from patients linked to their lab records by patient ID (inner join)",
+      "real": "implied",
+      "phrase": "male patients ... tested in the lab"
+     },
+     {
+      "requirement": "keep only lab tests dated in 1998",
+      "real": "via_evidence",
+      "phrase": "the year that concluded on December 31, 1998 refers to Date BETWEEN '1998-01-01' AND '1998-12-31'"
+     },
+     {
+      "requirement": "keep only male patients (SEX = 'M')",
+      "real": "via_evidence",
+      "phrase": "male refers to SEX = 'M'"
+     },
+     {
+      "requirement": "all kept records form one group giving one result row",
+      "real": "implied",
+      "phrase": "how many ... on average"
+     },
+     {
+      "requirement": "count joined lab-test records (one per test, no deduplication of patients)",
+      "real": "left_open",
+      "phrase": "calculation = DIVIDE(COUNT(ID), 12)"
+     },
+     {
+      "requirement": "divide the count by 12 to get a monthly average, as a real number",
+      "real": "via_evidence",
+      "phrase": "each month; calculation = DIVIDE(COUNT(ID), 12)"
+     },
+     {
+      "requirement": "count only non-missing patient IDs",
+      "real": "implied",
+      "phrase": "COUNT(ID)"
+     },
+     {
+      "requirement": "output a single average value",
+      "real": "implied",
+      "phrase": "how many male patients on average"
+     }
+    ],
+    "choice": {
+     "decision": "whether to count every lab-test record, or count distinct male patients within each month and then average the monthly counts",
+     "open_phrase": "how many male patients on average were tested in the lab each month",
+     "why_both": "The words 'how many male patients' suggest counting people, so someone tested several times in a month counts once, but the evidence formula COUNT(ID)/12 counts every joined row, so each test counts."
+    },
+    "pattern": [
+     "writes the time window as a paraphrase and leaves the exact date range to the evidence",
+     "maps a category word to a coded value through the evidence",
+     "gives the calculation as a short pseudo-formula whose counted unit (rows or distinct entities) is ambiguous",
+     "counts entities ('how many patients') while the formula counts event records, and gives no rule for duplicates",
+     "says 'each month' for a per-month average but sets the denominator to a fixed 12 instead of grouping by month"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b049",
+   "question_id": 1168,
+   "database": "thrombosis_prediction",
+   "original": "The oldest SJS patient's medical laboratory work was completed on what date, and what age was the patient when they initially arrived at the hospital?\nEvidence: The larger the birthday value, the younger the person is, and vice versa; 'SJS' refers to diagnosis; (SUBTRACT(year(`First Date`)), year(Birthday)); age of the patients when they initially arrived at the hospital refers to year(Birthday)",
+   "explicit": "Start from each `Laboratory` record; combine it with each `Patient` record for which identification of the patient (`Laboratory.ID`) equals identification of the patient (`Patient.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] primary diagnosed disease (`Patient.Diagnosis`) equals 'SJS' (compared as text, character by character); [2] it is not true that patient date of birth (`Patient.Birthday`) is missing [end]; for each kept record, return (1) laboratory test date (`Laboratory.Date`); (2) A \u2212 B; (3) patient date of birth (`Patient.Birthday`); order the result rows by patient date of birth (`Patient.Birthday`) ascending in character order (missing first); keep only the first 1 rows. Here A is the year of date of first hospital visit (`Patient.First Date`) (as text, `%Y`); B is the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`).",
+   "gold_sql": "SELECT T1.Date, STRFTIME('%Y', T2.`First Date`) - STRFTIME('%Y', T2.Birthday),T2.Birthday FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE T2.Diagnosis = 'SJS' AND T2.Birthday IS NOT NULL ORDER BY T2.Birthday ASC LIMIT 1",
+   "decision": "Which Diagnosis column decides whether a patient is an 'SJS patient': Patient.Diagnosis or Examination.Diagnosis.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "An SJS patient is one whose Patient.Diagnosis is exactly 'SJS'. Among these patients, take the oldest (earliest Birthday) and return a Laboratory date and their age at first arrival.",
+     "sql": "SELECT T1.Date, STRFTIME('%Y', T2.`First Date`) - STRFTIME('%Y', T2.Birthday),T2.Birthday FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE T2.Diagnosis = 'SJS' AND T2.Birthday IS NOT NULL ORDER BY T2.Birthday ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "An SJS patient is one with an examination record whose Examination.Diagnosis mentions SJS. Among these patients, take the oldest (earliest Birthday) and return a Laboratory date and their age at first arrival.",
+     "sql": "SELECT T1.Date, STRFTIME('%Y', T2.`First Date`) - STRFTIME('%Y', T2.Birthday),T2.Birthday FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE T2.ID IN (SELECT ID FROM Examination WHERE Diagnosis LIKE '%SJS%') AND T2.Birthday IS NOT NULL ORDER BY T2.Birthday ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "A patient counts as SJS if either Patient.Diagnosis or an Examination.Diagnosis mentions SJS.",
+     "sql": "SELECT T1.Date, STRFTIME('%Y', T2.`First Date`) - STRFTIME('%Y', T2.Birthday),T2.Birthday FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE (T2.Diagnosis = 'SJS' OR T2.ID IN (SELECT ID FROM Examination WHERE Diagnosis LIKE '%SJS%')) AND T2.Birthday IS NOT NULL ORDER BY T2.Birthday ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "C1",
+     "reading": "A patient counts as SJS if Patient.Diagnosis mentions SJS anywhere, including combined diagnoses such as 'SLE, SJS'.",
+     "sql": "SELECT T1.Date, STRFTIME('%Y', T2.`First Date`) - STRFTIME('%Y', T2.Birthday),T2.Birthday FROM Laboratory AS T1 INNER JOIN Patient AS T2 ON T1.ID = T2.ID WHERE T2.Diagnosis LIKE '%SJS%' AND T2.Birthday IS NOT NULL ORDER BY T2.Birthday ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "extreme_selection",
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C1": "fits",
+      "B": "fits",
+      "C0": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "A patient counts as SJS only if Examination.Diagnosis is exactly 'SJS'.",
+      "A patient counts as SJS only if both Patient.Diagnosis and an Examination.Diagnosis mention SJS.",
+      "A patient counts as SJS if SJS appears as a separate comma-separated item in Patient.Diagnosis, which excludes cases where 'SJS' is only part of a longer word or code."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "C1": "fits",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Use Patient.Diagnosis LIKE '%SJS%' but restrict to patients who also have Laboratory records, taking the oldest among those with lab data (an inner join before selecting the oldest rather than after).",
+      "Define SJS by Examination.Diagnosis exactly equal to 'SJS' (exact match on the examination table)."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Repeat 0 filtered on `Examination.Diagnosis LIKE '%sjs%'` instead of `Patient.Diagnosis = 'SJS'`. That picked a different patient (birthday 1923-09-17 instead of 1917-04-18), returned `Examination Date` instead of `Laboratory.Date`, and added ID and First Date columns. Repeat 1 hard-coded ID 4789130 and returned no rows. Gold returns ['1981-07-31', 69, '1917-04-18'].",
+    "question_gap": "partly -- 'medical laboratory work' points to Laboratory.Date, but the evidence does not say whether the SJS diagnosis is Patient.Diagnosis or Examination.Diagnosis, and the gold's extra Birthday output column is not asked for.",
+    "supplied": "Start from each `Laboratory` record ... `Patient.Diagnosis` equals 'SJS' ... return (1) laboratory test date (`Laboratory.Date`); (2) A \u2212 B; (3) patient date of birth (`Patient.Birthday`)"
+   },
+   "analysis": {
+    "task": "b049",
+    "requirements": [
+     {
+      "requirement": "join lab records to patients by patient ID, inner join",
+      "real": "implied",
+      "phrase": "The oldest SJS patient's medical laboratory work"
+     },
+     {
+      "requirement": "restrict to patients whose Patient.Diagnosis equals 'SJS'",
+      "real": "via_evidence",
+      "phrase": "'SJS' refers to diagnosis"
+     },
+     {
+      "requirement": "exclude patients with missing Birthday",
+      "real": "implied",
+      "phrase": "oldest"
+     },
+     {
+      "requirement": "oldest = earliest Birthday (ascending order)",
+      "real": "via_evidence",
+      "phrase": "The larger the birthday value, the younger the person is, and vice versa"
+     },
+     {
+      "requirement": "output laboratory test date",
+      "real": "stated",
+      "phrase": "medical laboratory work was completed on what date"
+     },
+     {
+      "requirement": "output age at first arrival as year(First Date) - year(Birthday)",
+      "real": "via_evidence",
+      "phrase": "(SUBTRACT(year(`First Date`)), year(Birthday)); age of the patients when they initially arrived at the hospital"
+     },
+     {
+      "requirement": "also output Birthday column",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "keep only first 1 row (single lab date though patient may have many lab records)",
+      "real": "left_open",
+      "phrase": "was completed on what date"
+     },
+     {
+      "requirement": "tie handling among same Birthday / multiple lab dates",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Which diagnosis field defines an SJS patient: exact match on Patient.Diagnosis or substring match on Examination.Diagnosis",
+     "open_phrase": "'SJS' refers to diagnosis",
+     "why_both": "The evidence names only a 'diagnosis' column without saying which table, and both the patient table and the examination table have a Diagnosis field, so an SJS patient could be one with that main diagnosis or one whose examination diagnosis mentions SJS."
+    },
+    "pattern": [
+     "names the target entity with a singular superlative ('the oldest') and states no tie rule",
+     "asks for 'what date' as if there were one value, though the entity has many related records, so the row-limiting rule is left unstated",
+     "uses evidence to define the age calculation and the ordering direction",
+     "maps a category label to an unqualified column name that exists in more than one table",
+     "the gold output includes a helper column (the sort key) that the question never asks for"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b050",
+   "question_id": 1169,
+   "database": "thrombosis_prediction",
+   "original": "What is the ratio of male to female patients among all those with abnormal uric acid counts?\nEvidence: male refers to SEX = 'M'; female refers to SEX = 'F'; abnormal uric acid refers to UA < = '8.0' where SEX = 'M', UA < = '6.5' where SEX = 'F'; calculation = DIVIDE(SUM(UA <= '8.0' and SEX = 'M'), SUM(UA <= '6.5 and SEX = 'F'))",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); all kept records form one group, which gives one result row; for each result row, return (1) A \u00f7 B. Here A is the sum of the value of the first rule that applies: if all of the following hold: [1] serum uric acid concentration (`Laboratory.UA`) is at most 8.0; [2] patient sex (`Patient.SEX`) equals 'M' (compared as text, character by character) [end] then 1; otherwise 0 in the group (missing values ignored; missing when there are none); B is the sum of the value of the first rule that applies: if all of the following hold: [1] serum uric acid concentration (`Laboratory.UA`) is at most 6.5; [2] patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character) [end] then 1; otherwise 0 in the group (missing values ignored; missing when there are none).",
+   "gold_sql": "SELECT CAST(SUM(CASE WHEN T2.UA <= 8.0 AND T1.SEX = 'M' THEN 1 ELSE 0 END) AS REAL) / SUM(CASE WHEN T2.UA <= 6.5 AND T1.SEX = 'F' THEN 1 ELSE 0 END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+   "decision": "Counting unit for the male and female counts: lab records (each test row that meets the abnormal-UA condition) or distinct patients",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count lab records. Every Laboratory row where a male's UA <= 8.0 or a female's UA <= 6.5 adds 1, so a patient with several abnormal tests is counted several times. The ratio is the male record count divided by the female record count.",
+     "sql": "SELECT CAST(SUM(CASE WHEN T2.UA <= 8.0 AND T1.SEX = 'M' THEN 1 ELSE 0 END) AS REAL) / SUM(CASE WHEN T2.UA <= 6.5 AND T1.SEX = 'F' THEN 1 ELSE 0 END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct patients. Each male patient with at least one UA <= 8.0 record counts once, and so does each female patient with at least one UA <= 6.5 record. The ratio is the number of such male patients divided by the number of such female patients.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T2.UA <= 8.0 AND T1.SEX = 'M' THEN T1.ID END) AS REAL) / COUNT(DISTINCT CASE WHEN T2.UA <= 6.5 AND T1.SEX = 'F' THEN T1.ID END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "ratio",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct patients but decide each patient's status from one representative test (for example, their most recent or their average UA), so a patient counts only if that value is at or below the threshold for their sex.",
+      "Count distinct patients only if all of their UA records are at or below the threshold for their sex."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Use the same record-level or patient-level counts, but treat UA <= 8.0 and UA <= 6.5 as the abnormal cutoffs literally. The documentation says normal is N > 8.0 (male) and N > 6.5 (female), so the evidence and documentation agree here and this is not a separate reading.",
+      "Count each patient once, using only the latest or a single UA measurement per patient, rather than any record. This is less supported by the wording.",
+      "Return the ratio as a percentage or as separate male and female counts instead of one divided value. This is unlikely given the 'DIVIDE' evidence."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Both failing repeats counted distinct patients, `COUNT(DISTINCT CASE WHEN ... THEN p.ID END)` -> 46/250 = 0.184. Gold sums over lab records, `SUM(CASE WHEN ... THEN 1 ELSE 0 END)` -> 0.2057. Repeat 0 also added two extra count columns.",
+    "question_gap": "partly -- the evidence's SUM(...) formula suggests counting rows, but 'ratio of male to female patients' suggests distinct patients, so the gold's lab-record count is not clearly set by the question.",
+    "supplied": "A is the sum of the value of the first rule that applies: if ... `Laboratory.UA` is at most 8.0; ... `Patient.SEX` equals 'M' ... then 1; otherwise 0"
+   },
+   "analysis": {
+    "task": "b050",
+    "requirements": [
+     {
+      "requirement": "use patient records joined to their lab records by patient ID",
+      "real": "implied",
+      "phrase": "patients ... with abnormal uric acid counts"
+     },
+     {
+      "requirement": "drop patients that have no lab record (inner join)",
+      "real": "implied",
+      "phrase": "among all those with abnormal uric acid counts"
+     },
+     {
+      "requirement": "male means SEX = 'M'",
+      "real": "via_evidence",
+      "phrase": "male refers to SEX = 'M'"
+     },
+     {
+      "requirement": "female means SEX = 'F'",
+      "real": "via_evidence",
+      "phrase": "female refers to SEX = 'F'"
+     },
+     {
+      "requirement": "male abnormal threshold UA <= 8.0",
+      "real": "via_evidence",
+      "phrase": "UA < = '8.0' where SEX = 'M'"
+     },
+     {
+      "requirement": "female abnormal threshold UA <= 6.5",
+      "real": "via_evidence",
+      "phrase": "UA < = '6.5' where SEX = 'F'"
+     },
+     {
+      "requirement": "treat all qualifying rows as one group, giving one result row",
+      "real": "implied",
+      "phrase": "What is the ratio"
+     },
+     {
+      "requirement": "numerator counts each joined lab row that meets the male condition",
+      "real": "via_evidence",
+      "phrase": "SUM(UA <= '8.0' and SEX = 'M')"
+     },
+     {
+      "requirement": "denominator counts each joined lab row that meets the female condition",
+      "real": "via_evidence",
+      "phrase": "SUM(UA <= '6.5 and SEX = 'F')"
+     },
+     {
+      "requirement": "count lab rows, not distinct patients",
+      "real": "contradicted",
+      "phrase": "ratio of male to female patients"
+     },
+     {
+      "requirement": "compute numerator divided by denominator as a real number",
+      "real": "via_evidence",
+      "phrase": "calculation = DIVIDE(SUM(...), SUM(...))"
+     },
+     {
+      "requirement": "missing UA values add nothing",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output one column holding the ratio",
+      "real": "implied",
+      "phrase": "What is the ratio"
+     }
+    ],
+    "choice": {
+     "decision": "Count lab rows or distinct patients in the numerator and denominator",
+     "open_phrase": "ratio of male to female patients among all those with abnormal uric acid counts",
+     "why_both": "The question asks about patients, which suggests counting each person once, but the evidence formula SUM(condition) runs over joined lab rows, so a patient with several abnormal tests is counted several times."
+    },
+    "pattern": [
+     "phrases the target as a ratio of entity counts ('patients') but the evidence gives a row-level SUM formula",
+     "gives sex-specific threshold rules in the evidence, not in the question",
+     "writes numeric thresholds as quoted strings and uses loose operator spelling ('< =')",
+     "states no rule for patients with several measurements, which leaves counting granularity open",
+     "says nothing about missing measurement values or a zero denominator"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b053",
+   "question_id": 1175,
+   "database": "thrombosis_prediction",
+   "original": "How old was the patient who had the highest hemoglobin count at the time of the examination, and what is the doctor's diagnosis?\nEvidence: How old the patient refers to SUBTRACT(year(`Examination Date`), year(Birthday)); the highest hemoglobin count refers to MAX(HGB)",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); for each kept record, return (1) A \u2212 B; (2) primary diagnosed disease (`Patient.Diagnosis`); order the result rows by hemoglobin concentration (`Laboratory.HGB`) descending (missing last); keep only the first 1 rows. Here A is the year of laboratory test date (`Laboratory.Date`) (as text, `%Y`); B is the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`).",
+   "gold_sql": "SELECT STRFTIME('%Y', T2.Date) - STRFTIME('%Y', T1.Birthday), T1.Diagnosis FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.HGB DESC LIMIT 1",
+   "decision": "Which table supplies the doctor's diagnosis: Patient.Diagnosis or Examination.Diagnosis (both columns are documented as 'disease names')",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "The doctor's diagnosis is the patient's overall diagnosis stored in the Patient record (Patient.Diagnosis).",
+     "sql": "SELECT STRFTIME('%Y', T2.Date) - STRFTIME('%Y', T1.Birthday), T1.Diagnosis FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID ORDER BY T2.HGB DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "The doctor's diagnosis is the one recorded at the patient's examination (Examination.Diagnosis), joined by patient ID. The question's wording 'at the time of the examination' makes this a reasonable choice.",
+     "sql": "SELECT STRFTIME('%Y', T2.Date) - STRFTIME('%Y', T1.Birthday), T3.Diagnosis FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID LEFT JOIN Examination AS T3 ON T1.ID = T3.ID ORDER BY T2.HGB DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "extreme_selection",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Report both Examination.Diagnosis and Patient.Diagnosis, since the documentation describes them the same way and the question doesn't say which one it means."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Use the Examination row for the patient's highest-HGB laboratory date (matching the exam date to the lab date) rather than any exam of that patient, so the diagnosis and age correspond to that specific examination.",
+      "Age computed using the lab test date of the max HGB instead of Examination Date, since HGB comes from Laboratory and the evidence only specifies Examination Date for the year."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Failing repeat 1 took the diagnosis from `E.Diagnosis` through a LEFT JOIN to Examination, which gave [[28, None]]. Gold uses `T1.Diagnosis` from Patient and gets [[28, 'SLE']]. Original repeat 0 used `p.Diagnosis` and passed.",
+    "question_gap": "partly -- 'doctor's diagnosis' could mean Patient.Diagnosis or Examination.Diagnosis, but the agent picked the gold's column in one repeat.",
+    "supplied": "primary diagnosed disease (`Patient.Diagnosis`)"
+   },
+   "analysis": {
+    "task": "b053",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "implied",
+      "phrase": "the patient"
+     },
+     {
+      "requirement": "inner join Patient to Laboratory on patient ID, dropping records without a match",
+      "real": "implied",
+      "phrase": "the patient who had the highest hemoglobin count"
+     },
+     {
+      "requirement": "age = year of the lab test date minus year of birth",
+      "real": "via_evidence",
+      "phrase": "How old the patient refers to SUBTRACT(year(`Examination Date`), year(Birthday))"
+     },
+     {
+      "requirement": "reference date is the laboratory test date, not the Examination table's date",
+      "real": "contradicted",
+      "phrase": "at the time of the examination; year(`Examination Date`)"
+     },
+     {
+      "requirement": "output column 1: the age",
+      "real": "stated",
+      "phrase": "How old was the patient"
+     },
+     {
+      "requirement": "output column 2: Patient.Diagnosis",
+      "real": "left_open",
+      "phrase": "what is the doctor's diagnosis"
+     },
+     {
+      "requirement": "order by HGB descending",
+      "real": "via_evidence",
+      "phrase": "the highest hemoglobin count refers to MAX(HGB)"
+     },
+     {
+      "requirement": "keep only 1 row",
+      "real": "implied",
+      "phrase": "the patient who had the highest"
+     },
+     {
+      "requirement": "missing HGB values sorted last",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "tie rule for the highest HGB (pick one arbitrarily)",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "which table supplies the diagnosis: the patient's overall diagnosis (Patient.Diagnosis) or the diagnosis recorded at examination (Examination.Diagnosis)",
+     "open_phrase": "what is the doctor's diagnosis ... at the time of the examination",
+     "why_both": "'the doctor's diagnosis' fits any diagnosis column, and 'at the time of the examination' together with the evidence's `Examination Date` point toward the examination record, while the plain patient-level diagnosis is the simpler default."
+    },
+    "pattern": [
+     "asks two things in one sentence: a derived value and a descriptive attribute of the same chosen entity",
+     "picks the entity with a singular superlative and states no tie rule or missing-value rule",
+     "uses evidence to give formulas for the computed age and the extreme, but names the date column with a label that doesn't match the gold source",
+     "uses everyday wording ('the doctor's diagnosis', 'the examination') that could refer to more than one place where that data is stored",
+     "leaves the link between tables implied by saying 'the patient who had' the measurement"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b055",
+   "question_id": 1177,
+   "database": "thrombosis_prediction",
+   "original": "Was the total cholesterol status for the patient id 2927464 on 1995-9-4 at the normal level?\nEvidence: total cholesterol normal level refers to N < 250",
+   "explicit": "Start from each `Laboratory` record; keep only the records for which all of the following hold: [1] identification of the patient (`Laboratory.ID`) equals 2927464; [2] laboratory test date (`Laboratory.Date`) equals '1995-09-04' (compared as text, character by character) [end]; for each kept record, return (1) the value of the first rule that applies: if total cholesterol concentration (`Laboratory.T-CHO`) is less than 250 then 'Normal'; otherwise 'Abnormal'.",
+   "gold_sql": "SELECT CASE WHEN `T-CHO` < 250 THEN 'Normal' ELSE 'Abnormal' END FROM Laboratory WHERE ID = 2927464 AND Date = '1995-09-04'",
+   "decision": "How to present the answer to the yes/no question: which labels to use, and whether to include the raw T-CHO value",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return one label per matching lab record: 'Normal' if T-CHO < 250, otherwise 'Abnormal'.",
+     "sql": "SELECT CASE WHEN `T-CHO` < 250 THEN 'Normal' ELSE 'Abnormal' END FROM Laboratory WHERE ID = 2927464 AND Date = '1995-09-04'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Answer yes or no to whether the level is normal, and show the measured T-CHO value next to the answer.",
+     "sql": "SELECT `T-CHO`, CASE WHEN `T-CHO` < 250 THEN 'Yes' ELSE 'No' END FROM Laboratory WHERE ID = 2927464 AND Date = '1995-09-04'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Answer only yes or no to whether the level is normal, without the raw value.",
+     "sql": "SELECT CASE WHEN `T-CHO` < 250 THEN 'Yes' ELSE 'No' END FROM Laboratory WHERE ID = 2927464 AND Date = '1995-09-04'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Return a boolean flag (1 or 0) for whether T-CHO is below 250.",
+     "sql": "SELECT `T-CHO` < 250 FROM Laboratory WHERE ID = 2927464 AND Date = '1995-09-04'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "C0": "fits",
+      "C1": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return a third state such as 'Unknown' or NULL when T-CHO is NULL for that record, instead of treating a missing value as not normal."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "fits",
+      "A": "does not fit",
+      "C1": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the 'Normal'/'Abnormal' label as text for the single record, instead of a yes/no or a boolean.",
+      "Return only the T-CHO value and leave the comparison with 250 to the reader.",
+      "Treat a missing record or NULL T-CHO as 'no' or as an empty result, instead of a flagged normal/abnormal answer.",
+      "Treat the boundary as N <= 250 instead of strictly < 250. The evidence says N < 250, so this is unlikely to matter."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 0 returned the raw value [[196]]. Repeat 1 returned [[196, 'Yes']], which has an extra column and uses 'Yes'/'No' labels. Gold returns the single label [['Normal']].",
+    "question_gap": "no -- the yes/no question does not fix the output labels 'Normal'/'Abnormal' or say to drop the raw value.",
+    "supplied": "return (1) the value of the first rule that applies: if total cholesterol concentration (`Laboratory.T-CHO`) is less than 250 then 'Normal'; otherwise 'Abnormal'"
+   },
+   "analysis": {
+    "task": "b055",
+    "requirements": [
+     {
+      "requirement": "use laboratory test records",
+      "real": "implied",
+      "phrase": "total cholesterol status"
+     },
+     {
+      "requirement": "filter to patient ID 2927464",
+      "real": "stated",
+      "phrase": "the patient id 2927464"
+     },
+     {
+      "requirement": "filter to test date 1995-09-04 (matched as text in zero-padded format)",
+      "real": "implied",
+      "phrase": "on 1995-9-4"
+     },
+     {
+      "requirement": "normal means T-CHO < 250",
+      "real": "via_evidence",
+      "phrase": "total cholesterol normal level refers to N < 250"
+     },
+     {
+      "requirement": "output a label 'Normal' when below 250, otherwise 'Abnormal'",
+      "real": "left_open",
+      "phrase": "Was ... at the normal level?"
+     },
+     {
+      "requirement": "output only the label column, not the measured value",
+      "real": "left_open",
+      "phrase": "Was the total cholesterol status ... at the normal level?"
+     },
+     {
+      "requirement": "one row per matching lab record (no aggregation or dedup)",
+      "real": "implied",
+      "phrase": "on 1995-9-4"
+     },
+     {
+      "requirement": "handling of a NULL T-CHO (falls to 'Abnormal')",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "output form: a single Normal/Abnormal status label vs. a yes/no answer plus the measured cholesterol value",
+     "open_phrase": "Was the total cholesterol status ... at the normal level?",
+     "why_both": "A yes/no question can be answered with a status label ('status' suggests Normal/Abnormal) or with a literal yes/no, and showing the measured value as support is a natural, unforbidden addition."
+    },
+    "pattern": [
+     "poses a yes/no question whose expected output format (label wording, extra columns) is not specified",
+     "puts the threshold that defines the category in the evidence and does not name the label for the opposite case",
+     "gives the date in a non-padded form that has to be normalized to the stored format",
+     "identifies the record by an explicit entity id and date, with no rule for multiple or missing matches"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b056",
+   "question_id": 1178,
+   "database": "thrombosis_prediction",
+   "original": "What was the gender of the first AORTITIS diagnosed patient?\nEvidence: gender means SEX; 'AORTITIS' refers to Diagnosis;",
+   "explicit": "Start from each `Patient` record; keep only the records for which all of the following hold: [1] primary diagnosed disease (`Patient.Diagnosis`) equals 'AORTITIS' (compared as text, character by character); [2] it is not true that date of first hospital visit (`Patient.First Date`) is missing [end]; for each kept record, return (1) patient sex (`Patient.SEX`); order the result rows by date of first hospital visit (`Patient.First Date`) ascending in character order (missing first); keep only the first 1 rows.",
+   "gold_sql": "SELECT SEX FROM Patient WHERE Diagnosis = 'AORTITIS' AND `First Date` IS NOT NULL ORDER BY `First Date` ASC LIMIT 1",
+   "decision": "Which table's Diagnosis field (and matching date) defines when a patient was 'diagnosed' with AORTITIS: the patient-level Diagnosis ordered by `First Date`, or the examination-level Diagnosis ordered by `Examination Date`.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Use the patient record. Find patients whose Patient.Diagnosis is AORTITIS, take the one who first came to the hospital (earliest `First Date`), and return that patient's sex.",
+     "sql": "SELECT SEX FROM Patient WHERE Diagnosis = 'AORTITIS' AND `First Date` IS NOT NULL ORDER BY `First Date` ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Use the examination records. Find examinations whose Diagnosis mentions AORTITIS, take the earliest by `Examination Date`, and return the sex of that examination's patient.",
+     "sql": "SELECT p.SEX FROM Patient p JOIN Examination e ON p.ID = e.ID WHERE e.Diagnosis LIKE '%AORTITIS%' AND e.`Examination Date` IS NOT NULL ORDER BY e.`Examination Date` ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Use the patient-level diagnosis, but treat 'first' as the earliest date the patient's data was recorded (Description) rather than the first hospital visit.",
+     "sql": "SELECT SEX FROM Patient WHERE Diagnosis = 'AORTITIS' AND Description IS NOT NULL ORDER BY Description ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "C1",
+     "reading": "Use the patient-level diagnosis, allowing AORTITIS to appear within a list of several diagnoses.",
+     "sql": "SELECT SEX FROM Patient WHERE Diagnosis LIKE '%AORTITIS%' AND `First Date` IS NOT NULL ORDER BY `First Date` ASC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "extreme_selection"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "dated_attributes",
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "A": "fits",
+      "C1": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Use the patient-level diagnosis, but treat 'first' as the patient with the earliest Laboratory.Date (first lab test) among AORTITIS patients.",
+      "Treat 'first' as the lowest patient ID among AORTITIS patients (first in the record order)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C1": "fits",
+      "C0": "does not fit",
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Use Patient.Diagnosis exact equality to 'AORTITIS' only, excluding patients with multiple listed diagnoses.",
+      "Define 'first' as the lowest patient ID, or the first row in the table, instead of by any date.",
+      "Define 'first diagnosed' by the earliest Laboratory.Date for patients whose diagnosis is AORTITIS."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Both failing repeats filtered on `Examination.Diagnosis` and ordered by `Examination Date`. Repeat 0 used LIKE '%AORTITIS%' and got [['M']]; repeat 1 used = and got []. Gold filters `Patient.Diagnosis = 'AORTITIS'`, orders by `First Date`, and gets [['F']].",
+    "question_gap": "partly -- the evidence names the Diagnosis column but not its table, and 'first' does not say which date to order by.",
+    "supplied": "primary diagnosed disease (`Patient.Diagnosis`) ... order the result rows by date of first hospital visit (`Patient.First Date`) ascending"
+   },
+   "analysis": {
+    "task": "b056",
+    "requirements": [
+     {
+      "requirement": "source records are patient records",
+      "real": "left_open",
+      "phrase": "AORTITIS diagnosed patient"
+     },
+     {
+      "requirement": "filter: Diagnosis equals 'AORTITIS' exactly",
+      "real": "via_evidence",
+      "phrase": "'AORTITIS' refers to Diagnosis"
+     },
+     {
+      "requirement": "which table's Diagnosis column (Patient vs Examination)",
+      "real": "left_open",
+      "phrase": "'AORTITIS' refers to Diagnosis"
+     },
+     {
+      "requirement": "exclude records with missing First Date",
+      "real": "implied",
+      "phrase": "first"
+     },
+     {
+      "requirement": "output column: SEX",
+      "real": "via_evidence",
+      "phrase": "gender means SEX"
+     },
+     {
+      "requirement": "order by First Date ascending",
+      "real": "left_open",
+      "phrase": "first"
+     },
+     {
+      "requirement": "limit to 1 row",
+      "real": "implied",
+      "phrase": "the first ... patient"
+     },
+     {
+      "requirement": "tie handling at earliest date",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Which Diagnosis column and date define 'first diagnosed': the patient's primary diagnosis ordered by first hospital visit date, or the examination diagnosis ordered by examination date",
+     "open_phrase": "the first AORTITIS diagnosed patient",
+     "why_both": "The evidence names only 'Diagnosis', and that column exists on both the patient and examination records. 'First diagnosed' can mean the earliest arrival among patients with that diagnosis, or the earliest dated examination that recorded the diagnosis."
+    },
+    "pattern": [
+     "names the output attribute with an everyday synonym and uses evidence to map it to a column",
+     "points to a filter value through a bare column name without saying which table holds it",
+     "uses 'first' as an ordinal and never names the date that sets the order",
+     "uses a singular noun phrase to mean one row and states no tie rule",
+     "leaves dropping missing dates for the ordering to the reader"
+    ]
+   }
+  }
+ ],
+ "not_library": [
+  {
+   "task": "b005",
+   "status": "agent mistake (no reading)",
+   "pair": {
+    "decision": "Which literal string to match for FundingType when filtering for directly funded schools: the stored value 'Directly funded' or the evidence's capitalization 'Directly Funded'",
+    "reading_A": "Count schools in Stanislaus County that opened between 2000 and 2005 and whose funding type is directly funded, matched against the stored value 'Directly funded'.",
+    "reading_B": "",
+    "sql_B": "",
+    "further": [],
+    "tags": {
+     "choice": "value_mapping",
+     "structure": [
+      "filter_only"
+     ],
+     "semantics": [
+      "coded_values"
+     ]
+    }
+   }
+  },
+  {
+   "task": "b016",
+   "status": "reading B gives the reference answer or does not run",
+   "pair": {
+    "decision": "How to measure the 'highest active loan' a district has: the total amount of its active loans, or how many active loans it has",
+    "reading_A": "Rank each district (by A3) by the total amount of its active loans (status C or D) and return the district with the largest total",
+    "reading_B": "Rank each district (by A3) by how many active loans (status C or D) it has and return the district with the most",
+    "sql_B": "SELECT T2.A3 FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN loan AS T3 ON T1.account_id = T3.account_id WHERE T3.status IN ('C', 'D') GROUP BY T2.A3 ORDER BY COUNT(T3.loan_id) DESC LIMIT 1",
+    "further": [
+     {
+      "reading": "Return the district holding the single largest active loan",
+      "sql": "SELECT T2.A3 FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN loan AS T3 ON T1.account_id = T3.account_id WHERE T3.status IN ('C', 'D') GROUP BY T2.A3 ORDER BY MAX(T3.amount) DESC LIMIT 1"
+     }
+    ],
+    "tags": {
+     "choice": "counting_unit",
+     "structure": [
+      "aggregation_over_join",
+      "grouping",
+      "extreme_selection"
+     ],
+     "semantics": [
+      "other"
+     ]
+    }
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b020",
+   "question_id": 142,
+   "database": "financial",
+   "original": "Which accounts placed orders for household payment in Pisek?\nEvidence: k_symbol = 'SIPO' refers to household payment",
+   "explicit": "Start from each `trans` record; combine it with each `account` record for which Account number (`trans.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); combine it with each `district` record for which location of branch (`account.district_id`) equals location of branch (`district.district_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] transaction characterization code (`trans.k_symbol`) equals 'SIPO' (compared as text, character by character); [2] district_name (`district.A2`) equals 'Pisek' (compared as text, character by character) [end]; for each kept record, return (1) the id of the account (`account.account_id`); remove duplicate result rows.",
+   "gold_sql": "SELECT DISTINCT T2.account_id FROM trans AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id INNER JOIN district AS T3 ON T2.district_id = T3.district_id WHERE T1.k_symbol = 'SIPO' AND T3.A2 = 'Pisek'",
+   "decision": "Which table's k_symbol = 'SIPO' counts as placing an order for household payment: the transaction records in `trans` or the payment orders in `order`.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "An account qualifies if it has at least one transaction (trans row) marked as a household payment (k_symbol = 'SIPO') and its branch is in the Pisek district.",
+     "sql": "SELECT DISTINCT T2.account_id FROM trans AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id INNER JOIN district AS T3 ON T2.district_id = T3.district_id WHERE T1.k_symbol = 'SIPO' AND T3.A2 = 'Pisek'",
+     "rows": 32,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "An account qualifies if it has at least one payment order (`order` row) whose purpose is household payment (k_symbol = 'SIPO') and its branch is in the Pisek district.",
+     "sql": "SELECT DISTINCT T2.account_id FROM `order` AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id INNER JOIN district AS T3 ON T2.district_id = T3.district_id WHERE T1.k_symbol = 'SIPO' AND T3.A2 = 'Pisek'",
+     "rows": 33,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Pisek could be matched through the client's district (client.district_id via disp) instead of the account's branch district, but account.district_id is documented as the branch location, so this is less likely.",
+      "The question might be read as asking for both an `order` row and a trans row with SIPO. Nothing in the wording supports this, so it is unlikely."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Both original repeats filtered the `order` table (\"FROM `order` o ... WHERE o.k_symbol = 'SIPO'\"). The gold filters transactions (\"FROM trans AS T1 ... WHERE T1.k_symbol = 'SIPO'\"). Repeat 1 returned 33 rows against the gold's 32. Repeat 0 errored on the ambiguous unqualified \"SELECT DISTINCT account_id\" and returned no rows.",
+    "question_gap": "no - the phrase 'placed orders' points to the `order` table, but the gold uses `trans`, and only the explicit version supplies that table.",
+    "supplied": "Start from each `trans` record ... transaction characterization code (`trans.k_symbol`) equals 'SIPO'"
+   }
+  },
+  {
+   "version": "comm-library-v2",
+   "task": "b031",
+   "question_id": 231,
+   "database": "toxicology",
+   "original": "Which bond type accounted for the majority of the bonds found in molecule TR010 and state whether or not this molecule is carcinogenic?\nEvidence: TR010 is the molecule id; majority of the bond found refers to MAX(COUNT(bond_type)); ",
+   "explicit": "Step 1. Start from each `bond` record; keep only the records for which molecule id (`bond.molecule_id`) equals 'TR010' (compared as text, character by character); group the kept records by bond order/type between two atoms (`bond.bond_type`); each group gives one result row; for each result row, return (1) bond order/type between two atoms (`bond.bond_type`); (2) the number of records in the group whose molecule id (`bond.molecule_id`) is not missing; order the result rows by the number of records in the group whose molecule id (`bond.molecule_id`) is not missing descending (missing last); keep only the first 1 rows.\nStep 2 (the answer). Start from the rows of step 1; for each kept record, return (1) column (1) of step 1.",
+   "gold_sql": "SELECT T.bond_type FROM ( SELECT T1.bond_type, COUNT(T1.molecule_id) FROM bond AS T1  WHERE T1.molecule_id = 'TR010' GROUP BY T1.bond_type ORDER BY COUNT(T1.molecule_id) DESC LIMIT 1 ) AS T",
+   "decision": "Whether the output includes the molecule's carcinogenic status (molecule.label) next to the majority bond type, or only the bond type.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return only the most frequent bond type in molecule TR010. The carcinogenicity part of the question is left out of the output.",
+     "sql": "SELECT T.bond_type FROM ( SELECT T1.bond_type, COUNT(T1.molecule_id) FROM bond AS T1  WHERE T1.molecule_id = 'TR010' GROUP BY T1.bond_type ORDER BY COUNT(T1.molecule_id) DESC LIMIT 1 ) AS T",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the most frequent bond type in molecule TR010 together with the molecule's label, which shows whether it is carcinogenic. This answers both parts of the question.",
+     "sql": "SELECT T.bond_type, (SELECT label FROM molecule WHERE molecule_id = 'TR010') AS label FROM ( SELECT T1.bond_type, COUNT(T1.molecule_id) FROM bond AS T1  WHERE T1.molecule_id = 'TR010' GROUP BY T1.bond_type ORDER BY COUNT(T1.molecule_id) DESC LIMIT 1 ) AS T",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return the majority bond type plus a plain yes/no carcinogenic flag, decoded from the label ('+' means carcinogenic).",
+     "sql": "SELECT T.bond_type, (SELECT CASE WHEN label = '+' THEN 'carcinogenic' ELSE 'not carcinogenic' END FROM molecule WHERE molecule_id = 'TR010') AS carcinogenic FROM ( SELECT T1.bond_type, COUNT(T1.molecule_id) FROM bond AS T1  WHERE T1.molecule_id = 'TR010' GROUP BY T1.bond_type ORDER BY COUNT(T1.molecule_id) DESC LIMIT 1 ) AS T",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection",
+     "grouping"
+    ],
+    "semantics": [
+     "coded_values"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return the majority bond type together with its count (and the label) to show it is the MAX(COUNT(bond_type)) the evidence mentions.",
+      "Return the bond types in TR010 tied for the highest count (not just one row), each with the molecule's label."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return the bond type and the carcinogenic status as two separate queries or result sets rather than one combined row.",
+      "Return the bond type with its count alongside the label, so the majority count is shown in addition to the type.",
+      "Handle ties for the most frequent bond type by returning all tied types rather than a single one."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 1 returned two columns, majority_bond_type and carcinogenic_status, giving ['-','-']. Gold returns only bond_type, giving ['-']. Repeat 0 submitted two statements and returned no rows.",
+    "question_gap": "no -- the question explicitly asks to 'state whether or not this molecule is carcinogenic', but the gold leaves out the label column.",
+    "supplied": "Step 2 (the answer). Start from the rows of step 1; for each kept record, return (1) column (1) of step 1."
+   }
+  }
+ ],
+ "other_causes": [
+  {
+   "task": "b018",
+   "cause": "run variation",
+   "question_gap": "yes - the question gives the date range, and the stored text date format can be read from the schema and data; the agent got it right in one original repeat.",
+   "difference": "The failing repeat 0 used integer date literals, \"l.date BETWEEN 950101 AND 971231\", and got [[0]]. The gold uses the text dates \"T2.date BETWEEN '1995-01-01' AND '1997-12-31'\" and gets [[65]]. Original repeat 1 used \"loan.date >= '1995-01-01' AND loan.date <= '1997-12-31'\" and passed with [[65]]."
+  },
+  {
+   "task": "b045",
+   "cause": "run variation",
+   "question_gap": "yes -- the evidence formula DIVIDE(COUNT(superhero.id), SUM(skin_colour_id = 1)) fixes the gold computation, even though the wording 'average of superheroes' is odd.",
+   "difference": "Failing repeat 0 returned \"COUNT(*) ... WHERE skin_colour_id = 1\", which is 681. Gold returns \"COUNT(*) / SUM(CASE WHEN T2.id = 1 ...)\", which is 1.1013. Original repeat 1 computed the ratio and passed."
+  },
+  {
+   "task": "b046",
+   "cause": "run variation",
+   "question_gap": "yes -- the question asks only for the eye colour, so a single colour column is clearly implied.",
+   "difference": "Failing repeat 1 returned an extra column, `SELECT sh.eye_colour_id, c.colour` -> [[7, 'Blue']], while gold returns only `T2.colour` -> [['Blue']]. Original repeat 0 passed with only colour."
+  },
+  {
+   "task": "b052",
+   "cause": "run variation",
+   "question_gap": "yes -- the question asks only for the most common illness, which implies a single diagnosis column.",
+   "difference": "Failing repeat 0 returned an extra count column, `SELECT e.Diagnosis, COUNT(*)` -> [['SLE', 39]], while gold returns [['SLE']]. Original repeat 1 returned only the diagnosis and passed, even though it used Examination.Diagnosis rather than Patient.Diagnosis."
+  },
+  {
+   "task": "b057",
+   "cause": "run variation",
+   "question_gap": "yes -- the question and evidence fully determine the gold, and the agent got it right in another repeat.",
+   "difference": "Failing repeat 1 used `YEAR('1991-10-21') - YEAR('1936-03-25')`, which is not valid in SQLite, so it returned no result. Original repeat 0 computed 55 with STRFTIME and passed."
+  },
+  {
+   "task": "b058",
+   "cause": "run variation",
+   "question_gap": "yes -- the question and evidence determine the gold, and repeat 0 matched it exactly.",
+   "difference": "Failing repeat 1 hardcoded `ID = 4634342` and used `YEAR(Date) = 1995`, which SQLite does not support, so it returned no result. Original repeat 0 submitted the gold query exactly and got [[12]]."
+  },
+  {
+   "task": "b003",
+   "cause": "output shape",
+   "question_gap": "yes: the question asks only for the website. Adding the school name was the agent's own choice.",
+   "difference": "Both repeats returned an extra `School` column ('Ripon Elementary', 'Ripona Elementary') alongside Website. The filtered rows were the same as the gold's, which returns only Website.",
+   "rerouted": "question settles the choice (inspector answered yes)"
+  },
+  {
+   "task": "b009",
+   "cause": "semantic mapping",
+   "question_gap": "yes. The evidence gives the formula `FRPM Count (Ages 5-17)` / `Enrollment (Ages 5-17)` * 100, so the 0-100 scale is set; the K-9 column is less explicit but is a reasonable reading.",
+   "difference": "Repeat 1 matched the gold join and filters (`s.GSserved = 'K-9'`). However, it returned the stored column `f.`Percent (%) Eligible FRPM (Ages 5-17)``, which holds a fraction (0.0375586854460094, 0.976388888888889). The gold computes `FRPM Count * 100 / Enrollment` (3.7558..., 97.6388...). Repeat 1 also added an extra `s.City` column. Repeat 0 filtered on frpm `Low Grade`='K' AND `High Grade`='9' instead of `schools.GSserved = 'K-9'` and returned 0 rows, plus extra grade columns.",
+   "rerouted": "question settles the choice (inspector answered yes)"
+  },
+  {
+   "task": "b011",
+   "cause": "run variation",
+   "question_gap": "yes. The question asks only for the grade span, and the evidence defines highest longitude as maximum absolute value.",
+   "difference": "Repeat 0 passed with `SELECT s.GSoffered ... ORDER BY ABS(s.Longitude) DESC LIMIT 1`. Repeat 1 added extra columns `s.School` and `s.Longitude` (['Mattole Union Elementary','K-8',-124.28481] vs gold ['K-8']).",
+   "rerouted": "question settles the choice (inspector answered yes)"
+  }
+ ]
+}

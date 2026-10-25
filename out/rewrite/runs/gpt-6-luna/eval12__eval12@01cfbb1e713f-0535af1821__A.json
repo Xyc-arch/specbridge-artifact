@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-0535af1821",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The color comes from the product on the linked order item (Order_Items.product_id).",
+ "a": {
+  "request": "Take each invoice line item and match it to its order item by `order_item_id` (line items with no matching order item are dropped). Find the product through the order item's own `product_id` (`Order_Items.product_id`), not the `product_id` on the invoice line, dropping rows with no matching product, and use that product's color. Group by the invoice line's order item id and that product color. For each group, give the order item id, the product color, the average invoiced quantity (`Invoice_Line_Items.product_quantity`), and the average of (`derived_product_cost` \u2212 `derived_total_cost`) / `derived_total_cost`, ignoring missing values in both averages. Then, within each color, rank the groups by average quantity, highest first (missing values last; ties share a rank and the next rank is skipped), keep those ranked 3 or better, and show the rank as a fifth column. Don't round anything.",
+  "sql": "WITH group_averages AS (\n  SELECT\n    oi.order_item_id,\n    p.product_color,\n    AVG(CAST(ili.product_quantity AS DECIMAL(19,4))) AS average_quantity,\n    AVG((ili.derived_product_cost - ili.derived_total_cost) / NULLIF(ili.derived_total_cost, 0)) AS average_cost_ratio\n  FROM Invoice_Line_Items AS ili\n  JOIN Order_Items AS oi\n    ON ili.order_item_id = oi.order_item_id\n  JOIN Products AS p\n    ON oi.product_id = p.product_id\n  GROUP BY oi.order_item_id, p.product_color\n), ranked_groups AS (\n  SELECT\n    order_item_id,\n    product_color,\n    average_quantity,\n    average_cost_ratio,\n    RANK() OVER (\n      PARTITION BY product_color\n      ORDER BY average_quantity DESC NULLS LAST\n    ) AS rank\n  FROM group_averages\n)\nSELECT\n  order_item_id,\n  product_color,\n  average_quantity,\n  average_cost_ratio,\n  rank\nFROM ranked_groups\nWHERE rank <= 3;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Group invoice line items with their linked order items by `order_item_id`, dropping line items without a matching order item; obtain color from the linked order item's product, dropping rows whose product is missing. Group by order item ID and that product color, and return the order item ID, color, average invoiced `product_quantity`, and average of (`derived_product_cost` \u2212 `derived_total_cost`) / `derived_total_cost`, ignoring missing values. Within each color, rank groups by average quantity descending, with missing averages last, ties sharing a rank and gaps after ties; keep ranks 1\u20133 and show rank as the fifth column, with no rounding",
+  "sql": "WITH grouped AS (\n  SELECT\n    ili.order_item_id,\n    p.product_color,\n    AVG(CAST(ili.product_quantity AS DECIMAL(19,4))) AS avg_product_quantity,\n    AVG((ili.derived_product_cost - ili.derived_total_cost) / NULLIF(ili.derived_total_cost, 0)) AS avg_cost_difference_ratio\n  FROM Invoice_Line_Items AS ili\n  INNER JOIN Order_Items AS oi\n    ON ili.order_item_id = oi.order_item_id\n  INNER JOIN Products AS p\n    ON oi.product_id = p.product_id\n  GROUP BY ili.order_item_id, p.product_color\n), ranked AS (\n  SELECT\n    order_item_id,\n    product_color,\n    avg_product_quantity,\n    avg_cost_difference_ratio,\n    RANK() OVER (\n      PARTITION BY product_color\n      ORDER BY avg_product_quantity DESC\n    ) AS rank_in_color\n  FROM grouped\n)\nSELECT\n  order_item_id,\n  product_color,\n  avg_product_quantity,\n  avg_cost_difference_ratio,\n  rank_in_color\nFROM ranked\nWHERE rank_in_color <= 3;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Match each invoice line item to its order item by `order_item_id` (dropping line items without one) and bring in the product's color (dropping rows where the product isn't found). Group by order item id and product color. For each group, give the order item id, the color, the average invoiced quantity (`product_quantity`), and the average of (`derived_product_cost` \u2212 `derived_total_cost`) / `derived_total_cost`, ignoring missing values. Then, within each color, rank the groups by average quantity from highest to lowest (missing values last; ties share a rank and the next rank is skipped) and keep ranks 1 to 3, showing the rank as a fifth column. No rounding. The color comes from the product on the linked order item (Order_Items.product_id).",
+  "sql": "WITH grouped AS (\n  SELECT\n    oi.order_item_id,\n    p.product_color,\n    AVG(CAST(ili.product_quantity AS DECIMAL(19,4))) AS avg_invoiced_quantity,\n    AVG((ili.derived_product_cost - ili.derived_total_cost) / NULLIF(ili.derived_total_cost, 0)) AS avg_cost_ratio\n  FROM Invoice_Line_Items AS ili\n  JOIN Order_Items AS oi ON ili.order_item_id = oi.order_item_id\n  JOIN Products AS p ON oi.product_id = p.product_id\n  GROUP BY oi.order_item_id, p.product_color\n), ranked AS (\n  SELECT\n    order_item_id,\n    product_color,\n    avg_invoiced_quantity,\n    avg_cost_ratio,\n    RANK() OVER (\n      PARTITION BY product_color\n      ORDER BY avg_invoiced_quantity DESC\n    ) AS rank\n  FROM grouped\n)\nSELECT order_item_id, product_color, avg_invoiced_quantity, avg_cost_ratio, rank\nFROM ranked\nWHERE rank <= 3;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Using each invoice line item\u2019s `order_item_id` to link to an order item, and the order item\u2019s `product_id` to look up the product color, calculate the average invoiced quantity and the average of (`derived_product_cost` \u2212 `derived_total_cost`) / `derived_total_cost` for each order item ID and product color. Exclude line items without an `order_item_id` and rows where the linked product can\u2019t be found; ignore missing values when calculating averages. Within each color, rank groups by average quantity from highest to lowest, placing missing averages last. Ties share a rank, and the next rank is skipped. Return only ranks 1 through 3, with columns for order item ID, color, both averages, and rank. Do not round.",
+  "sql": "WITH Grouped AS (\n  SELECT\n    ili.order_item_id,\n    p.product_color,\n    AVG(CAST(ili.product_quantity AS DECIMAL(19,4))) AS average_invoiced_quantity,\n    AVG((ili.derived_product_cost - ili.derived_total_cost) / NULLIF(ili.derived_total_cost, 0)) AS average_cost_ratio\n  FROM Invoice_Line_Items AS ili\n  JOIN Order_Items AS oi ON oi.order_item_id = ili.order_item_id\n  JOIN Products AS p ON p.product_id = oi.product_id\n  WHERE ili.order_item_id IS NOT NULL\n  GROUP BY ili.order_item_id, p.product_color\n), Ranked AS (\n  SELECT\n    order_item_id,\n    product_color,\n    average_invoiced_quantity,\n    average_cost_ratio,\n    RANK() OVER (\n      PARTITION BY product_color\n      ORDER BY average_invoiced_quantity DESC NULLS LAST\n    ) AS rank\n  FROM Grouped\n)\nSELECT\n  order_item_id,\n  product_color,\n  average_invoiced_quantity,\n  average_cost_ratio,\n  rank\nFROM Ranked\nWHERE rank BETWEEN 1 AND 3;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

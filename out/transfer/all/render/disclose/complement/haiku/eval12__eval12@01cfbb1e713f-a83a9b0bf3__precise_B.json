@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-a83a9b0bf3",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH matched AS (\n  SELECT p.birth_country, COUNT(DISTINCT pc.player_id) AS player_count\n  FROM player_college pc\n  JOIN player p ON p.player_id = pc.player_id\n  WHERE p.birth_country IS NOT NULL\n  GROUP BY p.birth_country\n),\nstats AS (\n  SELECT SUM(player_count) AS total_count, AVG(player_count) AS avg_count\n  FROM matched\n),\nshares AS (\n  SELECT m.birth_country, m.player_count,\n         m.player_count * 1.0 / s.total_count AS share,\n         s.avg_count\n  FROM matched m\n  CROSS JOIN stats s\n)\nSELECT SUM(player_count) AS total_player_count,\n       AVG(share) AS avg_share,\n       AVG(player_count - avg_count) AS avg_excess_over_mean\nFROM shares\nWHERE player_count > avg_count;",
+  "assumptions": [
+   {
+    "assumption": "The inner JOIN to player on player_id drops player_college rows with no matching player, as the request asks.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Players with a NULL birth_country are excluded, so they form no country group and do not affect the average or the shares. The request does not say how to treat them.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The overall average player count is the unweighted mean of per-country distinct player counts, and each share is a country's count divided by the sum of counts across all countries, not only the qualifying ones.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The average share and the average excess are unweighted means over the qualifying countries (those with count strictly above the overall average).",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Keep players with a NULL birth_country as their own country group, so they count toward the total, the overall average, and the shares.",
+    "sql": "WITH matched AS (\n  SELECT p.birth_country, COUNT(DISTINCT pc.player_id) AS player_count\n  FROM player_college pc\n  JOIN player p ON p.player_id = pc.player_id\n  GROUP BY p.birth_country\n),\nstats AS (\n  SELECT SUM(player_count) AS total_count, AVG(player_count) AS avg_count\n  FROM matched\n),\nshares AS (\n  SELECT m.birth_country, m.player_count,\n         m.player_count * 1.0 / s.total_count AS share,\n         s.avg_count\n  FROM matched m\n  CROSS JOIN stats s\n)\nSELECT SUM(player_count) AS total_player_count,\n       AVG(share) AS avg_share,\n       AVG(player_count - avg_count) AS avg_excess_over_mean\nFROM shares\nWHERE player_count > avg_count;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 11.3
+}

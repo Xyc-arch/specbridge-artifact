@@ -1,0 +1,30 @@
+{
+ "interpretations": [
+  "For each `event.status`, average the matched events\u2019 event-level `remaining` averages and overspend-rate averages; divide the status\u2019s average remaining by the average of all matched events\u2019 event-level `remaining` averages.",
+  "For each `event.status`, average the matched events\u2019 event-level figures; divide the status\u2019s average remaining by the average `remaining` across all matched budget lines, weighting events by their number of lines.",
+  "For each `event.status`, average the matched events\u2019 event-level figures; divide the status\u2019s average remaining by the average of the status-level average remaining values, weighting statuses equally.",
+  "Use `budget.event_status` as the grouping status, assuming an event\u2019s matched budget lines share one status; calculate the event-level figures and compare each status\u2019s average remaining with the overall event-level average remaining.",
+  "For each `event.status`, calculate the event-level figures and express the comparison as the overall event-level average remaining divided by the status\u2019s average remaining.",
+  "Group by `budget.event_status` even when an event\u2019s budget lines have different statuses, counting that event\u2019s figures once in each status represented by its lines."
+ ],
+ "queries": [
+  "WITH event_metrics AS (\n    SELECT\n        e.event_id,\n        e.status,\n        AVG(b.remaining) AS avg_remaining,\n        AVG(CASE WHEN b.remaining < 0 THEN 1.0 ELSE 0.0 END) AS overspend_rate\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.status\n)\nSELECT\n    status,\n    AVG(avg_remaining) AS avg_remaining,\n    AVG(overspend_rate) AS avg_overspend_rate,\n    AVG(avg_remaining) / (SELECT AVG(avg_remaining) FROM event_metrics) AS remaining_ratio\nFROM event_metrics\nGROUP BY status",
+  "WITH event_remaining AS (\n    SELECT e.event_id, e.status, SUM(b.remaining) AS remaining\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.status\n)\nSELECT status,\n       AVG(remaining) / (SELECT AVG(remaining) FROM budget) AS remaining_ratio\nFROM event_remaining\nGROUP BY status",
+  "WITH event_remaining AS (\n    SELECT e.event_id, e.status, SUM(b.remaining) AS remaining\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.status\n),\nstatus_average AS (\n    SELECT status, AVG(remaining) AS avg_remaining\n    FROM event_remaining\n    GROUP BY status\n)\nSELECT status,\n       avg_remaining / (SELECT AVG(avg_remaining) FROM status_average) AS remaining_ratio\nFROM status_average",
+  "WITH event_remaining AS (\n    SELECT\n        link_to_event,\n        event_status,\n        SUM(remaining) AS remaining\n    FROM budget\n    GROUP BY link_to_event, event_status\n)\nSELECT\n    event_status,\n    AVG(remaining) AS average_remaining,\n    (SELECT AVG(remaining) FROM event_remaining) AS overall_average_remaining\nFROM event_remaining\nGROUP BY event_status",
+  "WITH event_remaining AS (\n    SELECT e.event_id, e.status, SUM(b.remaining) AS remaining\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.status\n)\nSELECT status,\n       (SELECT AVG(remaining) FROM event_remaining) / AVG(remaining) AS comparison\nFROM event_remaining\nGROUP BY status"
+ ],
+ "raw": [
+  "For each `event.status`, average the matched events\u2019 event-level `remaining` averages and overspend-rate averages; divide the status\u2019s average remaining by the average of all matched events\u2019 event-level `remaining` averages.\nFor each `event.status`, average the matched events\u2019 event-level figures; divide the status\u2019s average remaining by the average `remaining` across all matched budget lines, weighting events by their number of lines.\nFor each `event.status`, average the matched events\u2019 event-level figures; divide the status\u2019s average remaining by the average of the status-level average remaining values, weighting statuses equally.\nUse `budget.event_status` as the grouping status, assuming an event\u2019s matched budget lines share one status; calculate the event-level figures and compare each status\u2019s average remaining with the overall event-level average remaining.\nFor each `event.status`, calculate the event-level figures and express the comparison as the overall event-level average remaining divided by the status\u2019s average remaining.",
+  "Group by `budget.event_status` even when an event\u2019s budget lines have different statuses, counting that event\u2019s figures once in each status represented by its lines."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-37095ad966",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 60618,
+  "chars_out": 3353
+ }
+}

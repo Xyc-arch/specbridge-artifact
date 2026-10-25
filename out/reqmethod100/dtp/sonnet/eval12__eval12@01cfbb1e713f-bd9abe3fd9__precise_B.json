@@ -1,0 +1,44 @@
+{
+ "interpretations": [
+  "Group by site code and insurance status, restricted to processing records whose site code matches a site in `sites` (inner join). Show site code, insurance status, average `remaingb`, average |`proccpu` \u2212 `procgpu`|, and the ratio of the group's average `remaingb` to the mean of all groups' average `remaingb`. Sort by ratio descending with NULL ratios last, and return the top 10.",
+  "Same as 1, but the \"mean of all groups' average remaining storage\" is the mean of the per-group averages (each group counts equally). Groups whose average is NULL are ignored.",
+  "Same as 1, but the \"mean of all groups' average remaining storage\" is the overall average of `remaingb` across all matching processing records (each record counts equally). Groups with no `remaingb` still get a NULL ratio.",
+  "Same as 1, but the average absolute CPU\u2013GPU difference is computed only over records where both `proccpu` and `procgpu` are non-null. Records with either value missing are excluded from that average but still count toward the `remaingb` average.",
+  "Same as 4, but a missing CPU or GPU value is treated as 0 when computing the absolute difference, so that record still contributes to the average.",
+  "If the mean of all groups' average remaining storage is NULL (every group's average is NULL), return no rows. Otherwise return the normal top 10.",
+  "If the mean of all groups' average remaining storage is NULL, return rows with a NULL ratio instead of an empty result.",
+  "Because `sites.zoneregistry` is the primary key, each site code has exactly one insurance status, so grouping by both gives one group per site code. Each group is then a single site.",
+  "Sites with a NULL `insurstat` are kept as their own group, with a NULL insurance status shown.",
+  "Sites with a NULL `insurstat` are excluded from the groups.",
+  "Ties in the ratio are broken arbitrarily.",
+  "Ties in the ratio are broken by site code ascending.",
+  "If fewer than 10 groups exist, return all of them.",
+  "The ratio is a plain division of the group average by the global mean, with no rounding or percentage scaling.",
+  "The ratio is expressed as a percentage (multiplied by 100).",
+  "\"Missing\" in the sort means NULL ratio, which goes last.",
+  "\"Missing\" also includes empty strings or placeholder values in `remaingb`, which are treated as missing. (`remaingb` is numeric, so this is unlikely.)",
+  "Two interpretations are missing:",
+  "The mean of all groups' average remaining storage is computed over only the top 10 returned groups, not over all groups.",
+  "If the mean of all groups' average remaining storage is 0, the ratio is undefined (division by zero). It is returned as NULL, or the query errors, instead of a numeric ratio."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT s.zoneregistry AS zoneregistry,\n         s.insurstat AS insurstat,\n         AVG(p.remaingb) AS avg_remaingb,\n         AVG(ABS(p.proccpu - p.procgpu)) AS avg_diff\n  FROM scanprocessing p\n  JOIN sites s ON p.zoneref = s.zoneregistry\n  GROUP BY s.zoneregistry, s.insurstat\n)\nSELECT zoneregistry,\n       insurstat,\n       avg_remaingb,\n       avg_diff,\n       avg_remaingb / (SELECT AVG(avg_remaingb) FROM g) AS ratio\nFROM g\nORDER BY (ratio IS NULL), ratio DESC\nLIMIT 10;\n",
+  "SELECT AVG(avg_remaingb) FROM (SELECT AVG(remaingb) AS avg_remaingb FROM scanprocessing GROUP BY stashloc) WHERE avg_remaingb IS NOT NULL;\n",
+  "SELECT AVG(ABS(proccpu - procgpu)) AS avg_abs_cpu_gpu_diff, AVG(remaingb) AS avg_remaingb\nFROM scanprocessing;\n",
+  "SELECT AVG(ABS(COALESCE(proccpu, 0) - COALESCE(procgpu, 0))) FROM scanprocessing;\n",
+  "SELECT equipref, AVG(remaingb) AS avg_remaining_gb\nFROM scanprocessing\nGROUP BY equipref\nHAVING (SELECT AVG(g.a) FROM (SELECT AVG(remaingb) AS a FROM scanprocessing GROUP BY equipref) g) IS NOT NULL\nORDER BY avg_remaining_gb DESC\nLIMIT 10;\n"
+ ],
+ "raw": [
+  "1. Group by site code and insurance status, restricted to processing records whose site code matches a site in `sites` (inner join). Show site code, insurance status, average `remaingb`, average |`proccpu` \u2212 `procgpu`|, and the ratio of the group's average `remaingb` to the mean of all groups' average `remaingb`. Sort by ratio descending with NULL ratios last, and return the top 10.\n2. Same as 1, but the \"mean of all groups' average remaining storage\" is the mean of the per-group averages (each group counts equally). Groups whose average is NULL are ignored.\n3. Same as 1, but the \"mean of all groups' average remaining storage\" is the overall average of `remaingb` across all matching processing records (each record counts equally). Groups with no `remaingb` still get a NULL ratio.\n4. Same as 1, but the average absolute CPU\u2013GPU difference is computed only over records where both `proccpu` and `procgpu` are non-null. Records with either value missing are excluded from that average but still count toward the `remaingb` average.\n5. Same as 4, but a missing CPU or GPU value is treated as 0 when computing the absolute difference, so that record still contributes to the average.\n6. If the mean of all groups' average remaining storage is NULL (every group's average is NULL), return no rows. Otherwise return the normal top 10.\n7. If the mean of all groups' average remaining storage is NULL, return rows with a NULL ratio instead of an empty result.\n8. Because `sites.zoneregistry` is the primary key, each site code has exactly one insurance status, so grouping by both gives one group per site code. Each group is then a single site.\n9. Sites with a NULL `insurstat` are kept as their own group, with a NULL insurance status shown.\n10. Sites with a NULL `insurstat` are excluded from the groups.\n11. Ties in the ratio are broken arbitrarily.\n12. Ties in the ratio are broken by site code ascending.\n13. If fewer than 10 groups exist, return all of them.\n14. The ratio is a plain division of the group average by the global mean, with no rounding or percentage scaling.\n15. The ratio is expressed as a percentage (multiplied by 100).\n16. \"Missing\" in the sort means NULL ratio, which goes last.\n17. \"Missing\" also includes empty strings or placeholder values in `remaingb`, which are treated as missing. (`remaingb` is numeric, so this is unlikely.)",
+  "Two interpretations are missing:\n\nThe mean of all groups' average remaining storage is computed over only the top 10 returned groups, not over all groups.\n\nIf the mean of all groups' average remaining storage is 0, the ratio is undefined (division by zero). It is returned as NULL, or the query errors, instead of a numeric ratio."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-bd9abe3fd9",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 328389,
+  "chars_out": 4531
+ }
+}

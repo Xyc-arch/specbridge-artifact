@@ -1,0 +1,27 @@
+{
+ "interpretations": [
+  "Count invoices for every order, including orders with none; divide each count by the total invoice count. Select orders above the average share across all orders, then return one row with their combined invoice count, their average share, and their average excess over that average share.",
+  "Count invoices for every order, including orders with none; divide each count by the total invoice count. Select orders above the average share across all orders, then return one row with their combined invoice count, the average share across all orders, and the selected orders\u2019 average excess over it.",
+  "Count invoices for every order; divide each count by the total invoice count. Calculate the average share using only orders with at least one invoice, then return one row for orders above it with their combined invoice count, their average share, and their average excess over that average share.",
+  "Count invoices for every order; divide each count by the total invoice count. Calculate the average share using only orders with at least one invoice, then return one row for orders above it with their combined invoice count, that average share, and the selected orders\u2019 average excess over it."
+ ],
+ "queries": [
+  "WITH order_invoice_counts AS (\n    SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count\n    FROM Orders AS o\n    LEFT JOIN Invoices AS i ON i.order_id = o.order_id\n    GROUP BY o.order_id\n),\ninvoice_shares AS (\n    SELECT\n        invoice_count,\n        1.0 * invoice_count / (SELECT COUNT(*) FROM Invoices) AS invoice_share\n    FROM order_invoice_counts\n),\naverage_share AS (\n    SELECT AVG(invoice_share) AS value\n    FROM invoice_shares\n)\nSELECT\n    SUM(s.invoice_count) AS combined_invoice_count,\n    AVG(s.invoice_share) AS average_share,\n    AVG(s.invoice_share - a.value) AS average_excess\nFROM invoice_shares AS s\nCROSS JOIN average_share AS a\nWHERE s.invoice_share > a.value",
+  "WITH invoice_counts AS (\n    SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count\n    FROM Orders AS o\n    LEFT JOIN Invoices AS i ON i.order_id = o.order_id\n    GROUP BY o.order_id\n),\nshares AS (\n    SELECT invoice_count,\n           1.0 * invoice_count / NULLIF(SUM(invoice_count) OVER (), 0) AS share\n    FROM invoice_counts\n),\naverage_share AS (\n    SELECT AVG(share) AS value\n    FROM shares\n)\nSELECT COALESCE(SUM(s.invoice_count), 0) AS combined_invoice_count,\n       a.value AS average_share,\n       AVG(s.share - a.value) AS average_excess\nFROM average_share AS a\nLEFT JOIN shares AS s ON s.share > a.value",
+  "WITH invoice_counts AS (\n    SELECT o.order_id, COUNT(i.invoice_number) AS invoice_count\n    FROM Orders AS o\n    LEFT JOIN Invoices AS i ON i.order_id = o.order_id\n    GROUP BY o.order_id\n),\norder_shares AS (\n    SELECT invoice_count,\n           1.0 * invoice_count / (SELECT COUNT(*) FROM Invoices) AS share\n    FROM invoice_counts\n),\naverage_share AS (\n    SELECT AVG(share) AS share\n    FROM order_shares\n    WHERE invoice_count > 0\n)\nSELECT SUM(os.invoice_count) AS combined_invoice_count,\n       AVG(os.share) AS average_share,\n       AVG(os.share - a.share) AS average_excess\nFROM order_shares AS os\nCROSS JOIN average_share AS a\nWHERE os.share > a.share",
+  "WITH invoice_counts AS (\n    SELECT order_id, COUNT(*) AS invoice_count\n    FROM Invoices\n    GROUP BY order_id\n),\nshares AS (\n    SELECT invoice_count,\n           1.0 * invoice_count / SUM(invoice_count) OVER () AS invoice_share\n    FROM invoice_counts\n),\naverage_share AS (\n    SELECT AVG(invoice_share) AS average_share\n    FROM shares\n)\nSELECT SUM(s.invoice_count) AS combined_invoice_count,\n       a.average_share,\n       AVG(s.invoice_share - a.average_share) AS average_excess\nFROM shares AS s\nCROSS JOIN average_share AS a\nWHERE s.invoice_share > a.average_share"
+ ],
+ "raw": [
+  "Count invoices for every order, including orders with none; divide each count by the total invoice count. Select orders above the average share across all orders, then return one row with their combined invoice count, their average share, and their average excess over that average share.\nCount invoices for every order, including orders with none; divide each count by the total invoice count. Select orders above the average share across all orders, then return one row with their combined invoice count, the average share across all orders, and the selected orders\u2019 average excess over it.\nCount invoices for every order; divide each count by the total invoice count. Calculate the average share using only orders with at least one invoice, then return one row for orders above it with their combined invoice count, their average share, and their average excess over that average share.\nCount invoices for every order; divide each count by the total invoice count. Calculate the average share using only orders with at least one invoice, then return one row for orders above it with their combined invoice count, that average share, and the selected orders\u2019 average excess over it.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-69c4bd1cc2",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 6,
+  "chars_in": 23172,
+  "chars_out": 3769
+ }
+}

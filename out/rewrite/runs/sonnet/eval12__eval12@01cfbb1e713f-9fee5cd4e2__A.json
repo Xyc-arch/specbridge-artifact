@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-9fee5cd4e2",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "The customer is the account holder (via Accounts).",
+ "a": {
+  "request": "Take each financial transaction and attach the customer who holds the transaction's account (transaction \u2192 `Accounts` \u2192 `Accounts.customer_id`); transactions that can't be tied to a customer this way are dropped. Total the transaction amounts (`transaction_amount`, ignoring missing amounts) for each customer state/province (`state_county_province`); customers with no state recorded form their own group. Give each state a share: its total divided by the sum of all state totals. Then take the plain average of those shares across states. For the states whose share is strictly above that average, return a single unrounded row with: the combined transaction total of those states, their average share, and the average amount by which their share exceeds the average share.",
+  "sql": "WITH st AS (SELECT c.state_county_province AS state, COALESCE(SUM(ft.transaction_amount),0) AS total FROM Financial_Transactions ft JOIN Accounts a ON ft.account_id = a.account_id JOIN Customers c ON a.customer_id = c.customer_id GROUP BY c.state_county_province), sh AS (SELECT state, total, total * 1.0 / SUM(total) OVER () AS share FROM st), av AS (SELECT state, total, share, AVG(share) OVER () AS avg_share FROM sh) SELECT SUM(total) AS combined_total, AVG(share) AS average_share, AVG(share - avg_share) AS avg_excess_over_average FROM av WHERE share > avg_share",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Join each Financial_Transactions row to its Account via account_id and then to the account holder in Customers via Accounts.customer_id (dropping transactions with no matching account/customer), sum transaction_amount (ignoring NULL amounts) per customer state_county_province (NULL states as their own group), compute each state's share of the grand total of all state totals, take the plain average of those shares across states, and for states whose share is strictly above that average return one unrounded row with the sum of their transaction totals, their average share, and the average of (share \u2212 average share) for those states",
+  "sql": "WITH state_totals AS (SELECT c.state_county_province AS state, SUM(ft.transaction_amount) AS total FROM Financial_Transactions ft JOIN Accounts a ON ft.account_id = a.account_id JOIN Customers c ON a.customer_id = c.customer_id GROUP BY c.state_county_province), shares AS (SELECT state, total, total * 1.0 / (SELECT SUM(total) FROM state_totals) AS share FROM state_totals), avg_share AS (SELECT AVG(share) AS avg_s FROM shares) SELECT SUM(s.total) AS total_sum, (SELECT avg_s FROM avg_share) AS avg_share, AVG(s.share - (SELECT avg_s FROM avg_share)) AS avg_share_diff FROM shares s WHERE s.share > (SELECT avg_s FROM avg_share)",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Take each financial transaction and attach the customer it belongs to, dropping transactions that can't be tied to a customer. Total the transaction amounts (`transaction_amount`, ignoring missing amounts) by that customer's state/province (`state_county_province`), with customers who have no state forming their own group. Give each state a share of the sum of all state totals, and take the plain average of those shares across states. For the states whose share is strictly above that average, give me one unrounded row: their combined transaction total, their average share, and the average amount by which their share exceeds the average share. The customer is the account holder (via Accounts).",
+  "sql": "WITH state_totals AS (SELECT c.state_county_province AS state, COALESCE(SUM(ft.transaction_amount), 0) AS total FROM Financial_Transactions ft JOIN Accounts a ON a.account_id = ft.account_id JOIN Customers c ON c.customer_id = a.customer_id GROUP BY c.state_county_province), shares AS (SELECT state, total, (total * 1.0) / (SELECT SUM(total) FROM state_totals) AS share FROM state_totals), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT SUM(s.total) AS combined_total, AVG(s.share) AS average_share, AVG(s.share - av.avg_share) AS avg_excess_over_average_share FROM shares s CROSS JOIN avg_share av WHERE s.share > av.avg_share",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Take each financial transaction and attach the customer it belongs to, where the customer is the account holder (found via the Accounts table), dropping transactions that can't be tied to a customer. Total the transaction amounts (`transaction_amount`, ignoring missing amounts) by that customer's state/province (`state_county_province`), with customers who have no state forming their own group. Give each state a share of the sum of all state totals, and take the plain average of those shares across states. For the states whose share is strictly above that average, give me one unrounded row: their combined transaction total, their average share, and the average amount by which their share exceeds the average share.",
+  "sql": "WITH t AS (SELECT c.state_county_province AS st, COALESCE(SUM(ft.transaction_amount), 0) AS total FROM Financial_Transactions ft JOIN Accounts a ON a.account_id = ft.account_id JOIN Customers c ON c.customer_id = a.customer_id GROUP BY c.state_county_province), s AS (SELECT st, total, total * 1.0 / SUM(total) OVER () AS share FROM t), g AS (SELECT st, total, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(total) AS combined_total, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM g WHERE share > avg_share",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,2845 @@
+{
+ "library": [
+  {
+   "version": "comm-library-v1",
+   "task": "b002",
+   "question_id": 27,
+   "database": "california_schools",
+   "original": "What is the average score in writing for the schools that were opened after 1991 or closed before 2000? List the school names along with the score. Also, list the communication number of the schools if there is any.\nEvidence: Communication number refers to phone number.",
+   "explicit": "Start from each `schools` record; combine it with each `satscores` record for which Central District School Code (`schools.CDSCode`) equals California Department Schools (`satscores.cds`) (compared as text, character by character), one combined record per match (a record without a match keeps one combined record with those values missing); keep only the records for which at least one of the following holds: [1] the year of school opening date (`schools.OpenDate`) (as text, `%Y`) is greater than '1991' (compared as text, character by character); [2] the year of school closing date (`schools.ClosedDate`) (as text, `%Y`) is less than '2000' (compared as text, character by character) [end]; for each kept record, return (1) school name (`schools.School`); (2) average SAT writing score (`satscores.AvgScrWrite`); (3) phone number (`schools.Phone`).",
+   "gold_sql": "SELECT T2.School, T1.AvgScrWrite, T2.Phone FROM schools AS T2 LEFT JOIN satscores AS T1 ON T2.CDSCode = T1.cds WHERE strftime('%Y', T2.OpenDate) > '1991' OR strftime('%Y', T2.ClosedDate) < '2000'",
+   "decision": "Whether to keep schools that match the open/close date condition but have no writing score (no SAT record, or AvgScrWrite is NULL), or list only schools that actually have a writing score.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List every school that opened after 1991 or closed before 2000, with its writing score and phone number. Keep a school even when it has no writing score and show the score as empty.",
+     "sql": "SELECT T2.School, T1.AvgScrWrite, T2.Phone FROM schools AS T2 LEFT JOIN satscores AS T1 ON T2.CDSCode = T1.cds WHERE strftime('%Y', T2.OpenDate) > '1991' OR strftime('%Y', T2.ClosedDate) < '2000'",
+     "rows": 8574,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List only the schools that opened after 1991 or closed before 2000 and actually have a writing score. The question asks for the score, so schools without one are left out.",
+     "sql": "SELECT T2.School, T1.AvgScrWrite, T2.Phone FROM schools AS T2 LEFT JOIN satscores AS T1 ON T2.CDSCode = T1.cds WHERE (strftime('%Y', T2.OpenDate) > '1991' OR strftime('%Y', T2.ClosedDate) < '2000') AND T1.AvgScrWrite IS NOT NULL",
+     "rows": 454,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return one overall average writing score across all schools that meet the date condition, instead of one row per school.",
+     "sql": "SELECT AVG(T1.AvgScrWrite) FROM schools AS T2 LEFT JOIN satscores AS T1 ON T2.CDSCode = T1.cds WHERE strftime('%Y', T2.OpenDate) > '1991' OR strftime('%Y', T2.ClosedDate) < '2000'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "missing_values",
+    "structure": [
+     "filter_only",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Keep only the matching schools that have a row in satscores, even if their writing score is empty, but leave out schools with no SAT row at all."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Include schools that have a satscores row, using AvgScrWrite as the 'average score in writing' per school, but do not drop schools whose phone is missing (left join on phone, i.e. phone optional) while requiring a score.",
+      "Interpret 'opened after 1991 or closed before 2000' with year-only comparisons (strftime year > 1991 / < 2000) versus full-date comparisons; year-based comparison excludes schools opened during 1991 and treats closures in 2000 as not before 2000.",
+      "Compute an average of AvgScrWrite per school name (grouping by school) in case multiple rows share a name, instead of listing the stored AvgScrWrite directly."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "unwanted processing",
+    "difference": "Both failing runs added \"AND s.AvgScrWrite IS NOT NULL\" (454 rows). Repeat 1 also used an INNER JOIN and prepended a synthetic '--- OVERALL AVERAGE ---' row (455 rows). Gold uses a LEFT JOIN with no null filter and returns 8574 rows, most with None for AvgScrWrite.",
+    "question_gap": "partly \u2014 'if there is any' signals that missing values should be kept, but it is attached to the phone number, so the question does not clearly say to keep schools with no writing score.",
+    "supplied": "a record without a match keeps one combined record with those values missing"
+   },
+   "analysis": {
+    "task": "b002",
+    "requirements": [
+     {
+      "requirement": "start from schools records",
+      "real": "implied",
+      "phrase": "the schools that were opened after 1991 or closed before 2000"
+     },
+     {
+      "requirement": "link schools to SAT scores by school code",
+      "real": "implied",
+      "phrase": "average score in writing for the schools"
+     },
+     {
+      "requirement": "keep schools with no SAT match (left join, score missing)",
+      "real": "left_open",
+      "phrase": "What is the average score in writing for the schools"
+     },
+     {
+      "requirement": "filter: opening year > 1991",
+      "real": "stated",
+      "phrase": "opened after 1991"
+     },
+     {
+      "requirement": "filter: closing year < 2000",
+      "real": "stated",
+      "phrase": "closed before 2000"
+     },
+     {
+      "requirement": "combine the two filters with OR",
+      "real": "stated",
+      "phrase": "or"
+     },
+     {
+      "requirement": "no aggregation; return each record's stored average writing score",
+      "real": "implied",
+      "phrase": "average score in writing ... List the school names along with the score"
+     },
+     {
+      "requirement": "output school name",
+      "real": "stated",
+      "phrase": "List the school names"
+     },
+     {
+      "requirement": "output average writing score",
+      "real": "stated",
+      "phrase": "along with the score"
+     },
+     {
+      "requirement": "output phone number",
+      "real": "via_evidence",
+      "phrase": "list the communication number of the schools if there is any. Evidence: Communication number refers to phone number."
+     },
+     {
+      "requirement": "phone may be missing; keep row anyway",
+      "real": "stated",
+      "phrase": "if there is any"
+     },
+     {
+      "requirement": "year compared as text extracted from date",
+      "real": "implied",
+      "phrase": "opened after 1991"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "no deduplication",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to keep qualifying schools that have no writing score (outer join, score missing) or drop them",
+     "open_phrase": "What is the average score in writing for the schools ... List the school names along with the score",
+     "why_both": "The question is framed around the schools and names them as the subject, which suggests listing all of them, but it asks for 'the score' of each, which suggests only schools that have a score belong in the answer. The 'if there is any' hedge applies only to the phone number."
+    },
+    "pattern": [
+     "frames the question around an entity set defined by two date conditions joined with 'or'",
+     "asks for a stored per-record metric with a word ('average') that could be misread as an aggregation",
+     "adds an optional attribute with an explicit 'if there is any' hedge, but gives no such hedge for the main metric",
+     "uses a nonstandard term for a column and resolves it through evidence",
+     "says nothing about entities that lack the related metric record",
+     "states no ordering, limit, or duplicate rule"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b007",
+   "question_id": 58,
+   "database": "california_schools",
+   "original": "What is the phone number and extension number for the school with the zip code 95203-3704? Indicate the school's name.",
+   "explicit": "Start from each `schools` record; keep only the records for which zip code (`schools.Zip`) equals '95203-3704' (compared as text, character by character); for each kept record, return (1) phone number (`schools.Phone`); (2) phone extension (`schools.Ext`); (3) school name (`schools.School`).",
+   "gold_sql": "SELECT Phone, Ext, School FROM schools WHERE Zip = '95203-3704'",
+   "decision": "The order of the output columns: school name after phone and extension, or school name first",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return the phone number and the extension in the order the question asks for them, then the school name, which the question adds at the end with 'Indicate the school's name'.",
+     "sql": "SELECT Phone, Ext, School FROM schools WHERE Zip = '95203-3704'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the same three values with the school name first, as the label for the row, followed by its phone number and extension.",
+     "sql": "SELECT School, Phone, Ext FROM schools WHERE Zip = '95203-3704'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Return the phone number and extension combined into one value (for example, 'phone ext'), plus the school name.",
+      "Return only Phone and Ext, with the school name used just to identify the row and not output. This is weaker because the question says to indicate the name.",
+      "Match the zip code against MailZip instead of Zip. This is a different filter, and the question's 'school with the zip code' points to Zip."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Both submissions return the same values but in the order (School, Phone, Ext): ['Spanos (Alex G.) Elementary', '(209) 933-7470', '2222']. Gold returns (Phone, Ext, School): ['(209) 933-7470', '2222', 'Spanos (Alex G.) Elementary']. The grader compares tuples by position, so the row does not match.",
+    "question_gap": "partly \u2014 the question names phone, extension, then school name, which suggests that order, but the difference only matters because the grader is sensitive to column order.",
+    "supplied": "return (1) phone number (`schools.Phone`); (2) phone extension (`schools.Ext`); (3) school name (`schools.School`)"
+   },
+   "analysis": {
+    "task": "b007",
+    "requirements": [
+     {
+      "requirement": "source records are schools",
+      "real": "stated",
+      "phrase": "the school"
+     },
+     {
+      "requirement": "filter zip code equals '95203-3704' as exact text",
+      "real": "stated",
+      "phrase": "with the zip code 95203-3704"
+     },
+     {
+      "requirement": "output phone number",
+      "real": "stated",
+      "phrase": "What is the phone number"
+     },
+     {
+      "requirement": "output phone extension",
+      "real": "stated",
+      "phrase": "and extension number"
+     },
+     {
+      "requirement": "output school name",
+      "real": "stated",
+      "phrase": "Indicate the school's name."
+     },
+     {
+      "requirement": "column order: phone, extension, school name",
+      "real": "left_open",
+      "phrase": "What is the phone number and extension number ... Indicate the school's name."
+     },
+     {
+      "requirement": "return all matching records (no limit, no dedup)",
+      "real": "implied",
+      "phrase": "the school"
+     },
+     {
+      "requirement": "missing extension values kept as-is",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "column order: whether the school name goes last (after phone and extension) or first as the row label",
+     "open_phrase": "Indicate the school's name.",
+     "why_both": "The name is asked for in a separate follow-up sentence, so a reader could keep the order in which things were mentioned (name last) or treat the name as the label that naturally comes first in each row."
+    },
+    "pattern": [
+     "asks for the main values in a question and adds an extra output column in a separate follow-up instruction",
+     "uses a singular 'the school' but gives no limit or tie rule if several records match",
+     "gives the filter value as an exact literal that can be matched directly as text",
+     "does not say what order the output columns should come in",
+     "says nothing about missing extension values"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b008",
+   "question_id": 65,
+   "database": "california_schools",
+   "original": "What is the ratio in percentage of Santa Clara County schools that are locally funded compared to all other types of charter school funding?\nEvidence: Ratio in percentage = (count(locally funded schools in Santa Clara) / count(all funding type schools in Santa Clara) * 100%",
+   "explicit": "Start from each `schools` record; keep only the records for which all of the following hold: [1] county name (`schools.County`) equals 'Santa Clara' (compared as text, character by character); [2] is a charter school (`schools.Charter`), 1 = yes and 0 = no equals 1 [end]; all kept records form one group, which gives one result row; for each result row, return (1) (A \u00d7 100) \u00f7 B. Here A is the sum of the value of the first rule that applies: if charter funding type (`schools.FundingType`) equals 'Locally funded' (compared as text, character by character) then 1; otherwise 0 in the group (missing values ignored; missing when there are none); B is the sum of the value of the first rule that applies: if charter funding type (`schools.FundingType`) does not equal 'Locally funded' (compared as text, character by character) then 1; otherwise 0 in the group (missing values ignored; missing when there are none).",
+   "gold_sql": "SELECT CAST(SUM(CASE WHEN FundingType = 'Locally funded' THEN 1 ELSE 0 END) AS REAL) * 100 / SUM(CASE WHEN FundingType != 'Locally funded' THEN 1 ELSE 0 END) FROM schools WHERE County = 'Santa Clara' AND Charter = 1",
+   "decision": "The denominator of the percentage: only the charter schools that are not locally funded, or all charter schools in Santa Clara",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Divide the number of locally funded charter schools in Santa Clara by the number of Santa Clara charter schools with any other funding type (not locally funded), then multiply by 100.",
+     "sql": "SELECT CAST(SUM(CASE WHEN FundingType = 'Locally funded' THEN 1 ELSE 0 END) AS REAL) * 100 / SUM(CASE WHEN FundingType != 'Locally funded' THEN 1 ELSE 0 END) FROM schools WHERE County = 'Santa Clara' AND Charter = 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Divide the number of locally funded charter schools in Santa Clara by the total number of Santa Clara charter schools of every funding type, then multiply by 100. This matches the evidence's 'count(all funding type schools)'.",
+     "sql": "SELECT CAST(SUM(CASE WHEN FundingType = 'Locally funded' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(*) FROM schools WHERE County = 'Santa Clara' AND Charter = 1",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Compare locally funded schools to the other charter funding types, leaving out rows where FundingType is NULL. The gold's != condition already leaves out NULLs, but COUNT(*) counts them, so this reading uses the same all-types denominator as reading B but only counts non-null funding types.",
+     "sql": "SELECT CAST(SUM(CASE WHEN FundingType = 'Locally funded' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(FundingType) FROM schools WHERE County = 'Santa Clara' AND Charter = 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "other",
+    "structure": [
+     "ratio",
+     "filter_only"
+    ],
+    "semantics": [
+     "coded_values"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Use every Santa Clara school in the schools table as the denominator, including non-charter schools and rows with NULL FundingType (a plain COUNT(*) over the county).",
+      "Use the frpm table's `Charter Funding Type` and `County Name` columns instead of schools.FundingType and schools.County, which could give a different count."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Restrict to schools with Charter = 1 (charter schools only) in Santa Clara for both numerator and denominator, since the question says 'charter school funding'.",
+      "Use the frpm table's 'Charter Funding Type' and 'County Name' instead of the schools table for the counts.",
+      "Use all Santa Clara schools (charter or not, including NULL funding type) as the denominator, i.e. COUNT(*) over the county."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "reading choice",
+    "difference": "The submissions divide by all charter schools, \"/ COUNT(*) * 100\", giving 24.39. Gold divides by the non-locally-funded count, \"/ SUM(CASE WHEN FundingType != 'Locally funded' THEN 1 ELSE 0 END)\", giving 33.33.",
+    "question_gap": "partly \u2014 the question's 'compared to all other types' supports the gold's denominator, but the evidence formula says 'count(all funding type schools)', which is the denominator the agent used.",
+    "supplied": "B is the sum of ... if charter funding type (`schools.FundingType`) does not equal 'Locally funded' then 1"
+   },
+   "analysis": {
+    "task": "b008",
+    "requirements": [
+     {
+      "requirement": "source records are schools",
+      "real": "stated",
+      "phrase": "Santa Clara County schools"
+     },
+     {
+      "requirement": "filter county = 'Santa Clara'",
+      "real": "stated",
+      "phrase": "Santa Clara County"
+     },
+     {
+      "requirement": "restrict to charter schools (Charter = 1)",
+      "real": "implied",
+      "phrase": "all other types of charter school funding"
+     },
+     {
+      "requirement": "numerator: count of schools with FundingType = 'Locally funded'",
+      "real": "stated",
+      "phrase": "schools that are locally funded"
+     },
+     {
+      "requirement": "denominator: count of schools whose FundingType is not 'Locally funded'",
+      "real": "stated",
+      "phrase": "compared to all other types of charter school funding"
+     },
+     {
+      "requirement": "denominator excludes the locally funded schools (contradicted by evidence, which uses all funding types)",
+      "real": "contradicted",
+      "phrase": "count(all funding type schools in Santa Clara)"
+     },
+     {
+      "requirement": "multiply ratio by 100",
+      "real": "stated",
+      "phrase": "ratio in percentage"
+     },
+     {
+      "requirement": "single aggregate row over all kept records",
+      "real": "implied",
+      "phrase": "What is the ratio"
+     },
+     {
+      "requirement": "rows with missing FundingType are counted in neither the numerator nor the denominator",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "exact text match 'Locally funded'",
+      "real": "implied",
+      "phrase": "locally funded"
+     }
+    ],
+    "choice": {
+     "decision": "Whether the denominator counts only the non-locally-funded charter schools or all charter schools in the county",
+     "open_phrase": "compared to all other types of charter school funding\" vs evidence \"count(all funding type schools in Santa Clara)",
+     "why_both": "The question's words \"all other types\" point to excluding the locally funded schools from the denominator, while the evidence formula divides by all funding types, which gives a part-of-whole percentage."
+    },
+    "pattern": [
+     "expresses a part-to-rest ratio in words, then gives an evidence formula that describes a part-to-whole ratio",
+     "leaves the charter-only restriction to a modifier (\"charter school funding\") rather than an explicit filter",
+     "uses \"ratio in percentage\" to mean multiply by 100 without saying which denominator the ratio uses",
+     "does not say how records with a missing category value are treated",
+     "the evidence formula conflicts with the question's wording, and the gold follows the question's wording"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b009",
+   "question_id": 68,
+   "database": "california_schools",
+   "original": "Which county reported the most number of school closure in the 1980s with school wonership code belonging to Youth Authority Facilities (CEA)?\nEvidence: Youth Authority Facilities (CEA) refers to SOC = 11; 1980s = years between 1980 and 1989",
+   "explicit": "Start from each `schools` record; keep only the records for which all of the following hold: [1] the year of school closing date (`schools.ClosedDate`) (as text, `%Y`) is between '1980' and '1989', inclusive (compared as text, character by character); [2] operating status (`schools.StatusType`) equals 'Closed' (compared as text, character by character); [3] school ownership code (`schools.SOC`) equals 11 (compared as text: the number is written as text first) [end]; group the kept records by county name (`schools.County`); each group gives one result row; for each result row, return (1) county name (`schools.County`); order the result rows by the number of records in the group whose school name (`schools.School`) is not missing descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT County FROM schools WHERE strftime('%Y', ClosedDate) BETWEEN '1980' AND '1989' AND StatusType = 'Closed' AND SOC = 11 GROUP BY County ORDER BY COUNT(School) DESC LIMIT 1",
+   "decision": "How to handle counties tied for the highest number of closures: return one arbitrary county, or return every tied county.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return a single county: sort counties by their number of closed SOC 11 schools in 1980\u20131989 and keep only the top row, even though several counties tie.",
+     "sql": "SELECT County FROM schools WHERE strftime('%Y', ClosedDate) BETWEEN '1980' AND '1989' AND StatusType = 'Closed' AND SOC = 11 GROUP BY County ORDER BY COUNT(School) DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return every county that has the highest number of closed SOC 11 schools in 1980\u20131989, so all tied counties are listed.",
+     "sql": "SELECT County FROM schools WHERE strftime('%Y', ClosedDate) BETWEEN '1980' AND '1989' AND StatusType = 'Closed' AND SOC = 11 GROUP BY County HAVING COUNT(School) = (SELECT MAX(cnt) FROM (SELECT COUNT(School) AS cnt FROM schools WHERE strftime('%Y', ClosedDate) BETWEEN '1980' AND '1989' AND StatusType = 'Closed' AND SOC = 11 GROUP BY County))",
+     "rows": 3,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "tie",
+    "structure": [
+     "extreme_selection",
+     "grouping"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Define \"closure in the 1980s\" by ClosedDate falling between 1980-01-01 and 1989-12-31, without also requiring StatusType = 'Closed'. Requiring the status changes the result only if some schools have a ClosedDate but a non-Closed status, such as Merged.",
+      "Count distinct schools per county, rather than counting rows, if the schools table could hold duplicate records for a school. In this schema CDSCode is the primary key, so this would give the same result."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Repeat 0 returned every tied county, 'HAVING COUNT(*) = (SELECT MAX(cnt) ...)', giving 3 rows: Calaveras, Lake, Sacramento. Repeat 1 had the right county but added a column, ['Sacramento', 1]. Gold uses 'ORDER BY COUNT(School) DESC LIMIT 1', returns only County, and adds \"StatusType = 'Closed'\".",
+    "question_gap": "partly \u2014 'which county' implies one answer, but counts are tied, so gold's LIMIT 1 choice is arbitrary, and the StatusType filter is not stated.",
+    "supplied": "keep only the first 1 rows; operating status (`schools.StatusType`) equals 'Closed'"
+   },
+   "analysis": {
+    "task": "b009",
+    "requirements": [
+     {
+      "requirement": "records are schools",
+      "real": "implied",
+      "phrase": "school closure"
+     },
+     {
+      "requirement": "closing year between 1980 and 1989 inclusive",
+      "real": "via_evidence",
+      "phrase": "in the 1980s; 1980s = years between 1980 and 1989"
+     },
+     {
+      "requirement": "status type equals 'Closed'",
+      "real": "implied",
+      "phrase": "school closure"
+     },
+     {
+      "requirement": "ownership code SOC = 11",
+      "real": "via_evidence",
+      "phrase": "Youth Authority Facilities (CEA) refers to SOC = 11"
+     },
+     {
+      "requirement": "group by county",
+      "real": "stated",
+      "phrase": "Which county"
+     },
+     {
+      "requirement": "count schools per county (non-missing school names)",
+      "real": "implied",
+      "phrase": "most number of school closure"
+     },
+     {
+      "requirement": "output county name only",
+      "real": "stated",
+      "phrase": "Which county"
+     },
+     {
+      "requirement": "order by count descending",
+      "real": "stated",
+      "phrase": "the most"
+     },
+     {
+      "requirement": "keep only the first row",
+      "real": "implied",
+      "phrase": "Which county ... the most"
+     },
+     {
+      "requirement": "tie handling",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "missing school names are not counted",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Whether to return one top county or every county tied for the highest count",
+     "open_phrase": "Which county reported the most number of school closure",
+     "why_both": "The singular 'Which county' suggests a single answer, but 'the most' describes whoever holds the maximum, so a careful reader could list every tied county."
+    },
+    "pattern": [
+     "names the extreme with a singular question word plus a superlative and gives no tie rule",
+     "leaves code and date-range meanings to the evidence",
+     "expresses the status filter only through the event noun ('closure'), not as an explicit field value",
+     "states the aggregation loosely ('most number of') without saying what is counted or how missing values are treated",
+     "has typos and informal grammar but they don't change the meaning"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b012",
+   "question_id": 98,
+   "database": "financial",
+   "original": "Among the accounts who have approved loan date in 1997, list out the accounts that have the lowest approved amount and choose weekly issuance statement.\nEvidence: 'POPLATEK TYDNE' stands for weekly issuance",
+   "explicit": "Start from each `loan` record; combine it with each `account` record for which the id number identifying the account (`loan.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of loan approval date (`loan.date`) (as text, `%Y`) equals '1997' (compared as text, character by character); [2] account statement issuance frequency (`account.frequency`) equals 'POPLATEK TYDNE' (compared as text, character by character) [end]; for each kept record, return (1) the id of the account (`account.account_id`); order the result rows by loan principal amount (`loan.amount`) ascending (missing first); keep only the first 1 rows.",
+   "gold_sql": "SELECT T2.account_id FROM loan AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1997' AND T2.frequency = 'POPLATEK TYDNE' ORDER BY T1.amount LIMIT 1",
+   "decision": "Whether the output should include the loan amount used for ranking along with the account id, or only the account id.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List only the account id(s) of the 1997 weekly-issuance loan with the lowest approved amount.",
+     "sql": "SELECT T2.account_id FROM loan AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1997' AND T2.frequency = 'POPLATEK TYDNE' ORDER BY T1.amount LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List the account id(s) of the 1997 weekly-issuance loan with the lowest approved amount, and show that lowest approved amount next to each one.",
+     "sql": "SELECT T2.account_id, T1.amount FROM loan AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T1.date) = '1997' AND T2.frequency = 'POPLATEK TYDNE' ORDER BY T1.amount LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Find the lowest approved amount among all 1997 loans, then keep only the accounts with weekly issuance that have that amount. This could return nothing if the overall minimum belongs to a non-weekly account. The wording 'accounts who have approved loan date in 1997 ... that have the lowest approved amount and choose weekly issuance' allows this, so it is a plausible alternative.",
+      "Find the lowest amount within each account's 1997 loans, then list every weekly-issuance account with that account's own minimum. This is less plausible, because 'the lowest approved amount' most naturally means a single global minimum."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Both original submissions returned an extra amount column, 'SELECT a.account_id, l.amount' giving [[176, 27456]]. Gold returns only 'SELECT T2.account_id' giving [[176]]. The filters and ordering matched.",
+    "question_gap": "partly -- the question says 'list out the accounts', which suggests only account ids, but it does not explicitly rule out showing the amount used to rank them.",
+    "supplied": "for each kept record, return (1) the id of the account (`account.account_id`)"
+   },
+   "analysis": {
+    "task": "b012",
+    "requirements": [
+     {
+      "requirement": "start from loan records linked to their account (inner join on account_id)",
+      "real": "implied",
+      "phrase": "Among the accounts who have approved loan date"
+     },
+     {
+      "requirement": "loan approval year equals 1997",
+      "real": "stated",
+      "phrase": "approved loan date in 1997"
+     },
+     {
+      "requirement": "account frequency equals 'POPLATEK TYDNE'",
+      "real": "via_evidence",
+      "phrase": "choose weekly issuance statement; 'POPLATEK TYDNE' stands for weekly issuance"
+     },
+     {
+      "requirement": "output only account id",
+      "real": "implied",
+      "phrase": "list out the accounts"
+     },
+     {
+      "requirement": "order by loan amount ascending",
+      "real": "stated",
+      "phrase": "the lowest approved amount"
+     },
+     {
+      "requirement": "keep only first 1 row",
+      "real": "left_open",
+      "phrase": "list out the accounts that have the lowest approved amount"
+     },
+     {
+      "requirement": "ties broken arbitrarily by limit 1",
+      "real": "left_open",
+      "phrase": "the accounts that have the lowest approved amount"
+     },
+     {
+      "requirement": "missing amounts sort first",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "duplicates (account with several qualifying loans) not removed",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether the output includes the lowest approved amount alongside the account id",
+     "open_phrase": "list out the accounts that have the lowest approved amount",
+     "why_both": "\"list out the accounts\" suggests only account identifiers, but \"that have the lowest approved amount\" makes the amount the defining attribute, so a reader could reasonably show it next to each account."
+    },
+    "pattern": [
+     "uses a plural 'list out the accounts' while the gold returns a single row",
+     "names the extreme with a superlative ('lowest') and states no tie rule",
+     "puts a category filter in plain-language form and relies on evidence to map it to a coded value",
+     "places the year filter in an 'Among ...' preamble scoping the population",
+     "names the output entity but not whether the ranking attribute should also be shown"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b013",
+   "question_id": 99,
+   "database": "financial",
+   "original": "Among the accounts who have loan validity more than 12 months, list out the accounts that have the highest approved amount and have account opening date in 1993.\nEvidence: Loan validity more than 12 months refers to duration > 12",
+   "explicit": "Start from each `loan` record; combine it with each `account` record for which the id number identifying the account (`loan.account_id`) equals the id of the account (`account.account_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] the year of account opening date (`account.date`) (as text, `%Y`) equals '1993' (compared as text, character by character); [2] loan repayment term (`loan.duration`) is greater than 12 [end]; for each kept record, return (1) the id number identifying the account (`loan.account_id`); order the result rows by loan principal amount (`loan.amount`) descending (missing last); keep only the first 1 rows.",
+   "gold_sql": "SELECT T1.account_id FROM loan AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T2.date) = '1993' AND T1.duration > 12 ORDER BY T1.amount DESC LIMIT 1",
+   "decision": "Whether the output should include the approved loan amount next to the account id, or only the account id",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return only the id of the account with the highest approved loan amount, among loans with duration > 12 months on accounts opened in 1993.",
+     "sql": "SELECT T1.account_id FROM loan AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T2.date) = '1993' AND T1.duration > 12 ORDER BY T1.amount DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the id of that account together with its approved loan amount, which is the value used to rank it as highest.",
+     "sql": "SELECT T1.account_id, T1.amount FROM loan AS T1 INNER JOIN account AS T2 ON T1.account_id = T2.account_id WHERE STRFTIME('%Y', T2.date) = '1993' AND T1.duration > 12 ORDER BY T1.amount DESC LIMIT 1",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "extreme_selection",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Return every account tied for the highest approved amount (plural 'accounts'), not just one top row via LIMIT 1",
+      "Return account ids together with the account opening date as well as the amount"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "does not fit"
+     },
+     "other_readings": [
+      "Ties: 'accounts' (plural) could mean returning all accounts tied for the maximum amount, rather than a single account via LIMIT 1.",
+      "Scope of 'highest': the maximum could be computed over all loans with duration > 12 first, and then filtered to accounts opened in 1993, instead of taking the maximum within the 1993-opened subset. This reading is less natural, since the question's filters seem to apply jointly.",
+      "Per-account maximum: return every account opened in 1993 with duration > 12, ordered by their highest loan amount, instead of only the top one. This is a weaker reading of 'the highest'."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Both original submissions added the amount column, 'SELECT a.account_id, l.amount' giving [[10451, 482940]]. Gold returns only 'SELECT T1.account_id' giving [[10451]]. The filters and ordering matched.",
+    "question_gap": "partly -- 'list out the accounts' suggests only ids, but the question does not rule out including the ranking amount.",
+    "supplied": "for each kept record, return (1) the id number identifying the account (`loan.account_id`)"
+   },
+   "analysis": {
+    "task": "b013",
+    "requirements": [
+     {
+      "requirement": "link each loan to its account via account_id (inner join)",
+      "real": "implied",
+      "phrase": "accounts who have loan validity"
+     },
+     {
+      "requirement": "filter loan duration > 12",
+      "real": "via_evidence",
+      "phrase": "Loan validity more than 12 months refers to duration > 12"
+     },
+     {
+      "requirement": "filter account opening year = 1993",
+      "real": "stated",
+      "phrase": "have account opening date in 1993"
+     },
+     {
+      "requirement": "rank by loan amount descending",
+      "real": "stated",
+      "phrase": "the highest approved amount"
+     },
+     {
+      "requirement": "keep only the top 1 row",
+      "real": "implied",
+      "phrase": "the highest approved amount"
+     },
+     {
+      "requirement": "output only account_id",
+      "real": "implied",
+      "phrase": "list out the accounts"
+     },
+     {
+      "requirement": "tie handling (arbitrary single row)",
+      "real": "left_open",
+      "phrase": "list out the accounts that have the highest approved amount"
+     },
+     {
+      "requirement": "missing amounts sorted last",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to return the ranking value (loan amount) alongside the account id",
+     "open_phrase": "list out the accounts that have the highest approved amount",
+     "why_both": "'list out the accounts' names only accounts as the output, but 'that have the highest approved amount' puts the amount in focus, so a reader could reasonably show it to justify the ranking."
+    },
+    "pattern": [
+     "names the output entity with a plural noun ('the accounts') even though only one row is returned",
+     "states the extreme with a superlative relative clause and gives no tie rule or row limit",
+     "hands the meaning of a domain phrase ('loan validity') to external evidence",
+     "states the date filter as a year in plain words without saying how to extract it",
+     "leaves the join between entities implied by possession wording ('accounts who have loan')",
+     "doesn't say whether the ranking measure should appear in the output"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b015",
+   "question_id": 109,
+   "database": "financial",
+   "original": "How many clients opened their accounts in Jesenik branch were women?\nEvidence: A2 has region names; Woman and female share the same meaning; female refers to gender = 'F'",
+   "explicit": "Start from each `client` record; combine it with each `district` record for which location of branch (`client.district_id`) equals location of branch (`district.district_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] client gender (`client.gender`) equals 'F' (compared as text, character by character); [2] district_name (`district.A2`) equals 'Jesenik' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose the unique number (`client.client_id`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.client_id) FROM client AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id WHERE T1.gender = 'F' AND T2.A2 = 'Jesenik'",
+   "decision": "Which district decides that a client 'opened their accounts in Jesenik branch': the client's own district_id, or the district_id of the account(s) the client is linked to through disp.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count female clients whose own home or registered district (client.district_id) is Jesenik.",
+     "sql": "SELECT COUNT(T1.client_id) FROM client AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id WHERE T1.gender = 'F' AND T2.A2 = 'Jesenik'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct female clients linked through disp to at least one account whose branch (account.district_id) is Jesenik.",
+     "sql": "SELECT COUNT(DISTINCT T1.client_id) FROM client AS T1 INNER JOIN disp AS T3 ON T1.client_id = T3.client_id INNER JOIN account AS T4 ON T3.account_id = T4.account_id INNER JOIN district AS T2 ON T4.district_id = T2.district_id WHERE T1.gender = 'F' AND T2.A2 = 'Jesenik'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count distinct female clients who own (disp.type = 'OWNER') at least one account whose branch is Jesenik. 'Opened' is read as being the account owner, not just any linked user.",
+     "sql": "SELECT COUNT(DISTINCT T1.client_id) FROM client AS T1 INNER JOIN disp AS T3 ON T1.client_id = T3.client_id INNER JOIN account AS T4 ON T3.account_id = T4.account_id INNER JOIN district AS T2 ON T4.district_id = T2.district_id WHERE T1.gender = 'F' AND T2.A2 = 'Jesenik' AND T3.type = 'OWNER'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "aggregation_over_join",
+     "filter_only"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "fits",
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count female clients whose client.district_id is Jesenik AND who own an account whose account.district_id is Jesenik (both branch fields must match).",
+      "Count female OWNER dispositions (rows, not distinct clients) on Jesenik-branch accounts, so a client owning multiple Jesenik accounts is counted more than once.",
+      "Count female clients linked to Jesenik-branch accounts that were created in a specific period (using account.date), if 'opened' is meant temporally; the question gives no period, so this is unlikely."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The submission tied clients to the branch through the account, 'JOIN disp ... JOIN account a ... a.district_id = (SELECT district_id FROM district WHERE A2 = 'Jesenik')' with COUNT(DISTINCT), giving 25. Gold uses the client's own district, 'client.district_id = district.district_id', giving 26.",
+    "question_gap": "no -- 'opened their accounts in Jesenik branch' reasonably points to the account's district. The question does not say that the client's own district_id should be used, which is what gold does.",
+    "supplied": "combine it with each `district` record for which location of branch (`client.district_id`) equals location of branch (`district.district_id`)"
+   },
+   "analysis": {
+    "task": "b015",
+    "requirements": [
+     {
+      "requirement": "count client records (records are clients)",
+      "real": "stated",
+      "phrase": "How many clients"
+     },
+     {
+      "requirement": "link client to district via client.district_id",
+      "real": "left_open",
+      "phrase": "opened their accounts in Jesenik branch"
+     },
+     {
+      "requirement": "inner join; clients without a matching district are dropped",
+      "real": "implied",
+      "phrase": "in Jesenik branch"
+     },
+     {
+      "requirement": "filter gender = 'F'",
+      "real": "via_evidence",
+      "phrase": "were women; Woman and female share the same meaning; female refers to gender = 'F'"
+     },
+     {
+      "requirement": "filter district A2 = 'Jesenik'",
+      "real": "via_evidence",
+      "phrase": "Jesenik branch; A2 has region names"
+     },
+     {
+      "requirement": "one aggregate row over all kept records",
+      "real": "implied",
+      "phrase": "How many"
+     },
+     {
+      "requirement": "count non-missing client_id without deduplication",
+      "real": "implied",
+      "phrase": "How many clients"
+     },
+     {
+      "requirement": "output a single count column",
+      "real": "implied",
+      "phrase": "How many"
+     }
+    ],
+    "choice": {
+     "decision": "Which district link defines the branch: the client's own district_id, or the district_id of the accounts linked to the client through disp (counting distinct clients)",
+     "open_phrase": "opened their accounts in Jesenik branch",
+     "why_both": "'Opened their accounts in \u2026 branch' literally points to where the accounts are held (account.district_id reached through disp), but the evidence only names the district region column, and the client table's own district_id is also labeled as the branch location, so a reader could use either link."
+    },
+    "pattern": [
+     "describes the link between records with a real-world action ('opened their accounts') and doesn't say which foreign key carries it",
+     "names a place by its label, and the evidence maps that label to a column",
+     "states a categorical filter in everyday words ('women') that the evidence maps to a coded value",
+     "asks for a count with 'How many' and gives no rule for duplicates when one entity can match through several linked records",
+     "calls the place a 'branch', which matches more than one location-bearing table"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b020",
+   "question_id": 128,
+   "database": "financial",
+   "original": "List the top nine districts, by descending order, from the highest to the lowest, the number of female account holders.\nEvidence: A2 refers to districts; Female refers to gender = 'F'",
+   "explicit": "Start from each `client` record; combine it with each `district` record for which location of branch (`client.district_id`) equals location of branch (`district.district_id`), one combined record per match (a record without a match is dropped); keep only the records for which client gender (`client.gender`) equals 'F' (compared as text, character by character); group the kept records by location of branch (`district.district_id`) and district_name (`district.A2`); each group gives one result row; for each result row, return (1) district_name (`district.A2`); (2) the number of records in the group whose the unique number (`client.client_id`) is not missing; order the result rows by the number of records in the group whose the unique number (`client.client_id`) is not missing descending (missing last); keep only the first 9 rows.",
+   "gold_sql": "SELECT T2.A2, COUNT(T1.client_id) FROM client AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id WHERE T1.gender = 'F' GROUP BY T2.district_id, T2.A2 ORDER BY COUNT(T1.client_id) DESC LIMIT 9",
+   "decision": "Which district a female account holder is counted under: the client's own district (client.district_id) or the district of the account's branch (account.district_id, reached through disp)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "For each district where female clients are registered (client.district_id), count those clients and list the nine districts with the most.",
+     "sql": "SELECT T2.A2, COUNT(T1.client_id) FROM client AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id WHERE T1.gender = 'F' GROUP BY T2.district_id, T2.A2 ORDER BY COUNT(T1.client_id) DESC LIMIT 9",
+     "rows": 9,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "For each district where the accounts are held (the branch location in account.district_id), count the distinct female clients linked to those accounts through disp, and list the nine districts with the most.",
+     "sql": "SELECT T2.A2, COUNT(DISTINCT T1.client_id) FROM client AS T1 INNER JOIN disp AS D ON T1.client_id = D.client_id INNER JOIN account AS A ON D.account_id = A.account_id INNER JOIN district AS T2 ON A.district_id = T2.district_id WHERE T1.gender = 'F' GROUP BY T2.district_id, T2.A2 ORDER BY COUNT(DISTINCT T1.client_id) DESC LIMIT 9",
+     "rows": 9,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Use the account's branch district, but count a woman only if she is the account's owner (disp.type = 'OWNER'), since 'account holder' may mean owner rather than any linked user.",
+     "sql": "SELECT T2.A2, COUNT(DISTINCT T1.client_id) FROM client AS T1 INNER JOIN disp AS D ON T1.client_id = D.client_id INNER JOIN account AS A ON D.account_id = A.account_id INNER JOIN district AS T2 ON A.district_id = T2.district_id WHERE T1.gender = 'F' AND D.type = 'OWNER' GROUP BY T2.district_id, T2.A2 ORDER BY COUNT(DISTINCT T1.client_id) DESC LIMIT 9",
+     "rows": 9,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "aggregation_over_join",
+     "extreme_selection",
+     "grouping"
+    ],
+    "semantics": [
+     "competing_roles",
+     "shared_column_names"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Use the client's own district (client.district_id), but count only female clients who are an OWNER in disp.",
+      "Use the client's district, but count only female clients who have at least one disp link, ignoring clients with no account.",
+      "Count accounts owned by women in each branch district, rather than distinct female clients."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "C0": "does not fit",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Count female clients by client.district_id but only those who have a disp record (i.e. actually hold an account), possibly distinct by client, since clients without accounts are not account holders.",
+      "Count female disp rows (dispositions/account links) rather than distinct clients, grouped by the account's district_id.",
+      "Count female clients per client.district_id restricted to OWNER dispositions only."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The submission reached the district through 'client JOIN disp JOIN account ... a.district_id = d.district_id' with COUNT(DISTINCT c.client_id), giving e.g. Praha 334, Karvina 94. Gold uses 'client.district_id = district.district_id' and gets Praha 324, Karvina 88.",
+    "question_gap": "no -- 'female account holders' per district could mean the account's district or the client's district. Nothing in the question picks the client's district_id, which is what gold uses.",
+    "supplied": "combine it with each `district` record for which location of branch (`client.district_id`) equals location of branch (`district.district_id`) ... group the kept records by location of branch (`district.district_id`) and district_name (`district.A2`)"
+   },
+   "analysis": {
+    "task": "b020",
+    "requirements": [
+     {
+      "requirement": "start from client records (account holders = clients)",
+      "real": "implied",
+      "phrase": "account holders"
+     },
+     {
+      "requirement": "link client to district via client.district_id",
+      "real": "left_open",
+      "phrase": "districts ... the number of female account holders"
+     },
+     {
+      "requirement": "inner join drops unmatched clients",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "filter gender = 'F'",
+      "real": "via_evidence",
+      "phrase": "Female refers to gender = 'F'"
+     },
+     {
+      "requirement": "group by district (id and A2)",
+      "real": "stated",
+      "phrase": "districts"
+     },
+     {
+      "requirement": "output district name A2",
+      "real": "via_evidence",
+      "phrase": "A2 refers to districts"
+     },
+     {
+      "requirement": "output count of female clients (non-null client_id)",
+      "real": "stated",
+      "phrase": "the number of female account holders"
+     },
+     {
+      "requirement": "order by count descending",
+      "real": "stated",
+      "phrase": "by descending order, from the highest to the lowest"
+     },
+     {
+      "requirement": "limit 9",
+      "real": "stated",
+      "phrase": "top nine districts"
+     },
+     {
+      "requirement": "count duplicates (plain count, not distinct)",
+      "real": "implied",
+      "phrase": "the number of female account holders"
+     },
+     {
+      "requirement": "tie handling at 9th place",
+      "real": "left_open",
+      "phrase": "top nine"
+     }
+    ],
+    "choice": {
+     "decision": "Which district a female holder counts toward: the client's own registered district (client.district_id) or the branch district of the accounts they hold (account.district_id via disp)",
+     "open_phrase": "the top nine districts ... the number of female account holders",
+     "why_both": "\"Account holders\" can mean clients in general, grouped by where they are registered, or it can mean people tied to accounts, which places them in the district of the account's branch. Both readings fit the wording, and the schema supports both routes."
+    },
+    "pattern": [
+     "uses a domain role noun ('account holders') that could mean the person entity or the person-through-account relationship",
+     "names the grouping entity without saying which foreign-key path links it to the counted entity",
+     "puts the category filter and the display column in evidence as code mappings",
+     "states the order redundantly ('descending', 'highest to the lowest') and gives the limit as a number word",
+     "has no tie rule for the cutoff and no rule about distinct counting"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b022",
+   "question_id": 185,
+   "database": "financial",
+   "original": "What proportion of customers who have accounts at the Prague branch are female?\nEvidence: Female refers to gender = 'F'; Percentage of female clients in Prague branch = count[female clients with accounts in Prague branch / count(clients with accounts in Prague branch)] * 100%; A3 may contain information about Prague",
+   "explicit": "Start from each `district` record; combine it with each `client` record for which location of branch (`district.district_id`) equals location of branch (`client.district_id`), one combined record per match (a record without a match is dropped); keep only the records for which region name (`district.A3`) equals 'Prague' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) (A \u00f7 B) \u00d7 100. Here A is the sum of 1 if client gender (`client.gender`) equals 'F' (compared as text, character by character), 0 if not, missing when it cannot be decided in the group (missing values ignored; missing when there are none); B is the number of records in the group whose the unique number (`client.client_id`) is not missing.",
+   "gold_sql": "SELECT CAST(SUM(T2.gender = 'F') AS REAL) / COUNT(T2.client_id) * 100 FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id WHERE T1.A3 = 'Prague'",
+   "decision": "Which district_id decides that a customer is at the Prague branch: the client's own district_id (client.district_id) or the district_id of the account they hold (account.district_id, reached through disp)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Customers at the Prague branch are the clients whose own district is in the Prague region (client.district_id -> district.A3 = 'Prague'). The result is the share of those clients who are female.",
+     "sql": "SELECT CAST(SUM(T2.gender = 'F') AS REAL) / COUNT(T2.client_id) * 100 FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id WHERE T1.A3 = 'Prague'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Customers at the Prague branch are the clients linked through disp to an account whose branch district is in the Prague region (account.district_id -> district.A3 = 'Prague'). Each client is counted once, and the result is the share of those clients who are female.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T2.gender = 'F' THEN T2.client_id END) AS REAL) / COUNT(DISTINCT T2.client_id) * 100 FROM district AS T1 INNER JOIN account AS T3 ON T1.district_id = T3.district_id INNER JOIN disp AS T4 ON T3.account_id = T4.account_id INNER JOIN client AS T2 ON T4.client_id = T2.client_id WHERE T1.A3 = 'Prague'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "ratio",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "shared_column_names",
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Clients linked through disp to a Prague-branch account, counting only OWNER dispositions (account holders), since 'have accounts' may mean owning them rather than being a disponent.",
+      "Clients linked through disp to a Prague-branch account without de-duplication, so the share is taken over client-account (disp) rows instead of distinct clients."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Same as R1 but matching on district.A2 = 'Hl.m. Praha' (district name) instead of A3 = 'Prague' (region); in this data the results are likely the same since Prague is one district.",
+      "Same as R1 but restricted to disp.type = 'OWNER' so only account owners count as customers, rather than all dispositions (owners, users and disponents).",
+      "Same as R1 but counting client-account pairs (not distinct clients), so a client with several Prague accounts is counted multiple times."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The gold filters on `T1.A3 = 'Prague'` and joins client straight to district, giving 48.8688. The submissions filtered on A2 names ('Hl.m. Praha', etc.) through disp/account, with COUNT(DISTINCT client_id), giving 50.4459. Repeat 1 also applied ROUND(...,2), giving 49.78.",
+    "question_gap": "partly \u2014 the evidence hints at A3 for Prague, but it doesn't say whether 'accounts at the Prague branch' goes through account.district_id or client.district_id.",
+    "supplied": "region name (`district.A3`) equals 'Prague'; join `client` directly on `district.district_id` = `client.district_id`"
+   },
+   "analysis": {
+    "task": "b022",
+    "requirements": [
+     {
+      "requirement": "population: clients associated with the Prague branch",
+      "real": "left_open",
+      "phrase": "customers who have accounts at the Prague branch"
+     },
+     {
+      "requirement": "link from client to branch location (client's own district vs. account's district via disp)",
+      "real": "contradicted",
+      "phrase": "who have accounts at the Prague branch"
+     },
+     {
+      "requirement": "filter: region name A3 = 'Prague'",
+      "real": "via_evidence",
+      "phrase": "A3 may contain information about Prague"
+     },
+     {
+      "requirement": "female means gender = 'F'",
+      "real": "via_evidence",
+      "phrase": "Female refers to gender = 'F'"
+     },
+     {
+      "requirement": "computation: female count divided by total client count, times 100",
+      "real": "via_evidence",
+      "phrase": "count[female clients with accounts in Prague branch / count(clients with accounts in Prague branch)] * 100%"
+     },
+     {
+      "requirement": "output as a percentage (\u00d7100) and not a 0\u20131 proportion",
+      "real": "via_evidence",
+      "phrase": "* 100%"
+     },
+     {
+      "requirement": "single aggregate row over all kept records",
+      "real": "implied",
+      "phrase": "What proportion"
+     },
+     {
+      "requirement": "denominator counts non-missing client_id per joined record (no dedup)",
+      "real": "left_open",
+      "phrase": "count(clients with accounts in Prague branch)"
+     },
+     {
+      "requirement": "missing gender ignored in numerator",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "How to decide which clients belong to the Prague branch: by the client's own district_id, or by the district of the accounts they are linked to through disp (counting each client once).",
+     "open_phrase": "customers who have accounts at the Prague branch",
+     "why_both": "The words 'have accounts at the ... branch' point to the account's branch district reached through disp, but the schema describes client.district_id as the 'location of branch', so a reader could also filter on the client's own district."
+    },
+    "pattern": [
+     "describes the population with a relative clause about owning something at a place, which suggests a multi-hop link without naming it",
+     "evidence gives the formula in loose pseudo-code that repeats the population phrase and does not resolve the join path",
+     "asks for a 'proportion' but the evidence scales to a percentage",
+     "points to the filter column hesitantly ('may contain information about') and does not give the exact literal match",
+     "says nothing about duplicates when a client holds several accounts or when missing values occur"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b023",
+   "question_id": 194,
+   "database": "financial",
+   "original": "Provide the IDs and age of the client with high level credit card, which is eligible for loans.\nEvidence: the credit card is high-level refers to card.type = 'gold'; eligible for loans refers to disp.type = 'OWNER'",
+   "explicit": "Start from each `disp` record; combine it with each `card` record for which disposition id (`card.disp_id`) equals disp id (`disp.disp_id`), one combined record per match (a record without a match is dropped); combine it with each `client` record for which id number of client (`disp.client_id`) equals the unique number (`client.client_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] credit card tier (`card.type`) equals 'gold' (compared as text, character by character); [2] disposition role on account (`disp.type`) equals 'OWNER' (compared as text, character by character) [end]; for each kept record, return (1) id number of client (`disp.client_id`); (2) A \u2212 B. Here A is the year of the current date and time (when the query runs) (as text, `%Y`); B is the year of client date of birth (`client.birth_date`) (as text, `%Y`).",
+   "gold_sql": "SELECT T1.client_id, STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T3.birth_date) FROM disp AS T1 INNER JOIN card AS T2 ON T2.disp_id = T1.disp_id INNER JOIN client AS T3 ON T1.client_id = T3.client_id WHERE T2.type = 'gold' AND T1.type = 'OWNER'",
+   "decision": "How to compute the client's age from birth_date: by subtracting birth year from the current year, or as the number of full years lived (and from which reference date)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Age is the current calendar year minus the client's birth year, ignoring whether the birthday has happened yet this year",
+     "sql": "SELECT T1.client_id, STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T3.birth_date) FROM disp AS T1 INNER JOIN card AS T2 ON T2.disp_id = T1.disp_id INNER JOIN client AS T3 ON T1.client_id = T3.client_id WHERE T2.type = 'gold' AND T1.type = 'OWNER'",
+     "rows": 88,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Age is the number of full years the client has lived as of today, which takes the birthday within the year into account",
+     "sql": "SELECT T1.client_id, CAST((julianday('now') - julianday(T3.birth_date)) / 365.25 AS INTEGER) FROM disp AS T1 INNER JOIN card AS T2 ON T2.disp_id = T1.disp_id INNER JOIN client AS T3 ON T1.client_id = T3.client_id WHERE T2.type = 'gold' AND T1.type = 'OWNER'",
+     "rows": 88,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Age is the number of full years the client had lived at the end of the dataset's time period (1998-01-01), not today",
+     "sql": "SELECT T1.client_id, CAST((julianday('1998-01-01') - julianday(T3.birth_date)) / 365.25 AS INTEGER) FROM disp AS T1 INNER JOIN card AS T2 ON T2.disp_id = T1.disp_id INNER JOIN client AS T3 ON T1.client_id = T3.client_id WHERE T2.type = 'gold' AND T1.type = 'OWNER'",
+     "rows": 88,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "other",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "dated_attributes"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Age at the time the gold card was issued (card.issued minus birth_date)",
+      "Age as the current year minus the birth year, without the date check, but measured at the end of the dataset period (1998 minus birth year)"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "A": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Age computed as of a data-relative date other than 1998-01-01, such as the card issue date or the date of the latest transaction or loan, to match the card holder's age at that time.",
+      "Age computed as of the card's issued date (age when the gold card was issued).",
+      "Age computed as of the loan approval date, or the account creation date."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The gold computes age as a year difference: `STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', birth_date)`, e.g. 91 for client 9. Repeat 0 used an exact age, `(julianday('now') - julianday(birth_date))/365.25`, which is off by one for some clients (90 vs 91). Repeat 1 measured age from '1998-01-01' (62).",
+    "question_gap": "no \u2014 the question just says 'age' and doesn't say whether to use a year difference or which reference date.",
+    "supplied": "(2) A \u2212 B. Here A is the year of the current date and time ... (`%Y`); B is the year of client date of birth (`%Y`)"
+   },
+   "analysis": {
+    "task": "b023",
+    "requirements": [
+     {
+      "requirement": "start from dispositions linked to cards (inner join disp.disp_id = card.disp_id)",
+      "real": "implied",
+      "phrase": "client with high level credit card"
+     },
+     {
+      "requirement": "link dispositions to clients (inner join disp.client_id = client.client_id)",
+      "real": "implied",
+      "phrase": "the client with high level credit card, which is eligible for loans"
+     },
+     {
+      "requirement": "filter card.type = 'gold'",
+      "real": "via_evidence",
+      "phrase": "the credit card is high-level refers to card.type = 'gold'"
+     },
+     {
+      "requirement": "filter disp.type = 'OWNER'",
+      "real": "via_evidence",
+      "phrase": "eligible for loans refers to disp.type = 'OWNER'"
+     },
+     {
+      "requirement": "output client id (from disp.client_id)",
+      "real": "stated",
+      "phrase": "Provide the IDs"
+     },
+     {
+      "requirement": "output age computed as current year minus birth year",
+      "real": "left_open",
+      "phrase": "and age"
+     },
+     {
+      "requirement": "age measured relative to the query's run time",
+      "real": "implied",
+      "phrase": "age"
+     },
+     {
+      "requirement": "one row per matching disp-card-client combination, no deduplication",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     },
+     {
+      "requirement": "exact text match on type values",
+      "real": "via_evidence",
+      "phrase": "card.type = 'gold'; disp.type = 'OWNER'"
+     }
+    ],
+    "choice": {
+     "decision": "How age is computed: calendar-year difference versus completed years of life accounting for the birthday",
+     "open_phrase": "the IDs and age of the client",
+     "why_both": "Everyday 'age' means completed years, which requires checking the birthday, but a common shortcut for data questions is subtracting the birth year from the current year, and the question gives no formula for age in the evidence."
+    },
+    "pattern": [
+     "asks for a derived quantity ('age') by its everyday name without giving the formula",
+     "leaves the joins between entities implicit, relying on the relationships between the named concepts",
+     "pushes the domain-label-to-value mapping for both filters into the evidence",
+     "uses a singular noun ('the client') while expecting multiple rows",
+     "states no ordering, limit, or duplicate handling"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b025",
+   "question_id": 217,
+   "database": "toxicology",
+   "original": "Identify all the atoms that are connected to the atoms of the TR181 molecule.\nEvidence: TR181 molecule refers to molecule_id = 'TR181'",
+   "explicit": "Start from each `atom` record; combine it with each `connected` record for which id of the first atom (`connected.atom_id`) equals the unique id of atoms (`atom.atom_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which molecule id (`atom.molecule_id`) equals 'TR181' (compared as text, character by character); for each kept record, return (1) id of the first atom (`connected.atom_id`); (2) id of the second atom (`connected.atom_id2`).",
+   "gold_sql": "SELECT T2.atom_id, T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T1.molecule_id = 'TR181'",
+   "decision": "What each output row should be: a bond pair (atom_id, atom_id2) from the connected table, or one row per distinct atom that is connected to a TR181 atom",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List every connection where the first atom belongs to molecule TR181, showing both atom ids of the pair (one row per connected record)",
+     "sql": "SELECT T2.atom_id, T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T1.molecule_id = 'TR181'",
+     "rows": 82,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List each distinct atom that is connected to some atom of molecule TR181, one row per atom",
+     "sql": "SELECT DISTINCT T2.atom_id2 FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id WHERE T1.molecule_id = 'TR181'",
+     "rows": 40,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "List each distinct connected atom together with its element",
+     "sql": "SELECT DISTINCT T2.atom_id2, T3.element FROM atom AS T1 INNER JOIN connected AS T2 ON T2.atom_id = T1.atom_id INNER JOIN atom AS T3 ON T3.atom_id = T2.atom_id2 WHERE T1.molecule_id = 'TR181'",
+     "rows": 40,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "repeated_entity_records",
+     "filter_only"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "List only the atom_id2 values from connected rows whose atom_id belongs to TR181, one row per connection record, keeping duplicates"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "List atom_id2 values from connected where atom_id belongs to TR181, without DISTINCT, so an atom appears once per connection.",
+      "List atoms connected to TR181 atoms in either direction, checking both atom_id and atom_id2 of connected, so the result also includes atoms that appear as the first atom of a pair.",
+      "List atoms connected to TR181 atoms, restricted to atoms outside TR181, meaning atoms that belong to other molecules."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "The gold returns connected pairs (atom_id, atom_id2), 82 rows. The submissions returned a DISTINCT list of the connected atoms (40 rows): repeat 0 gave (atom_id, element) and repeat 1 gave atom_id alone.",
+    "question_gap": "no \u2014 'identify all the atoms' reasonably means a list of atoms, not bond pairs.",
+    "supplied": "return (1) id of the first atom (`connected.atom_id`); (2) id of the second atom (`connected.atom_id2`)"
+   },
+   "analysis": {
+    "task": "b025",
+    "requirements": [
+     {
+      "requirement": "start from atom records",
+      "real": "stated",
+      "phrase": "the atoms of the TR181 molecule"
+     },
+     {
+      "requirement": "link atom to connected via connected.atom_id = atom.atom_id (atom is the first atom of the pair)",
+      "real": "implied",
+      "phrase": "atoms that are connected to the atoms"
+     },
+     {
+      "requirement": "drop atoms with no connection (inner join)",
+      "real": "implied",
+      "phrase": "connected to"
+     },
+     {
+      "requirement": "filter molecule_id = 'TR181'",
+      "real": "via_evidence",
+      "phrase": "TR181 molecule refers to molecule_id = 'TR181'"
+     },
+     {
+      "requirement": "output first atom id (connected.atom_id)",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "output second atom id (connected.atom_id2)",
+      "real": "implied",
+      "phrase": "Identify all the atoms that are connected"
+     },
+     {
+      "requirement": "one row per connected record, no deduplication",
+      "real": "left_open",
+      "phrase": "all the atoms"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Whether to return each connection pair (both atom ids, one row per connected record) or only the distinct connected-to atoms",
+     "open_phrase": "Identify all the atoms that are connected to the atoms of the TR181 molecule",
+     "why_both": "The sentence asks for the connected atoms, which points to a deduplicated list of atom_id2 values, but 'connected to the atoms' can also be read as asking for the connection relationships, so both ids of each pair would be listed."
+    },
+    "pattern": [
+     "names the target entities by their relation to an anchor set but does not say whether to show the anchor side as well",
+     "uses 'all the' with no instruction about deduplication",
+     "leaves the direction of the link (which column is the anchor) to schema convention",
+     "uses evidence only to map the named entity to a literal filter value",
+     "gives no output column list, ordering, or limit"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b031",
+   "question_id": 300,
+   "database": "toxicology",
+   "original": "What atoms comprise TR186?\nEvidence: TR186 is a molecule id",
+   "explicit": "Start from each `atom` record; keep only the records for which molecule id (`atom.molecule_id`) equals 'TR186' (compared as text, character by character); for each kept record, return (1) the unique id of atoms (`atom.atom_id`).",
+   "gold_sql": "SELECT T.atom_id FROM atom AS T WHERE T.molecule_id = 'TR186'",
+   "decision": "Whether to list each atom by its id alone or by its id together with its element",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "List the atom ids of every atom that belongs to molecule TR186.",
+     "sql": "SELECT T.atom_id FROM atom AS T WHERE T.molecule_id = 'TR186'",
+     "rows": 41,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "List every atom in molecule TR186, giving each atom's id and its element (what kind of atom it is).",
+     "sql": "SELECT T.atom_id, T.element FROM atom AS T WHERE T.molecule_id = 'TR186'",
+     "rows": 41,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Name the elements that make up TR186 (which kinds of atoms), with no atom ids.",
+     "sql": "SELECT DISTINCT T.element FROM atom AS T WHERE T.molecule_id = 'TR186'",
+     "rows": 3,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Count of atoms per element in TR186 (a composition breakdown, e.g., c: 6, h: 6)"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Count of atoms per element in TR186 (composition/stoichiometry, e.g. how many C, H, O).",
+      "Only the distinct elements of TR186 combined with atom ids grouped by element."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "unwanted processing",
+    "difference": "Both failing repeats returned an extra column: \"SELECT atom_id, element\" instead of the gold's \"SELECT T.atom_id\". The rows are the same 41 atoms, but each row has two columns.",
+    "question_gap": "partly -- 'What atoms comprise TR186' does not say whether to return just the ids or the ids plus their elements.",
+    "supplied": "return (1) the unique id of atoms (`atom.atom_id`)"
+   },
+   "analysis": {
+    "task": "b031",
+    "requirements": [
+     {
+      "requirement": "source records are atoms",
+      "real": "stated",
+      "phrase": "What atoms"
+     },
+     {
+      "requirement": "filter to atoms whose molecule id is 'TR186'",
+      "real": "via_evidence",
+      "phrase": "comprise TR186 / TR186 is a molecule id"
+     },
+     {
+      "requirement": "exact text match on molecule_id",
+      "real": "implied",
+      "phrase": "TR186"
+     },
+     {
+      "requirement": "output only the atom id column",
+      "real": "left_open",
+      "phrase": "What atoms"
+     },
+     {
+      "requirement": "one row per atom, no deduplication or aggregation",
+      "real": "implied",
+      "phrase": "What atoms comprise"
+     },
+     {
+      "requirement": "no ordering or limit",
+      "real": "implied",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "whether to identify each atom only by its id or also return its element type",
+     "open_phrase": "What atoms comprise TR186?",
+     "why_both": "\"What atoms\" can mean which atom records, identified by id, or what kinds of atoms, meaning their elements, so returning the id alone or the id plus element both answer it reasonably."
+    },
+    "pattern": [
+     "asks for entities with a bare 'what X' and does not say which attribute should represent them",
+     "puts the filter value in the question and uses the evidence only to say which field it belongs to",
+     "uses a membership verb ('comprise') to mean the parent-child link",
+     "states no ordering, limit or duplicate handling, so the default is a plain listing"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b035",
+   "question_id": 337,
+   "database": "toxicology",
+   "original": "List the element and bond type included in the molecule with molecule ID of TR002.\nEvidence: TR002 is the molecule id",
+   "explicit": "Start from each `atom` record; combine it with each `bond` record for which molecule id (`atom.molecule_id`) equals molecule id (`bond.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which molecule id (`atom.molecule_id`) equals 'TR002' (compared as text, character by character); for each kept record, return (1) chemical element of the atom (`atom.element`); (2) bond order/type between two atoms (`bond.bond_type`); remove duplicate result rows.",
+   "gold_sql": "SELECT DISTINCT T1.element, T2.bond_type FROM atom AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.molecule_id = 'TR002'",
+   "decision": "How the answer is shaped: pairs of every element with every bond type from the molecule (a cross product), or two separate lists, one of distinct elements and one of distinct bond types",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Return every distinct (element, bond type) combination in molecule TR002, which pairs each element with each bond type found in the molecule",
+     "sql": "SELECT DISTINCT T1.element, T2.bond_type FROM atom AS T1 INNER JOIN bond AS T2 ON T1.molecule_id = T2.molecule_id WHERE T1.molecule_id = 'TR002'",
+     "rows": 6,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Return the distinct elements in TR002 and the distinct bond types in TR002 as two separate lists stacked in one column, with a label saying whether each value is an element or a bond type",
+     "sql": "SELECT DISTINCT T1.element AS component, 'element' AS component_type FROM atom AS T1 WHERE T1.molecule_id = 'TR002' UNION ALL SELECT DISTINCT T2.bond_type, 'bond_type' FROM bond AS T2 WHERE T2.molecule_id = 'TR002'",
+     "rows": 5,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Return the element of each atom together with the type of the bond it actually takes part in (linked through the connected table), not the cross product",
+     "sql": "SELECT DISTINCT T1.element, T2.bond_type FROM atom AS T1 INNER JOIN connected AS T3 ON T1.atom_id = T3.atom_id INNER JOIN bond AS T2 ON T3.bond_id = T2.bond_id WHERE T1.molecule_id = 'TR002'",
+     "rows": 4,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "output_form",
+    "structure": [
+     "aggregation_over_join",
+     "filter_only"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return the distinct elements and distinct bond types as two independent result columns placed side by side (for example with row-numbered alignment or aggregated strings such as GROUP_CONCAT), rather than as pairs",
+      "Return the element and bond type per atom or bond row without DISTINCT, keeping duplicates"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Return the distinct elements and distinct bond types as two separate columns/result sets (side by side or separate queries) without a label column.",
+      "Return the distinct (element, bond_type) pairs derived through connected, i.e. deduplicated version of R3 (each element/bond-type combination that actually co-occurs in a bond).",
+      "Return the element pairs at both ends of each bond (atom and atom2) along with the bond type, e.g. one row per bond in TR002."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 used a UNION ALL of distinct elements and distinct bond types plus a label column, which gave 5 rows of (component, component_type). Repeat 1 used the gold's form, \"SELECT DISTINCT a.element, b.bond_type ... JOIN bond b ON a.molecule_id = b.molecule_id\", and passed.",
+    "question_gap": "partly -- the question does not clearly say whether it wants element/bond-type pairs or two separate lists, but the agent got the gold's pairing without the explicit version in one repeat.",
+    "supplied": ""
+   },
+   "analysis": {
+    "task": "b035",
+    "requirements": [
+     {
+      "requirement": "use atom records",
+      "real": "implied",
+      "phrase": "element"
+     },
+     {
+      "requirement": "use bond records",
+      "real": "implied",
+      "phrase": "bond type"
+     },
+     {
+      "requirement": "link atoms and bonds by molecule id (a cross-pairing inside the molecule)",
+      "real": "left_open",
+      "phrase": "the element and bond type included in the molecule"
+     },
+     {
+      "requirement": "drop records that have no match",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "filter to molecule id 'TR002'",
+      "real": "stated",
+      "phrase": "with molecule ID of TR002"
+     },
+     {
+      "requirement": "molecule id is the field compared to TR002",
+      "real": "via_evidence",
+      "phrase": "TR002 is the molecule id"
+     },
+     {
+      "requirement": "output column: element",
+      "real": "stated",
+      "phrase": "List the element"
+     },
+     {
+      "requirement": "output column: bond type",
+      "real": "stated",
+      "phrase": "and bond type"
+     },
+     {
+      "requirement": "output element and bond type side by side as pairs in one row",
+      "real": "left_open",
+      "phrase": "List the element and bond type"
+     },
+     {
+      "requirement": "remove duplicate rows",
+      "real": "left_open",
+      "phrase": "List"
+     }
+    ],
+    "choice": {
+     "decision": "Return element and bond type as paired columns from a join on molecule (a cross product within the molecule), or as two separate lists of distinct values",
+     "open_phrase": "List the element and bond type included in the molecule",
+     "why_both": "The phrase 'element and bond type' can be read as one paired output row per combination, or as two separate things the molecule contains, and nothing says how an element relates to a bond type."
+    },
+    "pattern": [
+     "joins two attributes with 'and' but does not say whether they are paired per row or listed separately",
+     "names the scope with an identifier and uses evidence only to say which field that identifier is",
+     "says nothing about how the two record sources are linked",
+     "uses 'List' with no rule about duplicates, ordering, or limit",
+     "uses singular nouns ('the element', 'bond type') even though many values are expected"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b049",
+   "question_id": 1217,
+   "database": "thrombosis_prediction",
+   "original": "For all patient born in 1982, state if their albumin is within normal range.\nEvidence: Year(Birthday) = '1982'; albumin is within normal range refers to ALB between 3.5 and 5.5",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`) equals '1982' (compared as text, character by character); for each kept record, return (1) the value of the first rule that applies: if all of the following hold: [1] serum albumin concentration (`Laboratory.ALB`) is at least 3.5; [2] serum albumin concentration (`Laboratory.ALB`) is at most 5.5 [end] then 'normal'; otherwise 'abnormal'.",
+   "gold_sql": "SELECT CASE WHEN T2.ALB >= 3.5 AND T2.ALB <= 5.5 THEN 'normal' ELSE 'abnormal' END FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.Birthday) = '1982'",
+   "decision": "Whether the normal/abnormal status is given once per laboratory record or once per patient born in 1982, since each patient can have many Laboratory rows",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Output one normal/abnormal label for each lab test of each patient born in 1982. A patient appears once per Laboratory record.",
+     "sql": "SELECT CASE WHEN T2.ALB >= 3.5 AND T2.ALB <= 5.5 THEN 'normal' ELSE 'abnormal' END FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.Birthday) = '1982'",
+     "rows": 35,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Output one label per patient born in 1982. The patient is 'normal' only if their recorded albumin values are all between 3.5 and 5.5; otherwise the label is 'abnormal'.",
+     "sql": "SELECT CASE WHEN MIN(T2.ALB) >= 3.5 AND MAX(T2.ALB) <= 5.5 THEN 'normal' ELSE 'abnormal' END FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.Birthday) = '1982' GROUP BY T1.ID",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Output one label per patient, based on that patient's most recent non-null albumin measurement",
+     "sql": "SELECT CASE WHEN T2.ALB >= 3.5 AND T2.ALB <= 5.5 THEN 'normal' ELSE 'abnormal' END FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', T1.Birthday) = '1982' AND T2.Date = (SELECT MAX(L.Date) FROM Laboratory AS L WHERE L.ID = T1.ID AND L.ALB IS NOT NULL)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "aggregation_level",
+    "structure": [
+     "repeated_entity_records",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "entity_vs_event",
+     "dated_attributes"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "One label per patient that is 'normal' if ANY of their albumin measurements is between 3.5 and 5.5.",
+      "One label per patient based on their average albumin value across all lab records.",
+      "One label per patient based on their earliest/first albumin measurement.",
+      "Only list patients born in 1982 whose albumin is within range (a filter rather than a per-patient label)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "does not fit",
+      "A": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Output one label per patient, with the patient labelled normal if any ALB record falls in the range (an existential reading).",
+      "Output one row per distinct (patient, label) pair, so a patient with both normal and abnormal records appears twice and one with only one kind appears once.",
+      "List only the patients born in 1982 who have normal albumin, instead of labelling all of them.",
+      "Use the boundary-inclusive range from the evidence (>=3.5 and <=5.5) or the strict range from the documentation (3.5 < N < 5.5). This changes how boundary values are labelled but not the grain."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "output shape",
+    "difference": "Gold returns one column with one row per joined Laboratory record: 35 rows of 'normal'/'abnormal'. Repeat 0 returned one row per patient with the columns ID, Birthday, LatestALB and 'Within'/'Outside', using only the latest ALB and keeping only patients who have an ALB value (1 row). Repeat 1 grouped by patient with a LEFT JOIN, returned ID plus 'Within Normal Range'/'Abnormal', and gave 4 rows.",
+    "question_gap": "no \u2014 'for all patient ... state if their albumin is within normal range' naturally reads as one row per patient; nothing says to give one status per lab test, to return only the label column, or to use the literal strings 'normal'/'abnormal'.",
+    "supplied": "for each kept record, return (1) the value of the first rule that applies: ... then 'normal'; otherwise 'abnormal'"
+   },
+   "analysis": {
+    "task": "b049",
+    "requirements": [
+     {
+      "requirement": "start from patients",
+      "real": "stated",
+      "phrase": "For all patient"
+     },
+     {
+      "requirement": "link each patient to their laboratory records by patient ID (inner join, patients without labs dropped)",
+      "real": "implied",
+      "phrase": "their albumin"
+     },
+     {
+      "requirement": "filter to birth year 1982 via year of Birthday compared as text",
+      "real": "via_evidence",
+      "phrase": "born in 1982; Year(Birthday) = '1982'"
+     },
+     {
+      "requirement": "normal if ALB >= 3.5 and ALB <= 5.5 (inclusive bounds)",
+      "real": "via_evidence",
+      "phrase": "ALB between 3.5 and 5.5"
+     },
+     {
+      "requirement": "otherwise label 'abnormal'",
+      "real": "implied",
+      "phrase": "state if their albumin is within normal range"
+     },
+     {
+      "requirement": "output labels 'normal'/'abnormal' as the only column",
+      "real": "implied",
+      "phrase": "state if"
+     },
+     {
+      "requirement": "one output row per lab record, not one per patient",
+      "real": "left_open",
+      "phrase": "For all patient ... state if their albumin"
+     },
+     {
+      "requirement": "null ALB treated as 'abnormal'",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "no ordering, no limit, duplicates kept",
+      "real": "left_open",
+      "phrase": ""
+     }
+    ],
+    "choice": {
+     "decision": "Output one label per lab record or one combined label per patient.",
+     "open_phrase": "For all patient born in 1982, state if their albumin is within normal range",
+     "why_both": "The question is phrased per patient and says 'their albumin' as though each patient had one value, but a patient can have many lab records. So a reader could either label each measurement separately or give each patient one verdict that requires all of their values to be in range."
+    },
+    "pattern": [
+     "frames the task per entity ('for all patient') while the needed attribute lives in a one-to-many child table",
+     "uses a singular possessive ('their albumin') that hides the fact that there can be several measurements per entity",
+     "asks for a yes/no judgement ('state if') without naming the output labels or saying how results are grouped",
+     "leaves the population filter and the numeric range to the evidence, with 'between' implying inclusive bounds",
+     "gives no rule for missing measurements, ordering, or duplicate rows"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b050",
+   "question_id": 1218,
+   "database": "thrombosis_prediction",
+   "original": "What is the percentage of the female patient whose uric acid (UA) beyond the normal range?\nEvidence: uric acid (UA) beyond the normal range refers to UA > 8.0 and SEX = 'M' or UA > 6.5 and SEX = 'F'; female refers to Sex = 'F'",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) (A \u00d7 100) \u00f7 B. Here A is the sum of the value of the first rule that applies: if serum uric acid concentration (`Laboratory.UA`) is greater than 6.5 then 1; otherwise 0 in the group (missing values ignored; missing when there are none); B is the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT CAST(SUM(CASE WHEN T2.UA > 6.5 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F'",
+   "decision": "Counting unit for the numerator and denominator: each joined lab record (the gold) or each distinct female patient (the agent)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Of all lab test records belonging to female patients, the percentage whose UA is above 6.5. Every lab row counts, so a patient with many tests is counted many times.",
+     "sql": "SELECT CAST(SUM(CASE WHEN T2.UA > 6.5 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Of all distinct female patients who have lab records, the percentage who had at least one UA measurement above 6.5.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T2.UA > 6.5 THEN T1.ID END) AS REAL) * 100 / COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Of all distinct female patients who have lab records, the percentage whose most recent UA measurement is above 6.5.",
+     "sql": "SELECT CAST(SUM(CASE WHEN T2.UA > 6.5 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F' AND T2.Date = (SELECT MAX(L.Date) FROM Laboratory AS L WHERE L.ID = T1.ID)",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Of all female patients in the Patient table, including those with no lab records, the percentage who had at least one UA measurement above 6.5.",
+     "sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN T2.UA > 6.5 THEN T1.ID END) AS REAL) * 100 / COUNT(DISTINCT T1.ID) FROM Patient AS T1 LEFT JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.SEX = 'F'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "ratio",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C1": "fits",
+      "C0": "fits",
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Of all distinct female patients who have at least one non-null UA measurement, the percentage who had at least one UA measurement above 6.5.",
+      "Of all lab records for female patients that have a non-null UA value, the percentage with UA above 6.5.",
+      "Of all distinct female patients who have lab records, the percentage whose every UA measurement is above 6.5 (persistently abnormal).",
+      "Of all distinct female patients who have lab records, the percentage whose average UA is above 6.5."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "fits",
+      "C1": "does not fit",
+      "B": "fits",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Patient-level percentage where a patient counts as abnormal only if all of their UA measurements exceed 6.5.",
+      "Patient-level percentage based on each patient's average or maximum UA rather than any single measurement.",
+      "Percentage of all patients of both sexes (or of all lab records) who are female and have abnormal UA, so the denominator is not restricted to females."
+     ]
+    }
+   ],
+   "status": "mutually recognized",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Gold computes the ratio over joined female lab records: SUM(CASE WHEN T2.UA > 6.5 ...)*100 / COUNT(T1.ID) = 2.2875. Both original repeats submitted hardcoded constants that look like patient-level counts ('50.0 / 250.0 * 100' = 20.0 and '50.0 / 1023.0 * 100' = 4.89), not a record-level computation.",
+    "question_gap": "no \u2014 'percentage of the female patient' suggests counting distinct patients; the gold's record-level numerator and denominator (every lab row counted) is not stated anywhere.",
+    "supplied": "combine it with each `Laboratory` record ... B is the number of records in the group whose identification of the patient (`Patient.ID`) is not missing"
+   },
+   "analysis": {
+    "task": "b050",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "implied",
+      "phrase": "the female patient"
+     },
+     {
+      "requirement": "join each patient to their laboratory records on patient ID (inner join, unmatched dropped)",
+      "real": "implied",
+      "phrase": "whose uric acid (UA)"
+     },
+     {
+      "requirement": "keep only female patients (SEX = 'F')",
+      "real": "via_evidence",
+      "phrase": "female refers to Sex = 'F'"
+     },
+     {
+      "requirement": "abnormal condition for females: UA > 6.5",
+      "real": "via_evidence",
+      "phrase": "UA > 6.5 and SEX = 'F'"
+     },
+     {
+      "requirement": "one overall result row (no grouping)",
+      "real": "implied",
+      "phrase": "What is the percentage"
+     },
+     {
+      "requirement": "numerator counts joined lab rows with UA > 6.5 (row-level, not distinct patients)",
+      "real": "left_open",
+      "phrase": "the percentage of the female patient whose uric acid (UA) beyond the normal range"
+     },
+     {
+      "requirement": "denominator counts all joined lab rows for females (non-null Patient.ID), not distinct patients",
+      "real": "left_open",
+      "phrase": "the percentage of the female patient"
+     },
+     {
+      "requirement": "missing UA values count as not abnormal (0) in numerator but stay in denominator",
+      "real": "left_open",
+      "phrase": ""
+     },
+     {
+      "requirement": "result is value \u00d7 100 (a percentage), computed as real division",
+      "real": "stated",
+      "phrase": "percentage"
+     }
+    ],
+    "choice": {
+     "decision": "Whether the percentage is taken over lab-test records (each measurement counted) or over distinct female patients (a patient counts as abnormal if any UA measurement exceeds 6.5).",
+     "open_phrase": "the percentage of the female patient whose uric acid (UA) beyond the normal range",
+     "why_both": "The wording names patients as the unit, which suggests distinct patients, but UA is a property of each lab record and the evidence only gives a row-level condition, so a reader could just as easily compute the share over all joined measurements."
+    },
+    "pattern": [
+     "names the population with a singular noun ('the patient') and does not say whether the unit is the person or each of their repeated measurements",
+     "puts the threshold condition and the category code in evidence, written as a compound rule that covers both categories even though only one is needed",
+     "asks for a 'percentage' without naming the denominator explicitly",
+     "leaves the link between the entity table and its repeated-measurement table implicit",
+     "gives no rule for missing measurement values or for entities with several measurements"
+    ]
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b052",
+   "question_id": 1227,
+   "database": "thrombosis_prediction",
+   "original": "What is the average age of the male patient with high cholesterol?\nEvidence: average age = DIVIDE(SUM(SUBTRACT(YEAR(NOW()), YEAR(birthday))), COUNT(ID)); male patient refers to sex = 'M'; high cholesterol refers to `T-CHO` > = 250;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] total cholesterol concentration (`Laboratory.T-CHO`) is at least 250; [2] patient sex (`Patient.SEX`) equals 'M' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the average of A \u2212 B in the group (missing values ignored; missing when there are none). Here A is the year of 'NOW' (as text, `%Y`); B is the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`).",
+   "gold_sql": "SELECT AVG(STRFTIME('%Y', date('NOW')) - STRFTIME('%Y', T1.Birthday)) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`T-CHO` >= 250 AND T1.SEX = 'M'",
+   "decision": "Whether the average is taken once per patient or once per matching lab record, since a patient can have several Laboratory rows with T-CHO >= 250",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Average the age over every joined lab record with T-CHO >= 250 for male patients, so a patient with several high-cholesterol tests is counted once for each of those tests.",
+     "sql": "SELECT AVG(STRFTIME('%Y', date('NOW')) - STRFTIME('%Y', T1.Birthday)) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.`T-CHO` >= 250 AND T1.SEX = 'M'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Average the age over the distinct male patients who have at least one lab record with T-CHO >= 250, so each patient is counted once.",
+     "sql": "SELECT AVG(STRFTIME('%Y', date('NOW')) - STRFTIME('%Y', T1.Birthday)) FROM Patient AS T1 WHERE T1.SEX = 'M' AND T1.ID IN (SELECT T2.ID FROM Laboratory AS T2 WHERE T2.`T-CHO` >= 250)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "fits"
+     },
+     "other_readings": [
+      "Average over distinct male patients whose high-cholesterol status is judged from one summary value per patient (for example, their most recent T-CHO or their mean T-CHO >= 250) rather than from any single test."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Restrict to male patients whose most recent (or every) lab record has T-CHO >= 250, rather than any single record.",
+      "Use the raw evidence formula literally over the joined rows, with COUNT(ID) counting joined rows. This is the same as R1, but with age computed as YEAR(NOW()) minus birth year, not as an exact age."
+     ]
+    }
+   ],
+   "status": "disputed",
+   "inspection": {
+    "cause": "implicit requirement",
+    "difference": "Gold averages age over every joined lab row with T-CHO >= 250, so patients with more lab rows weigh more (74.685). Both submissions deduplicated to one row per patient ('p.ID IN (SELECT DISTINCT l.ID ...)' / 'SELECT DISTINCT p.ID, ...') and added ROUND, giving 71.95. The hardcoded 2026 equals the current year, so it is not the cause.",
+    "question_gap": "partly \u2014 the evidence formula 'COUNT(ID)' does not say whether IDs repeat per lab record, and 'average age of the male patient' favours counting each patient once.",
+    "supplied": "combine it with each `Laboratory` record ... one combined record per match ... the average of A \u2212 B in the group"
+   },
+   "analysis": {
+    "task": "b052",
+    "requirements": [
+     {
+      "requirement": "start from patient records",
+      "real": "stated",
+      "phrase": "the male patient"
+     },
+     {
+      "requirement": "link patients to lab records by patient ID",
+      "real": "implied",
+      "phrase": "patient with high cholesterol"
+     },
+     {
+      "requirement": "drop patients without matching lab records (inner join)",
+      "real": "implied",
+      "phrase": "with high cholesterol"
+     },
+     {
+      "requirement": "filter T-CHO >= 250",
+      "real": "via_evidence",
+      "phrase": "high cholesterol refers to `T-CHO` > = 250"
+     },
+     {
+      "requirement": "filter SEX = 'M'",
+      "real": "via_evidence",
+      "phrase": "male patient refers to sex = 'M'"
+     },
+     {
+      "requirement": "one group over all kept records, single result row",
+      "real": "stated",
+      "phrase": "What is the average age"
+     },
+     {
+      "requirement": "age computed as current year minus birth year",
+      "real": "via_evidence",
+      "phrase": "SUBTRACT(YEAR(NOW()), YEAR(birthday))"
+     },
+     {
+      "requirement": "average over joined records (patient counted once per qualifying lab test) rather than distinct patients",
+      "real": "left_open",
+      "phrase": "average age of the male patient ... COUNT(ID)"
+     },
+     {
+      "requirement": "missing values ignored in average",
+      "real": "implied",
+      "phrase": "average"
+     },
+     {
+      "requirement": "output only the average value",
+      "real": "stated",
+      "phrase": "What is the average age"
+     }
+    ],
+    "choice": {
+     "decision": "whether to average over every qualifying joined lab record (duplicates per patient) or over distinct qualifying patients",
+     "open_phrase": "average age of the male patient with high cholesterol; COUNT(ID)",
+     "why_both": "The wording talks about an average over patients, which suggests counting each person once, but the evidence's COUNT(ID) over lab-linked rows without DISTINCT fits counting every joined record, so either reading is reasonable."
+    },
+    "pattern": [
+     "uses a singular noun phrase ('the patient') for what is really an aggregate over many entities",
+     "relies on evidence formulas to define the derived measure and the categorical and threshold filters",
+     "expresses the cross-table condition as a qualifying attribute ('with high cholesterol') and never mentions the join",
+     "gives an aggregation formula with COUNT(ID) but does not say whether duplicates from the one-to-many link should be removed",
+     "defines age by year subtraction only, with no finer date rule"
+    ]
+   }
+  }
+ ],
+ "not_library": [
+  {
+   "version": "comm-library-v1",
+   "task": "b021",
+   "question_id": 130,
+   "database": "financial",
+   "original": "How many of the account holders in South Bohemia still do not own credit cards?\nEvidence: A3 contains the region names; South Bohemia is one of region names.",
+   "explicit": "Start from each `district` record; combine it with each `client` record for which location of branch (`district.district_id`) equals location of branch (`client.district_id`), one combined record per match (a record without a match is dropped); combine it with each `disp` record for which the unique number (`client.client_id`) equals id number of client (`disp.client_id`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] region name (`district.A3`) equals 'south Bohemia' (compared as text, character by character); [2] disposition role on account (`disp.type`) does not equal 'OWNER' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose id number of account (`disp.account_id`) is not missing.",
+   "gold_sql": "SELECT COUNT(T3.account_id) FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T2.client_id = T3.client_id WHERE T1.A3 = 'south Bohemia' AND T3.type != 'OWNER'",
+   "decision": "What 'do not own credit cards' maps to: the gold treats it as a disposition whose type is not 'OWNER' (disp.type != 'OWNER'); the agent treats it as having no row in the card table",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count the dispositions of clients living in South Bohemia whose disposition type is not 'OWNER' (users/disponents), treating the non-owner role as 'not owning a card'",
+     "sql": "SELECT COUNT(T3.account_id) FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T2.client_id = T3.client_id WHERE T1.A3 = 'south Bohemia' AND T3.type != 'OWNER'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count the account holders in South Bohemia who have no credit card, meaning no card row is linked to their disposition",
+     "sql": "SELECT COUNT(T3.account_id) FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T2.client_id = T3.client_id WHERE T1.A3 = 'south Bohemia' AND T3.disp_id NOT IN (SELECT disp_id FROM card)",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "An account has no credit card only if none of its dispositions has a card (card ownership judged per account)",
+     "sql": "SELECT COUNT(T3.account_id) FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T2.client_id = T3.client_id WHERE T1.A3 = 'south Bohemia' AND T3.account_id NOT IN (SELECT D.account_id FROM disp AS D INNER JOIN card AS C ON D.disp_id = C.disp_id)",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C1",
+     "reading": "Account holders (disposition type 'OWNER') whose disposition has no card",
+     "sql": "SELECT COUNT(T3.account_id) FROM district AS T1 INNER JOIN client AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T2.client_id = T3.client_id WHERE T1.A3 = 'south Bohemia' AND T3.type = 'OWNER' AND T3.disp_id NOT IN (SELECT disp_id FROM card)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "which_column_source",
+    "structure": [
+     "filter_only",
+     "aggregation_over_join"
+    ],
+    "semantics": [
+     "competing_roles",
+     "coded_values"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "fits",
+      "B": "fits",
+      "A": "does not fit",
+      "C1": "fits"
+     },
+     "other_readings": [
+      "Count distinct clients living in South Bohemia who have no card on any of their dispositions (card ownership judged per client, not per disposition or account)",
+      "Place the account holder in South Bohemia by the account's branch district (account.district_id -> district.A3) instead of the client's own district"
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "C0": "does not fit",
+      "C1": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct clients (not dispositions) in South Bohemia, by client.district_id, who have no card on any of their dispositions.",
+      "Define South Bohemia by account.district_id (branch location of the account) rather than client.district_id, and count accounts/holders with no card.",
+      "Count distinct accounts in South Bohemia districts (via account.district_id) with no card on any disposition, treating the account as the holder (differs from R2 only in the district source).",
+      "Count all dispositions (OWNER, USER and DISPONENT) of South Bohemia clients that have no card, treating any disposition holder as an account holder."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "The gold reads 'do not own credit cards' as `T3.type != 'OWNER'` on disp, joined through client.district_id, and counts disp rows (74). The submissions left out anything with no card in the card table: repeat 0 used `a.account_id NOT IN (... JOIN card ...)` and counted DISTINCT accounts by account.district_id (296), and repeat 1 counted clients with no card (371).",
+    "question_gap": "no \u2014 nothing in the question or evidence says that 'do not own credit cards' means disp.type != 'OWNER', and the natural reading is having no row in the card table.",
+    "supplied": "[2] disposition role on account (`disp.type`) does not equal 'OWNER'; return the number of records in the group whose id number of account (`disp.account_id`) is not missing"
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b027",
+   "question_id": 269,
+   "database": "toxicology",
+   "original": "How many bond id have element iodine?\nEvidence: iodine refers to element = 'i'",
+   "explicit": "Start from each `atom` record; combine it with each `molecule` record for which molecule id (`atom.molecule_id`) equals unique id of molecule (`molecule.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`) (compared as text, character by character), one combined record per match (a record without a match is dropped); keep only the records for which chemical element of the atom (`atom.element`) equals 'i' (compared as text, character by character); all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose unique id representing bonds (`bond.bond_id`) is not missing.",
+   "gold_sql": "SELECT COUNT(T3.bond_id) FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T1.element = 'i'",
+   "decision": "How an iodine atom is tied to a bond: by the bond being in the same molecule as the atom (join through molecule_id), or by the atom being one of the bond's two endpoints (join through the connected table).",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "For each iodine atom, count every bond in the molecule that contains that atom. Nothing is de-duplicated, so a bond is counted once for each iodine atom in its molecule.",
+     "sql": "SELECT COUNT(T3.bond_id) FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T1.element = 'i'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count the distinct bonds that have an iodine atom as one of their two endpoints, as recorded in the connected table.",
+     "sql": "SELECT COUNT(DISTINCT T3.bond_id) FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id OR T1.atom_id = T2.atom_id2 INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T1.element = 'i'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count the distinct bonds in any molecule that contains at least one iodine atom. This keeps the molecule-level link but counts each bond only once.",
+     "sql": "SELECT COUNT(DISTINCT T3.bond_id) FROM atom AS T1 INNER JOIN molecule AS T2 ON T1.molecule_id = T2.molecule_id INNER JOIN bond AS T3 ON T2.molecule_id = T3.molecule_id WHERE T1.element = 'i'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "relationship_role",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "competing_roles"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count the rows in connected where atom_id is an iodine atom, without DISTINCT on bond_id. Because connected may store each bond in both directions, this could count a bond once per iodine endpoint or per stored direction."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "C0": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count only bonds where the first atom (connected.atom_id) is iodine, ignoring the second endpoint; connected stores each bond in both directions, so this may give the same count as R3 but is a narrower reading.",
+      "Count connected rows (not distinct bond_ids) with an iodine endpoint, which could double count a bond stored in both directions or one with two iodine atoms."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "semantic mapping",
+    "difference": "Both failing repeats linked iodine atoms to bonds through the `connected` table (\"a.atom_id = c.atom_id OR a.atom_id = c.atom_id2\") and used \"COUNT(DISTINCT c.bond_id)\", which returned 6. The gold links atom to molecule to bond on molecule_id and uses non-distinct \"COUNT(T3.bond_id)\", which counts every bond in the molecule once per iodine atom and returns 12.",
+    "question_gap": "no -- 'bond id have element iodine' more naturally means bonds that the iodine atoms are part of; nothing in the question or evidence points to the molecule-level join or to counting without DISTINCT.",
+    "supplied": "combine it with each `molecule` record for which molecule id (`atom.molecule_id`) equals ... combine it with each `bond` record for which unique id of molecule (`molecule.molecule_id`) equals molecule id (`bond.molecule_id`) ... the number of records in the group whose unique id representing bonds (`bond.bond_id`) is not missing"
+   }
+  },
+  {
+   "task": "b041",
+   "status": "agent mistake (no reading)",
+   "pair": {
+    "decision": "Whether to match the evidence's lowercase literals 'blue'/'male' exactly against the stored values, or to use the stored capitalised values 'Blue'/'Male'",
+    "reading_A": "Filter on the stored category values: hair colour 'Blue' and gender 'Male'. The evidence's lowercase spelling just names those categories.",
+    "reading_B": "",
+    "sql_B": "",
+    "further": [],
+    "tags": {
+     "choice": "value_mapping",
+     "structure": [
+      "filter_only"
+     ],
+     "semantics": [
+      "coded_values"
+     ]
+    }
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b051",
+   "question_id": 1219,
+   "database": "thrombosis_prediction",
+   "original": "For all patients with normal uric acid (UA), what is the average UA index based on their latest laboratory examination result?\nEvidence: uric acid (UA) with normal range refers to UA < 8.0 and SEX = 'M' or UA < 6.5 and SEX = 'F'; average UA index refers to AVG(UA)",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which at least one of the following holds: [1] all of the following hold: [1] serum uric acid concentration (`Laboratory.UA`) is less than 6.5; [2] patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character) [end]; [2] all of the following hold: [1] serum uric acid concentration (`Laboratory.UA`) is less than 8.0; [2] patient sex (`Patient.SEX`) equals 'M' (compared as text, character by character); [3] laboratory test date (`Laboratory.Date`) equals the single value returned by [start from each `Laboratory` record; all kept records form one group, which gives one result row; for each result row, return (1) the largest (in character order) laboratory test date (`Laboratory.Date`) in the group (missing values ignored; missing when there are none)] (missing when it returns no row) (compared as text, character by character) [end] [end]; all kept records form one group, which gives one result row; for each result row, return (1) the average of serum uric acid concentration (`Laboratory.UA`) in the group (missing values ignored; missing when there are none).",
+   "gold_sql": "SELECT AVG(T2.UA) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE (T2.UA < 6.5 AND T1.SEX = 'F') OR (T2.UA < 8.0 AND T1.SEX = 'M') AND T2.Date = ( SELECT MAX(Date) FROM Laboratory )",
+   "decision": "Which date counts as the 'latest laboratory examination': the single latest date in the whole Laboratory table, or each patient's own latest test date",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Use only lab records dated on the latest date found anywhere in the Laboratory table. Because of how the gold's WHERE clause groups AND and OR, this date filter only applies to the male branch. Then average UA over the records with normal UA.",
+     "sql": "SELECT AVG(T2.UA) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE (T2.UA < 6.5 AND T1.SEX = 'F') OR (T2.UA < 8.0 AND T1.SEX = 'M') AND T2.Date = ( SELECT MAX(Date) FROM Laboratory )",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "For each patient, take that patient's own most recent lab record. Keep it if its UA is in the normal range for the patient's sex, then average UA across those patients.",
+     "sql": "SELECT AVG(T2.UA) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE (T2.UA < 6.5 AND T1.SEX = 'F') OR (T2.UA < 8.0 AND T1.SEX = 'M') AND T2.Date = ( SELECT MAX(Date) FROM Laboratory WHERE ID = T2.ID )",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "For each patient, take the most recent record that has a normal UA value (apply the normal-range filter first, then pick the latest date), and average those values.",
+     "sql": "SELECT AVG(T2.UA) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE ((T2.UA < 6.5 AND T1.SEX = 'F') OR (T2.UA < 8.0 AND T1.SEX = 'M')) AND T2.Date = ( SELECT MAX(L.Date) FROM Laboratory AS L WHERE L.ID = T2.ID AND ((L.UA < 6.5 AND T1.SEX = 'F') OR (L.UA < 8.0 AND T1.SEX = 'M')) )",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "time_scope",
+    "structure": [
+     "extreme_selection",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "dated_attributes",
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "C0": "fits",
+      "B": "fits"
+     },
+     "other_readings": [
+      "For each patient, take the most recent record that has a non-null UA (ignoring later records where UA is missing), then keep it if UA is normal for the patient's sex and average those values."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "Use each patient's latest lab record without requiring a non-null UA, so a null UA is silently dropped by the normal-range filter. The alternative is to take the latest record that has a non-null UA.",
+      "Use a single global latest date across all patients, applied to both sexes correctly (the intended version of R2), and average UA over records on that date with normal UA.",
+      "Average over all lab records with normal UA, ignoring recency entirely."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "other",
+    "difference": "In the gold, 'A OR B AND T2.Date = (SELECT MAX(Date) FROM Laboratory)' binds AND before OR, so the latest-date filter applies only to males, and it uses the table-wide max date rather than each patient's own latest date. Both submissions used each patient's latest date ('SELECT MAX(Date) FROM Laboratory WHERE ID = p.ID' / GROUP BY ID) for both sexes, giving 4.30 vs gold 4.0549 (repeat 0 also added ROUND).",
+    "question_gap": "no \u2014 'based on their latest laboratory examination result' implies per-patient latest applied to all patients; the gold's precedence quirk and global max contradict that reading and only the explicit version reveals them.",
+    "supplied": "[1] ... UA < 6.5; SEX = 'F' [end]; [2] ... UA < 8.0; SEX = 'M'; laboratory test date equals the single value returned by [... the largest laboratory test date ...] \u2014 the date condition applies only to the male branch, and the date is the overall MAX(Date) across all patients"
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b053",
+   "question_id": 1243,
+   "database": "thrombosis_prediction",
+   "original": "For all patients who are older than 55 years old, what is the percentage of female who has abnormal prothrombin time (PT)?\nEvidence: older than 55 years old = SUBTRACT(year(current_timestamp), year(Birthday)) > 55; abnormal prothrombin time (PT) refers to PT > = 14; percentage = DIVIDE(SUM(PT > = 14 AND SEX = 'F'), SUM(PT > = 14)) * 100; female refers to sex = 'F'; ",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which A \u2212 B is greater than 55; all kept records form one group, which gives one result row; for each result row, return (1) (C \u00d7 100) \u00f7 D. Here A is the year of the current date and time (when the query runs) (as text, `%Y`); B is the year of patient date of birth (`Patient.Birthday`) (as text, `%Y`); C is the sum of the value of the first rule that applies: if all of the following hold: [1] prothrombin time (`Laboratory.PT`) is at least 14; [2] patient sex (`Patient.SEX`) equals 'F' (compared as text, character by character) [end] then 1; otherwise 0 in the group (missing values ignored; missing when there are none); D is the number of records in the group.",
+   "gold_sql": "SELECT CAST(SUM(CASE WHEN T2.PT >= 14 AND T1.SEX = 'F' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(*) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) > 55",
+   "decision": "Which population the percentage is taken over (the denominator)",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Among all lab records of patients older than 55, the share that belong to a female patient and show an abnormal PT (PT >= 14). The denominator is every joined lab record for these patients.",
+     "sql": "SELECT CAST(SUM(CASE WHEN T2.PT >= 14 AND T1.SEX = 'F' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(*) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) > 55",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Among the lab records of patients older than 55 that show an abnormal PT (PT >= 14), the share that belong to female patients. This matches the evidence formula SUM(PT>=14 AND SEX='F') / SUM(PT>=14).",
+     "sql": "SELECT CAST(SUM(CASE WHEN T2.PT >= 14 AND T1.SEX = 'F' THEN 1 ELSE 0 END) AS REAL) * 100 / SUM(CASE WHEN T2.PT >= 14 THEN 1 ELSE 0 END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) > 55",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Among the lab records of female patients older than 55, the share that show an abnormal PT.",
+     "sql": "SELECT CAST(SUM(CASE WHEN T2.PT >= 14 AND T1.SEX = 'F' THEN 1 ELSE 0 END) AS REAL) * 100 / SUM(CASE WHEN T1.SEX = 'F' THEN 1 ELSE 0 END) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE STRFTIME('%Y', CURRENT_TIMESTAMP) - STRFTIME('%Y', T1.Birthday) > 55",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "other",
+    "structure": [
+     "ratio",
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "other"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "C0": "does not fit",
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients instead of lab records: among patients older than 55 who have at least one PT >= 14, the percentage who are female (SEX = 'F')."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit",
+      "C0": "does not fit"
+     },
+     "other_readings": [
+      "R1 counted per patient instead of per lab record: among patients over 55 with any abnormal PT, the share who are female (COUNT DISTINCT patient), which is also consistent with the evidence formula.",
+      "Age computed differently, such as a full-year birthday calculation instead of the year difference. This changes who counts as older than 55, but the evidence specifies the year subtraction.",
+      "Abnormal PT defined as outside a normal range on both sides, though the documentation and evidence only give PT >= 14."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "other",
+    "difference": "Gold divides by COUNT(*) over all joined records of patients older than 55 (1.203). Both submissions followed the evidence denominator 'SUM(PT > = 14)' (repeat 0: '/ SUM(CASE WHEN l.PT >= 14 ...)'; repeat 1: filter 'l.PT >= 14' then COUNT(*)), giving 78.36.",
+    "question_gap": "no \u2014 the evidence explicitly defines percentage = DIVIDE(SUM(PT>=14 AND SEX='F'), SUM(PT>=14))*100, and the gold contradicts it; only the explicit version reveals the COUNT(*) denominator.",
+    "supplied": "D is the number of records in the group"
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b054",
+   "question_id": 1252,
+   "database": "thrombosis_prediction",
+   "original": "Among the patients with a normal Ig G level, how many of them have symptoms?\nEvidence: normal Ig G level refers to IGG > 900 and IGG < 2000; have symptoms refers to Symptoms IS NOT NULL;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); combine it with each `Examination` record for which identification of the patient (`Examination.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] immunoglobulin G level (`Laboratory.IGG`) is between 900 and 2000, inclusive; [2] it is not true that reported clinical symptom (`Examination.Symptoms`) is missing [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T3.ID = T2.ID WHERE T2.IGG BETWEEN 900 AND 2000 AND T3.Symptoms IS NOT NULL",
+   "decision": "Whether to count distinct patients or rows of the Patient\u00d7Laboratory\u00d7Examination join, where a patient with several qualifying lab tests or exams appears many times.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every combination of a lab record with normal IgG and an examination record with symptoms for the same patient. A patient is counted once per such lab/exam pair.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T3.ID = T2.ID WHERE T2.IGG BETWEEN 900 AND 2000 AND T3.Symptoms IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count each patient once if they have at least one lab record with normal IgG and at least one examination record with symptoms.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T3.ID = T2.ID WHERE T2.IGG BETWEEN 900 AND 2000 AND T3.Symptoms IS NOT NULL",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count each distinct patient once, but only when the normal-IgG lab record and the symptomatic examination record are linked in time (for example, the same date or close dates).",
+      "Count each patient once only if every one of their IgG readings is in the normal range (the patient 'has a normal IgG level' overall), and they have at least one examination record with symptoms."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct patients who have a normal IgG lab record and a non-null Symptoms record, but count the row-level join without deduplication (COUNT(*) of patient rows), giving the same result as R1.",
+      "Count patients whose normal-IgG lab result and non-null Symptoms record must come from the same date; the Laboratory date and Examination Date are not linked by the question, so this is less plausible.",
+      "Count patients whose every lab record has normal IgG (rather than at least one) and who have symptoms; the question and evidence don't suggest this stricter reading."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "reading choice",
+    "difference": "Both failing submissions use \"COUNT(DISTINCT p.ID)\" and the strict bounds \"l.IGG > 900 AND l.IGG < 2000\", and both return 1. Gold uses \"COUNT(T1.ID)\" over the Patient\u00d7Laboratory\u00d7Examination join rows with \"T2.IGG BETWEEN 900 AND 2000\" and returns 4. The gold counts duplicated join rows, not distinct patients, and includes the 900 and 2000 endpoints.",
+    "question_gap": "no \u2014 \"how many of them [patients]\" points to counting distinct patients, and the evidence says strict \"> 900 and < 2000\"; the gold's row count and inclusive BETWEEN contradict both, and only the explicit version supplies them.",
+    "supplied": "\"is between 900 and 2000, inclusive\" ... \"the number of records in the group whose identification of the patient (`Patient.ID`) is not missing\""
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b056",
+   "question_id": 1286,
+   "database": "thrombosis_prediction",
+   "original": "For the patient with an abnormal alkaliphophatase level, how many of them are admitted to the hospital?\nEvidence: abnormal alkaliphophatase level refers to ALP > = 300; admitted to the hospital refers to Admission = '+';",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] alkaline phosphatase level (`Laboratory.ALP`) is at least 300; [2] hospital admission status (admitted vs outpatient) (`Patient.Admission`) equals '+' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP >= 300 AND T1.Admission = '+'",
+   "decision": "Whether to count patient-lab join rows (one per lab record with ALP >= 300) or distinct patients",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every lab record with ALP >= 300 that belongs to an admitted patient, so a patient with several abnormal tests is counted several times",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP >= 300 AND T1.Admission = '+'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count the distinct admitted patients who have at least one lab record with ALP >= 300",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP >= 300 AND T1.Admission = '+'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "filter_only"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": []
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count admitted patients whose most recent (latest-dated) lab record has ALP >= 300, treating current abnormal status as the criterion.",
+      "Count admitted patients whose every lab record has ALP >= 300 (consistently abnormal), which is a stricter and less natural reading."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 submitted a hardcoded \"SELECT 24\", which is probably a distinct-patient count worked out separately. Repeat 1 ran \"SELECT COUNT(*) ... WHERE l.ALP >= 300 AND p.Admission = '+'\", got 299 and matched the gold.",
+    "question_gap": "partly \u2014 the filters are fully given by the evidence, but \"how many of them\" does not settle whether to count join rows (the gold's 299) or distinct patients.",
+    "supplied": ""
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b057",
+   "question_id": 1287,
+   "database": "thrombosis_prediction",
+   "original": "Among the patients followed at the outpatient clinic, how many of them have a normal level of alkaliphophatase?\nEvidence: followed at the outpatient clinic refers to Admission = '-'; normal level of alkaliphophatase refers to ALP < 300;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] alkaline phosphatase level (`Laboratory.ALP`) is less than 300; [2] hospital admission status (admitted vs outpatient) (`Patient.Admission`) equals '-' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300 AND T1.Admission = '-'",
+   "decision": "Counting unit: whether to count every joined lab record with ALP < 300, or each outpatient patient only once.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every laboratory record with ALP below 300 that belongs to an outpatient (Admission = '-'). A patient with several such tests is counted once per test.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300 AND T1.Admission = '-'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct outpatient patients who have at least one laboratory record with ALP below 300. Each patient is counted once.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.ALP < 300 AND T1.Admission = '-'",
+     "rows": 1,
+     "differs_from_gold": true
+    },
+    {
+     "id": "C0",
+     "reading": "Count distinct outpatient patients whose every recorded ALP value is below 300, so the patient's ALP level is always normal.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T1.Admission = '-' AND T2.ALP IS NOT NULL AND T1.ID NOT IN (SELECT ID FROM Laboratory WHERE ALP >= 300)",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits",
+      "C0": "fits"
+     },
+     "other_readings": [
+      "Count distinct outpatient patients whose most recent (latest-dated) ALP measurement is below 300, treating the patient's current level as their level."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "C0": "does not fit",
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct outpatient patients whose most recent laboratory record has ALP < 300, so normal ALP reflects the patient's current status.",
+      "Count distinct outpatient patients whose average or maximum ALP across records is below 300."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 submitted a hardcoded \"SELECT 169\". Repeat 1 ran \"SELECT COUNT(*) ... WHERE p.Admission = '-' AND l.ALP < 300\", got 5187 and matched the gold.",
+    "question_gap": "partly \u2014 the filters come from the evidence, but counting join rows rather than distinct patients is left open.",
+    "supplied": ""
+   }
+  },
+  {
+   "version": "comm-library-v1",
+   "task": "b059",
+   "question_id": 1297,
+   "database": "thrombosis_prediction",
+   "original": "For the patients whose total cholesterol is higher than normal, how many of them have a negative measure of degree of coagulation?\nEvidence: total cholesterol is higher than normal refers to `T-CHO` > = 250; negative measure of degree of coagulation refers to KCT = '-' ;",
+   "explicit": "Start from each `Patient` record; combine it with each `Laboratory` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Laboratory.ID`), one combined record per match (a record without a match is dropped); combine it with each `Examination` record for which identification of the patient (`Patient.ID`) equals identification of the patient (`Examination.ID`), one combined record per match (a record without a match is dropped); keep only the records for which all of the following hold: [1] total cholesterol concentration (`Laboratory.T-CHO`) is at least 250; [2] kaolin clotting time coagulation result (`Examination.KCT`) equals '-' (compared as text, character by character) [end]; all kept records form one group, which gives one result row; for each result row, return (1) the number of records in the group whose identification of the patient (`Patient.ID`) is not missing.",
+   "gold_sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T2.`T-CHO` >= 250 AND T3.KCT = '-'",
+   "decision": "Counting unit: the gold counts rows from the three-way join (one per matching Laboratory \u00d7 Examination record pair), not distinct patients.",
+   "readings": [
+    {
+     "id": "A",
+     "reading": "Count every combination of a lab record with total cholesterol >= 250 and an examination record with KCT = '-' for the same patient, so a patient with several qualifying records is counted more than once.",
+     "sql": "SELECT COUNT(T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T2.`T-CHO` >= 250 AND T3.KCT = '-'",
+     "rows": 1,
+     "differs_from_gold": false
+    },
+    {
+     "id": "B",
+     "reading": "Count distinct patients who have at least one lab record with total cholesterol >= 250 and at least one examination record with KCT = '-'.",
+     "sql": "SELECT COUNT(DISTINCT T1.ID) FROM Patient AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID INNER JOIN Examination AS T3 ON T1.ID = T3.ID WHERE T2.`T-CHO` >= 250 AND T3.KCT = '-'",
+     "rows": 1,
+     "differs_from_gold": true
+    }
+   ],
+   "tags": {
+    "choice": "counting_unit",
+    "structure": [
+     "aggregation_over_join",
+     "repeated_entity_records",
+     "filter_only"
+    ],
+    "semantics": [
+     "entity_vs_event"
+    ]
+   },
+   "review": [
+    {
+     "reviewer": "opus",
+     "fit": {
+      "B": "fits",
+      "A": "does not fit"
+     },
+     "other_readings": [
+      "Count distinct patients whose every (or latest) total cholesterol reading is >= 250 and whose every (or latest) examination has KCT = '-', i.e., requiring the conditions to hold consistently rather than on at least one record.",
+      "Count distinct patients where the high-cholesterol lab record and the KCT='-' examination record occur on the same date (Laboratory.Date = Examination.`Examination Date`)."
+     ]
+    },
+    {
+     "reviewer": "sonnet",
+     "fit": {
+      "A": "does not fit",
+      "B": "fits"
+     },
+     "other_readings": [
+      "Count distinct patients whose lab record with T-CHO >= 250 and KCT = '-' examination are matched on the same date (Examination Date = Laboratory.Date); the schema and question do not require date matching, so this is a less likely reading.",
+      "Count patients using only each patient's latest lab record (T-CHO >= 250) and latest examination (KCT = '-'), which is not supported by the wording.",
+      "Count rows in Examination (KCT = '-') for patients with any T-CHO >= 250 lab record, i.e. counting examination records rather than patients."
+     ]
+    }
+   ],
+   "status": "one-sided",
+   "inspection": {
+    "cause": "run variation",
+    "difference": "Repeat 0 submitted a hardcoded \"SELECT 2\". Repeat 1 ran the three-table join with \"l.`T-CHO` >= 250 AND e.KCT = '-'\" and \"COUNT(*)\", got 14 and matched the gold.",
+    "question_gap": "partly \u2014 the filters come from the evidence, but counting join rows rather than distinct patients is left open.",
+    "supplied": ""
+   }
+  }
+ ],
+ "other_causes": [
+  {
+   "task": "b011",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 the original wording was enough to produce the gold result, as original repeat 0 shows.",
+   "difference": "Original repeat 0 passed with DISTINCT AdmFName1, District (215 rows). Repeat 1 added a 'COUNT(*) as admin_count' column and 'LIMIT 20', returning 20 rows with 3 columns."
+  },
+  {
+   "task": "b019",
+   "cause": "run variation",
+   "question_gap": "yes -- the question does not ask for rounding, and the agent solved it correctly in one repeat.",
+   "difference": "Repeat 1 wrapped the result in 'ROUND(..., 2)' and got 1.32 instead of 1.3169446883230904. Repeat 0 had no rounding and matched gold exactly."
+  },
+  {
+   "task": "b024",
+   "cause": "run variation",
+   "question_gap": "yes \u2014 the question asks which elements, so a single DISTINCT list of elements follows from it.",
+   "difference": "Repeat 0 passed with `SELECT DISTINCT element`. Repeat 1 returned two columns (a1.element, a2.element) without DISTINCT, giving [['c','c'],['c','c']] instead of [['c']]."
+  },
+  {
+   "task": "b047",
+   "cause": "unwanted processing",
+   "question_gap": "yes -- the question says 'average height of all superheroes' and the evidence gives AVG(height_cm) with no exclusion of zero heights.",
+   "difference": "Both repeats computed the average with an extra filter, \"(SELECT AVG(height_cm) * 0.8 FROM superhero WHERE height_cm > 0)\". Excluding the zero heights raises the threshold, so fewer heroes qualify (80 distinct powers). The gold averages over all heroes: \"(SELECT AVG(height_cm) FROM superhero) * 80\". The agent's DISTINCT makes no difference under set comparison."
+  }
+ ]
+}

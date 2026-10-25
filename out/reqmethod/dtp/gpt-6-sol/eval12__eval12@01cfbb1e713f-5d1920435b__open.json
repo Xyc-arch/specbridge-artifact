@@ -1,0 +1,27 @@
+{
+ "interpretations": [
+  "For each non-null event type, average `budget.spent / budget.amount` across its valid budget lines and show the absolute difference from the unweighted mean of the event-type averages",
+  "For each non-null event type, average `budget.spent / budget.amount` across its valid budget lines and show the signed difference from the unweighted mean of the event-type averages",
+  "For each non-null event type, average `budget.spent / budget.amount` across its valid budget lines and show the absolute percentage difference from the unweighted mean of the event-type averages",
+  "Treat a missing `event.type` as its own group, then show each group's average budget-line ratio and its distance from the mean of the group averages",
+  "Show every event type, including types with no budget lines with both `spent` and `amount` present; show a missing average and distance for those types",
+  "For each non-null event type, average `budget.spent / budget.amount` across its valid budget lines and show the signed percentage difference from the unweighted mean of the event-type averages"
+ ],
+ "queries": [
+  "WITH type_averages AS (\n    SELECT e.type,\n           AVG(b.spent / b.amount) AS avg_spent_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n      AND b.spent IS NOT NULL\n      AND b.amount IS NOT NULL\n      AND b.amount <> 0\n    GROUP BY e.type\n)\nSELECT type,\n       avg_spent_ratio,\n       ABS(avg_spent_ratio - (SELECT AVG(avg_spent_ratio) FROM type_averages)) AS difference_from_mean\nFROM type_averages",
+  "WITH type_averages AS (\n    SELECT e.type,\n           AVG(b.spent / b.amount) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n      AND b.amount > 0\n      AND b.spent IS NOT NULL\n    GROUP BY e.type\n)\nSELECT type,\n       average_ratio,\n       average_ratio - AVG(average_ratio) OVER () AS difference_from_mean\nFROM type_averages",
+  "WITH type_averages AS (\n    SELECT e.type AS event_type,\n           AVG(b.spent / b.amount) AS average_spent_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n      AND b.amount > 0\n      AND b.spent IS NOT NULL\n    GROUP BY e.type\n),\noverall_average AS (\n    SELECT AVG(average_spent_ratio) AS mean_ratio\n    FROM type_averages\n)\nSELECT t.event_type,\n       t.average_spent_ratio,\n       ABS(t.average_spent_ratio - o.mean_ratio) * 100.0\n           / NULLIF(ABS(o.mean_ratio), 0) AS absolute_percentage_difference\nFROM type_averages AS t\nCROSS JOIN overall_average AS o",
+  "WITH group_averages AS (\n    SELECT\n        COALESCE(e.type, 'Missing') AS event_type,\n        AVG(1.0 * b.spent / NULLIF(b.amount, 0)) AS average_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    GROUP BY COALESCE(e.type, 'Missing')\n)\nSELECT\n    event_type,\n    average_ratio,\n    ABS(average_ratio - (SELECT AVG(average_ratio) FROM group_averages)) AS distance_from_mean\nFROM group_averages",
+  "SELECT\n    e.type,\n    AVG(b.spent) AS average,\n    AVG(ABS(b.amount - b.spent)) AS distance\nFROM event AS e\nLEFT JOIN budget AS b\n    ON b.link_to_event = e.event_id\n   AND b.spent IS NOT NULL\n   AND b.amount IS NOT NULL\nGROUP BY e.type",
+  "WITH type_averages AS (\n    SELECT e.type AS event_type,\n           AVG(b.spent / b.amount) AS average_spent_ratio\n    FROM event AS e\n    JOIN budget AS b ON b.link_to_event = e.event_id\n    WHERE e.type IS NOT NULL\n      AND b.amount > 0\n      AND b.spent IS NOT NULL\n    GROUP BY e.type\n)\nSELECT event_type,\n       average_spent_ratio,\n       100.0 * (average_spent_ratio - AVG(average_spent_ratio) OVER ())\n           / NULLIF(AVG(average_spent_ratio) OVER (), 0) AS percentage_difference\nFROM type_averages"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-5d1920435b",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 59873,
+  "chars_out": 3733
+ }
+}

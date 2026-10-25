@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH per_item_town AS (SELECT ili.order_item_id, c.town_city, AVG(ili.product_price) AS avg_price, AVG(ili.derived_product_cost * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio FROM Invoice_Line_Items ili JOIN Order_Items oi ON oi.order_item_id = ili.order_item_id JOIN Orders o ON o.order_id = oi.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY ili.order_item_id, c.town_city), per_town AS (SELECT town_city, AVG(avg_price) AS avg_price, AVG(avg_ratio) AS avg_ratio FROM per_item_town GROUP BY town_city) SELECT town_city, avg_price, avg_ratio, avg_ratio - (SELECT AVG(avg_ratio) FROM per_town) AS ratio_above_overall_avg FROM per_town WHERE avg_ratio > (SELECT AVG(avg_ratio) FROM per_town)",
+  "WITH item_town AS (\n  SELECT ili.order_item_id, c.town_city,\n         AVG(ili.product_price) AS avg_price,\n         AVG(ili.derived_product_cost / ili.derived_total_cost) AS avg_ratio\n  FROM Invoice_Line_Items ili\n  JOIN Invoices i ON i.invoice_number = ili.invoice_number\n  JOIN Orders o ON o.order_id = i.order_id\n  JOIN Customers c ON c.customer_id = o.customer_id\n  GROUP BY ili.order_item_id, c.town_city\n),\ntown AS (\n  SELECT town_city, AVG(avg_price) AS avg_price, AVG(avg_ratio) AS avg_ratio\n  FROM item_town\n  GROUP BY town_city\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS overall_ratio FROM town\n)\nSELECT t.town_city, t.avg_price, t.avg_ratio, t.avg_ratio - o.overall_ratio AS ratio_above_average\nFROM town t CROSS JOIN overall o\nWHERE t.avg_ratio > o.overall_ratio;",
+  "WITH per_item AS (SELECT ili.order_item_id, c.town_city, AVG(ili.product_price) AS avg_price, AVG(ili.derived_product_cost / ili.derived_total_cost) AS avg_ratio FROM Invoice_Line_Items ili JOIN Order_Items oi ON oi.order_item_id = ili.order_item_id JOIN Orders o ON o.order_id = oi.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY ili.order_item_id, c.town_city), per_town AS (SELECT town_city, AVG(avg_price) AS avg_price, AVG(avg_ratio) AS avg_ratio FROM per_item GROUP BY town_city) SELECT town_city, avg_price, avg_ratio, avg_ratio - (SELECT AVG(avg_ratio) FROM per_town) AS ratio_above_average FROM per_town WHERE avg_ratio > (SELECT AVG(avg_ratio) FROM per_town)"
+ ],
+ "responses": [
+  {
+   "sql": "WITH per_item_town AS (SELECT ili.order_item_id, c.town_city, AVG(ili.product_price) AS avg_price, AVG(ili.derived_product_cost * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio FROM Invoice_Line_Items ili JOIN Order_Items oi ON oi.order_item_id = ili.order_item_id JOIN Orders o ON o.order_id = oi.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY ili.order_item_id, c.town_city), per_town AS (SELECT town_city, AVG(avg_price) AS avg_price, AVG(avg_ratio) AS avg_ratio FROM per_item_town GROUP BY town_city) SELECT town_city, avg_price, avg_ratio, avg_ratio - (SELECT AVG(avg_ratio) FROM per_town) AS ratio_above_overall_avg FROM per_town WHERE avg_ratio > (SELECT AVG(avg_ratio) FROM per_town)",
+   "assumptions": [
+    {
+     "assumption": "The 'average across all towns' is the unweighted mean of the per-town average ratios (each town counts equally), not the mean over all line items.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Towns whose ratio is entirely missing (NULL) are excluded from the cross-town average and cannot exceed it. A zero derived_total_cost is treated as a missing ratio to avoid division errors.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The customer is reached via Invoice_Line_Items.order_item_id -> Order_Items -> Orders -> Customers (not via Invoices.order_id); both paths should agree for consistent data.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH item_town AS (\n  SELECT ili.order_item_id, c.town_city,\n         AVG(ili.product_price) AS avg_price,\n         AVG(ili.derived_product_cost / ili.derived_total_cost) AS avg_ratio\n  FROM Invoice_Line_Items ili\n  JOIN Invoices i ON i.invoice_number = ili.invoice_number\n  JOIN Orders o ON o.order_id = i.order_id\n  JOIN Customers c ON c.customer_id = o.customer_id\n  GROUP BY ili.order_item_id, c.town_city\n),\ntown AS (\n  SELECT town_city, AVG(avg_price) AS avg_price, AVG(avg_ratio) AS avg_ratio\n  FROM item_town\n  GROUP BY town_city\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS overall_ratio FROM town\n)\nSELECT t.town_city, t.avg_price, t.avg_ratio, t.avg_ratio - o.overall_ratio AS ratio_above_average\nFROM town t CROSS JOIN overall o\nWHERE t.avg_ratio > o.overall_ratio;",
+   "assumptions": [
+    {
+     "assumption": "The customer is reached via Invoice_Line_Items -> Invoices -> Orders -> Customers, using the invoice's order.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The cross-town average is the unweighted mean of the per-town average ratios (each town counts once).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Rows with a zero derived_total_cost would error or yield NULL in the ratio; NULL ratios are ignored by AVG, and no further filtering is applied.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_item AS (SELECT ili.order_item_id, c.town_city, AVG(ili.product_price) AS avg_price, AVG(ili.derived_product_cost / ili.derived_total_cost) AS avg_ratio FROM Invoice_Line_Items ili JOIN Order_Items oi ON oi.order_item_id = ili.order_item_id JOIN Orders o ON o.order_id = oi.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY ili.order_item_id, c.town_city), per_town AS (SELECT town_city, AVG(avg_price) AS avg_price, AVG(avg_ratio) AS avg_ratio FROM per_item GROUP BY town_city) SELECT town_city, avg_price, avg_ratio, avg_ratio - (SELECT AVG(avg_ratio) FROM per_town) AS ratio_above_average FROM per_town WHERE avg_ratio > (SELECT AVG(avg_ratio) FROM per_town)",
+   "assumptions": [
+    {
+     "assumption": "The cross-town average is the unweighted mean of the per-town average ratios (each town counts once), not a mean over all items or lines.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The customer is reached via Invoice_Line_Items.order_item_id -> Order_Items -> Orders -> Customers (not via Invoices.order_id); these should agree.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Rows with zero derived_total_cost would error or yield NULL depending on the DBMS; NULL ratios are ignored by AVG, and towns with a NULL ratio average are excluded by the comparison.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-6ec8137fd3",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12213,
+  "chars_out": 4042
+ }
+}

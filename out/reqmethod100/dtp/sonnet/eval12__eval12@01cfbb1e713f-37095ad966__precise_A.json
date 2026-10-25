@@ -1,0 +1,39 @@
+{
+ "interpretations": [
+  "Event-level averages are computed over every budget line matched to an event (inner join). The status-level averages are then the simple mean of event-level values, each event weighted equally. The result has one row per event status. The ratio column is the status's average remaining divided by the unweighted mean of the per-status average remaining values.",
+  "Same as 1, but the overspend rate is computed per line as (spent \u2212 amount) \u00f7 amount and then averaged within the event. Lines with a NULL or zero amount are dropped from that average, or give NULL (and are ignored), so division by zero is handled.",
+  "Same as 1, but the overspend rate per event is (sum of spent \u2212 sum of amount) \u00f7 sum of amount across its lines, rather than the average of per-line rates.",
+  "Same as 1, but \"status\" means `event.status`, taken from the matched event.",
+  "Same as 1, but \"status\" means `budget.event_status`, taken from the budget line. An event's lines could then carry different statuses, so the event-level values are grouped by line status. Each event-level average would then be computed within event and line status.",
+  "Events are grouped by `event.status`. An event is assigned to one status, so each event contributes one value per status.",
+  "The \"average remaining\" uses the stored `remaining` column.",
+  "The \"average remaining\" is recomputed as amount \u2212 spent. Under this reading, NULL `remaining` values are not ignored in the same way.",
+  "The ratio is a status's average remaining divided by the simple mean across statuses of the per-status average remaining values. Each status is weighted equally, not by event count or line count.",
+  "The ratio is computed over only the statuses that appear in the result. Statuses with no matched events, or with only NULL remaining values, are excluded from the mean.",
+  "NULLs are ignored in each average separately. An event with a NULL average remaining is excluded from the remaining average but still counts in the overspend average. An event with only NULL values yields NULL and is excluded at the status level.",
+  "Events are identified by `event_id`. Events are not grouped by `event_name`, so two events with the same name stay distinct.",
+  "Events without any budget lines don't appear, because only events with matched lines are included. Budget lines with a NULL or non-matching `link_to_event` are dropped.",
+  "Values are not rounded. If the database uses integer division, `amount` (INTEGER) and `spent` (REAL) are cast to real so the overspend rate is not truncated.",
+  "Statuses with a NULL `event.status` are either shown as their own NULL group or excluded.",
+  "The output columns are status, average remaining, average overspend rate and ratio, in that order. The ratio is a scalar-denominator computation repeated on every row."
+ ],
+ "queries": [
+  "WITH event_avg AS (\n    SELECT e.event_id, e.status, AVG(b.remaining) AS avg_remaining\n    FROM event e\n    JOIN budget b ON b.link_to_event = e.event_id\n    GROUP BY e.event_id, e.status\n),\nstatus_avg AS (\n    SELECT status, AVG(avg_remaining) AS avg_remaining\n    FROM event_avg\n    GROUP BY status\n)\nSELECT status,\n       avg_remaining,\n       avg_remaining / (SELECT AVG(avg_remaining) FROM status_avg) AS ratio\nFROM status_avg;\n",
+  "SELECT link_to_event, AVG((spent - amount) * 1.0 / amount) AS avg_overspend_rate\nFROM budget\nWHERE amount IS NOT NULL AND amount <> 0\nGROUP BY link_to_event;\n",
+  "SELECT e.event_name, (SUM(b.spent) - SUM(b.amount)) * 1.0 / SUM(b.amount) AS overspend_rate\nFROM budget b\nJOIN event e ON b.link_to_event = e.event_id\nGROUP BY e.event_id, e.event_name;\n",
+  "SELECT status, COUNT(event_id) FROM event GROUP BY status;\n"
+ ],
+ "raw": [
+  "1. Event-level averages are computed over every budget line matched to an event (inner join). The status-level averages are then the simple mean of event-level values, each event weighted equally. The result has one row per event status. The ratio column is the status's average remaining divided by the unweighted mean of the per-status average remaining values.\n\n2. Same as 1, but the overspend rate is computed per line as (spent \u2212 amount) \u00f7 amount and then averaged within the event. Lines with a NULL or zero amount are dropped from that average, or give NULL (and are ignored), so division by zero is handled.\n\n3. Same as 1, but the overspend rate per event is (sum of spent \u2212 sum of amount) \u00f7 sum of amount across its lines, rather than the average of per-line rates.\n\n4. Same as 1, but \"status\" means `event.status`, taken from the matched event.\n\n5. Same as 1, but \"status\" means `budget.event_status`, taken from the budget line. An event's lines could then carry different statuses, so the event-level values are grouped by line status. Each event-level average would then be computed within event and line status.\n\n6. Events are grouped by `event.status`. An event is assigned to one status, so each event contributes one value per status.\n\n7. The \"average remaining\" uses the stored `remaining` column.\n\n8. The \"average remaining\" is recomputed as amount \u2212 spent. Under this reading, NULL `remaining` values are not ignored in the same way.\n\n9. The ratio is a status's average remaining divided by the simple mean across statuses of the per-status average remaining values. Each status is weighted equally, not by event count or line count.\n\n10. The ratio is computed over only the statuses that appear in the result. Statuses with no matched events, or with only NULL remaining values, are excluded from the mean.\n\n11. NULLs are ignored in each average separately. An event with a NULL average remaining is excluded from the remaining average but still counts in the overspend average. An event with only NULL values yields NULL and is excluded at the status level.\n\n12. Events are identified by `event_id`. Events are not grouped by `event_name`, so two events with the same name stay distinct.\n\n13. Events without any budget lines don't appear, because only events with matched lines are included. Budget lines with a NULL or non-matching `link_to_event` are dropped.\n\n14. Values are not rounded. If the database uses integer division, `amount` (INTEGER) and `spent` (REAL) are cast to real so the overspend rate is not truncated.\n\n15. Statuses with a NULL `event.status` are either shown as their own NULL group or excluded.\n\n16. The output columns are status, average remaining, average overspend rate and ratio, in that order. The ratio is a scalar-denominator computation repeated on every row.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-37095ad966",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 62426,
+  "chars_out": 4546
+ }
+}

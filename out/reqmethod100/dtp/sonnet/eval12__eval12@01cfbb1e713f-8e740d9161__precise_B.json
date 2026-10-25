@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Count distinct order_ids reachable through Invoices \u2192 Orders \u2192 Customers, grouped by `gender`, with NULL gender as its own group. Average the per-gender counts, keep genders whose count is strictly above that average, and return one row with two columns: the average count of those genders and the average of (count \u2212 overall average) for those genders.",
+  "Same as 1, but genders with no invoiced orders are also included as groups with a count of 0 (for example, via a left join from Customers). This lowers the overall average.",
+  "Same as 1, but only genders that appear on at least one invoiced order are averaged. Genders with zero invoiced orders are excluded from the per-gender average.",
+  "Same as 1, but an empty-string gender is treated as missing and merged with NULL into one group.",
+  "Same as 1, but an empty-string gender is a separate group from NULL gender.",
+  "Same as 1, but \"above the average\" is read as greater than or equal to the average, so genders exactly at the average are included.",
+  "Same as 1, but the per-gender average is computed with integer division (truncated) rather than a decimal average.",
+  "Same as 1, but the \"plain average\" is the average over all individual customers' invoiced-order counts rather than over the gender-level counts.",
+  "Same as 1, but \"invoiced orders\" counts invoices (invoice_number) rather than distinct orders, so an order with multiple invoices counts multiple times.",
+  "Same as 1, but \"invoiced orders\" are orders with at least one Invoice_Line_Items row, not just an Invoices row.",
+  "Same as 1, but \"invoiced orders\" are orders whose invoices have a Financial_Transactions record (paid or transacted invoices).",
+  "Same as 1, but the second output column is the average excess measured as a percentage or ratio over the overall average, not an absolute difference.",
+  "Same as 1, but when no gender is above the average (all counts equal, or only one group), the query returns no row instead of one row with NULLs.",
+  "Same as 1, but when no gender is above the average, one row is returned with NULL (or 0) in both columns.",
+  "Same as 1, but the output is one row with the two columns in a different order or with different labels (the average excess first, then the average count).",
+  "Missing interpretations:",
+  "Same as 1, but the overall per-gender average is weighted by the number of invoiced orders (or customers) per gender rather than the plain average of the gender-level counts.",
+  "Same as 1, but \"invoiced orders\" are counted without DISTINCT, so each joined row counts. This differs from counting invoices if other joins are introduced.",
+  "Same as 1, but the second column is the average of the absolute difference from the overall average (this matters if genders at or below the average are included).",
+  "Same as 1, but the output also includes the overall per-gender average as an additional column.",
+  "Same as 1, but the gender grouping is case-insensitive or trimmed, so \"M\" and \"m\" merge into one group.",
+  "Same as 1, but the \"average amount by which their count exceeds the average\" is computed as the average count minus the overall average. It is the same value, but computed as a single figure."
+ ],
+ "queries": [
+  "WITH g AS (\n  SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS cnt\n  FROM Invoices i\n  JOIN Orders o ON i.order_id = o.order_id\n  JOIN Customers c ON o.customer_id = c.customer_id\n  GROUP BY c.gender\n),\na AS (\n  SELECT AVG(cnt) AS avg_cnt FROM g\n)\nSELECT AVG(g.cnt) AS avg_count, AVG(g.cnt - a.avg_cnt) AS avg_diff\nFROM g, a\nWHERE g.cnt > a.avg_cnt;\n",
+  "SELECT AVG(cnt) FROM (SELECT c.gender, COUNT(DISTINCT i.order_id) AS cnt FROM Customers c LEFT JOIN Orders o ON c.customer_id = o.customer_id LEFT JOIN Invoices i ON o.order_id = i.order_id GROUP BY c.gender)\n",
+  "SELECT AVG(cnt) FROM (SELECT c.gender, COUNT(DISTINCT o.order_id) AS cnt FROM Customers c JOIN Orders o ON c.customer_id = o.customer_id JOIN Invoices i ON i.order_id = o.order_id GROUP BY c.gender);\n",
+  "SELECT NULLIF(gender, '') AS gender, COUNT(*) FROM Customers GROUP BY NULLIF(gender, '')",
+  "SELECT gender, COUNT(*) FROM Customers GROUP BY gender;\n",
+  "SELECT gender FROM Customers GROUP BY gender HAVING COUNT(*) >= (SELECT AVG(c) FROM (SELECT COUNT(*) AS c FROM Customers GROUP BY gender));\n"
+ ],
+ "raw": [
+  "1. Count distinct order_ids reachable through Invoices \u2192 Orders \u2192 Customers, grouped by `gender`, with NULL gender as its own group. Average the per-gender counts, keep genders whose count is strictly above that average, and return one row with two columns: the average count of those genders and the average of (count \u2212 overall average) for those genders.\n2. Same as 1, but genders with no invoiced orders are also included as groups with a count of 0 (for example, via a left join from Customers). This lowers the overall average.\n3. Same as 1, but only genders that appear on at least one invoiced order are averaged. Genders with zero invoiced orders are excluded from the per-gender average.\n4. Same as 1, but an empty-string gender is treated as missing and merged with NULL into one group.\n5. Same as 1, but an empty-string gender is a separate group from NULL gender.\n6. Same as 1, but \"above the average\" is read as greater than or equal to the average, so genders exactly at the average are included.\n7. Same as 1, but the per-gender average is computed with integer division (truncated) rather than a decimal average.\n8. Same as 1, but the \"plain average\" is the average over all individual customers' invoiced-order counts rather than over the gender-level counts.\n9. Same as 1, but \"invoiced orders\" counts invoices (invoice_number) rather than distinct orders, so an order with multiple invoices counts multiple times.\n10. Same as 1, but \"invoiced orders\" are orders with at least one Invoice_Line_Items row, not just an Invoices row.\n11. Same as 1, but \"invoiced orders\" are orders whose invoices have a Financial_Transactions record (paid or transacted invoices).\n12. Same as 1, but the second output column is the average excess measured as a percentage or ratio over the overall average, not an absolute difference.\n13. Same as 1, but when no gender is above the average (all counts equal, or only one group), the query returns no row instead of one row with NULLs.\n14. Same as 1, but when no gender is above the average, one row is returned with NULL (or 0) in both columns.\n15. Same as 1, but the output is one row with the two columns in a different order or with different labels (the average excess first, then the average count).",
+  "Missing interpretations:\n\nSame as 1, but the overall per-gender average is weighted by the number of invoiced orders (or customers) per gender rather than the plain average of the gender-level counts.\nSame as 1, but \"invoiced orders\" are counted without DISTINCT, so each joined row counts. This differs from counting invoices if other joins are introduced.\nSame as 1, but the second column is the average of the absolute difference from the overall average (this matters if genders at or below the average are included).\nSame as 1, but the output also includes the overall per-gender average as an additional column.\nSame as 1, but the gender grouping is case-insensitive or trimmed, so \"M\" and \"m\" merge into one group.\nSame as 1, but the \"average amount by which their count exceeds the average\" is computed as the average count minus the overall average. It is the same value, but computed as a single figure."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-8e740d9161",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 30816,
+  "chars_out": 5085
+ }
+}

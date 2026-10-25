@@ -1,0 +1,31 @@
+{
+ "interpretations": [
+  "Sum income by non-null member; calculate each member\u2019s fraction of income attributed to members; return one row for members above the mean share, containing their summed income, mean share, and mean excess share.",
+  "Sum income by `link_to_member`, treating NULL as its own group; include that group when calculating the mean share and determining which groups qualify; return one summary row for qualifying groups.",
+  "Sum income by non-null member, but divide each total by all income, including income with no linked member; calculate the mean share across linked members and return one summary row for those above it.",
+  "Include every member, assigning zero income to members with no income records; calculate shares and the mean across all members, then return one summary row for those above it.",
+  "Return one row per member above the mean share, with that member\u2019s total income, share, and excess over the mean share.",
+  "Use percentage shares instead of fractional shares in the returned average share and average excess.",
+  "Return the overall average share across all member groups as the summary row\u2019s average share, while summing amounts and averaging excess shares only for groups above that average."
+ ],
+ "queries": [
+  "WITH member_income AS (\n    SELECT link_to_member, SUM(amount) AS total_income\n    FROM income\n    WHERE link_to_member IS NOT NULL\n    GROUP BY link_to_member\n),\nmember_shares AS (\n    SELECT total_income,\n           1.0 * total_income / SUM(total_income) OVER () AS share\n    FROM member_income\n),\nmean_share AS (\n    SELECT AVG(share) AS share\n    FROM member_shares\n)\nSELECT SUM(ms.total_income) AS summed_income,\n       AVG(ms.share) AS mean_share,\n       AVG(ms.share - m.share) AS mean_excess_share\nFROM member_shares AS ms\nCROSS JOIN mean_share AS m\nWHERE ms.share > m.share",
+  "WITH member_income AS (\n    SELECT link_to_member, SUM(amount) AS income_total\n    FROM income\n    GROUP BY link_to_member\n)\nSELECT SUM(income_total) AS qualifying_income_total\nFROM member_income\nWHERE income_total > (SELECT AVG(income_total) FROM member_income)",
+  "WITH member_shares AS (\n    SELECT\n        link_to_member,\n        SUM(amount) * 1.0 / (SELECT SUM(amount) FROM income) AS share\n    FROM income\n    WHERE link_to_member IS NOT NULL\n    GROUP BY link_to_member\n)\nSELECT COUNT(*) AS member_count\nFROM member_shares\nWHERE share > (SELECT AVG(share) FROM member_shares);\n",
+  "WITH member_income AS (\n    SELECT m.member_id, COALESCE(SUM(i.amount), 0) AS total_income\n    FROM member AS m\n    LEFT JOIN income AS i ON i.link_to_member = m.member_id\n    GROUP BY m.member_id\n),\nmember_shares AS (\n    SELECT\n        member_id,\n        COALESCE(\n            1.0 * total_income / NULLIF(SUM(total_income) OVER (), 0),\n            0\n        ) AS income_share\n    FROM member_income\n),\ncompared AS (\n    SELECT income_share, AVG(income_share) OVER () AS mean_share\n    FROM member_shares\n)\nSELECT\n    COUNT(*) AS member_count,\n    COALESCE(SUM(income_share), 0) AS combined_income_share\nFROM compared\nWHERE income_share > mean_share",
+  "WITH member_income AS (\n    SELECT m.member_id, COALESCE(SUM(i.amount), 0) AS total_income\n    FROM member AS m\n    LEFT JOIN income AS i ON i.link_to_member = m.member_id\n    GROUP BY m.member_id\n),\nmember_shares AS (\n    SELECT member_id,\n           total_income,\n           1.0 * total_income / NULLIF(SUM(total_income) OVER (), 0) AS share\n    FROM member_income\n)\nSELECT member_id,\n       total_income,\n       share,\n       share - (SELECT AVG(share) FROM member_shares) AS excess_over_mean_share\nFROM member_shares\nWHERE share > (SELECT AVG(share) FROM member_shares)"
+ ],
+ "raw": [
+  "Sum income by non-null member; calculate each member\u2019s fraction of income attributed to members; return one row for members above the mean share, containing their summed income, mean share, and mean excess share.\nSum income by `link_to_member`, treating NULL as its own group; include that group when calculating the mean share and determining which groups qualify; return one summary row for qualifying groups.\nSum income by non-null member, but divide each total by all income, including income with no linked member; calculate the mean share across linked members and return one summary row for those above it.\nInclude every member, assigning zero income to members with no income records; calculate shares and the mean across all members, then return one summary row for those above it.\nReturn one row per member above the mean share, with that member\u2019s total income, share, and excess over the mean share.\nUse percentage shares instead of fractional shares in the returned average share and average excess.",
+  "Return the overall average share across all member groups as the summary row\u2019s average share, while summing amounts and averaging excess shares only for groups above that average."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-4eb2b4a71e",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 60022,
+  "chars_out": 3684
+ }
+}

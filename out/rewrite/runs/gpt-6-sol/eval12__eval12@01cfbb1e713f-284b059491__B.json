@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-284b059491",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "Treat each feature record separately, then compute and rank each record's share against the average record share.",
+ "b": {
+  "request": "For each `scanfeatures` record with a nonmissing `articount`, divide its count by the overall artifact total, subtract the average share across feature records, and return the 10 records with the largest difference, showing `zoneref`, `articount`, share, and difference in descending order; return no rows if the total or average is missing",
+  "sql": "WITH artifact_total AS (SELECT SUM(articount) AS total FROM scanfeatures WHERE articount IS NOT NULL), shares AS (SELECT f.zoneref, f.articount, f.articount * 1.0 / NULLIF(t.total, 0) AS share FROM scanfeatures AS f CROSS JOIN artifact_total AS t WHERE f.articount IS NOT NULL), average_share AS (SELECT AVG(share) AS value FROM shares) SELECT s.zoneref, s.articount, s.share, s.share - a.value AS difference FROM shares AS s CROSS JOIN average_share AS a WHERE s.share IS NOT NULL AND a.value IS NOT NULL ORDER BY difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "In the feature scan data, which 10 site artifact counts (`articount`, identified by site code `zoneref`) stand furthest above the average in their share of all artifacts? Each count's share is that count divided by the overall artifact total across all of `scanfeatures` (return nothing if the overall total is missing), and the average share is the mean of those shares (again return nothing if that average is missing). For each, give the site code, the artifact count, its share, and its share minus the average share. Ignore missing counts, and sort from the highest difference down with missing values last. Treat each feature record separately, then compute and rank each record's share against the average record share.",
+  "sql": "WITH total AS (SELECT SUM(articount) AS artifact_total FROM scanfeatures), shares AS (SELECT sf.zoneref, sf.articount, CAST(sf.articount AS numeric) / NULLIF(t.artifact_total, 0) AS artifact_share FROM scanfeatures sf CROSS JOIN total t WHERE sf.articount IS NOT NULL AND t.artifact_total IS NOT NULL), average_share AS (SELECT AVG(artifact_share) AS value FROM shares) SELECT s.zoneref, s.articount, s.artifact_share, s.artifact_share - a.value AS difference_from_average FROM shares s CROSS JOIN average_share a WHERE a.value IS NOT NULL ORDER BY difference_from_average DESC NULLS LAST LIMIT 10;",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "Treat each individual record in `scanfeatures` as one unit, without combining records from the same site; its count is that record's artifact count (`articount`), and missing counts are ignored in totals and averages. Each unit's share is its count divided by the overall artifact total across all of `scanfeatures`; if the overall total is missing, return no rows. The average share is the mean of the units' shares (ignoring missing shares); if that average is missing, return no rows. For each unit show the site code, its artifact count, its share, and its share minus the average share. Sort by that difference from highest to lowest with missing values last, and keep the top 10.",
+  "sql": "WITH totals AS (SELECT zoneref, articount, SUM(articount) OVER () AS total_artifacts FROM scanfeatures), shares AS (SELECT zoneref, articount, CAST(articount AS DOUBLE PRECISION) / NULLIF(total_artifacts, 0) AS share FROM totals WHERE total_artifacts IS NOT NULL), averaged AS (SELECT zoneref, articount, share, AVG(share) OVER () AS average_share FROM shares) SELECT zoneref AS site_code, articount AS artifact_count, share, share - average_share AS share_difference FROM averaged WHERE average_share IS NOT NULL ORDER BY CASE WHEN share_difference IS NULL THEN 1 ELSE 0 END, share_difference DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "In `scanfeatures`, which 10 individual feature records have an artifact count (`articount`) whose share of the overall artifact total is furthest above the average record share? For each record, return its site code (`zoneref`), artifact count, share (`articount` divided by the total `articount` across all records), and share minus the average share. Ignore records with missing counts, return nothing if the overall total or average share is missing, and sort by the difference descending with missing values last. Treat each record separately, even when multiple records have the same site code.",
+  "sql": "WITH shares AS (SELECT traitregistry, zoneref, articount, CAST(articount AS DECIMAL) / NULLIF(SUM(articount) OVER (), 0) AS share FROM scanfeatures WHERE articount IS NOT NULL), deviations AS (SELECT traitregistry, zoneref, articount, share, share - AVG(share) OVER () AS share_minus_average FROM shares) SELECT zoneref, articount, share, share_minus_average FROM deviations WHERE share_minus_average IS NOT NULL ORDER BY share_minus_average DESC NULLS LAST, traitregistry LIMIT 10;",
+  "executes": true,
+  "matches": []
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-329cb50dc6",
+ "model": "gpt-6-sol",
+ "reading": "B",
+ "description": "An account's region is the region where the account's owner lives.",
+ "a": {
+  "request": "For each account with standing orders, count its orders, grouping by account id (`order.account_id`) and the region (`district.A3`) of the home district where the account's owner lives (`client.district_id`, via the `disp` record of type 'OWNER'), not the account's branch district. Work out how far each account's order count is above or below the average count across all these account\u2013region rows. Then average those differences within each region, and keep only the accounts whose difference is greater than their region's average difference. Show the account id, region, number of orders, difference from the overall average, and how much that difference exceeds the region's average difference. Sort by that last value from highest to lowest, return only the top 10, and don't round anything.",
+  "sql": "WITH account_orders AS (SELECT o.account_id, d.A3 AS region, COUNT(*) AS order_count FROM `order` AS o JOIN disp AS dp ON dp.account_id = o.account_id AND dp.type = 'OWNER' JOIN client AS c ON c.client_id = dp.client_id JOIN district AS d ON d.district_id = c.district_id GROUP BY o.account_id, d.A3), differences AS (SELECT account_id, region, order_count, order_count - AVG(order_count) OVER () AS difference_from_overall_average FROM account_orders), regional AS (SELECT account_id, region, order_count, difference_from_overall_average, AVG(difference_from_overall_average) OVER (PARTITION BY region) AS regional_average_difference FROM differences) SELECT account_id, region, order_count, difference_from_overall_average, difference_from_overall_average - regional_average_difference AS amount_above_regional_average FROM regional WHERE difference_from_overall_average > regional_average_difference ORDER BY amount_above_regional_average DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each account with standing orders, count its orders, grouping by account id (`order.account_id`) and the account's region (`district.A3`). Work out how far each account's order count is above or below the average count across all these account\u2013region rows. Then average those differences within each region, and keep only the accounts whose difference is greater than their region's average difference. Show the account id, region, number of orders, difference from the overall average, and how much that difference exceeds the region's average difference. Sort by that last value from highest to lowest, return only the top 10, and don't round anything. An account's region is the region where the account's owner lives.",
+  "sql": "WITH account_orders AS (SELECT o.account_id, d.A3 AS region, COUNT(*) AS order_count FROM `order` AS o JOIN disp AS dp ON dp.account_id = o.account_id AND dp.type = 'OWNER' JOIN client AS c ON c.client_id = dp.client_id JOIN district AS d ON d.district_id = c.district_id GROUP BY o.account_id, d.A3), differences AS (SELECT account_id, region, order_count, order_count - AVG(order_count) OVER () AS difference FROM account_orders), regional AS (SELECT account_id, region, order_count, difference, AVG(difference) OVER (PARTITION BY region) AS region_average_difference FROM differences) SELECT account_id, region, order_count, difference, difference - region_average_difference AS exceeds_region_average FROM regional WHERE difference > region_average_difference ORDER BY exceeds_region_average DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each account with at least one standing order, use its owner\u2019s district to determine the region and count its orders; subtract the average order count across all account\u2013region rows, then subtract the region\u2019s average of those differences. Keep only accounts whose difference exceeds their region\u2019s average, and show the account ID, region, order count, difference from the overall average, and excess over the region\u2019s average, sorted by excess descending, limited to 10 rows, with no rounding",
+  "sql": "WITH account_regions AS (SELECT DISTINCT d.account_id, dist.A3 AS region FROM disp AS d JOIN client AS c ON c.client_id = d.client_id JOIN district AS dist ON dist.district_id = c.district_id WHERE d.type = 'OWNER'), order_counts AS (SELECT ar.account_id, ar.region, COUNT(*) AS order_count FROM account_regions AS ar JOIN \"order\" AS o ON o.account_id = ar.account_id GROUP BY ar.account_id, ar.region), differences AS (SELECT account_id, region, order_count, order_count - AVG(order_count) OVER () AS difference_from_overall_average FROM order_counts), regional_differences AS (SELECT account_id, region, order_count, difference_from_overall_average, difference_from_overall_average - AVG(difference_from_overall_average) OVER (PARTITION BY region) AS excess_over_region_average FROM differences) SELECT account_id, region, order_count, difference_from_overall_average, excess_over_region_average FROM regional_differences WHERE excess_over_region_average > 0 ORDER BY excess_over_region_average DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each account with standing orders, count its orders, grouping by `order.account_id` and the region where the account\u2019s owner lives (`district.A3`). Calculate how far each account\u2019s order count is above or below the average count across all account\u2013region rows. Then average those differences within each region and keep only accounts whose difference exceeds their region\u2019s average. Show the account ID, region, order count, difference from the overall average, and amount by which that difference exceeds the region\u2019s average. Sort by the last value descending, return the top 10, and do not round any values.",
+  "sql": "WITH order_counts AS (SELECT o.account_id, district.A3 AS region, COUNT(*) AS order_count FROM `order` AS o JOIN disp AS d ON d.account_id = o.account_id AND d.type = 'OWNER' JOIN client AS c ON c.client_id = d.client_id JOIN district ON district.district_id = c.district_id GROUP BY o.account_id, district.A3), differences AS (SELECT account_id, region, order_count, order_count - AVG(order_count) OVER () AS difference_from_overall_average FROM order_counts), regional_comparison AS (SELECT account_id, region, order_count, difference_from_overall_average, difference_from_overall_average - AVG(difference_from_overall_average) OVER (PARTITION BY region) AS excess_over_region_average FROM differences) SELECT account_id, region, order_count, difference_from_overall_average, excess_over_region_average FROM regional_comparison WHERE excess_over_region_average > 0 ORDER BY excess_over_region_average DESC LIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}

@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB / L.HCT) AS ratio FROM Laboratory L JOIN Patient P ON P.ID = L.ID GROUP BY P.ID, P.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM p) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - m.mean_ratio AS gap FROM p CROSS JOIN m WHERE p.ratio > m.mean_ratio ORDER BY gap DESC LIMIT 10",
+  "WITH p AS (SELECT pt.ID AS ID, pt.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB / l.HCT) AS ratio FROM Laboratory l JOIN Patient pt ON l.ID = pt.ID GROUP BY pt.ID, pt.SEX) SELECT ID, SEX, avg_wbc, ratio, ratio - (SELECT AVG(ratio) FROM p) AS gap FROM p WHERE ratio > (SELECT AVG(ratio) FROM p) ORDER BY gap DESC NULLS LAST LIMIT 10",
+  "WITH j AS (SELECT pt.ID AS ID, pt.SEX AS SEX, l.WBC AS WBC, l.HGB / l.HCT AS r FROM Laboratory l JOIN Patient pt ON l.ID = pt.ID), p AS (SELECT ID, SEX, AVG(WBC) AS avg_wbc, AVG(r) AS ratio FROM j GROUP BY ID, SEX) SELECT ID, SEX, avg_wbc, ratio, ratio - (SELECT AVG(r) FROM j) AS gap FROM p WHERE ratio > (SELECT AVG(r) FROM j) ORDER BY gap DESC NULLS LAST LIMIT 10",
+  "WITH per_patient AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB / L.HCT) AS ratio FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), overall AS (SELECT AVG(ratio) AS mean_ratio FROM per_patient) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - o.mean_ratio AS gap FROM per_patient p CROSS JOIN overall o WHERE p.ratio > o.mean_ratio ORDER BY gap DESC LIMIT 10",
+  "WITH per_patient AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB / L.HCT) AS ratio FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), overall AS (SELECT AVG(L.HGB / L.HCT) AS mean_ratio FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - o.mean_ratio AS gap FROM per_patient p CROSS JOIN overall o WHERE p.ratio > o.mean_ratio ORDER BY gap DESC LIMIT 10"
+ ],
+ "responses": [
+  {
+   "sql": "WITH p AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB / L.HCT) AS ratio FROM Laboratory L JOIN Patient P ON P.ID = L.ID GROUP BY P.ID, P.SEX), m AS (SELECT AVG(ratio) AS mean_ratio FROM p) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - m.mean_ratio AS gap FROM p CROSS JOIN m WHERE p.ratio > m.mean_ratio ORDER BY gap DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The mean of the ratio across all patients is the average of the per-patient average ratios, with each patient counted once. Patients whose ratio is NULL are ignored.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Rows where HCT is 0 or NULL give a NULL ratio (SQLite returns NULL on division by zero), so they are ignored in the average.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH p AS (SELECT pt.ID AS ID, pt.SEX AS SEX, AVG(l.WBC) AS avg_wbc, AVG(l.HGB / l.HCT) AS ratio FROM Laboratory l JOIN Patient pt ON l.ID = pt.ID GROUP BY pt.ID, pt.SEX) SELECT ID, SEX, avg_wbc, ratio, ratio - (SELECT AVG(ratio) FROM p) AS gap FROM p WHERE ratio > (SELECT AVG(ratio) FROM p) ORDER BY gap DESC NULLS LAST LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The mean of the ratio across all patients is the average of the per-patient average ratios, with each patient counted once.",
+     "unresolved": true
+    },
+    {
+     "assumption": "A row with HCT = 0 gives a NULL ratio, as SQLite division by zero does, so it is ignored.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The overall mean is taken over all matched lab rows (the row-level HGB/HCT average), not over the per-patient averages.",
+     "sql": "WITH j AS (SELECT pt.ID AS ID, pt.SEX AS SEX, l.WBC AS WBC, l.HGB / l.HCT AS r FROM Laboratory l JOIN Patient pt ON l.ID = pt.ID), p AS (SELECT ID, SEX, AVG(WBC) AS avg_wbc, AVG(r) AS ratio FROM j GROUP BY ID, SEX) SELECT ID, SEX, avg_wbc, ratio, ratio - (SELECT AVG(r) FROM j) AS gap FROM p WHERE ratio > (SELECT AVG(r) FROM j) ORDER BY gap DESC NULLS LAST LIMIT 10"
+    }
+   ]
+  },
+  {
+   "sql": "WITH per_patient AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB / L.HCT) AS ratio FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), overall AS (SELECT AVG(ratio) AS mean_ratio FROM per_patient) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - o.mean_ratio AS gap FROM per_patient p CROSS JOIN overall o WHERE p.ratio > o.mean_ratio ORDER BY gap DESC LIMIT 10",
+   "assumptions": [
+    {
+     "assumption": "The 'mean of that ratio across all patients' is the average of the per-patient average ratios (each patient weighted equally), ignoring patients whose ratio is null.",
+     "unresolved": true
+    },
+    {
+     "assumption": "Rows with HCT = 0 are not specially handled (SQLite returns NULL for division by zero, so they are ignored).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": [
+    {
+     "interpretation": "The mean ratio is computed over all individual lab records (row-level HGB/HCT average) rather than the average of per-patient ratios.",
+     "sql": "WITH per_patient AS (SELECT P.ID AS ID, P.SEX AS SEX, AVG(L.WBC) AS avg_wbc, AVG(L.HGB / L.HCT) AS ratio FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID GROUP BY P.ID, P.SEX), overall AS (SELECT AVG(L.HGB / L.HCT) AS mean_ratio FROM Laboratory L INNER JOIN Patient P ON L.ID = P.ID) SELECT p.ID, p.SEX, p.avg_wbc, p.ratio, p.ratio - o.mean_ratio AS gap FROM per_patient p CROSS JOIN overall o WHERE p.ratio > o.mean_ratio ORDER BY gap DESC LIMIT 10"
+    }
+   ]
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 26460,
+  "chars_out": 3381
+ }
+}

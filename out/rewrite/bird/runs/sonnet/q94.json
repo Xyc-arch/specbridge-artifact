@@ -1,0 +1,33 @@
+{
+ "id": "q94",
+ "db": "financial",
+ "path": "dev_unzipped/dev_20240627/dev_databases/financial/financial.sqlite",
+ "question": "List out the account numbers of female clients who are oldest and has lowest average salary, calculate the gap between this lowest average salary with the highest average salary?",
+ "evidence": "Female means gender = 'F'; A11 refers to average salary; Gap = highest average salary - lowest average salary; If the person A's birthdate > B's birthdate, it means that person B is order than person A.",
+ "rule": "ties",
+ "clarification": "If several rows tie at the cut-off, return all of them.",
+ "gold": "SELECT c0, c1 FROM (SELECT T1.account_id AS c0, (SELECT MAX(A11) - MIN(A11) FROM district) AS c1, RANK() OVER (ORDER BY T2.A11 DESC) AS __r FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id INNER JOIN client AS T4 ON T3.client_id = T4.client_id WHERE T2.district_id = (SELECT district_id FROM client WHERE gender = 'F' ORDER BY birth_date ASC LIMIT 1)) AS __t WHERE __r <= 1",
+ "gold0": "SELECT T1.account_id , ( SELECT MAX(A11) - MIN(A11) FROM district ) FROM account AS T1 INNER JOIN district AS T2 ON T1.district_id = T2.district_id INNER JOIN disp AS T3 ON T1.account_id = T3.account_id INNER JOIN client AS T4 ON T3.client_id = T4.client_id WHERE T2.district_id = ( SELECT district_id FROM client WHERE gender = 'F' ORDER BY birth_date ASC LIMIT 1 ) ORDER BY T2.A11 DESC LIMIT 1",
+ "d": {
+  "request": "List the account numbers of the female clients (gender = 'F') who are the oldest (earliest birthdate) and who live in the district with the lowest average salary (A11), and calculate the gap between that lowest average salary and the highest average salary (Gap = highest A11 \u2212 lowest A11). If several rows tie at the cut-off (for example, multiple female clients sharing the oldest birthdate or the lowest average salary), return all of them.",
+  "sql": "WITH low AS (SELECT district_id FROM district WHERE A11 = (SELECT MIN(A11) FROM district)), f AS (SELECT c.client_id FROM client c WHERE c.gender = 'F' AND c.district_id IN (SELECT district_id FROM low) AND c.birth_date = (SELECT MIN(birth_date) FROM client WHERE gender = 'F' AND district_id IN (SELECT district_id FROM low))) SELECT DISTINCT a.account_id, (SELECT MAX(A11) - MIN(A11) FROM district) AS Gap FROM f JOIN disp d ON d.client_id = f.client_id JOIN account a ON a.account_id = d.account_id",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "b": {
+  "request": "List the account numbers of all female clients (gender = 'F') who share the earliest birth_date among female clients (returning every tied oldest client) and whose district has the lowest A11 average salary among those clients' districts (including all ties), and also compute the gap between the highest A11 across all districts and that lowest A11.",
+  "sql": "WITH oldest AS (SELECT c.client_id, c.district_id FROM client c WHERE c.gender = 'F' AND c.birth_date = (SELECT MIN(birth_date) FROM client WHERE gender = 'F')), minsal AS (SELECT MIN(d.A11) AS m FROM district d WHERE d.district_id IN (SELECT district_id FROM oldest)) SELECT DISTINCT dp.account_id, (SELECT MAX(A11) FROM district) - (SELECT m FROM minsal) AS gap FROM oldest o JOIN district d ON d.district_id = o.district_id JOIN disp dp ON dp.client_id = o.client_id WHERE d.A11 = (SELECT m FROM minsal)",
+  "runs": true,
+  "right": false,
+  "unclarified": false,
+  "raw": "List the account numbers of all female clients (gender = 'F') who share the earliest birth_date among female clients (returning every tied oldest client) and whose district has the lowest A11 average salary among those clients' districts (including all ties), and also compute the gap between the highest A11 across all districts and that lowest A11."
+ },
+ "c": {
+  "request": "List out the account numbers of female clients who are oldest and has lowest average salary, calculate the gap between this lowest average salary with the highest average salary?\nEvidence: Female means gender = 'F'; A11 refers to average salary; Gap = highest average salary - lowest average salary; If the person A's birthdate > B's birthdate, it means that person B is order than person A.\nIf several rows tie at the cut-off, return all of them.",
+  "sql": "WITH f AS (SELECT c.client_id, c.birth_date, d.A11 FROM client c JOIN district d ON c.district_id = d.district_id WHERE c.gender = 'F'), o AS (SELECT * FROM f WHERE birth_date = (SELECT MIN(birth_date) FROM f)), l AS (SELECT * FROM o WHERE A11 = (SELECT MIN(A11) FROM o)) SELECT DISTINCT disp.account_id, (SELECT MAX(A11) FROM district) - (SELECT MIN(A11) FROM district) AS gap FROM l JOIN disp ON disp.client_id = l.client_id",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ }
+}

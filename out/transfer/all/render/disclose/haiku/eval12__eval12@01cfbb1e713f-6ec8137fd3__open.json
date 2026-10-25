@@ -1,0 +1,42 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-6ec8137fd3",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH order_item_town_avg AS (\n  SELECT \n    ili.order_item_id,\n    c.town_city,\n    AVG(ili.product_price) as item_avg_price,\n    AVG(ili.derived_product_cost / NULLIF(ili.derived_total_cost, 0)) as item_avg_ratio\n  FROM Invoice_Line_Items ili\n  JOIN Invoices i ON ili.invoice_number = i.invoice_number\n  JOIN Orders o ON i.order_id = o.order_id\n  JOIN Customers c ON o.customer_id = c.customer_id\n  GROUP BY ili.order_item_id, c.town_city\n),\ntown_avg AS (\n  SELECT \n    town_city,\n    AVG(item_avg_price) as avg_product_price,\n    AVG(item_avg_ratio) as avg_cost_ratio\n  FROM order_item_town_avg\n  GROUP BY town_city\n),\noverall_avg AS (\n  SELECT AVG(avg_cost_ratio) as overall_avg_ratio\n  FROM town_avg\n)\nSELECT \n  ta.town_city,\n  ta.avg_product_price,\n  ta.avg_cost_ratio,\n  ta.avg_cost_ratio - oa.overall_avg_ratio as ratio_above_average\nFROM town_avg ta\nCROSS JOIN overall_avg oa\nWHERE ta.avg_cost_ratio > oa.overall_avg_ratio\nORDER BY ta.town_city;",
+  "assumptions": [
+   {
+    "assumption": "Rows where derived_total_cost is zero or NULL are excluded from ratio calculation to avoid division by zero; NULL values in product_price and derived_product_cost are ignored per SQL AVG default behavior",
+    "unresolved": false
+   },
+   {
+    "assumption": "Each order_item_id may appear across multiple invoice line items (partial invoicing). The request's two-step process ('for each order item id and town' first, 'then average those per town') means order_item_ids with few line items have equal weight to those with many, not weighted by invoice count",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If the request intends to average product_price and ratio directly at the town level without the intermediate per-order_item_id step, giving higher weight to order_item_ids with more invoiced instances",
+    "sql": "WITH town_direct_avg AS (\n  SELECT \n    c.town_city,\n    AVG(ili.product_price) as avg_product_price,\n    AVG(ili.derived_product_cost / NULLIF(ili.derived_total_cost, 0)) as avg_cost_ratio\n  FROM Invoice_Line_Items ili\n  JOIN Invoices i ON ili.invoice_number = i.invoice_number\n  JOIN Orders o ON i.order_id = o.order_id\n  JOIN Customers c ON o.customer_id = c.customer_id\n  GROUP BY c.town_city\n),\noverall_avg AS (\n  SELECT AVG(avg_cost_ratio) as overall_avg_ratio\n  FROM town_direct_avg\n)\nSELECT \n  ta.town_city,\n  ta.avg_product_price,\n  ta.avg_cost_ratio,\n  ta.avg_cost_ratio - oa.overall_avg_ratio as ratio_above_average\nFROM town_direct_avg ta\nCROSS JOIN overall_avg oa\nWHERE ta.avg_cost_ratio > oa.overall_avg_ratio\nORDER BY ta.town_city;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "If the request intends to average product_price and ratio directly at the town level without the intermediate per-order_item_id step, giving higher weight to order_item_ids with more invoiced instances",
+   "sql": "WITH town_direct_avg AS (\n  SELECT \n    c.town_city,\n    AVG(ili.product_price) as avg_product_price,\n    AVG(ili.derived_product_cost / NULLIF(ili.derived_total_cost, 0)) as avg_cost_ratio\n  FROM Invoice_Line_Items ili\n  JOIN Invoices i ON ili.invoice_number = i.invoice_number\n  JOIN Orders o ON i.order_id = o.order_id\n  JOIN Customers c ON o.customer_id = c.customer_id\n  GROUP BY c.town_city\n),\noverall_avg AS (\n  SELECT AVG(avg_cost_ratio) as overall_avg_ratio\n  FROM town_direct_avg\n)\nSELECT \n  ta.town_city,\n  ta.avg_product_price,\n  ta.avg_cost_ratio,\n  ta.avg_cost_ratio - oa.overall_avg_ratio as ratio_above_average\nFROM town_direct_avg ta\nCROSS JOIN overall_avg oa\nWHERE ta.avg_cost_ratio > oa.overall_avg_ratio\nORDER BY ta.town_city;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 47.1,
+ "chars_out": 2712
+}

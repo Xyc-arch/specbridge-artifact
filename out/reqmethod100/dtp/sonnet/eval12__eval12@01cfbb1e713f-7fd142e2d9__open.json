@@ -1,0 +1,42 @@
+{
+ "interpretations": [
+  "Group by Patient.SEX, using an inner join of Examination to Patient. Return the average aCL IgG and average ANA per sex, ignoring NULLs in each average separately. Then return each sex's average ANA divided by the mean of the per-sex average ANAs (the sum of the per-sex averages divided by the number of sex groups), unrounded.",
+  "Same as 1, but the ratio's denominator is the overall average ANA across all linked examinations, not the mean of the per-sex averages.",
+  "Same as 1, but only examinations where both aCL IgG and ANA are non-null are used for both averages, so the two averages come from the same rows.",
+  "Same as 1, but the mean of the per-sex ANA averages includes a NULL or empty SEX group as its own group.",
+  "Same as 1, but the mean of the per-sex ANA averages excludes patients with NULL or empty SEX, and those patients are dropped from the output.",
+  "Same as 1, but the ratio is stated as a percentage (multiplied by 100) rather than a raw ratio.",
+  "Same as 1, but \"average\" is taken per patient first (each patient's mean across their examinations) and then averaged across patients within each sex, so each patient is weighted equally.",
+  "Same as 1, but the sex groups are reported using the raw SEX codes (e.g., M, F). Alternatively, they are labeled with full words (Male, Female).",
+  "Same as 1, but each patient's ANA is treated as a single value (for example the latest examination), rather than all of their examinations being used.",
+  "Same as 1, but an ANA value of 0 is treated as missing (not recorded) and is excluded from the averages.",
+  "Missing interpretations:",
+  "Same as 1, but the ratio's denominator is the simple mean of the per-sex ANA averages with each sex's average ANA computed from only examinations where ANA is non-null, while aCL IgG is averaged separately over its own non-null rows. This is already covered by 1, so it is not listed.",
+  "Same as 1, but the ratio's denominator is the mean of the per-sex ANA averages weighted by each group's number of examinations. This is equivalent to the overall ANA average, so it is covered by 2.",
+  "New missing interpretations:",
+  "Same as 1, but the join is a LEFT JOIN from Patient to Examination, so patients with no examinations are included. They contribute NULL averages and may form their own groups.",
+  "Same as 1, but the ratio is computed as the mean of the per-sex ANA averages divided by each sex's average ANA (the inverse direction).",
+  "Same as 1, but the ratio is computed using only the sex groups that have non-null aCL IgG averages. This changes the group count in the denominator."
+ ],
+ "queries": [
+  "WITH s AS (\n  SELECT P.SEX AS SEX, AVG(E.`aCL IgG`) AS avg_aCL_IgG, AVG(E.ANA) AS avg_ANA\n  FROM Examination E\n  INNER JOIN Patient P ON E.ID = P.ID\n  GROUP BY P.SEX\n)\nSELECT SEX, avg_aCL_IgG, avg_ANA,\n       avg_ANA / ((SELECT SUM(avg_ANA) FROM s) * 1.0 / (SELECT COUNT(*) FROM s)) AS ana_ratio\nFROM s;\n",
+  "SELECT p.SEX, AVG(e.ANA) * 1.0 / (SELECT AVG(e2.ANA) FROM Examination e2 INNER JOIN Patient p2 ON e2.ID = p2.ID) AS ratio\nFROM Examination e\nINNER JOIN Patient p ON e.ID = p.ID\nGROUP BY p.SEX",
+  "SELECT AVG(`aCL IgG`), AVG(ANA) FROM Examination WHERE `aCL IgG` IS NOT NULL AND ANA IS NOT NULL",
+  "SELECT AVG(avg_ana)\nFROM (\n    SELECT AVG(E.ANA) AS avg_ana\n    FROM Examination E\n    JOIN Patient P ON E.ID = P.ID\n    GROUP BY COALESCE(NULLIF(P.SEX, ''), 'UNKNOWN')\n);\n",
+  "SELECT P.SEX, AVG(E.ANA) AS avg_ana, AVG(AVG(E.ANA)) OVER () AS mean_of_sex_avgs\nFROM Patient P\nJOIN Examination E ON P.ID = E.ID\nWHERE P.SEX IS NOT NULL AND P.SEX <> ''\nGROUP BY P.SEX",
+  "SELECT CAST(SUM(CASE WHEN SEX = 'M' THEN 1 ELSE 0 END) AS REAL) * 100 / SUM(CASE WHEN SEX = 'F' THEN 1 ELSE 0 END) FROM Patient;\n"
+ ],
+ "raw": [
+  "1. Group by Patient.SEX, using an inner join of Examination to Patient. Return the average aCL IgG and average ANA per sex, ignoring NULLs in each average separately. Then return each sex's average ANA divided by the mean of the per-sex average ANAs (the sum of the per-sex averages divided by the number of sex groups), unrounded.\n2. Same as 1, but the ratio's denominator is the overall average ANA across all linked examinations, not the mean of the per-sex averages.\n3. Same as 1, but only examinations where both aCL IgG and ANA are non-null are used for both averages, so the two averages come from the same rows.\n4. Same as 1, but the mean of the per-sex ANA averages includes a NULL or empty SEX group as its own group.\n5. Same as 1, but the mean of the per-sex ANA averages excludes patients with NULL or empty SEX, and those patients are dropped from the output.\n6. Same as 1, but the ratio is stated as a percentage (multiplied by 100) rather than a raw ratio.\n7. Same as 1, but \"average\" is taken per patient first (each patient's mean across their examinations) and then averaged across patients within each sex, so each patient is weighted equally.\n8. Same as 1, but the sex groups are reported using the raw SEX codes (e.g., M, F). Alternatively, they are labeled with full words (Male, Female).\n9. Same as 1, but each patient's ANA is treated as a single value (for example the latest examination), rather than all of their examinations being used.\n10. Same as 1, but an ANA value of 0 is treated as missing (not recorded) and is excluded from the averages.",
+  "Missing interpretations:\n\nSame as 1, but the ratio's denominator is the simple mean of the per-sex ANA averages with each sex's average ANA computed from only examinations where ANA is non-null, while aCL IgG is averaged separately over its own non-null rows. This is already covered by 1, so it is not listed.\n\nSame as 1, but the ratio's denominator is the mean of the per-sex ANA averages weighted by each group's number of examinations. This is equivalent to the overall ANA average, so it is covered by 2.\n\nNew missing interpretations:\n\nSame as 1, but the join is a LEFT JOIN from Patient to Examination, so patients with no examinations are included. They contribute NULL averages and may form their own groups.\n\nSame as 1, but the ratio is computed as the mean of the per-sex ANA averages divided by each sex's average ANA (the inverse direction).\n\nSame as 1, but the ratio is computed using only the sex groups that have non-null aCL IgG averages. This changes the group count in the denominator."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7fd142e2d9",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 66691,
+  "chars_out": 3984
+ }
+}

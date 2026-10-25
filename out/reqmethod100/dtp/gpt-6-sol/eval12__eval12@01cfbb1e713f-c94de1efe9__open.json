@@ -1,0 +1,27 @@
+{
+ "interpretations": [
+  "For each patient with a matching laboratory record, average `WBC` and average each laboratory record\u2019s `HGB / HCT`; compare the patient\u2019s average ratio with the unweighted mean of patient ratios.",
+  "For each patient with a matching laboratory record, average `WBC`, `HGB`, and `HCT` separately; divide average `HGB` by average `HCT` and compare that ratio with the unweighted mean of patient ratios.",
+  "For each patient with a matching laboratory record, average `WBC`; using only records where both `HGB` and `HCT` are present, divide average `HGB` by average `HCT` and compare that ratio with the unweighted mean of patient ratios.",
+  "In each interpretation, show ID, sex, average `WBC`, ratio, and ratio minus the mean for patients above the mean; sort by the gap descending with missing values last, return 10 rows, and do not round."
+ ],
+ "queries": [
+  "WITH patient_averages AS (\n    SELECT\n        p.ID,\n        AVG(l.WBC) AS average_wbc,\n        AVG(l.HGB / NULLIF(l.HCT, 0)) AS average_ratio\n    FROM Patient AS p\n    JOIN Laboratory AS l ON l.ID = p.ID\n    GROUP BY p.ID\n),\nbenchmark AS (\n    SELECT AVG(average_ratio) AS mean_patient_ratio\n    FROM patient_averages\n)\nSELECT\n    pa.ID,\n    pa.average_wbc,\n    pa.average_ratio,\n    b.mean_patient_ratio,\n    CASE\n        WHEN pa.average_ratio > b.mean_patient_ratio THEN 'above'\n        WHEN pa.average_ratio < b.mean_patient_ratio THEN 'below'\n        WHEN pa.average_ratio = b.mean_patient_ratio THEN 'equal'\n    END AS ratio_comparison\nFROM patient_averages AS pa\nCROSS JOIN benchmark AS b;\n",
+  "WITH patient_averages AS (\n    SELECT\n        p.ID,\n        AVG(l.WBC) AS avg_wbc,\n        AVG(l.HGB) AS avg_hgb,\n        AVG(l.HCT) AS avg_hct\n    FROM Patient AS p\n    JOIN Laboratory AS l ON l.ID = p.ID\n    GROUP BY p.ID\n)\nSELECT\n    AVG(avg_wbc) AS avg_wbc,\n    AVG(avg_hgb) AS avg_hgb,\n    AVG(avg_hct) AS avg_hct,\n    AVG(avg_hgb) / AVG(avg_hct) AS ratio_of_averages,\n    AVG(avg_hgb / NULLIF(avg_hct, 0)) AS mean_of_patient_ratios\nFROM patient_averages",
+  "WITH patient_stats AS (\n    SELECT\n        p.ID,\n        AVG(l.WBC) AS avg_wbc,\n        AVG(CASE WHEN l.HGB IS NOT NULL AND l.HCT IS NOT NULL THEN l.HGB END) /\n        NULLIF(AVG(CASE WHEN l.HGB IS NOT NULL AND l.HCT IS NOT NULL THEN l.HCT END), 0) AS patient_ratio\n    FROM Patient AS p\n    JOIN Laboratory AS l ON l.ID = p.ID\n    GROUP BY p.ID\n)\nSELECT\n    ID,\n    avg_wbc,\n    patient_ratio,\n    (SELECT AVG(patient_ratio) FROM patient_stats) AS mean_patient_ratio\nFROM patient_stats",
+  "WITH patient_wbc AS (\n    SELECT p.ID, p.SEX, AVG(l.WBC) AS avg_wbc\n    FROM Patient AS p\n    LEFT JOIN Laboratory AS l ON l.ID = p.ID\n    GROUP BY p.ID, p.SEX\n),\noverall_mean AS (\n    SELECT AVG(WBC) AS mean_wbc\n    FROM Laboratory\n)\nSELECT\n    p.ID,\n    p.SEX,\n    p.avg_wbc,\n    p.avg_wbc / m.mean_wbc AS ratio,\n    p.avg_wbc / m.mean_wbc - 1 AS ratio_minus_mean\nFROM patient_wbc AS p\nCROSS JOIN overall_mean AS m\nWHERE p.avg_wbc > m.mean_wbc\nORDER BY ratio_minus_mean IS NULL, ratio_minus_mean DESC\nLIMIT 10;\n"
+ ],
+ "raw": [
+  "For each patient with a matching laboratory record, average `WBC` and average each laboratory record\u2019s `HGB / HCT`; compare the patient\u2019s average ratio with the unweighted mean of patient ratios.\n\nFor each patient with a matching laboratory record, average `WBC`, `HGB`, and `HCT` separately; divide average `HGB` by average `HCT` and compare that ratio with the unweighted mean of patient ratios.\n\nFor each patient with a matching laboratory record, average `WBC`; using only records where both `HGB` and `HCT` are present, divide average `HGB` by average `HCT` and compare that ratio with the unweighted mean of patient ratios.\n\nIn each interpretation, show ID, sex, average `WBC`, ratio, and ratio minus the mean for patients above the mean; sort by the gap descending with missing values last, return 10 rows, and do not round.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 6,
+  "chars_in": 50792,
+  "chars_out": 3048
+ }
+}

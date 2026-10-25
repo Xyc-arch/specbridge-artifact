@@ -1,0 +1,72 @@
+{
+ "queries": [
+  "WITH c AS (SELECT product_id, COUNT(*) AS cnt FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS combined_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+  "WITH c AS (SELECT product_id, COUNT(*) AS cnt FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS combined_count, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS avg_excess_over_overall_avg FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+  "WITH counts AS (SELECT product_id, COUNT(*) AS cnt FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT SUM(s.cnt) AS combined_count, AVG(s.share) AS average_share, AVG(s.share - av.a) AS avg_excess_over_overall_average FROM shares s CROSS JOIN avg_share av WHERE s.share > av.a"
+ ],
+ "responses": [
+  {
+   "sql": "WITH c AS (SELECT product_id, COUNT(*) AS cnt FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS combined_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+   "assumptions": [
+    {
+     "assumption": "Order-item lines are counted as rows in Order_Items (COUNT(*)), grouped by product_id; products with no order items are not included in the average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Shares are computed with decimal (non-integer) division and results are left unrounded.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If no product has a share above the average (e.g., all equal), the query returns a single row with NULL values (SUM/AVG over no rows).",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT product_id, COUNT(*) AS cnt FROM Order_Items GROUP BY product_id), s AS (SELECT product_id, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS combined_count, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS avg_excess_over_overall_avg FROM s CROSS JOIN a WHERE s.share > a.avg_share",
+   "assumptions": [
+    {
+     "assumption": "Products are only those appearing in Order_Items (products with no order items are not included in the average across products). Each row in Order_Items is one order-item line, so the count per product is COUNT(*).",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'average share' in the output is the average share among the above-average products only, not the overall average share.",
+     "unresolved": false
+    },
+    {
+     "assumption": "If no product has a share strictly above the average (all equal), the query returns a row with NULLs.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH counts AS (SELECT product_id, COUNT(*) AS cnt FROM Order_Items GROUP BY product_id), shares AS (SELECT product_id, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS a FROM shares) SELECT SUM(s.cnt) AS combined_count, AVG(s.share) AS average_share, AVG(s.share - av.a) AS avg_excess_over_overall_average FROM shares s CROSS JOIN avg_share av WHERE s.share > av.a",
+   "assumptions": [
+    {
+     "assumption": "Each row in Order_Items counts as one order-item line (COUNT(*) per product_id), regardless of the product_quantity value.",
+     "unresolved": false
+    },
+    {
+     "assumption": "Only products appearing in Order_Items are included in the 'all products' set for the average share (products with no order items are excluded).",
+     "unresolved": false
+    },
+    {
+     "assumption": "Shares are computed with decimal (non-integer) division and no rounding.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-97769b0922",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 12078,
+  "chars_out": 2803
+ }
+}

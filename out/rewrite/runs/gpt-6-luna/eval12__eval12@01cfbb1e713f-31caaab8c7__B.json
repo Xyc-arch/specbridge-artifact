@@ -1,0 +1,33 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-31caaab8c7",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "Cut the sorted list at the 10th row's value and keep every row tied with it.",
+ "a": {
+  "request": "For each branch district (`account.district_id`), count its accounts and work out its share of all accounts (its count divided by the total number of accounts). Show the district id, the account count, the share, and how far the share is above the average share across districts (share minus that average). Sort by that difference from highest to lowest and return the top 10, plus any other districts tied with the 10th. Don't round anything.",
+  "sql": "WITH district_counts AS (\n    SELECT district_id, COUNT(*) AS account_count\n    FROM account\n    GROUP BY district_id\n),\nshares AS (\n    SELECT\n        district_id,\n        account_count,\n        1.0 * account_count / (SELECT COUNT(*) FROM account) AS share\n    FROM district_counts\n),\nranked AS (\n    SELECT\n        district_id,\n        account_count,\n        share,\n        share - AVG(share) OVER () AS difference,\n        RANK() OVER (ORDER BY share - AVG(share) OVER () DESC) AS position\n    FROM shares\n)\nSELECT district_id, account_count, share, difference\nFROM ranked\nWHERE position <= 10\nORDER BY difference DESC;",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "For each distinct `account.district_id`, count its accounts and calculate its share of the total account count, then subtract the unweighted average of these district shares. Sort by this difference descending and return the first 10 rows plus any additional districts tied with the 10th row\u2019s difference, showing district ID, count, share, and difference without rounding",
+  "sql": "WITH district_counts AS (\n    SELECT district_id, COUNT(*) AS account_count\n    FROM account\n    GROUP BY district_id\n), district_shares AS (\n    SELECT district_id,\n           account_count,\n           CAST(account_count AS REAL) / SUM(account_count) OVER () AS share\n    FROM district_counts\n), ranked AS (\n    SELECT district_id,\n           account_count,\n           share,\n           share - AVG(share) OVER () AS difference,\n           RANK() OVER (ORDER BY share - AVG(share) OVER () DESC) AS rank\n    FROM district_shares\n)\nSELECT district_id, account_count, share, difference\nFROM ranked\nWHERE rank <= 10\nORDER BY difference DESC;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "For each branch district (`account.district_id`), count its accounts and work out its share of all accounts (its count divided by the total number of accounts). Show the district id, the account count, the share, and how far the share is above the average share across districts (share minus that average). Which are the top 10 districts by that difference, from highest to lowest? Don't round anything. Cut the sorted list at the 10th row's value and keep every row tied with it.",
+  "sql": "WITH district_counts AS (\n    SELECT district_id, COUNT(*) AS account_count\n    FROM account\n    GROUP BY district_id\n),\nshares AS (\n    SELECT\n        district_id,\n        account_count,\n        1.0 * account_count / (SELECT COUNT(*) FROM account) AS share\n    FROM district_counts\n),\ndifferences AS (\n    SELECT\n        district_id,\n        account_count,\n        share,\n        share - AVG(share) OVER () AS difference\n    FROM shares\n),\nranked AS (\n    SELECT\n        district_id,\n        account_count,\n        share,\n        difference,\n        RANK() OVER (ORDER BY difference DESC) AS difference_rank\n    FROM differences\n)\nSELECT district_id, account_count, share, difference\nFROM ranked\nWHERE difference_rank <= 10\nORDER BY difference DESC",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For each branch district (`account.district_id`), calculate its account count, its share of all accounts, and the difference between that share and the average share across districts. Show the district id, count, share, and difference. Sort by difference from highest to lowest, and include every district tied at the 10th row\u2019s difference. Do not round any values.",
+  "sql": "WITH district_counts AS (\n    SELECT district_id, COUNT(*) AS account_count\n    FROM account\n    GROUP BY district_id\n), district_shares AS (\n    SELECT\n        district_id,\n        account_count,\n        1.0 * account_count / SUM(account_count) OVER () AS share\n    FROM district_counts\n), ranked AS (\n    SELECT\n        district_id,\n        account_count,\n        share,\n        share - AVG(share) OVER () AS difference,\n        RANK() OVER (ORDER BY share - AVG(share) OVER () DESC) AS difference_rank\n    FROM district_shares\n)\nSELECT district_id, account_count, share, difference\nFROM ranked\nWHERE difference_rank <= 10\nORDER BY difference DESC;",
+  "executes": false,
+  "matches": []
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "interpretations": [
+  "For each media type ID with tracks whose byte sizes are known, calculate total bytes divided by total milliseconds; compare it with the unweighted mean of that rate across media type IDs with a defined rate, and show the name, rate, and unrounded difference.",
+  "For each media type ID, calculate total known bytes divided by the total milliseconds of all its tracks, including tracks with unknown byte sizes in the duration total; compare it with the unweighted mean across media type IDs with a defined rate, and show the name, rate, and unrounded difference.",
+  "For each media type ID, calculate each track\u2019s bytes divided by its milliseconds, then average those track rates; compare it with the unweighted mean of the media type rates, and show the name, rate, and unrounded difference.",
+  "For each distinct media type name, combine tracks from all media type IDs with that name, calculate total known bytes divided by total milliseconds for tracks with known byte sizes, and compare it with the unweighted mean across distinct names.",
+  "For each distinct media type name, combine tracks from all media type IDs with that name, average the rates of tracks with known byte sizes, and compare it with the unweighted mean across distinct names.",
+  "For each media type ID, use total bytes divided by total milliseconds for tracks with known byte sizes, but include media types with no qualifying tracks as having a zero rate when calculating the unweighted mean.",
+  "For each distinct media type name, calculate total known bytes divided by the total milliseconds of all its tracks, including tracks with unknown byte sizes, then compare that rate with the unweighted mean across names with a defined rate.",
+  "For each media type ID, average its tracks\u2019 bytes-per-millisecond rates while treating unknown byte sizes as zero, then compare that rate with the unweighted mean across media type IDs.",
+  "For each distinct media type name, average its tracks\u2019 bytes-per-millisecond rates while treating unknown byte sizes as zero, then compare that rate with the unweighted mean across names."
+ ],
+ "queries": [
+  "WITH rates AS (\n  SELECT\n    MediaTypeId,\n    1.0 * SUM(Bytes) / NULLIF(SUM(Milliseconds), 0) AS rate\n  FROM Track\n  WHERE Bytes IS NOT NULL\n  GROUP BY MediaTypeId\n)\nSELECT\n  m.Name,\n  r.rate,\n  r.rate - (SELECT AVG(rate) FROM rates) AS difference\nFROM rates AS r\nJOIN MediaType AS m ON m.MediaTypeId = r.MediaTypeId\nWHERE r.rate IS NOT NULL",
+  "WITH rates AS (\n  SELECT\n    m.MediaTypeId,\n    m.Name,\n    1.0 * SUM(t.Bytes) / NULLIF(SUM(t.Milliseconds), 0) AS rate\n  FROM MediaType AS m\n  LEFT JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n)\nSELECT\n  Name,\n  rate,\n  rate - (SELECT AVG(rate) FROM rates) AS difference\nFROM rates",
+  "WITH media_rates AS (\n    SELECT\n        t.MediaTypeId,\n        m.Name,\n        AVG(1.0 * t.Bytes / NULLIF(t.Milliseconds, 0)) AS rate\n    FROM Track AS t\n    JOIN MediaType AS m ON m.MediaTypeId = t.MediaTypeId\n    GROUP BY t.MediaTypeId, m.Name\n)\nSELECT\n    Name,\n    rate,\n    rate - (SELECT AVG(rate) FROM media_rates) AS difference\nFROM media_rates",
+  "WITH per_name AS (\n    SELECT\n        m.Name AS MediaTypeName,\n        SUM(t.Bytes) * 1.0 / NULLIF(SUM(t.Milliseconds), 0) AS BytesPerMillisecond\n    FROM MediaType AS m\n    LEFT JOIN Track AS t\n        ON t.MediaTypeId = m.MediaTypeId\n       AND t.Bytes IS NOT NULL\n    GROUP BY m.Name\n)\nSELECT\n    MediaTypeName,\n    BytesPerMillisecond,\n    BytesPerMillisecond - AVG(BytesPerMillisecond) OVER () AS DifferenceFromMean\nFROM per_name",
+  "WITH rates_by_name AS (\n    SELECT\n        m.Name AS media_type_name,\n        AVG(CASE\n            WHEN t.Bytes IS NOT NULL AND t.Milliseconds > 0\n            THEN t.Bytes * 1000.0 / t.Milliseconds\n        END) AS avg_bytes_per_second\n    FROM MediaType AS m\n    LEFT JOIN Track AS t ON t.MediaTypeId = m.MediaTypeId\n    GROUP BY m.Name\n)\nSELECT\n    media_type_name,\n    avg_bytes_per_second,\n    AVG(avg_bytes_per_second) OVER () AS mean_across_names\nFROM rates_by_name",
+  "SELECT AVG(COALESCE(r.total_bytes * 1.0 / NULLIF(r.total_milliseconds, 0), 0)) AS mean_rate\nFROM MediaType AS m\nLEFT JOIN (\n    SELECT MediaTypeId,\n           SUM(Bytes) AS total_bytes,\n           SUM(Milliseconds) AS total_milliseconds\n    FROM Track\n    WHERE Bytes IS NOT NULL\n    GROUP BY MediaTypeId\n) AS r ON r.MediaTypeId = m.MediaTypeId"
+ ],
+ "raw": [
+  "For each media type ID with tracks whose byte sizes are known, calculate total bytes divided by total milliseconds; compare it with the unweighted mean of that rate across media type IDs with a defined rate, and show the name, rate, and unrounded difference.\n\nFor each media type ID, calculate total known bytes divided by the total milliseconds of all its tracks, including tracks with unknown byte sizes in the duration total; compare it with the unweighted mean across media type IDs with a defined rate, and show the name, rate, and unrounded difference.\n\nFor each media type ID, calculate each track\u2019s bytes divided by its milliseconds, then average those track rates; compare it with the unweighted mean of the media type rates, and show the name, rate, and unrounded difference.\n\nFor each distinct media type name, combine tracks from all media type IDs with that name, calculate total known bytes divided by total milliseconds for tracks with known byte sizes, and compare it with the unweighted mean across distinct names.\n\nFor each distinct media type name, combine tracks from all media type IDs with that name, average the rates of tracks with known byte sizes, and compare it with the unweighted mean across distinct names.\n\nFor each media type ID, use total bytes divided by total milliseconds for tracks with known byte sizes, but include media types with no qualifying tracks as having a zero rate when calculating the unweighted mean.",
+  "For each distinct media type name, calculate total known bytes divided by the total milliseconds of all its tracks, including tracks with unknown byte sizes, then compare that rate with the unweighted mean across names with a defined rate.\n\nFor each media type ID, average its tracks\u2019 bytes-per-millisecond rates while treating unknown byte sizes as zero, then compare that rate with the unweighted mean across media type IDs.\n\nFor each distinct media type name, average its tracks\u2019 bytes-per-millisecond rates while treating unknown byte sizes as zero, then compare that rate with the unweighted mean across names."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-1adc54e3cf",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 42266,
+  "chars_out": 4333
+ }
+}

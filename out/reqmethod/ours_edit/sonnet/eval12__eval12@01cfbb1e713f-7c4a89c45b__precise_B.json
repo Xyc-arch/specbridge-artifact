@@ -1,0 +1,29 @@
+{
+ "clauses": [
+  "Treat the baseline as the mean of all signals' modulation indexes, excluding signals with a missing modulation index.",
+  "Treat the baseline as the average of the per-status average modulation indexes, one value per status group.",
+  "Treat signals with an empty-string RFI status as the no-status group together with NULL statuses.",
+  "Treat empty-string RFI statuses as their own separate group, apart from NULL statuses."
+ ],
+ "readings": [
+  "Group signals by RFI status (`rfistat`), with signals that have no status as their own group, and average the modulation index (`modindex`) for each group, ignoring missing values. Take as the baseline the overall average modulation index across all signals (each signal counting once), and keep the statuses whose average is above it. For each kept status, show the status, its average modulation index, how far that average is above the baseline, and how far it differs from the mean of the kept statuses' averages. Leave all values unrounded. Treat the baseline as the mean of all signals' modulation indexes, excluding signals with a missing modulation index.",
+  "Group signals by RFI status (`rfistat`), with signals that have no status as their own group, and average the modulation index (`modindex`) for each group, ignoring missing values. Take as the baseline the overall average modulation index across all signals (each signal counting once), and keep the statuses whose average is above it. For each kept status, show the status, its average modulation index, how far that average is above the baseline, and how far it differs from the mean of the kept statuses' averages. Leave all values unrounded. Treat the baseline as the average of the per-status average modulation indexes, one value per status group.",
+  "Group signals by RFI status (`rfistat`), with signals that have no status as their own group, and average the modulation index (`modindex`) for each group, ignoring missing values. Take as the baseline the overall average modulation index across all signals (each signal counting once), and keep the statuses whose average is above it. For each kept status, show the status, its average modulation index, how far that average is above the baseline, and how far it differs from the mean of the kept statuses' averages. Leave all values unrounded. Treat signals with an empty-string RFI status as the no-status group together with NULL statuses.",
+  "Group signals by RFI status (`rfistat`), with signals that have no status as their own group, and average the modulation index (`modindex`) for each group, ignoring missing values. Take as the baseline the overall average modulation index across all signals (each signal counting once), and keep the statuses whose average is above it. For each kept status, show the status, its average modulation index, how far that average is above the baseline, and how far it differs from the mean of the kept statuses' averages. Leave all values unrounded. Treat empty-string RFI statuses as their own separate group, apart from NULL statuses."
+ ],
+ "queries": [
+  "WITH grp AS (\n  SELECT COALESCE(rfistat, 'No Status') AS rfistat, AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY COALESCE(rfistat, 'No Status')\n),\nbase AS (\n  SELECT AVG(modindex) AS baseline FROM signals WHERE modindex IS NOT NULL\n),\nkept AS (\n  SELECT g.rfistat, g.avg_mod, b.baseline\n  FROM grp g CROSS JOIN base b\n  WHERE g.avg_mod > b.baseline\n)\nSELECT rfistat,\n       avg_mod AS avg_modindex,\n       avg_mod - baseline AS above_baseline,\n       avg_mod - (SELECT AVG(avg_mod) FROM kept) AS diff_from_kept_mean\nFROM kept;\n",
+  "WITH g AS (\n  SELECT rfistat, AVG(modindex) AS avg_modindex\n  FROM signals\n  GROUP BY rfistat\n),\nb AS (\n  SELECT AVG(avg_modindex) AS baseline\n  FROM g\n),\nk AS (\n  SELECT g.rfistat, g.avg_modindex, g.avg_modindex - b.baseline AS above_baseline\n  FROM g, b\n  WHERE g.avg_modindex > b.baseline\n)\nSELECT\n  rfistat,\n  avg_modindex,\n  above_baseline,\n  avg_modindex - (SELECT AVG(avg_modindex) FROM k) AS diff_from_kept_mean\nFROM k;\n",
+  "WITH g AS (\n  SELECT COALESCE(NULLIF(rfistat, ''), 'No Status') AS status,\n         AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY COALESCE(NULLIF(rfistat, ''), 'No Status')\n),\nbase AS (\n  SELECT AVG(modindex) AS baseline FROM signals\n),\nkept AS (\n  SELECT g.status, g.avg_mod, base.baseline\n  FROM g, base\n  WHERE g.avg_mod > base.baseline\n)\nSELECT status,\n       avg_mod AS avg_modindex,\n       avg_mod - baseline AS diff_from_baseline,\n       avg_mod - (SELECT AVG(avg_mod) FROM kept) AS diff_from_kept_mean\nFROM kept;\n",
+  "WITH g AS (\n  SELECT rfistat, AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY rfistat\n),\nb AS (\n  SELECT AVG(modindex) AS base FROM signals\n),\nk AS (\n  SELECT g.rfistat, g.avg_mod, b.base\n  FROM g, b\n  WHERE g.avg_mod > b.base\n)\nSELECT\n  rfistat,\n  avg_mod AS avg_modindex,\n  avg_mod - base AS diff_from_baseline,\n  avg_mod - (SELECT AVG(avg_mod) FROM k) AS diff_from_kept_mean\nFROM k;\n"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "ours_edit",
+ "cost": {
+  "calls": 5,
+  "chars_in": 202656,
+  "chars_out": 2350
+ }
+}

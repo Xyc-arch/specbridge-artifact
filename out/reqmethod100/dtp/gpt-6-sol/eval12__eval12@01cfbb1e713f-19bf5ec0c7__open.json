@@ -1,0 +1,30 @@
+{
+ "interpretations": [
+  "Count joined appearance rows for each distinct `player.bats` value, including NULL as its own group; divide each count by all joined rows and by the average count across those groups.",
+  "Count joined appearance rows for each non-NULL `player.bats` value; divide each count by the total for non-NULL batting hands and by the average count across those hands.",
+  "Count joined appearance rows for each non-NULL `player.bats` value; divide each count by all joined rows, including rows whose batting hand is NULL, and by the average count across the non-NULL hands.",
+  "Treat switch hitters as a separate batting-hand group, using the values stored in `player.bats`.",
+  "Treat each switch hitter\u2019s appearance as belonging to both left-handed and right-handed groups; calculate each group\u2019s count, share, and ratio to the average group count.",
+  "Show only non-NULL batting hands; divide each count by all joined appearance rows, and divide it by the average count across all batting-hand groups, including NULL."
+ ],
+ "queries": [
+  "WITH counts AS (\n    SELECT p.bats, COUNT(*) AS appearance_count\n    FROM player AS p\n    JOIN appearances AS a ON a.player_id = p.player_id\n    GROUP BY p.bats\n)\nSELECT\n    bats,\n    appearance_count,\n    1.0 * appearance_count / SUM(appearance_count) OVER () AS share_of_all,\n    1.0 * appearance_count / AVG(appearance_count) OVER () AS relative_to_average\nFROM counts;\n",
+  "WITH hand_counts AS (\n    SELECT p.bats, COUNT(*) AS appearance_count\n    FROM appearances AS a\n    JOIN player AS p ON p.player_id = a.player_id\n    WHERE p.bats IS NOT NULL\n    GROUP BY p.bats\n)\nSELECT\n    bats,\n    appearance_count,\n    1.0 * appearance_count / SUM(appearance_count) OVER () AS share_of_total,\n    1.0 * appearance_count / AVG(appearance_count) OVER () AS ratio_to_average\nFROM hand_counts;\n",
+  "WITH hand_counts AS (\n    SELECT p.bats, COUNT(*) AS appearance_count\n    FROM appearances AS a\n    JOIN player AS p ON p.player_id = a.player_id\n    GROUP BY p.bats\n)\nSELECT\n    bats,\n    appearance_count,\n    1.0 * appearance_count / (SELECT SUM(appearance_count) FROM hand_counts) AS share_of_all_rows,\n    1.0 * appearance_count / (SELECT AVG(appearance_count) FROM hand_counts WHERE bats IS NOT NULL) AS ratio_to_average\nFROM hand_counts\nWHERE bats IS NOT NULL",
+  "WITH handed_appearances AS (\n    SELECT 'left-handed' AS batting_group\n    FROM appearances AS a\n    JOIN player AS p ON p.player_id = a.player_id\n    WHERE p.bats IN ('L', 'B')",
+  "WITH hand_counts AS (\n    SELECT p.bats, COUNT(*) AS hand_count\n    FROM appearances AS a\n    JOIN player AS p ON p.player_id = a.player_id\n    GROUP BY p.bats\n),\nratios AS (\n    SELECT\n        bats,\n        1.0 * hand_count / SUM(hand_count) OVER () AS share_of_appearances,\n        1.0 * hand_count / AVG(hand_count) OVER () AS relative_to_average\n    FROM hand_counts\n)\nSELECT bats, share_of_appearances, relative_to_average\nFROM ratios\nWHERE bats IS NOT NULL;\n"
+ ],
+ "raw": [
+  "Count joined appearance rows for each distinct `player.bats` value, including NULL as its own group; divide each count by all joined rows and by the average count across those groups.\nCount joined appearance rows for each non-NULL `player.bats` value; divide each count by the total for non-NULL batting hands and by the average count across those hands.\nCount joined appearance rows for each non-NULL `player.bats` value; divide each count by all joined rows, including rows whose batting hand is NULL, and by the average count across the non-NULL hands.\nTreat switch hitters as a separate batting-hand group, using the values stored in `player.bats`.\nTreat each switch hitter\u2019s appearance as belonging to both left-handed and right-handed groups; calculate each group\u2019s count, share, and ratio to the average group count.",
+  "Show only non-NULL batting hands; divide each count by all joined appearance rows, and divide it by the average count across all batting-hand groups, including NULL."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-19bf5ec0c7",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 71218,
+  "chars_out": 3480
+ }
+}

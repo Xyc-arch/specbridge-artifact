@@ -1,0 +1,64 @@
+{
+ "queries": [
+  "WITH matched AS (\n  SELECT t.tradekind, COUNT(DISTINCT r.trdref) AS cnt\n  FROM transactionrecord r\n  JOIN trader t ON r.trdref = t.tradereg\n  GROUP BY t.tradekind\n), stats AS (\n  SELECT tradekind, cnt,\n         AVG(CAST(cnt AS NUMERIC)) OVER () AS avg_cnt,\n         SUM(cnt) OVER () AS total_cnt\n  FROM matched\n)\nSELECT tradekind AS trader_type,\n       cnt AS trader_count,\n       CAST(cnt AS NUMERIC) / total_cnt AS share_of_total,\n       cnt - avg_cnt AS diff_from_average\nFROM stats\nWHERE avg_cnt IS NOT NULL AND cnt > avg_cnt",
+  "WITH per_type AS (SELECT t.tradekind, COUNT(DISTINCT r.trdref) AS trader_count FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), stats AS (SELECT tradekind, trader_count, AVG(trader_count * 1.0) OVER () AS avg_count, SUM(trader_count) OVER () AS total_count FROM per_type) SELECT tradekind, trader_count, trader_count * 1.0 / total_count AS share_of_total, trader_count - avg_count AS diff_from_avg FROM stats WHERE avg_count IS NOT NULL AND trader_count > avg_count",
+  "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT r.trdref) AS n FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT AVG(n * 1.0) AS a, SUM(n) AS tot FROM c) SELECT c.tradekind AS trader_type, c.n AS trader_count, (c.n * 1.0) / s.tot AS share_of_total, c.n - s.a AS diff_from_average FROM c CROSS JOIN s WHERE s.a IS NOT NULL AND c.n > s.a"
+ ],
+ "responses": [
+  {
+   "sql": "WITH matched AS (\n  SELECT t.tradekind, COUNT(DISTINCT r.trdref) AS cnt\n  FROM transactionrecord r\n  JOIN trader t ON r.trdref = t.tradereg\n  GROUP BY t.tradekind\n), stats AS (\n  SELECT tradekind, cnt,\n         AVG(CAST(cnt AS NUMERIC)) OVER () AS avg_cnt,\n         SUM(cnt) OVER () AS total_cnt\n  FROM matched\n)\nSELECT tradekind AS trader_type,\n       cnt AS trader_count,\n       CAST(cnt AS NUMERIC) / total_cnt AS share_of_total,\n       cnt - avg_cnt AS diff_from_average\nFROM stats\nWHERE avg_cnt IS NOT NULL AND cnt > avg_cnt",
+   "assumptions": [
+    {
+     "assumption": "Traders with a NULL tradekind form one group (shown with a NULL trader_type). That group is included in the average and in the total of the per-type counts.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average is the plain mean of the per-type counts, taken over the types that have at least one matched trader. Types with no matched trader do not appear and are not counted as zero.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The share is computed with numeric division, so it is not truncated to an integer, and nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH per_type AS (SELECT t.tradekind, COUNT(DISTINCT r.trdref) AS trader_count FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), stats AS (SELECT tradekind, trader_count, AVG(trader_count * 1.0) OVER () AS avg_count, SUM(trader_count) OVER () AS total_count FROM per_type) SELECT tradekind, trader_count, trader_count * 1.0 / total_count AS share_of_total, trader_count - avg_count AS diff_from_avg FROM stats WHERE avg_count IS NOT NULL AND trader_count > avg_count",
+   "assumptions": [
+    {
+     "assumption": "Traders with a NULL tradekind form one group, which GROUP BY does naturally. The tradekind column is returned as NULL for that group.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The average is the plain mean of the per-type counts, taken over all groups including the NULL group. The share and the difference are returned as unrounded decimals.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  },
+  {
+   "sql": "WITH c AS (SELECT t.tradekind, COUNT(DISTINCT r.trdref) AS n FROM transactionrecord r JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT AVG(n * 1.0) AS a, SUM(n) AS tot FROM c) SELECT c.tradekind AS trader_type, c.n AS trader_count, (c.n * 1.0) / s.tot AS share_of_total, c.n - s.a AS diff_from_average FROM c CROSS JOIN s WHERE s.a IS NOT NULL AND c.n > s.a",
+   "assumptions": [
+    {
+     "assumption": "Traders with a NULL tradekind form their own group, which GROUP BY does naturally. That group counts toward the average and the total, and it is returned with a NULL type if it exceeds the average.",
+     "unresolved": false
+    },
+    {
+     "assumption": "The 'plain average' is the unweighted mean of the per-type counts, with each type counted once. Counts are multiplied by 1.0 so the division and average are not integer-truncated, and nothing is rounded.",
+     "unresolved": false
+    }
+   ],
+   "alternatives": []
+  }
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-753e097c22",
+ "wording": "precise_B",
+ "model": "sonnet",
+ "arm": "samplek",
+ "cost": {
+  "calls": 3,
+  "chars_in": 53199,
+  "chars_out": 2980
+ }
+}

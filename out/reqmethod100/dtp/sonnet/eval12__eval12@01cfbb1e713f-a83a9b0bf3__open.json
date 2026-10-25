@@ -1,0 +1,56 @@
+{
+ "interpretations": [
+  "Tally = number of player_college rows (one per player-college-year record) inner-joined to player, grouped by birth_country; share = country tally \u00f7 total tally of all joined rows; for countries with tally strictly above the mean per-country tally, return SUM(tally), AVG(share), and AVG(tally \u2212 mean tally).",
+  "Same as above, but a player with a NULL birth_country is treated as its own NULL group, which counts as a country in the average and total.",
+  "Same as above, but players with a NULL birth_country are excluded, so they affect neither the tally, the total, nor the country average.",
+  "Tally = number of distinct players per birth_country with a college record, instead of the number of rows.",
+  "Tally = number of distinct (player, college) pairs per birth_country, ignoring the year.",
+  "Tally = number of distinct colleges attended by players from each birth_country.",
+  "Share is a fraction from 0 to 1 (tally \u00f7 overall total), and the average share is the mean of those fractions.",
+  "Share is a percentage (tally \u00f7 overall total \u00d7 100), and the average share is the mean of those percentages.",
+  "Average share is a ratio of sums (combined tally of the above-average countries \u00f7 overall total) rather than the mean of the individual shares.",
+  "\"Above the average tally\" means strictly greater than the mean of the per-country tallies; countries equal to the mean are excluded.",
+  "\"Above the average tally\" means greater than or equal to the mean of the per-country tallies.",
+  "\"Above the average tally\" is measured against the average tally per player or per row, not per country.",
+  "\"How far above the average\" = the mean of (country tally \u2212 average country tally), an absolute difference in tally units.",
+  "\"How far above the average\" = the mean of (country tally \u00f7 average country tally), a ratio or multiple.",
+  "\"How far above the average\" = the mean percentage excess, ((tally \u2212 average) \u00f7 average) \u00d7 100.",
+  "\"How far above the average\" = the average tally of the above-average countries minus the overall average tally. This equals the mean of the differences.",
+  "The average country tally is computed over all countries with a matched player. The comparison and the \"how far above\" figure use that same value.",
+  "The average country tally is computed only over the countries that pass the filter, which is circular and unlikely.",
+  "The combined tally means the sum of the tallies of the above-average countries.",
+  "The combined tally means the sum of the shares of the above-average countries.",
+  "Unrounded results are returned as raw floating-point values, so integer division should be avoided and the values cast to a decimal type.",
+  "The result is a single row with three columns: combined tally, average share, average excess over the mean.",
+  "Players with no college record are excluded, since the data starts from player_college and only matched players are kept (an inner join).",
+  "player_college rows whose college_id has no match in the college table are excluded too, since \"no matching player\" could also be read as an unmatched college.",
+  "Missing interpretations:",
+  "Tally = number of distinct players per birth_country, counting only rows whose college_id matches the college table (inner join to both player and college).",
+  "\"Above the average tally\" is measured against the average of per-country tallies where NULL-country players are grouped as their own country, while the share denominator excludes them.",
+  "\"Average share\" is computed as the mean of each country's share over all countries, not only the above-average ones.",
+  "\"How far above the average\" = the average of (tally \u2212 mean tally) expressed as a share of the overall total.",
+  "\"Combined tally\" is a count of distinct players across the above-average countries, rather than the sum of per-country tallies.",
+  "Year NULL or duplicate player_college records are removed before tallying.",
+  "Empty-string birth_country values are treated as missing and excluded or grouped separately."
+ ],
+ "queries": [
+  "WITH t AS (\n  SELECT p.birth_country, COUNT(*) AS tally\n  FROM player_college pc\n  JOIN player p ON pc.player_id = p.player_id\n  GROUP BY p.birth_country\n),\ntot AS (\n  SELECT SUM(tally) AS total, AVG(tally) AS mean FROM t\n)\nSELECT SUM(t.tally), AVG(t.tally * 1.0 / tot.total), AVG(t.tally - tot.mean)\nFROM t, tot\nWHERE t.tally > tot.mean;\n",
+  "SELECT AVG(cnt) AS avg_players_per_country, SUM(cnt) AS total_players\nFROM (\n  SELECT birth_country, COUNT(*) AS cnt\n  FROM player\n  GROUP BY birth_country\n);\n",
+  "SELECT p.birth_country, COUNT(DISTINCT p.player_id) FROM player p JOIN player_college pc ON p.player_id = pc.player_id GROUP BY p.birth_country",
+  "SELECT p.birth_country, COUNT(DISTINCT p.player_id || '|' || pc.college_id) AS tally\nFROM player_college pc\nJOIN player p ON pc.player_id = p.player_id\nGROUP BY p.birth_country",
+  "SELECT p.birth_country, COUNT(DISTINCT pc.college_id) AS tally\nFROM player p\nJOIN player_college pc ON p.player_id = pc.player_id\nGROUP BY p.birth_country"
+ ],
+ "raw": [
+  "- Tally = number of player_college rows (one per player-college-year record) inner-joined to player, grouped by birth_country; share = country tally \u00f7 total tally of all joined rows; for countries with tally strictly above the mean per-country tally, return SUM(tally), AVG(share), and AVG(tally \u2212 mean tally).\n- Same as above, but a player with a NULL birth_country is treated as its own NULL group, which counts as a country in the average and total.\n- Same as above, but players with a NULL birth_country are excluded, so they affect neither the tally, the total, nor the country average.\n- Tally = number of distinct players per birth_country with a college record, instead of the number of rows.\n- Tally = number of distinct (player, college) pairs per birth_country, ignoring the year.\n- Tally = number of distinct colleges attended by players from each birth_country.\n- Share is a fraction from 0 to 1 (tally \u00f7 overall total), and the average share is the mean of those fractions.\n- Share is a percentage (tally \u00f7 overall total \u00d7 100), and the average share is the mean of those percentages.\n- Average share is a ratio of sums (combined tally of the above-average countries \u00f7 overall total) rather than the mean of the individual shares.\n- \"Above the average tally\" means strictly greater than the mean of the per-country tallies; countries equal to the mean are excluded.\n- \"Above the average tally\" means greater than or equal to the mean of the per-country tallies.\n- \"Above the average tally\" is measured against the average tally per player or per row, not per country.\n- \"How far above the average\" = the mean of (country tally \u2212 average country tally), an absolute difference in tally units.\n- \"How far above the average\" = the mean of (country tally \u00f7 average country tally), a ratio or multiple.\n- \"How far above the average\" = the mean percentage excess, ((tally \u2212 average) \u00f7 average) \u00d7 100.\n- \"How far above the average\" = the average tally of the above-average countries minus the overall average tally. This equals the mean of the differences.\n- The average country tally is computed over all countries with a matched player. The comparison and the \"how far above\" figure use that same value.\n- The average country tally is computed only over the countries that pass the filter, which is circular and unlikely.\n- The combined tally means the sum of the tallies of the above-average countries.\n- The combined tally means the sum of the shares of the above-average countries.\n- Unrounded results are returned as raw floating-point values, so integer division should be avoided and the values cast to a decimal type.\n- The result is a single row with three columns: combined tally, average share, average excess over the mean.\n- Players with no college record are excluded, since the data starts from player_college and only matched players are kept (an inner join).\n- player_college rows whose college_id has no match in the college table are excluded too, since \"no matching player\" could also be read as an unmatched college.",
+  "Missing interpretations:\n\nTally = number of distinct players per birth_country, counting only rows whose college_id matches the college table (inner join to both player and college).\n\"Above the average tally\" is measured against the average of per-country tallies where NULL-country players are grouped as their own country, while the share denominator excludes them.\n\"Average share\" is computed as the mean of each country's share over all countries, not only the above-average ones.\n\"How far above the average\" = the average of (tally \u2212 mean tally) expressed as a share of the overall total.\n\"Combined tally\" is a count of distinct players across the above-average countries, rather than the sum of per-country tallies.\nYear NULL or duplicate player_college records are removed before tallying.\nEmpty-string birth_country values are treated as missing and excluded or grouped separately."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-a83a9b0bf3",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 73465,
+  "chars_out": 5592
+ }
+}

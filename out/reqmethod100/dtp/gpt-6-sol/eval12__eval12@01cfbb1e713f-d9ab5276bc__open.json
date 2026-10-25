@@ -1,0 +1,29 @@
+{
+ "interpretations": [
+  "Sum nonmissing `traitcount` values by `zoneref`; divide each site\u2019s sum by the sum across all feature records; compare each share with the average share among sites with at least one nonmissing count.",
+  "Use the same site sums and overall total, but include sites whose feature records all have missing `traitcount` as zero-share sites when calculating the average.",
+  "Use the same site sums and overall total, but calculate the average share across every code in `sites`, including sites with no feature records.",
+  "Treat each nonmissing `scanfeatures` row as a separate feature count; compare its share of the overall `traitcount` total with the average record share, then return the top 10 rows with their site codes.",
+  "Sum nonmissing `traitcount` values by site, but compare each site\u2019s share with the average share of individual feature records rather than the average site share."
+ ],
+ "queries": [
+  "WITH site_counts AS (\n    SELECT zoneref, SUM(traitcount) AS site_total\n    FROM scanfeatures\n    WHERE traitcount IS NOT NULL\n    GROUP BY zoneref\n),\nshares AS (\n    SELECT\n        zoneref,\n        1.0 * site_total / NULLIF(SUM(site_total) OVER (), 0) AS site_share\n    FROM site_counts\n)\nSELECT\n    zoneref,\n    site_share,\n    AVG(site_share) OVER () AS average_share,\n    CASE\n        WHEN site_share > AVG(site_share) OVER () THEN 'Above'\n        WHEN site_share < AVG(site_share) OVER () THEN 'Below'\n        ELSE 'Equal'\n    END AS comparison\nFROM shares",
+  "WITH site_sums AS (\n  SELECT zoneref, SUM(traitcount) AS site_total\n  FROM scanfeatures\n  GROUP BY zoneref\n),\noverall AS (\n  SELECT SUM(site_total) AS grand_total\n  FROM site_sums\n)\nSELECT AVG(COALESCE(site_total, 0) * 1.0 / NULLIF(grand_total, 0)) AS average_share\nFROM site_sums\nCROSS JOIN overall",
+  "WITH site_sums AS (\n    SELECT zoneref, SUM(traitcount) AS site_total\n    FROM scanfeatures\n    GROUP BY zoneref\n),\noverall AS (\n    SELECT SUM(traitcount) AS overall_total\n    FROM scanfeatures\n)\nSELECT AVG(COALESCE(site_sums.site_total, 0) * 1.0 / NULLIF(overall.overall_total, 0)) AS average_share\nFROM sites\nLEFT JOIN site_sums ON site_sums.zoneref = sites.zoneregistry\nCROSS JOIN overall",
+  "WITH totals AS (\n  SELECT SUM(traitcount) AS total_count,\n         COUNT(*) AS record_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n)\nSELECT f.zoneref,\n       1.0 * f.traitcount / t.total_count AS feature_share,\n       1.0 / t.record_count AS average_record_share\nFROM scanfeatures AS f\nCROSS JOIN totals AS t\nWHERE f.traitcount IS NOT NULL\nORDER BY feature_share DESC\nLIMIT 10",
+  "WITH record_shares AS (\n  SELECT\n    zoneref,\n    traitcount,\n    1.0 * traitcount / NULLIF(SUM(traitcount) OVER (), 0) AS record_share\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n)\nSELECT\n  zoneref,\n  SUM(traitcount) AS total_traitcount,\n  SUM(record_share) AS site_share,\n  (SELECT AVG(record_share) FROM record_shares) AS average_record_share\nFROM record_shares\nGROUP BY zoneref"
+ ],
+ "raw": [
+  "- Sum nonmissing `traitcount` values by `zoneref`; divide each site\u2019s sum by the sum across all feature records; compare each share with the average share among sites with at least one nonmissing count.\n- Use the same site sums and overall total, but include sites whose feature records all have missing `traitcount` as zero-share sites when calculating the average.\n- Use the same site sums and overall total, but calculate the average share across every code in `sites`, including sites with no feature records.\n- Treat each nonmissing `scanfeatures` row as a separate feature count; compare its share of the overall `traitcount` total with the average record share, then return the top 10 rows with their site codes.\n- Sum nonmissing `traitcount` values by site, but compare each site\u2019s share with the average share of individual feature records rather than the average site share.",
+  "All possible interpretations are covered."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-d9ab5276bc",
+ "wording": "open",
+ "model": "gpt-6-sol",
+ "arm": "dtp",
+ "cost": {
+  "calls": 7,
+  "chars_in": 285457,
+  "chars_out": 2958
+ }
+}

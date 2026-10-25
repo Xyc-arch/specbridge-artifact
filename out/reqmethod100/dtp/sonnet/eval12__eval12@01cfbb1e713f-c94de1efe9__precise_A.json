@@ -1,0 +1,47 @@
+{
+ "interpretations": [
+  "Ratio is the per-patient average of (HGB \u00f7 HCT) computed on each lab record, ignoring records where either value is missing. The mean is the unweighted mean of those per-patient ratios, and \"greater than the mean\" means strictly greater.",
+  "Ratio is the per-patient average of HGB \u00f7 HCT, but records with HCT = 0 are excluded or produce an error or NULL, which changes which records are averaged.",
+  "Ratio is the per-patient average of HGB \u00f7 HCT using integer division. Because the columns are REAL, this is unlikely.",
+  "The overall mean is the mean of the per-patient ratios, counting each patient once. This is the literal reading.",
+  "The overall mean is the mean of the per-record ratios across all lab records, so patients with more records weigh more.",
+  "The overall mean is computed over all patients, including those whose ratio is null, which are ignored in the mean. Only patients who have lab records and a matching Patient row are included.",
+  "The overall mean includes only patients that pass the join, meaning patients with at least one lab record. Patients with no lab records are excluded.",
+  "The mean is computed over all patients and the comparison is then applied to the same set. Alternatively, the comparison is applied after filtering out patients with a null ratio or null average WBC.",
+  "Average WBC ignores null WBC values, computed per patient over all their lab records. Alternatively, it is computed only over records where the ratio is also non-null.",
+  "Patients with a null ratio are excluded because a null is never greater than the mean. Alternatively, \"missing values last\" implies null rows could appear, so the ratio comparison is read loosely.",
+  "Grouping by ID and sex yields one row per patient, since sex is a single value per ID. Alternatively, a patient with a null sex forms its own group.",
+  "The difference is computed as ratio minus the overall mean, sorted descending, with nulls last. Ties are broken arbitrarily or by patient ID.",
+  "The first 10 rows are returned (LIMIT 10) after sorting, with no offset.",
+  "Values are shown unrounded, as full-precision floating-point numbers.",
+  "Output columns are patient ID, sex, average WBC, ratio, and difference. Column aliases and order may vary.",
+  "The patient-to-lab join is an inner join on Patient.ID = Laboratory.ID, so lab records without a patient are dropped. Alternatively, a left join from Patient keeps patients without lab records, but they have null ratios and are filtered out.",
+  "The ratio is read as HGB \u00f7 HCT as a fraction, not as a percentage.",
+  "The ratio is read as the ratio of the per-patient average HGB to the per-patient average HCT (AVG(HGB) \u00f7 AVG(HCT)), rather than the average of per-record ratios. The question's wording argues against this reading.",
+  "Missing interpretations:",
+  "Sorting by the difference with ties between equal differences broken by a secondary key, such as patient ID ascending, to make the top 10 deterministic.",
+  "The overall mean is the mean of the per-patient ratios taken only over patients that pass the \"greater than the mean\" filter's own set, meaning the mean is computed after filtering out patients with a null average WBC.",
+  "Records with a null WBC are dropped from the join entirely before the ratio is computed, so the ratio only uses records that also have a non-null WBC.",
+  "The HGB \u00f7 HCT ratio is computed only for records with a non-null and nonzero HCT, with HGB = 0 records still included as a valid ratio of 0.",
+  "The \"Description\" and \"First Date\" date fields are used to restrict lab records to those on or after the patient's first date.",
+  "The group by on sex treats different text spellings or cases of sex (for example \"F\" and \"f\") as separate groups, which could split one patient across multiple rows."
+ ],
+ "queries": [
+  "WITH r AS (\n  SELECT ID, AVG(HGB * 1.0 / HCT) AS ratio\n  FROM Laboratory\n  WHERE HGB IS NOT NULL AND HCT IS NOT NULL AND HCT <> 0\n  GROUP BY ID\n)\nSELECT ID\nFROM r\nWHERE ratio > (SELECT AVG(ratio) FROM r);\n",
+  "SELECT ID, AVG(HGB * 1.0 / HCT) AS Ratio\nFROM Laboratory\nWHERE HCT <> 0 AND HCT IS NOT NULL AND HGB IS NOT NULL\nGROUP BY ID",
+  "SELECT ID, AVG(CAST(HGB AS INTEGER) / CAST(HCT AS INTEGER)) AS Ratio FROM Laboratory GROUP BY ID;\n"
+ ],
+ "raw": [
+  "1. Ratio is the per-patient average of (HGB \u00f7 HCT) computed on each lab record, ignoring records where either value is missing. The mean is the unweighted mean of those per-patient ratios, and \"greater than the mean\" means strictly greater.\n2. Ratio is the per-patient average of HGB \u00f7 HCT, but records with HCT = 0 are excluded or produce an error or NULL, which changes which records are averaged.\n3. Ratio is the per-patient average of HGB \u00f7 HCT using integer division. Because the columns are REAL, this is unlikely.\n4. The overall mean is the mean of the per-patient ratios, counting each patient once. This is the literal reading.\n5. The overall mean is the mean of the per-record ratios across all lab records, so patients with more records weigh more.\n6. The overall mean is computed over all patients, including those whose ratio is null, which are ignored in the mean. Only patients who have lab records and a matching Patient row are included.\n7. The overall mean includes only patients that pass the join, meaning patients with at least one lab record. Patients with no lab records are excluded.\n8. The mean is computed over all patients and the comparison is then applied to the same set. Alternatively, the comparison is applied after filtering out patients with a null ratio or null average WBC.\n9. Average WBC ignores null WBC values, computed per patient over all their lab records. Alternatively, it is computed only over records where the ratio is also non-null.\n10. Patients with a null ratio are excluded because a null is never greater than the mean. Alternatively, \"missing values last\" implies null rows could appear, so the ratio comparison is read loosely.\n11. Grouping by ID and sex yields one row per patient, since sex is a single value per ID. Alternatively, a patient with a null sex forms its own group.\n12. The difference is computed as ratio minus the overall mean, sorted descending, with nulls last. Ties are broken arbitrarily or by patient ID.\n13. The first 10 rows are returned (LIMIT 10) after sorting, with no offset.\n14. Values are shown unrounded, as full-precision floating-point numbers.\n15. Output columns are patient ID, sex, average WBC, ratio, and difference. Column aliases and order may vary.\n16. The patient-to-lab join is an inner join on Patient.ID = Laboratory.ID, so lab records without a patient are dropped. Alternatively, a left join from Patient keeps patients without lab records, but they have null ratios and are filtered out.\n17. The ratio is read as HGB \u00f7 HCT as a fraction, not as a percentage.\n18. The ratio is read as the ratio of the per-patient average HGB to the per-patient average HCT (AVG(HGB) \u00f7 AVG(HCT)), rather than the average of per-record ratios. The question's wording argues against this reading.",
+  "Missing interpretations:\n\nSorting by the difference with ties between equal differences broken by a secondary key, such as patient ID ascending, to make the top 10 deterministic.\nThe overall mean is the mean of the per-patient ratios taken only over patients that pass the \"greater than the mean\" filter's own set, meaning the mean is computed after filtering out patients with a null average WBC.\nRecords with a null WBC are dropped from the join entirely before the ratio is computed, so the ratio only uses records that also have a non-null WBC.\nThe HGB \u00f7 HCT ratio is computed only for records with a non-null and nonzero HCT, with HGB = 0 records still included as a valid ratio of 0.\nThe \"Description\" and \"First Date\" date fields are used to restrict lab records to those on or after the patient's first date.\nThe group by on sex treats different text spellings or cases of sex (for example \"F\" and \"f\") as separate groups, which could split one patient across multiple rows."
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-c94de1efe9",
+ "wording": "precise_A",
+ "model": "sonnet",
+ "arm": "dtp",
+ "cost": {
+  "calls": 8,
+  "chars_in": 68781,
+  "chars_out": 5390
+ }
+}

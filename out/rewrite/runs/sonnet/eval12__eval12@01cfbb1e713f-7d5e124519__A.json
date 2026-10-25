@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "model": "sonnet",
+ "reading": "A",
+ "description": "The time-in-force benchmark averages the per-order average fills, with each order weighted equally.",
+ "a": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; drop unmatched executions) and work out each order's average filled quantity (`fillcount`, ignoring missing values) along with its time in force (`timespan`). For each time in force, take the mean of its orders' average fills, with each order weighted equally. Keep orders whose average fill is strictly above that figure. For each, show `ordersmark`, `timespan`, the order's average fill, how far it exceeds the time-in-force figure, and its rank within its time in force by average fill (highest first, missing last, tied orders share a rank and the next rank skips). Return only orders ranked 3 or better. No rounding.",
+  "sql": "WITH order_avg AS (SELECT o.recordvault AS ordersmark, o.timespan AS timespan, AVG(e.fillcount) AS avg_fill FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault GROUP BY o.recordvault, o.timespan), tif AS (SELECT ordersmark, timespan, avg_fill, AVG(avg_fill) OVER (PARTITION BY timespan) AS tif_mean, RANK() OVER (PARTITION BY timespan ORDER BY avg_fill DESC NULLS LAST) AS rnk FROM order_avg) SELECT ordersmark, timespan, avg_fill, avg_fill - tif_mean AS excess_over_tif_mean, rnk AS rank_in_timespan FROM tif WHERE avg_fill > tif_mean AND rnk <= 3 ORDER BY timespan, rnk, ordersmark",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Join orderexecutions to orders on ordersmark = recordvault (inner join), compute each order's average fillcount (ignoring NULLs) with its timespan, then compute each timespan's benchmark as the unweighted mean of those per-order averages (each order weighted equally, not weighted by execution count), and return orders whose average fill is strictly above their timespan's benchmark, showing ordersmark, timespan, the order's average fill, the difference from the benchmark, and the rank within timespan by average fill (descending, NULLs last, ties share a rank with gaps via RANK), keeping only ranks \u2264 3, with no rounding",
+  "sql": "WITH per_order AS (SELECT oe.ordersmark AS ordersmark, o.timespan AS timespan, AVG(oe.fillcount) AS avg_fill FROM orderexecutions oe INNER JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY oe.ordersmark, o.timespan), bench AS (SELECT p.*, AVG(p.avg_fill) OVER (PARTITION BY p.timespan) AS benchmark, RANK() OVER (PARTITION BY p.timespan ORDER BY p.avg_fill DESC NULLS LAST) AS rnk FROM per_order p) SELECT ordersmark, timespan, avg_fill, avg_fill - benchmark AS diff_from_benchmark, rnk FROM bench WHERE avg_fill > benchmark AND rnk <= 3 ORDER BY timespan, rnk, ordersmark",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`; skip unmatched executions) and get each order's average filled quantity (`fillcount`, ignoring missing values) and its time in force (`timespan`). Which orders have an average fill strictly above their time in force's average fill? For each, show `ordersmark`, `timespan`, the order's average fill, how far above the time-in-force average it is, and its rank within its time in force by average fill (highest first, missing last, ties share a rank and the next rank skips). Keep only orders ranked 3 or better. No rounding. The time-in-force benchmark averages the per-order average fills, with each order weighted equally.",
+  "sql": "WITH per_order AS (SELECT o.recordvault AS ordersmark, o.timespan AS timespan, AVG(e.fillcount) AS avg_fill FROM orderexecutions e JOIN orders o ON e.ordersmark = o.recordvault GROUP BY o.recordvault, o.timespan), scored AS (SELECT ordersmark, timespan, avg_fill, AVG(avg_fill) OVER (PARTITION BY timespan) AS tif_avg, RANK() OVER (PARTITION BY timespan ORDER BY avg_fill DESC NULLS LAST) AS fill_rank FROM per_order) SELECT ordersmark, timespan, avg_fill AS order_avg_fill, avg_fill - tif_avg AS diff_above_timespan_avg, fill_rank FROM scored WHERE avg_fill > tif_avg AND fill_rank <= 3 ORDER BY timespan, fill_rank, ordersmark",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Match order executions to their orders (`orderexecutions.ordersmark` = `orders.recordvault`, skipping unmatched executions), and compute each order's average filled quantity (`fillcount`, ignoring missing values) along with its time in force (`timespan`). Then compute each time in force's benchmark average fill as the average of the per-order average fills, with each order weighted equally (not weighted by number of executions). Which orders have an average fill strictly above their time in force's benchmark? For each, show `ordersmark`, `timespan`, the order's average fill, how far above the time-in-force benchmark it is, and its rank within its time in force by average fill (highest first, missing last, ties share a rank and the next rank skips). Keep only orders ranked 3 or better. No rounding.",
+  "sql": "WITH per_order AS (SELECT oe.ordersmark AS ordersmark, o.timespan AS timespan, AVG(oe.fillcount) AS avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY oe.ordersmark, o.timespan), bench AS (SELECT ordersmark, timespan, avg_fill, AVG(avg_fill) OVER (PARTITION BY timespan) AS benchmark, RANK() OVER (PARTITION BY timespan ORDER BY avg_fill DESC NULLS LAST) AS fill_rank FROM per_order) SELECT ordersmark, timespan, avg_fill, avg_fill - benchmark AS above_benchmark, fill_rank FROM bench WHERE avg_fill > benchmark AND fill_rank <= 3 ORDER BY timespan, fill_rank, ordersmark",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-14054d8e5e",
+ "model": "gpt-6-luna",
+ "reading": "A",
+ "description": "The threshold is the average total expense cost over budget lines that have expenses.",
+ "c": {
+  "request": "For budget lines whose total expense cost (summing `cost` by `link_to_budget`) is above the average spend per budget line, what is their average total, how many expenses do they have altogether, and on average by how much do they exceed that average? The threshold is the average total expense cost over budget lines that have expenses.",
+  "sql": "WITH budget_line_totals AS (\n    SELECT link_to_budget, SUM(cost) AS total_cost, COUNT(*) AS expense_count\n    FROM expense\n    GROUP BY link_to_budget\n), above_average AS (\n    SELECT total_cost, expense_count\n    FROM budget_line_totals\n    WHERE total_cost > (SELECT AVG(total_cost) FROM budget_line_totals)\n)\nSELECT AVG(total_cost) AS average_total,\n       SUM(expense_count) AS total_expenses,\n       AVG(total_cost - (SELECT AVG(total_cost) FROM budget_line_totals)) AS average_excess\nFROM above_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Group expenses by budget line (`link_to_budget`), totalling each line's `cost` and counting its expenses. Take the average of these per-line totals over the budget lines that have at least one expense. For the budget lines whose total is above that average, give one summary row with: the average of their totals, the total number of expenses across them, and the average amount by which their totals exceed that average.",
+  "sql": "WITH line_totals AS (\n    SELECT link_to_budget, SUM(cost) AS total_cost, COUNT(*) AS expense_count\n    FROM expense\n    GROUP BY link_to_budget\n), overall_average AS (\n    SELECT AVG(total_cost) AS avg_total\n    FROM line_totals\n)\nSELECT AVG(lt.total_cost) AS average_total,\n       SUM(lt.expense_count) AS total_expenses,\n       AVG(lt.total_cost - oa.avg_total) AS average_excess\nFROM line_totals AS lt\nCROSS JOIN overall_average AS oa\nWHERE lt.total_cost > oa.avg_total;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For budget lines with at least one expense whose summed expense cost exceeds the average summed expense cost across budget lines with expenses, what is the average summed expense cost, how many expenses are associated with them altogether, and what is their average excess over that average?",
+  "sql": "WITH budget_totals AS (\n  SELECT b.budget_id, SUM(x.cost) AS summed_expense_cost, COUNT(x.expense_id) AS expense_count\n  FROM budget AS b\n  JOIN expense AS x ON x.link_to_budget = b.budget_id\n  GROUP BY b.budget_id\n), overall_average AS (\n  SELECT AVG(summed_expense_cost) AS avg_cost\n  FROM budget_totals\n), qualifying AS (\n  SELECT bt.summed_expense_cost, bt.expense_count, oa.avg_cost\n  FROM budget_totals AS bt\n  CROSS JOIN overall_average AS oa\n  WHERE bt.summed_expense_cost > oa.avg_cost\n)\nSELECT AVG(summed_expense_cost) AS average_summed_expense_cost,\n       SUM(expense_count) AS total_expenses,\n       AVG(summed_expense_cost - avg_cost) AS average_excess_over_average\nFROM qualifying;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "For budget lines whose total expense cost, summed by `link_to_budget`, exceeds the average total expense cost among budget lines with expenses, what is their average total expense cost, how many expenses do they have altogether, and by how much do they exceed that average on average?",
+  "sql": "WITH budget_totals AS (\n  SELECT link_to_budget, SUM(cost) AS total_expense_cost, COUNT(*) AS expense_count\n  FROM expense\n  GROUP BY link_to_budget\n), above_average AS (\n  SELECT total_expense_cost, expense_count\n  FROM budget_totals\n  WHERE total_expense_cost > (SELECT AVG(total_expense_cost) FROM budget_totals)\n)\nSELECT AVG(total_expense_cost) AS average_total_expense_cost,\n       SUM(expense_count) AS total_expenses,\n       AVG(total_expense_cost) - (SELECT AVG(total_expense_cost) FROM budget_totals) AS average_excess\nFROM above_average;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ }
+}

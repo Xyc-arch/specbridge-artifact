@@ -1,0 +1,38 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-c56bd2dcd2",
+ "model": "haiku",
+ "reading": "B",
+ "description": "Only transactions dated strictly after 1996-05-09 and strictly before 1998-01-06 are inside the range.",
+ "d": {
+  "request": "Transactions with `trans.date` strictly greater than '1996-05-09' and strictly less than '1998-01-06' (text comparison) are joined trans \u2192 account \u2192 district; grouped by `district.A3`, the output has the region, AVG(CASE WHEN type='PRIJEM' THEN +amount WHEN type='VYDAJ' THEN \u2212amount END) (NULLs ignored), COUNT of all transactions in the group, and that group average divided by the average of the per-region averages, returning no rows when that overall average is NULL, with no rounding.",
+  "sql": "WITH t AS (SELECT d.A3 AS region, AVG(CASE WHEN tr.type = 'PRIJEM' THEN tr.amount WHEN tr.type = 'VYDAJ' THEN -tr.amount END) AS avg_amt, COUNT(*) AS cnt FROM trans tr JOIN account a ON tr.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE tr.date > '1996-05-09' AND tr.date < '1998-01-06' GROUP BY d.A3), o AS (SELECT AVG(avg_amt) AS overall FROM t) SELECT t.region, t.avg_amt, t.cnt, t.avg_amt / o.overall AS ratio FROM t CROSS JOIN o WHERE o.overall IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For trans rows with date strictly greater than '1996-05-09' and strictly less than '1998-01-06' (text comparison on trans.date), joined trans \u2192 account \u2192 district on district_id, grouped by district.A3, output per region: A3; AVG(CASE type 'PRIJEM' \u2192 +amount, 'VYDAJ' \u2192 \u2212amount, else NULL); COUNT(*) of all transactions; and AVG(signed regional average) / AVG over all regions' signed averages, returning no rows if that overall average is NULL, with no rounding.",
+  "sql": "WITH regional AS (SELECT d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount ELSE NULL END) AS signed_avg, COUNT(*) AS txn_count FROM trans t JOIN account a ON t.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE t.date > '1996-05-09' AND t.date < '1998-01-06' GROUP BY d.A3) SELECT r.region, r.signed_avg, r.txn_count, o.overall_avg FROM regional r CROSS JOIN (SELECT AVG(signed_avg) AS overall_avg FROM regional) o WHERE o.overall_avg IS NOT NULL",
+  "executes": true,
+  "matches": [],
+  "raw": "For trans rows with date strictly greater than '1996-05-09' and strictly less than '1998-01-06' (text comparison on trans.date), joined trans \u2192 account \u2192 district on district_id, grouped by district.A3, output per region: A3; AVG(CASE type 'PRIJEM' \u2192 +amount, 'VYDAJ' \u2192 \u2212amount, else NULL); COUNT(*) of all transactions; and AVG(signed regional average) / AVG over all regions' signed averages, returning no rows if that overall average is NULL, with no rounding."
+ },
+ "c": {
+  "request": "For transactions between 1996-05-09 and 1998-01-06 (comparing `trans.date` as text), link each transaction to its account and each account to its branch's district. Then give one row per region (`district.A3`) with four columns. First, the region. Second, the average signed transaction amount, where credits ('PRIJEM') count as +`amount`, withdrawals ('VYDAJ') count as \u2212`amount`, and transactions of any other or missing type are left out of the average. Third, the number of the region's transactions in that period, counting every type. Fourth, the ratio of the region's average signed amount to the average of these regional averages across all regions; return no rows if that overall average is missing. Do not round anything. Only transactions dated strictly after 1996-05-09 and strictly before 1998-01-06 are inside the range.",
+  "sql": "WITH region_stats AS (SELECT d.A3 AS region, AVG(CASE WHEN t.type = 'PRIJEM' THEN t.amount WHEN t.type = 'VYDAJ' THEN -t.amount END) AS avg_signed, COUNT(*) AS trans_count FROM trans t JOIN account a ON t.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE t.date > '1996-05-09' AND t.date < '1998-01-06' GROUP BY d.A3), overall AS (SELECT AVG(avg_signed) AS overall_avg FROM region_stats) SELECT r.region, r.avg_signed, r.trans_count, r.avg_signed / o.overall_avg AS ratio FROM region_stats r CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "For transactions dated strictly after 1996-05-09 and strictly before 1998-01-06, both dates excluded (comparing `trans.date` as text), link each transaction to its account and each account to its branch's district. Then give one row per region (`district.A3`) with four columns. First, the region. Second, the average signed transaction amount, where credits ('PRIJEM') count as +`amount`, withdrawals ('VYDAJ') count as \u2212`amount`, and transactions of any other or missing type are left out of the average. Third, the number of the region's transactions in that date range, counting every type. Fourth, the ratio of the region's average signed amount to the average of these regional averages across all regions; return no rows if that overall average is missing. Do not round anything.",
+  "sql": "WITH signed AS (\n  SELECT d.A3 AS region,\n         CASE WHEN t.type = 'PRIJEM' THEN t.amount\n              WHEN t.type = 'VYDAJ' THEN -t.amount\n         END AS signed_amount\n  FROM trans t\n  JOIN account a ON t.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n  WHERE t.date > '1996-05-09' AND t.date < '1998-01-06'\n),\nregional AS (\n  SELECT region,\n         AVG(signed_amount) AS avg_signed,\n         COUNT(*) AS trans_count\n  FROM signed\n  GROUP BY region\n),\noverall AS (\n  SELECT AVG(avg_signed) AS overall_avg FROM regional\n)\nSELECT r.region,\n       r.avg_signed,\n       r.trans_count,\n       r.avg_signed / o.overall_avg AS ratio\nFROM regional r\nCROSS JOIN overall o\nWHERE o.overall_avg IS NOT NULL;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
+}

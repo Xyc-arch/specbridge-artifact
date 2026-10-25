@@ -1,0 +1,22 @@
+{
+ "readings": [
+  "Consider each event (`budget.link_to_event`) and compute its average budget `amount` across its budget lines, ignoring NULL amounts. Define the overall average budget amount as the average of `amount` across all individual budget lines, ignoring NULLs. Keep events whose average exceeds that line-level overall average. For each, show the event link, its average amount, its average minus the line-level overall average, and its average minus the mean of the per-event averages among the kept events. Return the top 10 ordered by that last gap, largest first.",
+  "Consider each event (`budget.link_to_event`) and compute its average budget `amount` across its budget lines, ignoring NULL amounts. Define the overall average budget amount as the average of those per-event averages, so each event counts equally whatever its number of budget lines. Keep events whose average exceeds that mean of per-event averages. For each, show the event link, its average amount, its average minus that overall mean of per-event averages, and its average minus the mean of the per-event averages among the kept events. Return the top 10 ordered by that last gap, largest first."
+ ],
+ "queries": [
+  "WITH ev AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    GROUP BY link_to_event\n    HAVING AVG(amount) IS NOT NULL\n),\noverall AS (\n    SELECT AVG(amount) AS overall_avg\n    FROM budget\n),\nkept AS (\n    SELECT ev.link_to_event, ev.avg_amount, overall.overall_avg\n    FROM ev, overall\n    WHERE ev.avg_amount > overall.overall_avg\n)\nSELECT\n    link_to_event,\n    avg_amount,\n    avg_amount - overall_avg AS diff_from_overall,\n    avg_amount - (SELECT AVG(avg_amount) FROM kept) AS diff_from_kept_mean\nFROM kept\nORDER BY diff_from_kept_mean DESC\nLIMIT 10;\n",
+  "WITH per_event AS (\n    SELECT link_to_event, AVG(amount) AS avg_amount\n    FROM budget\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_event\n),\noverall AS (\n    SELECT AVG(avg_amount) AS overall_mean\n    FROM per_event\n),\nkept AS (\n    SELECT p.link_to_event, p.avg_amount\n    FROM per_event p, overall o\n    WHERE p.avg_amount > o.overall_mean\n),\nkept_mean AS (\n    SELECT AVG(avg_amount) AS kept_mean\n    FROM kept\n)\nSELECT k.link_to_event,\n       k.avg_amount,\n       k.avg_amount - o.overall_mean AS diff_overall,\n       k.avg_amount - km.kept_mean AS diff_kept\nFROM kept k, overall o, kept_mean km\nORDER BY diff_kept DESC\nLIMIT 10;\n"
+ ],
+ "raw": [
+  "{\"readings\": [\"Consider each event (`budget.link_to_event`) and compute its average budget `amount` across its budget lines, ignoring NULL amounts. Define the overall average budget amount as the average of `amount` across all individual budget lines, ignoring NULLs. Keep events whose average exceeds that line-level overall average. For each, show the event link, its average amount, its average minus the line-level overall average, and its average minus the mean of the per-event averages among the kept events. Return the top 10 ordered by that last gap, largest first.\", \"Consider each event (`budget.link_to_event`) and compute its average budget `amount` across its budget lines, ignoring NULL amounts. Define the overall average budget amount as the average of those per-event averages, so each event counts equally whatever its number of budget lines. Keep events whose average exceeds that mean of per-event averages. For each, show the event link, its average amount, its average minus that overall mean of per-event averages, and its average minus the mean of the per-event averages among the kept events. Return the top 10 ordered by that last gap, largest first.\"]}"
+ ],
+ "case": "eval12:eval12@01cfbb1e713f-df956358d7",
+ "wording": "open",
+ "model": "sonnet",
+ "arm": "ours",
+ "cost": {
+  "calls": 3,
+  "chars_in": 23074,
+  "chars_out": 2421
+ }
+}

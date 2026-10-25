@@ -1,0 +1,32 @@
+{
+ "id": "q254",
+ "db": "toxicology",
+ "path": "dev_unzipped/dev_20240627/dev_databases/toxicology/toxicology.sqlite",
+ "question": "What percentage of bonds have the most common combination of atoms' elements?",
+ "evidence": "DIVIDE(COUNT(bond_id), COUNT(atom_id where MAX(COUNT(atom_id)) ))",
+ "rule": "count_unit",
+ "clarification": "Count each distinct atom_id only once.",
+ "gold": "SELECT CAST((SELECT COUNT(T1.atom_id) FROM connected AS T1 INNER JOIN bond AS T2 ON T1.bond_id = T2.bond_id GROUP BY T2.bond_type ORDER BY COUNT(T2.bond_id) DESC LIMIT 1) AS REAL) * 100 / (SELECT COUNT(DISTINCT atom_id) FROM connected)",
+ "gold0": "SELECT CAST((SELECT COUNT(T1.atom_id) FROM connected AS T1 INNER JOIN bond AS T2 ON T1.bond_id = T2.bond_id GROUP BY T2.bond_type ORDER BY COUNT(T2.bond_id) DESC LIMIT 1 ) AS REAL) * 100 / ( SELECT COUNT(atom_id) FROM connected )",
+ "b": {
+  "request": "What percentage of all bonds connect the most common pair of atom elements, counting each distinct atom_id only once when determining which pair is most common?",
+  "sql": "WITH pair_edges AS (SELECT c.bond_id, c.atom_id, c.atom_id2, CASE WHEN a.element <= a2.element THEN a.element ELSE a2.element END AS element1, CASE WHEN a.element <= a2.element THEN a2.element ELSE a.element END AS element2 FROM connected AS c JOIN atom AS a ON a.atom_id = c.atom_id JOIN atom AS a2 ON a2.atom_id = c.atom_id2 WHERE a.element IS NOT NULL AND a2.element IS NOT NULL), pair_atoms AS (SELECT element1, element2, atom_id FROM pair_edges UNION SELECT element1, element2, atom_id2 FROM pair_edges), top_pair AS (SELECT element1, element2 FROM pair_atoms GROUP BY element1, element2 ORDER BY COUNT(*) DESC, element1, element2 LIMIT 1) SELECT 100.0 * COUNT(DISTINCT pe.bond_id) / NULLIF((SELECT COUNT(*) FROM bond), 0) AS percentage FROM pair_edges AS pe JOIN top_pair AS tp ON pe.element1 = tp.element1 AND pe.element2 = tp.element2",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "d": {
+  "request": "What percentage of bonds have the most common combination of atom elements, counting each distinct atom_id only once?",
+  "sql": "WITH bond_atoms AS (SELECT bond_id, atom_id FROM connected WHERE bond_id IS NOT NULL UNION SELECT bond_id, atom_id2 AS atom_id FROM connected WHERE bond_id IS NOT NULL), element_pairs AS (SELECT ba.bond_id, MIN(a.element) AS element1, MAX(a.element) AS element2 FROM bond_atoms AS ba JOIN atom AS a ON a.atom_id = ba.atom_id GROUP BY ba.bond_id HAVING COUNT(*) = 2), combination_counts AS (SELECT element1, element2, COUNT(*) AS bond_count FROM element_pairs GROUP BY element1, element2) SELECT 100.0 * MAX(bond_count) / NULLIF((SELECT COUNT(*) FROM bond), 0) AS percentage FROM combination_counts",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ },
+ "c": {
+  "request": "What percentage of bonds have the most common combination of atoms' elements?\nEvidence: DIVIDE(COUNT(bond_id), COUNT(atom_id where MAX(COUNT(atom_id)) ))\nCount each distinct atom_id only once.",
+  "sql": "WITH element_pairs AS (SELECT c.bond_id, CASE WHEN a1.element <= a2.element THEN a1.element ELSE a2.element END AS element1, CASE WHEN a1.element <= a2.element THEN a2.element ELSE a1.element END AS element2 FROM connected AS c JOIN atom AS a1 ON a1.atom_id = c.atom_id JOIN atom AS a2 ON a2.atom_id = c.atom_id2 WHERE c.bond_id IS NOT NULL GROUP BY c.bond_id), pair_counts AS (SELECT element1, element2, COUNT(*) AS bond_count FROM element_pairs GROUP BY element1, element2) SELECT 100.0 * MAX(bond_count) / NULLIF((SELECT COUNT(*) FROM bond), 0) AS percentage FROM pair_counts",
+  "runs": true,
+  "right": false,
+  "unclarified": false
+ }
+}

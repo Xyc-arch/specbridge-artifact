@@ -1,0 +1,37 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-00d645c60b",
+ "model": "gpt-6-luna",
+ "reading": "B",
+ "description": "For each batting hand, count the distinct managers with that hand who won at least one award, and give each hand's share of all such managers.",
+ "a": {
+  "request": "Using manager award records matched to the `player` table by `player_id` (dropping awards with no matching player), group by the winner's batting hand (`bats`), with a blank or missing hand as its own group. For each hand, show the batting hand, the number of distinct managers with that hand who won an award, and that number's share of the total award-winning managers across all hands, with no rounding.",
+  "sql": "WITH award_winners AS (\n    SELECT DISTINCT ma.player_id, p.bats\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n), hand_counts AS (\n    SELECT COALESCE(bats, '') AS batting_hand,\n           COUNT(DISTINCT player_id) AS manager_count\n    FROM award_winners\n    GROUP BY COALESCE(bats, '')\n)\nSELECT batting_hand,\n       manager_count,\n       CAST(manager_count AS REAL) / SUM(manager_count) OVER () AS share_of_total\nFROM hand_counts;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "How do manager award winners break down by batting hand (`bats`)? Use only awards that match a record in `player`, and treat a blank or missing hand as its own group. For each hand, show the hand, how many manager award winners it has, and that figure's share of the overall total (no rounding). For each batting hand, count the distinct managers with that hand who won at least one award, and give each hand's share of all such managers.",
+  "sql": "WITH eligible_winners AS (\n    SELECT DISTINCT ma.player_id\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n),\nmanager_hands AS (\n    SELECT ew.player_id,\n           CASE WHEN p.bats IS NULL OR TRIM(p.bats) = '' THEN '' ELSE p.bats END AS hand\n    FROM eligible_winners AS ew\n    JOIN player AS p ON p.player_id = ew.player_id\n),\nhand_counts AS (\n    SELECT hand, COUNT(*) AS winner_count\n    FROM manager_hands\n    GROUP BY hand\n),\ntotals AS (\n    SELECT SUM(winner_count) AS overall_winners,\n           SUM(winner_count) AS overall_managers\n    FROM hand_counts\n)\nSELECT hc.hand,\n       hc.winner_count,\n       1.0 * hc.winner_count / t.overall_winners AS winner_share,\n       hc.winner_count AS manager_count,\n       1.0 * hc.winner_count / t.overall_managers AS manager_share\nFROM hand_counts AS hc\nCROSS JOIN totals AS t\nORDER BY hc.hand;",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each batting hand, including a separate group for blank or missing hands, count distinct managers with a matching `player` record who won at least one manager award, and show the count and its share of all such managers",
+  "sql": "WITH award_winners AS (\n    SELECT DISTINCT ma.player_id\n    FROM manager_award ma\n    WHERE ma.player_id IS NOT NULL\n), managers AS (\n    SELECT DISTINCT m.player_id\n    FROM manager m\n    JOIN award_winners aw ON aw.player_id = m.player_id\n    JOIN player p ON p.player_id = m.player_id\n    WHERE m.player_id IS NOT NULL\n), grouped AS (\n    SELECT CASE WHEN p.bats IS NULL OR TRIM(p.bats) = '' THEN '(blank or missing)' ELSE p.bats END AS batting_hand,\n           COUNT(DISTINCT managers.player_id) AS manager_count\n    FROM managers\n    JOIN player p ON p.player_id = managers.player_id\n    GROUP BY CASE WHEN p.bats IS NULL OR TRIM(p.bats) = '' THEN '(blank or missing)' ELSE p.bats END\n)\nSELECT batting_hand,\n       manager_count,\n       1.0 * manager_count / NULLIF(SUM(manager_count) OVER (), 0) AS share_of_managers\nFROM grouped\nORDER BY batting_hand",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6,
+ "d": {
+  "request": "Across manager award winners, grouped by batting hand (`bats`), how many distinct managers with that hand won at least one award, and what share of all such managers does each hand represent? Include blank or missing hands as their own group, match awards to records in `player`, and report shares without rounding.",
+  "sql": "WITH winning_managers AS (\n    SELECT DISTINCT ma.player_id\n    FROM manager_award AS ma\n    JOIN player AS p ON p.player_id = ma.player_id\n), hand_counts AS (\n    SELECT p.bats, COUNT(*) AS manager_count\n    FROM winning_managers AS wm\n    JOIN player AS p ON p.player_id = wm.player_id\n    GROUP BY p.bats\n)\nSELECT bats, manager_count,\n       1.0 * manager_count / SUM(manager_count) OVER () AS share_of_managers\nFROM hand_counts\nORDER BY bats;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ }
+}
