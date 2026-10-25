@@ -20,6 +20,27 @@ def V(anchor, i=0):
 def n(v): return "{:,}".format(v)
 
 
+def F(*labels):
+    """Several labels in one reference: 'Figs.~8, 10, 11'; mixed kinds stay separate: 'Fig.~18, Table~5'."""
+    out = []
+    for l in labels:
+        r = R(l); k, num = r.split("~")
+        if out and out[-1][0] == k: out[-1][1].append(num)
+        else: out.append((k, [num]))
+    return ", ".join(("%ss.~%s" % (k[:-1], ", ".join(v)) if len(v) > 1 and k == "Fig." else "%s~%s" % (k, ", ".join(v))) for k, v in out)
+
+
+def R(label):
+    """'Fig. 8', 'Table S1', 'Sec. 5': the number LaTeX gave a label, from the paper's or the supplement's .aux file."""
+    import re
+    for aux, pre in (("paper/tex/specbridge.aux", ""), ("paper/tex/supplement.aux", "")):
+        m = re.search(r"\\newlabel\{%s\}\{\{([^}]*)\}" % re.escape(label), open(aux).read())
+        if m:
+            num = m.group(1); kind = label.split(":")[0]
+            return {"fig": "Fig.~", "tab": "Table~", "sec": "Sec.~"}[kind] + num
+    raise KeyError(label)
+
+
 def values():
     L = C.lib_rows()
     S = dict(tried=V("Its rules find usable queries on", 1), usable=V("Its rules find usable queries on", 0),
@@ -59,7 +80,7 @@ def tex(S):
          r"  arr/.style={->, draw=sbline}]",
          r"\newcommand{\hd}[1]{\textbf{\footnotesize #1}\\[1pt]}",
          r"\coordinate (r1) at (0,0);", r"\node[band] at (0,0.42) {Sources};"]
-    H.update(r1=2.2, r2=1.25, r3=2.0)
+    H.update(r1=2.15, r2=1.25, r3=3.3)
     W, G = 4.1, 0.32; X = [i * (W + G) for i in range(4)]
     # ---- sources
     T += [box("dbs", X[0], "r1", W, "Databases",
@@ -76,25 +97,40 @@ def tex(S):
     T += [r"\coordinate (r2) at ($(0,0 |- current bounding box.south)+(0,-0.62)$);", r"\node[band] at ($(r2)+(0,0.42)$) {Built from them};",
           box("gen", X[0], y2, W, "Generated tasks",
               "on the %(dbs)s evaluation databases: %(delivered)s of %(requested)s queries delivered; %(tasks)s tasks with a natural request" % s),
-          box("rs", X[1], y2, W, "Request sets",
+          box("rs", X[1], y2, W, "Request sets (%s)" % F("fig:funnel"),
               "main run %(main)s and filter run %(filt)s pass all checks (%(checked)s); the author keeps %(author)s; the 1\\%% rule leaves \\textbf{%(final)s} (%(main_acc)s without, %(filt_acc)s with a filter)" % s),
-          box("lib", X[2], y2, W, "Choice library",
+          box("lib", X[2], y2, W, "Choice library (%s)" % F("fig:choices", "tab:librarydetail"),
               "%(lib)s choices (%(lib_open)s open, %(lib_settled)s settled) in %(lib_types)s types, from benchmark failures on %(lib_dbs)s databases" % s)]
-    # ---- experiments
+    # ---- experiments: one line per exhibit of the paper (numbers from the paper's and the supplement's .aux files)
+    line = lambda ex, txt: "\\hangindent=0.7em\\hangafter=1 \\textbf{%s}\\enspace %s\\par" % (ex, txt)
     y3 = "r3"
-    T += [r"\coordinate (r3) at ($(0,0 |- current bounding box.south)+(0,-0.62)$);", r"\node[band] at ($(r3)+(0,0.42)$) {Experiments and sample sizes};",
-          box("e1", X[0], y3, W, "Generator (Sec.~4.2)",
-              "coverage on %(tried)s databases; each rule removed, %(configs)s configurations $\\times$ %(attempts)s attempts; exact description vs.\\ natural request on %(tasks)s tasks; "
-              "second writer on %(swap)s random tasks; plan vs.\\ direct writing on %(plan)s tasks" % s),
-          box("e2", X[1], y3, W, "Do models report the choice? (Sec.~5)",
-              "%(final)s sets $\\times$ 4 models, three requests each; conventions on %(conv)s tie and counting sets; five samples on %(samp)s sets (random draw of %(samp_draw)s); "
-              "filter sets: %(filt_acc)s (App.~C)" % s),
-          box("e3", X[2], y3, W, "Can benchmarks see it? (Sec.~6)",
-              "held-out %(bird_held)s BIRD and %(spider_held)s Spider questions; causes of the mining failures; conventions of silent references; "
-              "%(impact)s silent BIRD questions, %(changed)s change; %(rescore)s BIRD questions rescored" % s),
-          box("e4", X[3], y3, W, "Two design rules (Sec.~7)",
-              "AMBROSIA test, Sonnet and GPT-Sol; %(meth)s request sets (random draw of %(meth_draw)s); edit vs.\\ rewrite on %(rw)s readings "
-              "(%(rwpm)s per model drawn); %(bird_rw)s BIRD questions" % dict(s, rwpm=n(REWRITE_PER_MODEL)))]
+    T += [r"\coordinate (r3) at ($(0,0 |- current bounding box.south)+(0,-0.62)$);", r"\node[band] at ($(r3)+(0,0.42)$) {Experiments: exhibit and sample size};",
+          box("e1", X[0], y3, W, "Generator (%s)" % R("sec:specresults"), "".join([
+              line(F("fig:coverage"), "coverage on %(tried)s databases" % s),
+              line(F("tab:construction"), "%(delivered)s of %(requested)s queries" % s),
+              line(F("fig:ablation"), "rules removed, %(configs)s configurations $\\times$ %(attempts)s attempts" % s),
+              line(F("fig:specification"), "exact vs.\\ natural request, %(tasks)s tasks $\\times$ 4 models" % s),
+              line(R("sec:specresults"), "second writer, %(swap)s random tasks" % s),
+              line(R("sec:specresults"), "plan vs.\\ direct writing, %(plan)s tasks" % s)])),
+          box("e2", X[1], y3, W, "Do models report the choice? (%s)" % R("sec:disclosure"), "".join([
+              line(F("fig:disclosure", "fig:outcomes", "fig:bytype"), "%(final)s sets $\\times$ 4 models" % s),
+              line(F("fig:decomposition"), "missed readings; also AMBROSIA"),
+              line(F("fig:conventions"), "%(conv)s tie and counting sets" % s),
+              line(R("sec:disclosure"), "five samples, %(samp)s sets (draw of %(samp_draw)s)" % s),
+              line(R("sec:setup"), "exploration, %(bird_held)s held-out BIRD questions" % s),
+              line(F("tab:filtersets"), "%(filt_acc)s filter sets" % s)])),
+          box("e3", X[2], y3, W, "Can benchmarks see it? (%s)" % R("sec:diagnosis"), "".join([
+              line(F("fig:real"), "held-out %(bird_held)s BIRD, %(spider_held)s Spider $\\times$ 4 models" % s),
+              line(F("fig:causes"), "failures among the mining questions"),
+              line(F("fig:defaults"), "silent references, by author group"),
+              line(F("fig:impact"), "%(impact)s silent BIRD questions, %(changed)s change" % s),
+              line(F("tab:answers"), "%(rescore)s BIRD questions $\\times$ 4 models" % s)])),
+          box("e4", X[3], y3, W, "Two design rules (%s)" % R("sec:method"), "".join([
+              line(F("fig:method", "tab:methods"), "AMBROSIA, %(amb_test)s per model, Sonnet and GPT-Sol" % s),
+              line(F("tab:methods"), "%(meth)s request sets (draw of %(meth_draw)s)" % s),
+              line(F("fig:breakeven"), "AMBROSIA, both models pooled"),
+              line(F("fig:rewrite"), "%(rw)s readings (draw of %(rwpm)s per model) $\\times$ 4 models" % dict(s, rwpm=n(REWRITE_PER_MODEL))),
+              line(R("sec:rewrite"), "%(bird_rw)s BIRD questions, Sonnet and GPT-Sol" % s)]))]
     T = [t.replace("\\node[bx] (e", "\\node[ex] (e") for t in T]
     T += [r"% ---- arrows: what is built from what, and what each experiment uses",
           r"\draw[arr] (dbs.south) -- (gen.north);",
