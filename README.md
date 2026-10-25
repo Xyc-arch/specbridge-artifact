@@ -90,9 +90,17 @@ from methods.clarify import edit          # clarify a request by adding one clau
 
 ## Rerun the experiments (optional, needs model access)
 
-The saved runs in `out/` are the outputs of the commands below. A rerun calls the models again: Claude Haiku, Sonnet and Opus
-through the `claude` CLI, and GPT-Sol and GPT-Luna through `codex exec`. Each run saves one file per answer and skips answers it
-already has, so you can stop and restart it at any time.
+The saved runs in `out/` are the outputs of the commands below. Each run saves one file per answer and skips answers it already
+has, so you can stop and restart it at any time. Choose one way to call the models:
+
+| Option | Setup |
+|---|---|
+| **CLIs** (what the paper used) | install and log in to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`) and [Codex](https://github.com/openai/codex) (`codex`) |
+| **API keys** | `export SPECBRIDGE_BACKEND=api ANTHROPIC_API_KEY=... OPENAI_API_KEY=...` |
+| **Your own model** | `export SPECBRIDGE_BACKEND=api OPENAI_BASE_URL=http://localhost:8000/v1` (any OpenAI-compatible server, e.g. vLLM), then pass your model's name wherever a command takes `<model>` |
+
+Model names: `haiku`, `sonnet`, `opus` (Claude Haiku 4.5, Sonnet 5.5, Opus 5.5), `gpt-6-sol`, `gpt-6-luna`. The CLIs add their
+own system prompt, so answers through the API can differ slightly from the saved runs.
 
 | Experiment (paper section) | Command |
 |---|---|

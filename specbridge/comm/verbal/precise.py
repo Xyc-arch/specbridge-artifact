@@ -114,9 +114,9 @@ def representation_terms(draft, rec):
 def llm(prompt, stage):
     """One sealed call: minimal system prompt, no tools, empty working directory; returns (text, usage). Review stages use
     REVIEW_MODEL, writing stages MODEL."""
-    from specbridge.pd.ask import _SEALED, _CLAUDE
+    from specbridge.pd.ask import _SEALED, _CLAUDE, BACKEND
     m = REVIEW_MODEL if stage in REVIEW_STAGES else MODEL
-    if m.startswith("gpt-"):                                          # codex route: no usage report; same sealed call
+    if m.startswith("gpt-") or BACKEND == "api":                      # codex route or HTTP API (pd.ask): no usage report here
         from specbridge.pd.ask import ask, LIMIT
         res = ask(prompt, m, timeout=1500, quiet=True, system=SYS) or ""
         rec = {"stage": stage, "model": m, "input": 0, "fresh_input": 0, "cached_input": 0, "output": 0, "prompt_chars": len(prompt)}

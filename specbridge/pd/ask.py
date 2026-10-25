@@ -55,6 +55,46 @@ def codex_cmd(model, out):
     return cmd + ["-"]
 
 
+# BACKEND (2026-10-25). The paper's runs used the two CLIs above, which stay the default. SPECBRIDGE_BACKEND=api sends the same
+# prompt and system text over HTTP instead: Claude models to the Anthropic Messages API (ANTHROPIC_API_KEY), every other model to
+# an OpenAI-compatible chat endpoint (OPENAI_API_KEY; OPENAI_BASE_URL points it at another provider or a local server, so any
+# model can be plugged in by name). The CLIs add their own system prompt, so API answers can differ slightly from the saved runs.
+BACKEND = os.environ.get("SPECBRIDGE_BACKEND", "cli")
+API_ID = {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5"}
+
+
+def _post(url, body, headers, timeout):
+    import urllib.error
+    for attempt in range(5):
+        try:
+            req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=dict(headers, **{"Content-Type": "application/json"}))
+            return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+        except urllib.error.HTTPError as e:                           # retry overload and rate limits, not bad requests
+            if e.code not in (408, 429, 500, 502, 503, 504, 529) or attempt == 4: raise
+        except OSError:
+            if attempt == 4: raise
+        time.sleep(5 * (attempt + 1))
+
+
+def _api(prompt, model, system, timeout):
+    if model in CLI or model.startswith("claude"):
+        body = {"model": API_ID.get(model, model), "max_tokens": int(os.environ.get("SPECBRIDGE_MAX_TOKENS", 16000)),
+                "messages": [{"role": "user", "content": prompt}]}
+        if system: body["system"] = system
+        d = _post(os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/") + "/v1/messages", body,
+                  {"x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""), "anthropic-version": "2023-06-01"}, timeout)
+        u = d.get("usage") or {}
+        USAGE.last.update({"resolved": [d.get("model")], "input_tokens": u.get("input_tokens"), "output_tokens": u.get("output_tokens")})
+        return "".join(b.get("text", "") for b in d.get("content") or [] if b.get("type") == "text")
+    body = {"model": model, "messages": ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]}
+    if model.startswith("gpt-") and not os.environ.get("OPENAI_BASE_URL"): body["reasoning_effort"] = CODEX_EFFORT
+    d = _post(os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions", body,
+              {"Authorization": "Bearer " + os.environ.get("OPENAI_API_KEY", "")}, timeout)
+    u = d.get("usage") or {}
+    USAGE.last.update({"resolved": [d.get("model")], "total_tokens": u.get("total_tokens")})
+    return (d.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+
+
 # USAGE OF THE LAST CALL IN THIS THREAD (2026-10-14): resolved model id, tokens, list cost (Claude) or total tokens (Codex),
 # seconds. Read by callers that record cost per call; never part of the answer.
 USAGE = threading.local()
@@ -70,7 +110,10 @@ def ask(prompt, model, n=256, timeout=120, cache=None, strip=True, quiet=False, 
         return cache[prompt]
     USAGE.last = {"model": model}; t0 = time.time()
     try:
-        if model.startswith("gpt-"):
+        if BACKEND == "api" and (model.startswith(("gpt-", "claude")) or model in CLI or os.environ.get("OPENAI_BASE_URL")):
+            out = _api(prompt, model, system, max(timeout, 300))
+            if LIMIT.search(out): raise RuntimeError("model call failed: %s" % out[:120])
+        elif model.startswith("gpt-"):
             for attempt in range(4):
                 fd, out_f = tempfile.mkstemp(suffix=".txt"); os.close(fd)
                 try:
