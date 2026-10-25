@@ -1,6 +1,6 @@
 .PHONY: all setup data full-data reproduce check test paper
 # make all: fetch the BIRD dev databases, rebuild every figure and table from the saved runs (no model calls), compare with the
-# paper, and run the tests. About 6 minutes on a laptop.
+# paper, and run the tests. About 6 minutes on a laptop. Everything the run produces is collected in results/.
 all: data reproduce check test
 
 setup:
@@ -30,17 +30,19 @@ reproduce: data
 	python -m specbridge.report.accepted
 	python -m specbridge.report.figures_col
 	python -m specbridge.report.tables_tex
+	python reproduce/collect.py
 
-# data files, generated tables and figure pixels against the paper's; every number printed in the paper; the frozen review
+# data files, generated tables and figure pixels against the paper's; every number printed in the paper; the frozen review.
+# Also saved in results/check.txt; results/numbers.txt lists every number in the paper with its recomputed value.
 check:
-	python reproduce/check.py
-	python -m specbridge.report.numbers check --release
-	python -m specbridge.comm.transfer.freeze check
+	@mkdir -p results
+	@{ python reproduce/check.py && python -m specbridge.report.numbers check --release && python -m specbridge.comm.transfer.freeze check; } > results/check.txt 2>&1; s=$$?; cat results/check.txt; exit $$s
+	@python -m specbridge.report.numbers report --all --release > results/numbers.txt 2>&1 || true
 
+# also saved in results/tests.txt
 test:
-	python reproduce/test_release.py
-	python benchmark/score.py --self-test
-	python reproduce/ambrosia_tables.py
+	@mkdir -p results
+	@{ python reproduce/test_release.py && python benchmark/score.py --self-test && python reproduce/ambrosia_tables.py; } > results/tests.txt 2>&1; s=$$?; cat results/tests.txt; exit $$s
 
 paper:
 	$(MAKE) -C paper/tex

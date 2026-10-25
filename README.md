@@ -39,6 +39,18 @@ numbers found: 452; in the ledger: 452 (...) ok 398, mismatch 0 (...)
 204 sets, 408 reference queries checked, 0 failures
 ```
 
+Everything your run produces is collected in `results/`:
+
+```
+results/
+  figures/      every data figure, named by its number (fig08_disclosure.pdf is Figure 8)
+  tables/       Tables 1 and 4, and the numbers of Table 3
+  data/         the numbers behind each figure and table (JSON)
+  check.txt     the comparison with the paper
+  numbers.txt   every number printed in the paper, recomputed from the data, with ok / MISMATCH
+  tests.txt     the test results
+```
+
 `make all` runs four steps, which you can also run one at a time:
 
 | Step | What it does |
