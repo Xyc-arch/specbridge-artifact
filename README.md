@@ -41,7 +41,8 @@ reproduce/          check.py, expected/ (the paper's outputs), tests, fetch scri
 specbridge/         the full code base; docs/ describes the query language and the pipeline
 out/                every saved model run and result behind the paper (map below)
 catalogues/         column meanings per database, the generator's input
-spider_data/, train_meta/, dev_unzipped/   Spider and BIRD files, at the paths their releases use (BIRD dev databases: make data)
+spider_data/, train_meta/   Spider files and BIRD train metadata, at the paths their releases use (make data adds BIRD dev
+                    in dev_unzipped/)
 paper/              the paper and supplement source
 ```
 
