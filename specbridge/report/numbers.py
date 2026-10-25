@@ -133,8 +133,6 @@ RQMD = "out/reqmethod100/RESULTS.md"
 RW = "out/rewrite/RESULTS.md"
 TOPK = lambda: jl("out/transfer/all/render/disclose/topk/results.json")["models"]
 FROZEN_ALL = "out/transfer/all/render/eval/frozen.json"
-SPIDER_ERR = "out/spider2/errors/ERRORS.md"
-ASK = "out/spider2/ask/RESULTS.md"
 INV_EXT = "out/transfer/ext/cp/INVENTORY.md"
 
 cbp = lambda m: pc(F5()[m]["covers_both_given_both_precise"]["k"], F5()[m]["covers_both_given_both_precise"]["n"])

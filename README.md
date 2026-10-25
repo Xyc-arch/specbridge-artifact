@@ -10,23 +10,25 @@ Artifact of the PVLDB Experiment, Analysis & Benchmark paper *Text-to-SQL Models
 | 4 | **The clarification design** (Section 7.3): keep the request and add one clause, with the two rewrite baselines | `methods/clarify.py` |
 | 5 | The full code base (generation, diagnosis, evaluation, reporting), every saved model run behind a reported result, the generator's inputs (column-meaning catalogues, mined query templates), the author's reviews, and the paper source | `specbridge/`, `out/`, `catalogues/`, `human_supervision/`, `paper/` |
 
-## Quick start (no model access needed, about 5 minutes)
+## Reproduce everything (no model access needed, about 6 minutes)
 
 ```sh
-pip install -r requirements.txt          # Python 3.11
-sh scripts/fetch_bird.sh                 # BIRD dev databases (346 MB download, 1.4 GB; checked against scripts/bird_dev.sha256)
-make reproduce                           # rebuild every figure and table of the paper from the saved runs (about 4 minutes)
-make check                               # compare with the paper: data files, generated tables, figure pixels, every number in the text
-python tests/test_release.py             # the methods and prompts against the experiment code
-python benchmark/score.py --self-test    # every reference query matches its own reading
-python benchmark/score.py benchmark/examples/sonnet_single_call.jsonl   # Sonnet's single-call bars of Figure 8
-python reproduce/ambrosia_tables.py      # the AMBROSIA columns of Table 4, from the scores-only table
-make paper                               # build the paper (pdfLaTeX; the diagrams use XeLaTeX with Arial)
+make setup        # pip install -r requirements.txt  (Python 3.11)
+make all          # fetch the BIRD dev databases, rebuild every figure and table, compare with the paper, run the tests
 ```
 
-Figures match pixel for pixel when Arial is installed (the paper's figure font); data files and tables match exactly on any system.
-`make check` also runs the number ledger (`specbridge.report.numbers check --release`): every number printed in the paper is
-recomputed from the files here and compared.
+`make all` runs four steps, each also available alone:
+
+| Step | What it does |
+|---|---|
+| `make data` | `scripts/fetch_bird.sh`: the BIRD dev databases from the BIRD authors (346 MB download), checked against `scripts/bird_dev.sha256` |
+| `make reproduce` | rebuilds every figure and table of the paper from the saved runs (no model calls, about 4 minutes) |
+| `make check` | compares with the paper: data files, generated tables, figure pixels, every number printed in the text, the frozen review |
+| `make test` | the methods and prompts against the experiment code; every reference query matches its own reading; the AMBROSIA table from the scores-only file |
+
+It ends with `ALL OUTPUTS REPRODUCED` and a ledger line with 0 mismatches. Figures match pixel for pixel when Arial is installed
+(the paper's figure font); data files, tables and numbers match on any system. `make paper` builds the paper (pdfLaTeX; the
+diagrams use XeLaTeX with Arial), and `make full-data` fetches the 155 source databases needed only to rerun query generation.
 
 ## Use the benchmark and the methods
 
@@ -49,7 +51,7 @@ request = edit(open_request, reading)             # the recommended way to carry
 
 ## Where each figure and table comes from
 
-`make reproduce` runs the reports listed in the `Makefile`, then `specbridge.report.exhibit_data` (writes `out/paper/data/*.json`),
+`make reproduce` runs the reports listed in the `Makefile`, ending with `specbridge.report.exhibit_data` (writes `out/paper/data/*.json`),
 `specbridge.report.accepted`, `specbridge.report.figures_col` (figures) and `specbridge.report.tables_tex` (generated tables).
 
 | Exhibit | Built from | By |

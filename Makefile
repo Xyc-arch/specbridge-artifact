@@ -1,6 +1,21 @@
-.PHONY: reproduce check paper all
-# Rebuild every figure and table of the paper from the saved runs (no model calls), then compare with the paper's outputs.
-reproduce:
+.PHONY: all setup data full-data reproduce check test paper
+# make all: fetch the BIRD dev databases, rebuild every figure and table from the saved runs (no model calls), compare with the
+# paper, and run the tests. About 6 minutes on a laptop.
+all: data reproduce check test
+
+setup:
+	pip install -r requirements.txt
+
+# BIRD dev databases (Section 6, Section 7.3); fetched once, checked against scripts/bird_dev.sha256
+data: dev_unzipped/dev_20240627/dev_databases/financial/financial.sqlite
+dev_unzipped/dev_20240627/dev_databases/financial/financial.sqlite:
+	sh scripts/fetch_bird.sh
+
+# the 155 source databases, needed only to rerun query generation (Sections 2.2, 4.2)
+full-data:
+	sh scripts/fetch_databases.sh
+
+reproduce: data
 	python -m specbridge.comm.transfer.matched report
 	python -m specbridge.comm.transfer.topk report
 	python -m specbridge.comm.transfer.rewrite report
@@ -15,10 +30,17 @@ reproduce:
 	python -m specbridge.report.accepted
 	python -m specbridge.report.figures_col
 	python -m specbridge.report.tables_tex
+
+# data files, generated tables and figure pixels against the paper's; every number printed in the paper; the frozen review
 check:
 	python reproduce/check.py
 	python -m specbridge.report.numbers check --release
 	python -m specbridge.comm.transfer.freeze check
+
+test:
+	python tests/test_release.py
+	python benchmark/score.py --self-test
+	python reproduce/ambrosia_tables.py
+
 paper:
 	$(MAKE) -C paper/tex
-all: reproduce check paper
