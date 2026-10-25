@@ -8,7 +8,7 @@ Artifact of the PVLDB Experiment, Analysis & Benchmark paper *Text-to-SQL Models
 | 2 | **The choice library**: reviewed choices of meaning mined from BIRD and Spider failures (Figure 4); the file also keeps the output-format failures and the choice points of solved questions, marked in `provenance` | `library/` |
 | 3 | **The disclosure method** (Section 7.1, Figure 17): list the readings, answer each in its own call, show an alternative only when its result differs | `methods/disclose.py` |
 | 4 | **The clarification design** (Section 7.3): keep the request and add one clause, with the two rewrite baselines | `methods/clarify.py` |
-| 5 | The full code base (generation, diagnosis, evaluation, reporting), every saved model run behind a reported result, the generator's inputs (column-meaning catalogues, mined query templates), the author's reviews, and the paper source | `specbridge/`, `out/`, `catalogues/`, `human_supervision/`, `paper/` |
+| 5 | The full code base, every saved model run behind a reported result, the generator's inputs, the author's reviews, and the paper source | see below |
 
 ## Reproduce everything (no model access needed, about 6 minutes)
 
@@ -21,7 +21,7 @@ make all          # fetch the BIRD dev databases, rebuild every figure and table
 
 | Step | What it does |
 |---|---|
-| `make data` | `scripts/fetch_bird.sh`: the BIRD dev databases from the BIRD authors (346 MB download), checked against `scripts/bird_dev.sha256` |
+| `make data` | `reproduce/fetch_bird.sh`: the BIRD dev databases from the BIRD authors (346 MB download), checked against `reproduce/bird_dev.sha256` |
 | `make reproduce` | rebuilds every figure and table of the paper from the saved runs (no model calls, about 4 minutes) |
 | `make check` | compares with the paper: data files, generated tables, figure pixels, every number printed in the text, the frozen review |
 | `make test` | the methods and prompts against the experiment code; every reference query matches its own reading; the AMBROSIA table from the scores-only file |
@@ -29,6 +29,32 @@ make all          # fetch the BIRD dev databases, rebuild every figure and table
 It ends with `ALL OUTPUTS REPRODUCED` and a ledger line with 0 mismatches. Figures match pixel for pixel when Arial is installed
 (the paper's figure font); data files, tables and numbers match on any system. `make paper` builds the paper (pdfLaTeX; the
 diagrams use XeLaTeX with Arial), and `make full-data` fetches the 155 source databases needed only to rerun query generation.
+
+## What is where
+
+```
+benchmark/          request_sets.jsonl (307 sets), databases/ (12 SQLite files), score.py, examples/ (four models' answers)
+library/            the choice library (examples.jsonl, defects.jsonl)
+methods/            the disclosure method and the clarification design, standalone
+human_supervision/  the author's reviews: request sets, minority references, BIRD other readings
+reproduce/          check.py, expected/ (the paper's outputs), tests, fetch scripts with checksums
+specbridge/         the full code base; docs/ describes the query language and the pipeline
+out/                every saved model run and result behind the paper (map below)
+catalogues/         column meanings per database, the generator's input
+spider_data/, train_meta/, dev_unzipped/   Spider and BIRD files, at the paths their releases use (BIRD dev databases: make data)
+paper/              the paper and supplement source
+```
+
+| `out/` folder | What it holds (paper section) |
+|---|---|
+| `corpora/`, `coverage/`, `feasibility/`, `ablation/`, `profiles/`, `rules/`, `gamma_pool/` | query generation: the corpora, which databases it runs on and its coverage, the ablation, mined templates (§2.2, §4.2) |
+| `comm_library/`, `diagnose_coverage/` | mining choices from BIRD and Spider failures, per batch, and the questions covered (§2.3) |
+| `transfer/` | the request sets: `eval12-v2/` (215 main sets: construction and review), `ext/` (92 filter sets), `all/render/` (every model run on all 307 sets) (§2, §5) |
+| `writer_swap/` | the writer swap (§4.2) |
+| `confirmation/` | held-out BIRD and Spider questions, causes (§6) |
+| `impact/`, `rescore/` | the effect of the other reading; BIRD scored with both readings (§6) |
+| `ambrosia/`, `reqmethod100/` | disclosure methods on AMBROSIA (aggregates only) and on 100 request sets (§7.2) |
+| `rewrite/` | edit vs rewrite, on request sets and on BIRD (§7.3) |
 
 ## Use the benchmark and the methods
 
@@ -59,11 +85,11 @@ request = edit(open_request, reading)             # the recommended way to carry
 | Fig. 1, 2, 3, 17, 20 (diagrams) | values from `sakila_1`, `insider`, `financial` and the recorded responses | `paper/tex/figures/tikz/*.tex` (XeLaTeX) |
 | Table 1 (comparison) | properties of the cited benchmarks | `tables_tex.comparison` |
 | Fig. 4 (choice types) | `library/examples.jsonl` → `tab2_library.json`; request sets per type from `fig5_tab4_disclosure.json` | `figures_col.choices` |
-| Table 2 (how the measures score four responses) | recorded responses in `out/transfer/eval12-v2/render/disclose/` | written in the paper |
+| Table 2 (how the measures score four responses) | recorded responses in `out/transfer/all/render/disclose/` | written in the paper |
 | Fig. 5 (construction funnel) | `tab3_generation.json`, `out/transfer/ext/cp/INVENTORY.md`, `out/transfer/ext/render/selection.json`, `filter_sets.json` | `figures_col.funnel` |
 | Fig. 6 (generation ablation) | `out/ablation/`, `out/coverage/` → `fig1_coverage.json` | `figures_col.ablation` |
 | Fig. 7 (exact description vs natural request) | `out/corpora/` runs → `fig2_explicit_vs_precise.json` | `figures_col.specification` |
-| Fig. 8 (answering and communicating) | `out/transfer/eval12-v2/render/disclose/` → `fig5_tab4_disclosure.json` | `figures_col.disclosure` |
+| Fig. 8 (answering and communicating) | `out/transfer/all/render/disclose/` → `fig5_tab4_disclosure.json` | `figures_col.disclosure` |
 | Fig. 9 (missed readings the model computes) | Fig. 8 data, `disclose/complement/`, `out/ambrosia/decomposition*.json` | `figures_col.decomposition` |
 | Fig. 10 (outcome of every open request) | `accepted.json` (`outcomes`) | `figures_col.outcomes` |
 | Fig. 11 (by choice type and source) | `fig5_tab4_disclosure.json` | `figures_col.bytype` |
@@ -94,7 +120,7 @@ an output column and no condition. The author reviewed every BIRD question on wh
 ## The experiments (with model access)
 
 To rerun query generation or the 152-database coverage run, first fetch the 155 source databases the generator runs on:
-`sh scripts/fetch_databases.sh` (83 MB release asset, checked against `scripts/source_databases.sha256`). The generator's other
+`sh reproduce/fetch_databases.sh` (83 MB release asset, checked against `reproduce/source_databases.sha256`). The generator's other
 inputs ship here: `catalogues/<db>.json` (column meanings, built once per database by `python -m specbridge.pd.realize.semantic <db>`),
 `out/profiles/<source>/templates.jsonl` (query templates mined from BIRD and Spider references) and `out/gamma_pool/tasks.jsonl`.
 
@@ -105,15 +131,15 @@ were not recorded for the paper's runs; `specbridge/pd/ask.py` now records both 
 
 | Experiment (paper section) | Command | Saved runs |
 |---|---|---|
-| Query generation, coverage, ablation (§2.2, §4.2) | `python -m specbridge.comm setup|build|natural ...` (see `docs/PIPELINE.md`); `python -m specbridge.comm.construct.coverage run`; `python -m specbridge.comm.construct.ablation run` | `out/coverage/`, `out/ablation/`, `out/corpora/` |
+| Query generation, coverage, ablation (§2.2, §4.2) | `python -m specbridge.comm setup|build|natural ...` (see `specbridge/docs/PIPELINE.md`); `python -m specbridge.comm.construct.coverage run`; `python -m specbridge.comm.construct.ablation run` | `out/coverage/`, `out/ablation/`, `out/corpora/` |
 | Mining choices from benchmark failures (§2.3) | `specbridge.comm.diagnose`: `tasks` (two wordings) → `compare run` → `inspect` → `record` → `gate` → `library`; `batches` runs them per batch (each module's docstring gives its command) | `out/comm_library/`, `library/` |
 | Exact description vs natural request (§4.2) | `python -m specbridge.comm.construct.solver_eval <corpus> [--explicit]` | `out/corpora/` |
 | Writer swap (§4.2) | `python -m specbridge.comm.construct.writer_swap` | `out/writer_swap/` |
-| Specific requests with exploration (§5) | `python -m specbridge.comm.transfer.evaluate out/transfer/eval12-v2/render run <model>` | `.../render/eval/runs/` |
-| Explanation call and plain control (§5) | `python -m specbridge.comm.transfer.disclose out/transfer/eval12-v2/render run|plain|judge` | `.../render/disclose/` |
+| Specific requests with exploration (§5) | `python -m specbridge.comm.transfer.evaluate out/transfer/all/render run <model>` | `.../render/eval/runs/` |
+| Explanation call and plain control (§5) | `python -m specbridge.comm.transfer.disclose out/transfer/all/render run|plain|judge` | `.../render/disclose/` |
 | Matched single call (§5) | `python -m specbridge.comm.transfer.matched run` | `.../disclose/complement/` |
 | Five samples (§5) | `python -m specbridge.comm.transfer.topk run` | `.../disclose/topk/` |
-| AMBROSIA decomposition and final method test (§5, §7.2) | `sh scripts/fetch_ambrosia.sh`, then `python -c "from specbridge.comm.transfer import ambrosia as A; A.decomp_run(A.MODELS); A.run_final()"` | aggregates in `out/ambrosia/` |
+| AMBROSIA decomposition and final method test (§5, §7.2) | `sh reproduce/fetch_ambrosia.sh`, then `python -c "from specbridge.comm.transfer import ambrosia as A; A.decomp_run(A.MODELS); A.run_final()"` | aggregates in `out/ambrosia/` |
 | Held-out BIRD and Spider, causes (§6) | `python -m specbridge.comm.diagnose.compare run <dir> <model>`; `python -m specbridge.comm.diagnose.explore_ablation run <model>` | `out/confirmation/` |
 | BIRD scored with both readings (§6, Table 3) | `python -m specbridge.comm.transfer.rescore run` (protocol `out/rescore/PROTOCOL.md`, written before the run) | `out/rescore/runs/` |
 | Request-set methods (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run` | `out/reqmethod100/` |
@@ -134,7 +160,7 @@ access to the models above.
 Nothing from the paper's experiments is withheld except, at their authors' request, AMBROSIA's own content: the per-call AMBROSIA
 runs contain the models' restatements of AMBROSIA questions and SQL that often equals AMBROSIA's gold SQL, so the package ships the
 aggregates and `out/ambrosia/final/scores.jsonl` (per question and arm: readings found, wrong queries, calls), from which Table 4
-and Figures 9, 18 and 19 are recomputed. Rerunning the AMBROSIA experiments regenerates the runs (`scripts/fetch_ambrosia.sh`).
+and Figures 9, 18 and 19 are recomputed. Rerunning the AMBROSIA experiments regenerates the runs (`reproduce/fetch_ambrosia.sh`).
 LiveSQLBench's withheld reference SQL was never used. Experiments that are not in the paper (an in-context checklist, Spider 2.0,
 earlier pilots) and run logs are left out.
 
@@ -142,4 +168,4 @@ earlier pilots) and run logs are left out.
 
 See `DATA_LICENSE.md`. Code: MIT. Benchmark, library and saved outputs: CC BY-SA 4.0 (they derive from Spider and BIRD).
 AMBROSIA is not redistributed, at its authors' request; the package ships aggregate results and a scores-only table, and
-`scripts/fetch_ambrosia.sh` fetches the rest from the authors. The BIRD dev databases are fetched by `scripts/fetch_bird.sh`.
+`reproduce/fetch_ambrosia.sh` fetches the rest from the authors. The BIRD dev databases are fetched by `reproduce/fetch_bird.sh`.

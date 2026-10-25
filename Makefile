@@ -6,14 +6,14 @@ all: data reproduce check test
 setup:
 	pip install -r requirements.txt
 
-# BIRD dev databases (Section 6, Section 7.3); fetched once, checked against scripts/bird_dev.sha256
+# BIRD dev databases (Section 6, Section 7.3); fetched once, checked against reproduce/bird_dev.sha256
 data: dev_unzipped/dev_20240627/dev_databases/financial/financial.sqlite
 dev_unzipped/dev_20240627/dev_databases/financial/financial.sqlite:
-	sh scripts/fetch_bird.sh
+	sh reproduce/fetch_bird.sh
 
 # the 155 source databases, needed only to rerun query generation (Sections 2.2, 4.2)
 full-data:
-	sh scripts/fetch_databases.sh
+	sh reproduce/fetch_databases.sh
 
 reproduce: data
 	python -m specbridge.comm.transfer.matched report
@@ -38,7 +38,7 @@ check:
 	python -m specbridge.comm.transfer.freeze check
 
 test:
-	python tests/test_release.py
+	python reproduce/test_release.py
 	python benchmark/score.py --self-test
 	python reproduce/ambrosia_tables.py
 

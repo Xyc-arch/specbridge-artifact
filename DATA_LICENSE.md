@@ -2,7 +2,7 @@
 
 | What | Licence | Why |
 |---|---|---|
-| Code (`specbridge/`, `benchmark/*.py`, `methods/`, `reproduce/`, `tests/`) | MIT (`LICENSE`) | ours |
+| Code (`specbridge/`, `benchmark/*.py`, `methods/`, `reproduce/`) | MIT (`LICENSE`) | ours |
 | Request-set benchmark (`benchmark/request_sets.jsonl`, `benchmark/databases/`) | CC BY-SA 4.0 | built on Spider and BIRD databases (CC BY-SA 4.0, share-alike) and LiveSQLBench databases (CC BY 4.0) |
 | Decision library (`library/`) | CC BY-SA 4.0 | built from Spider and BIRD development questions and reference SQL |
 | Saved model outputs and results (`out/`, `human_supervision/`) | CC BY-SA 4.0 | contain benchmark questions and databases above |
@@ -13,13 +13,13 @@
 
 - **AMBROSIA** (CC BY 4.0). Its authors ask that the dataset not be uploaded to GitHub or the Hugging Face Hub. The package ships only
   aggregate AMBROSIA results and `out/ambrosia/final/scores.jsonl` (per question: row index, arm, counts; no question, interpretation
-  or SQL text). `scripts/fetch_ambrosia.sh` fetches the prompt and scorer from the authors and explains how to download the data.
+  or SQL text). `reproduce/fetch_ambrosia.sh` fetches the prompt and scorer from the authors and explains how to download the data.
 - **LiveSQLBench reference SQL and test cases.** They are withheld by their authors to prevent leakage, and this work never used them.
 - **The 155 source databases of the generator** (Spider, BIRD and LiveSQLBench databases, as snapshotted; 557 MB): a release asset of
-  the artifact repository, fetched by `scripts/fetch_databases.sh` and checked against `scripts/source_databases.sha256`; same
+  the artifact repository, fetched by `reproduce/fetch_databases.sh` and checked against `reproduce/source_databases.sha256`; same
   licences as their sources.
 - **BIRD development databases** (`dev_unzipped/dev_20240627/dev_databases/`, CC BY-SA 4.0, 1.4 GB): too large for the repository;
-  `scripts/fetch_bird.sh` downloads them from the BIRD authors and checks each file against `scripts/bird_dev.sha256`.
+  `reproduce/fetch_bird.sh` downloads them from the BIRD authors and checks each file against `reproduce/bird_dev.sha256`.
 - **The defaults-note experiment** (`out/prior/`), which is not in the paper.
 
 ## Sources

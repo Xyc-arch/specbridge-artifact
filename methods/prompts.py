@@ -1,4 +1,4 @@
-"""Prompts of the two methods, copied verbatim from the experiment code (tests/test_prompts.py checks the copies).
+"""Prompts of the two methods, copied verbatim from the experiment code (reproduce/test_release.py checks the copies).
   DETECT       the disclosure method's first call: list the readings, each rewritten as a request with one reading
   PLAIN        the single-call SQL prompt used for every request text in the rewrite test (schema, documentation, request)
   INSTRUCTION  the explanation call of Finding 1 (main SQL, open assumptions, up to two alternatives)
