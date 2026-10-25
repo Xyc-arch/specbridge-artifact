@@ -48,7 +48,8 @@ numbers found: 452; in the ledger: 452 (...) ok 398, mismatch 0 (...)
 | `make check` | compares the result with the paper: data, tables, figure pixels, and every number in the text |
 | `make test` | tests the scorer, the two methods and their prompts |
 
-Figures match pixel for pixel only when the Arial font is installed; data, tables and numbers match on any system.
+Figures match pixel for pixel when the packages come from `make setup` (pip) and the Arial font is installed; conda's matplotlib
+draws text slightly differently. Data, tables and numbers match on any system.
 `make paper` builds the PDF.
 
 ## Where each result comes from
@@ -97,6 +98,9 @@ from methods.clarify import edit          # clarify a request by adding one clau
 
 ## Rerun with models (optional)
 
+You do not need this to check the paper: the offline reproduction above already computes every number from our saved model
+outputs, on CPU only. Rerun the models only if you want to regenerate those outputs or test another model.
+
 The saved runs in `out/` are the outputs of the commands below. Each run saves one file per answer and skips answers it already
 has, so you can stop and restart it at any time. Choose one way to call the models:
 
@@ -104,7 +108,7 @@ has, so you can stop and restart it at any time. Choose one way to call the mode
 |---|---|
 | **CLIs** (what the paper used) | install and log in to [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`) and [Codex](https://github.com/openai/codex) (`codex`) |
 | **API keys** | `export SPECBRIDGE_BACKEND=api ANTHROPIC_API_KEY=... OPENAI_API_KEY=...` |
-| **Your own model** | `export SPECBRIDGE_BACKEND=api OPENAI_BASE_URL=http://localhost:8000/v1` (any OpenAI-compatible server, e.g. vLLM), then pass your model's name wherever a command takes `<model>` |
+| **Another model** | `export SPECBRIDGE_BACKEND=api OPENAI_BASE_URL=<your server's URL>`, then give your model's name to the commands |
 
 Model names: `haiku`, `sonnet`, `opus` (Claude Haiku 4.5, Sonnet 5.5, Opus 5.5), `gpt-6-sol`, `gpt-6-luna`. The CLIs add their
 own system prompt, so answers through the API can differ slightly from the saved runs.
