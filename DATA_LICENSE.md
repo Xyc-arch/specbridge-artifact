@@ -6,7 +6,7 @@
 | Request-set benchmark (`benchmark/request_sets.jsonl`, `benchmark/databases/`) | CC BY-SA 4.0 | built on Spider and BIRD databases (CC BY-SA 4.0, share-alike) and LiveSQLBench databases (CC BY 4.0) |
 | Decision library (`library/`) | CC BY-SA 4.0 | built from Spider and BIRD development questions and reference SQL |
 | Saved model outputs and results (`out/`, `human_supervision/`) | CC BY-SA 4.0 | contain benchmark questions and databases above |
-| Spider and BIRD files used by the analysis (`spider_data/`, `train_meta/`, `dev_unzipped/`) | CC BY-SA 4.0, unchanged | redistributed with attribution |
+| Spider and BIRD files used by the analysis (`spider_data/`, `train_meta/`) | CC BY-SA 4.0, unchanged | redistributed with attribution |
 | DtP prompts (`methods/third_party/dtp_prompts.py`) | MIT (`methods/third_party/DTP_LICENSE`) | verbatim from github.com/saparina/disambiguate-then-parse, commit 39c92c0 |
 
 ## Not included, on purpose
@@ -18,9 +18,8 @@
 - **The 155 source databases of the generator** (Spider, BIRD and LiveSQLBench databases, as snapshotted; 557 MB): a release asset of
   the artifact repository, fetched by `reproduce/fetch_databases.sh` and checked against `reproduce/source_databases.sha256`; same
   licences as their sources.
-- **BIRD development databases** (`dev_unzipped/dev_20240627/dev_databases/`, CC BY-SA 4.0, 1.4 GB): too large for the repository;
-  `reproduce/fetch_bird.sh` downloads them from the BIRD authors and checks each file against `reproduce/bird_dev.sha256`.
-- **The defaults-note experiment** (`out/prior/`), which is not in the paper.
+- **BIRD dev set** (CC BY-SA 4.0, 1.4 GB): too large for the repository. `make data` downloads it from the BIRD authors into
+  `dev_unzipped/` and checks each file against `reproduce/bird_dev.sha256`.
 
 ## Sources
 

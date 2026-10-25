@@ -5,13 +5,13 @@ different answers, and three requests: `specific_A` asks for reading A, `specifi
 open. A model is scored by execution: does it compute each reading when asked for it, and does it report both when the request
 leaves the choice open?
 
-- `request_sets.jsonl`: 307 sets built by the pipeline, 215 of `"family": "main"` and 92 of `"family": "filter"` (an added filter
-  condition, paper Section 2); **204 with `"accepted": true`** (161 and 43; an author reviewed every set by hand and accepted those
-  where a reasonable analyst could mean either reading and real BIRD and Spider references take the choice both ways, in at least 1% of silent questions; paper Section 4.2). The paper reports every result on the 204 accepted sets.
+- `request_sets.jsonl`: 307 sets, 215 with `"family": "main"` and 92 with `"family": "filter"` (an added filter condition,
+  Section 2). **204 have `"accepted": true`**: an author reviewed every set and kept those where a reasonable analyst could mean
+  either reading and real BIRD and Spider references take the choice both ways (Section 4.2). All results in the paper use these 204.
 - `databases/`: the 12 SQLite databases (Spider: baseball_1, sakila_1, customers_and_invoices, chinook_1; BIRD: financial,
   student_club, thrombosis_prediction, formula_1; LiveSQLBench: archeology, insider, crypto, alien).
-- `score.py`: the scorer. `python benchmark/score.py --self-test` checks the reference queries of the accepted sets (`--all`: all 614); `python benchmark/score.py
-  answers.jsonl` scores a model.
+- `score.py`: the scorer. `python benchmark/score.py answers.jsonl` scores a model; `--self-test` checks that every reference
+  query matches its own reading.
 - `examples/<model>_single_call.jsonl`: the four models' single-call answers from the paper, in the scorer's input format.
   `python benchmark/score.py benchmark/examples/sonnet_single_call.jsonl` reproduces Sonnet's single-call bars of Figure 8.
 
