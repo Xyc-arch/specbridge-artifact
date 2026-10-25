@@ -86,6 +86,7 @@ Scripts are in `specbridge/report/` unless a path is given. The numbers behind e
 | Fig. 18, 19 | `figures_col.py` | `out/ambrosia/final/` |
 | Table 4 | `tables_tex.py`, `reproduce/ambrosia_tables.py` | `out/ambrosia/final/`, `out/reqmethod100/` |
 | Fig. 21, BIRD clarification (§7.3) | `figures_col.py` | `out/rewrite/` |
+| Supplement Figure S1 (data and experiments, with sample sizes) | `datamap_tex.py` | the files behind the paper's numbers |
 | Supplement Tables S2, S6 and S7 (how widely each choice occurs, selected examples) | `catalogue_tex.py` | `library/`, `benchmark/`, `human_supervision/` |
 | Every number in the text | `numbers.py` (one entry per number, with its source) | all of the above |
 

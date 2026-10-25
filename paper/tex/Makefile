@@ -11,7 +11,7 @@ all: diagrams
 	latexmk -pdf -interaction=nonstopmode -halt-on-error specbridge.tex
 	$(LABELS) specbridge.aux supplement.tex "labels specbridge"
 
-diagrams: figures/diag_teaser.pdf figures/diag_pipeline.pdf figures/diag_worked.pdf figures/diag_method.pdf figures/diag_rewrite.pdf
+diagrams: figures/diag_teaser.pdf figures/diag_pipeline.pdf figures/diag_worked.pdf figures/diag_method.pdf figures/diag_rewrite.pdf figures/diag_datamap.pdf
 figures/diag_%.pdf: figures/tikz/%.tex figures/tikz/style.tex
 	cd figures/tikz && xelatex -interaction=nonstopmode -halt-on-error $*.tex >/dev/null && cp $*.pdf ../diag_$*.pdf && rm -f $*.pdf $*.aux $*.log
 

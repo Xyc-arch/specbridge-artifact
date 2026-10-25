@@ -6,7 +6,7 @@ OUT = "results"
 FIGURES = {"fig04": "choices", "fig05": "funnel", "fig06": "ablation", "fig07": "specification", "fig08": "disclosure",
            "fig09": "decomposition", "fig10": "outcomes", "fig11": "bytype", "fig12": "conventions", "fig13": "real",
            "fig14": "causes", "fig15": "defaults", "fig16": "impact", "fig18": "method", "fig19": "breakeven", "fig21": "rewrite",
-           "figS1": "coverage"}
+           "figS2": "coverage"}
 TABLES = {"table1_comparison.tex": "out/paper/tables/comparison.tex", "table3_bird_rescoring.json": "out/rescore/results.json",
           "table4_methods.tex": "out/paper/tables/methods.tex"}
 
@@ -16,7 +16,7 @@ Everything here was produced on your machine by `make reproduce`, from the saved
 
 | Folder or file | What it holds |
 |---|---|
-| `figures/` | every data figure of the paper, named by its number (`fig08_disclosure.pdf` is Figure 8; `figS1` is in the supplement) |
+| `figures/` | every data figure of the paper, named by its number (`fig08_disclosure.pdf` is Figure 8; `figS2` is in the supplement) |
 | `tables/` | Tables 1 and 4 as LaTeX, and the numbers of Table 3 (BIRD scored with both readings) |
 | `data/` | the numbers behind each figure and table, as JSON |
 | `check.txt` | the comparison with the paper (written by `make check`) |

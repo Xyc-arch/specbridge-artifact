@@ -507,7 +507,7 @@ def ledger():
           
           *rng(lambda m: pc(*P("fig3_real_benchmarks")["confirmation"]["bird_heldout100"][m]["original_strict"]), "fig3:confirmation/bird_heldout100/*/original_strict"),
           *rng(lambda m: pc(*P("fig3_real_benchmarks")["confirmation"]["bird_heldout100"][m]["explicit_strict"]), "fig3:confirmation/bird_heldout100/*/explicit_strict")),
-        E("P", r"GPT-Sol answers # of # original BIRD questions correctly without it and # with it",
+        E("P", r"GPT-Sol answers # of the # held-out BIRD questions correctly without it and # with it",
           *[x("out/confirmation/bird_heldout100/noexplore_report.txt: original question row (%s)" % w, (lambda i=i: rx("out/confirmation/bird_heldout100/noexplore_report.txt",
             r"\| original question \| (\d+) \| (\d+) \| (\d+) \|", group=i))) for w, i in (("without", 3), ("n", 1), ("with", 2))]),
         E("P", r"original question versus the exact description of the reference SQL (#\% intervals)", K("confidence level")),
