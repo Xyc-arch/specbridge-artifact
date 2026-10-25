@@ -486,10 +486,11 @@ def funnel():
     S = [("choices proposed", inv(1) + ex(1)), ("the other reading changes the answer", inv(2) + ex(2)),
          ("both readings described exactly", inv(3) + ex(3)), ("a reviewer model finds it open", inv(4) + inv(5) + ex(4) + ex(5)),
          ("one choice kept per task", G["selected"] + sel), ("requests pass all checks", G["frozen"] + fil),
-         ("accepted by an author", F5["n_families"])]
-    fig, ax = plt.subplots(figsize=(W, 1.75)); y = np.arange(len(S))[::-1]
+         ("an author finds it open", N.P("accepted")["scopes"]["accepted_all_types"]["n"]),
+         ("other reading in \u22651% of references", F5["n_families"])]
+    fig, ax = plt.subplots(figsize=(W, 1.95)); y = np.arange(len(S))[::-1]
     for (lab, v), yy in zip(S, y):
-        last = lab.startswith("accepted")
+        last = lab.startswith("other reading")
         ax.barh(yy, v, 0.62, color=BLUE if last else BLUE_L, **EDGE)
         ax.text(v + 10, yy, "%d" % v, va="center", fontsize=6.8, fontweight="bold" if last else "normal")
     ax.set_yticks(y); ax.set_yticklabels([l for l, _v in S]); ax.set_xlim(0, 980); ax.set_xlabel("count")
