@@ -23,14 +23,11 @@ def _wilson(k, n, z=1.96):
     return [round(100 * (c - h), 1), round(100 * (c + h), 1)]
 
 
-def main():
+def per_set():
+    """Per request set and model: both specific requests right (with exploration; in one call), open request covers both
+    readings, the response names the choice, five samples cover both. Returns (cases, per) with per[(model, case)]."""
     C = {c["case"]: c for c in json.load(open(R + "/eval/frozen.json"))["cases"]}; J = json.load(open(DD + "/judge.json"))
-    V = json.load(open("human_supervision/verdicts.json")); verdict = {k: V[k.split("-")[-1]]["verdict"] for k in C}
-    scopes = {"all": sorted(C), "accepted": sorted(k for k in C if verdict[k] == "yes"),
-              "accepted_or_unsure": sorted(k for k in C if verdict[k] in ("yes", "unsure")),
-              "accepted_no_filter": sorted(k for k in C if verdict[k] == "yes" and k in set(CB.part_cases(0))),   # robustness: no filter rule
-              "accepted_all_types": sorted(k for k in C if verdict[k] == "yes" or "rare in real data" in V[k.split("-")[-1]].get("note", ""))}   # robustness: before the type rule
-    oth = lambda x: "B" if x == "A" else "A"; top = set(TK.subset()); res = {"verdicts": dict(collections.Counter(verdict.values())), "scopes": {}}
+    oth = lambda x: "B" if x == "A" else "A"; top = set(TK.subset())
     per = {}
     for m in MODELS:
         d = R + "/eval/runs/" + m.replace("-", "_") + "_b1"; pr = {}
@@ -48,6 +45,17 @@ def main():
             per[(m, k)] = {"explore_both": C[k]["intended"] in pr[(k, "precise")] and oth(C[k]["intended"]) in pr[(k, "precise_other")],
                            "single_both": sw[-1] in Dm[(k, sw)]["primary_matches"] and (k, ow) in Cm and ow[-1] in Cm[(k, ow)]["primary_matches"],
                            "covers": {"A", "B"} <= got, "names": (J.get("%s|open|%s" % (k, m)) or {}).get("flags_decision") is True, "topk": topk}
+    return C, per
+
+
+def main():
+    C, per = per_set()
+    V = json.load(open("human_supervision/verdicts.json")); verdict = {k: V[k.split("-")[-1]]["verdict"] for k in C}
+    scopes = {"all": sorted(C), "accepted": sorted(k for k in C if verdict[k] == "yes"),
+              "accepted_or_unsure": sorted(k for k in C if verdict[k] in ("yes", "unsure")),
+              "accepted_no_filter": sorted(k for k in C if verdict[k] == "yes" and k in set(CB.part_cases(0))),   # robustness: no filter rule
+              "accepted_all_types": sorted(k for k in C if verdict[k] == "yes" or "rare in real data" in V[k.split("-")[-1]].get("note", ""))}   # robustness: before the type rule
+    res = {"verdicts": dict(collections.Counter(verdict.values())), "scopes": {}}
     for sn, ks in scopes.items():
         S = {"n": len(ks), "models": {}}
         for m in MODELS:
