@@ -9,22 +9,29 @@ happens when a request leaves a calculation choice open (count rows or count ent
 saying so. We test this with *request sets*: three requests on the same data, one for each reading and one that leaves the choice
 open, all scored by execution.
 
+There are two ways to use this repository:
+
+1. **Offline reproduction (the main path).** Rebuild every figure, table and number in the paper from our saved model runs.
+   CPU only, no GPU, no model access, about 6 minutes.
+2. **Rerun with models (optional).** Call the models again to regenerate the saved runs. This needs model access and is
+   described at the end.
+
 ## Requirements
 
-- Python 3.11 and about 3 GB of free disk space. Any laptop works; no GPU is needed.
+- Python 3.11 and about 3 GB of free disk space. Any laptop CPU works.
 - Internet access once, to download the BIRD dev databases (346 MB).
 - We used an Apple M2 Max laptop (32 GB RAM), Python 3.11.5 and SQLite 3.41.2.
 
-## Reproduce the paper (about 6 minutes)
+## Offline reproduction (CPU only, about 6 minutes)
 
 ```sh
 git clone https://github.com/Xyc-arch/specbridge-artifact && cd specbridge-artifact
-python3 -m venv .venv      # Python 3.11 && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate     # Python 3.11
 make setup     # install the Python packages
 make all       # download BIRD dev, rebuild every figure and table, compare with the paper, run the tests
 ```
 
-No model access is needed: every result is rebuilt from the saved model runs in `out/`. If all is well, you will see these lines near the end:
+Every result is rebuilt from the saved model runs in `out/`; no model is called. If all is well, you will see these lines near the end:
 
 ```
 ALL OUTPUTS REPRODUCED
@@ -88,7 +95,7 @@ from methods.disclose import disclose     # list the readings, answer each, show
 from methods.clarify import edit          # clarify a request by adding one clause
 ```
 
-## Rerun the experiments (optional, needs model access)
+## Rerun with models (optional)
 
 The saved runs in `out/` are the outputs of the commands below. Each run saves one file per answer and skips answers it already
 has, so you can stop and restart it at any time. Choose one way to call the models:
