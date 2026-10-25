@@ -41,7 +41,8 @@ def save(fig, name, width=W):
         fig.canvas.draw(); bb = fig.get_tightbbox(fig.canvas.get_renderer()); wide = bb.width + 0.04
         if abs(wide - width) < 0.005: break
         fig.set_size_inches(fig.get_figwidth() + (width - wide), fig.get_figheight())
-    fig.savefig("%s/col_%s.pdf" % (FIG, name), bbox_inches="tight", pad_inches=0.02)
+    fig.savefig("%s/col_%s.pdf" % (FIG, name), bbox_inches="tight", pad_inches=0.02,
+                metadata={"CreationDate": None})                     # no timestamp: a rebuild gives the same bytes
     plt.close(fig); print("figure col_%s" % name)
 
 
