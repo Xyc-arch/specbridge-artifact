@@ -613,8 +613,6 @@ def ledger():
           x("fig6_inclination.json: boundary_between n summed over groups", lambda: sum(v["kinds"]["boundary_between"]["n"] for v in F6().values()))),
         E("S", r"Forty of the # cutoff requests", d("filter_sets", "per_type_sets/value_representation")),
         E("S", r"in # of the # cases where they compute both", d("filter_sets", "by_type_pooled/value_representation/covers_if_both"), d("filter_sets", "by_type_pooled/value_representation/both_specific")),
-        E("S", r"Filter request sets (#), four models pooled", d("filter_sets", "accepted")),
-        E("S", r"choice in the filter and the wording of the open request (Wilson #\% intervals)", K("confidence level")),
         E("S", r"Of the # rejected sets, # are the date ranges, # are cutoffs", d("filter_sets", "verdicts/no"),
           x("filter-run rejected sets of type time_scope", lambda: sum(1 for c in jl(FROZEN_ALL)["cases"] if c["case"] in part_cases(1) and c["type"] == "time_scope" and c not in accepted_cases())),
           x("filter-run rejected sets of type value_representation", lambda: sum(1 for c in jl(FROZEN_ALL)["cases"] if c["case"] in part_cases(1) and c["type"] == "value_representation" and c not in accepted_cases()))),

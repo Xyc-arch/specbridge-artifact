@@ -369,27 +369,6 @@ def outcomes():
     save(fig, "outcomes")
 
 
-def filters():
-    """The 71 filter request sets, pooled over the four models: by choice type, open requests answered with both readings
-    among the cases where the model computes both, and responses that name the choice (Opus judge)."""
-    T = d("filter_sets")["by_type_pooled"]
-    TY = [("value_representation", "value \u201cas the cutoff\u201d"), ("condition_linkage", "conditions on one record"),
-          ("population_scope", "entities without matches"), ("time_scope", "\u201cbetween\u201d two dates"), ("negated_membership_scope", "\u201cwithout\u201d")]
-    TY = [(k, l) for k, l in TY if T.get(k, {}).get("sets")]
-    fig, ax = plt.subplots(figsize=(W, 1.75)); y = np.arange(len(TY))[::-1]
-    for (k, l), yy in zip(TY, y):
-        for kk, n, off, mk, lab in [("covers_if_both", "both_specific", 0.13, "o", "both readings returned, if both computed"),
-                                    ("names", "sets", -0.13, "D", "choice named")]:
-            a, b = T[k][kk], T[k][n]; v = pct(a, b)
-            ax.errorbar(v, yy + off, xerr=err(wilson(a, b), v), fmt=mk, ms=3.2, color=BLUE if mk == "o" else RED, mfc=BLUE if mk == "o" else "none", lw=0.7, capsize=1.0)
-            ax.text(101, yy + off, "%d/%d" % (a, b), va="center", fontsize=6)
-    ax.set_yticks(y); ax.set_yticklabels([l for _k, l in TY]); ax.set_xlim(0, 100); ax.set_xlabel("% of model responses (four models pooled)")
-    h = [Line2D([], [], marker="o", ls="", color=BLUE, ms=3.2, label="both readings returned, if both computed"),
-         Line2D([], [], marker="D", ls="", mfc="none", mec=RED, ms=3.0, label="choice named")]
-    ax.legend(handles=h, loc="lower center", bbox_to_anchor=(0.35, 1.0), ncol=2, fontsize=6.5, handletextpad=0.2)
-    save(fig, "filters")
-
-
 def conventions():
     """Main answer to the open request on the 61 accepted tie and counting sets: the reading BIRD and Spider references take by
     convention, the other reading, or neither (single call with explanation)."""
@@ -535,6 +514,6 @@ def breakeven():
     save(fig, "breakeven")
 
 
-ALL = [funnel, breakeven, choices, bytype, coverage, ablation, specification, real, causes, disclosure, outcomes, defaults, impact, method, decomposition, rewrite, filters, conventions]
+ALL = [funnel, breakeven, choices, bytype, coverage, ablation, specification, real, causes, disclosure, outcomes, defaults, impact, method, decomposition, rewrite, conventions]
 if __name__ == "__main__":
     for fn in ([globals()[a] for a in sys.argv[1:]] or ALL): fn()

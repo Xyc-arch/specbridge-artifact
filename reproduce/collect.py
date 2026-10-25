@@ -6,7 +6,7 @@ OUT = "results"
 FIGURES = {"fig04": "choices", "fig05": "funnel", "fig06": "ablation", "fig07": "specification", "fig08": "disclosure",
            "fig09": "decomposition", "fig10": "outcomes", "fig11": "bytype", "fig12": "conventions", "fig13": "real",
            "fig14": "causes", "fig15": "defaults", "fig16": "impact", "fig18": "method", "fig19": "breakeven", "fig21": "rewrite",
-           "figS1": "coverage", "figS2": "filters"}
+           "figS1": "coverage"}
 TABLES = {"table1_comparison.tex": "out/paper/tables/comparison.tex", "table3_bird_rescoring.json": "out/rescore/results.json",
           "table4_methods.tex": "out/paper/tables/methods.tex"}
 
