@@ -2,16 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-6c0edf283c",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_status AS (SELECT s.healtheval AS healtheval, COUNT(DISTINCT c.zoneref) AS site_cnt FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY s.healtheval), shares AS (SELECT healtheval, site_cnt, site_cnt * 1.0 / SUM(site_cnt) OVER () AS share FROM per_status), with_avg AS (SELECT healtheval, site_cnt, share, AVG(share) OVER () AS avg_share FROM shares) SELECT AVG(site_cnt) AS avg_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM with_avg WHERE share > avg_share",
+  "sql": "WITH c AS (SELECT s.healtheval AS st, COUNT(DISTINCT sc.zoneref) AS cnt FROM scanconservation sc JOIN sites s ON s.zoneregistry = sc.zoneref GROUP BY s.healtheval), sh AS (SELECT st, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT st, cnt, share, AVG(share) OVER () AS avg_share FROM sh) SELECT AVG(cnt) AS avg_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share",
   "assumptions": [
    {
-    "assumption": "The average share is computed over all statuses (including the NULL group) before filtering. The three outputs are then averaged over only the statuses whose share is above that overall average.",
+    "assumption": "The average count, average share, and average excess are all taken over only the statuses that pass the filter (share above the average share across all statuses). The average share used as the threshold is computed over all statuses, including the NULL group.",
     "unresolved": false
    },
    {
-    "assumption": "If no status has a share above the average (for example, when all shares are equal), the query returns a single row of NULLs.",
+    "assumption": "A missing status means healtheval IS NULL. It is grouped as its own group, and empty strings are not treated specially.",
+    "unresolved": false
+   },
+   {
+    "assumption": "An inner join drops conservation records whose zoneref has no matching site.",
     "unresolved": false
    }
   ],
@@ -22,5 +26,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 6.2
+ "seconds": 8.4
 }

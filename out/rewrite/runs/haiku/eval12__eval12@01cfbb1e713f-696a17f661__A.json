@@ -3,17 +3,9 @@
  "model": "haiku",
  "reading": "A",
  "description": "Each college's size is the number of player_college records it has (player-years).",
- "b": {
-  "request": "For each `college_id` (NULL grouped as one group), count `player_college` rows; take the mean of those counts across colleges as the threshold; keep colleges whose count is strictly greater; return the mean of their counts, the mean of each count divided by the sum of all counts, and the mean of (count \u2212 threshold), unrounded",
-  "sql": "WITH counts AS (SELECT college_id, COUNT(*) AS cnt FROM player_college GROUP BY college_id), stats AS (SELECT AVG(cnt) AS threshold, SUM(cnt) AS total FROM counts), kept AS (SELECT c.cnt FROM counts c, stats s WHERE c.cnt > s.threshold) SELECT AVG(k.cnt) AS mean_count, AVG(1.0 * k.cnt / s.total) AS mean_share, AVG(k.cnt - s.threshold) AS mean_excess FROM kept k, stats s;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "a": {
-  "request": "In `player_college`, give each college (by `college_id`, with records lacking a college_id treated as one group) a count equal to its number of records, so every player-year row counts. Find the colleges whose count is strictly above the average count across all colleges. Return a single row with: (1) the average count among those colleges; (2) the average of each such college's count divided by the total of the counts summed over all colleges; and (3) the average amount by which their counts exceed the all-college average count. Do not round.",
-  "sql": "WITH college_counts AS (SELECT college_id, COUNT(*) AS cnt FROM player_college GROUP BY college_id), stats AS (SELECT AVG(cnt) AS avg_cnt, SUM(cnt) AS total_cnt FROM college_counts), above AS (SELECT c.cnt FROM college_counts c CROSS JOIN stats s WHERE c.cnt > s.avg_cnt) SELECT (SELECT AVG(cnt) FROM above) AS avg_count_above, (SELECT AVG(a.cnt * 1.0 / s.total_cnt) FROM above a CROSS JOIN stats s) AS avg_share_of_total, (SELECT AVG(a.cnt - s.avg_cnt) FROM above a CROSS JOIN stats s) AS avg_excess_over_mean;",
+ "d": {
+  "request": "Group player_college records by college_id (treating null college_ids as a separate group), count records per group, identify groups with count strictly exceeding the overall mean, and return: the mean count of those above-average groups, the mean of (each above-average group's count divided by the sum of all counts), and the mean of (each above-average group's count minus the overall mean count).",
+  "sql": "WITH grouped AS (SELECT college_id, COUNT(*) as cnt FROM player_college GROUP BY college_id), stats AS (SELECT AVG(cnt) as overall_mean, SUM(cnt) as total_count FROM grouped), above_mean_groups AS (SELECT g.cnt, s.overall_mean, s.total_count FROM grouped g, stats s WHERE g.cnt > s.overall_mean) SELECT AVG(cnt) as mean_count, AVG(cnt * 1.0 / total_count) as mean_proportion, AVG(cnt - overall_mean) as mean_difference FROM above_mean_groups",
   "executes": true,
   "matches": [
    "A"
@@ -21,19 +13,26 @@
  },
  "c": {
   "request": "Using `player_college`, work out each college's player count (by `college_id`, with records lacking a college_id treated as one group). Then find the colleges whose player count is strictly above the average across all colleges. Return a single row with: (1) those colleges' average player count; (2) the average of each one's player count as a fraction of the total of all colleges' player counts; and (3) the average amount by which they exceed the all-college average. Do not round. Each college's size is the number of player_college records it has (player-years).",
-  "sql": "WITH counts AS (SELECT college_id, COUNT(*) AS cnt FROM player_college GROUP BY college_id), stats AS (SELECT AVG(cnt) AS avg_cnt, SUM(cnt) AS total_cnt FROM counts), above AS (SELECT c.cnt FROM counts c, stats s WHERE c.cnt > s.avg_cnt) SELECT AVG(a.cnt) AS avg_above_count, AVG(a.cnt * 1.0 / s.total_cnt) AS avg_fraction_of_total, AVG(a.cnt - s.avg_cnt) AS avg_excess_over_all_college_avg FROM above a, stats s;",
+  "sql": "WITH college_counts AS (\n  SELECT college_id, COUNT(*) as player_count\n  FROM player_college\n  GROUP BY college_id\n),\noverall_stats AS (\n  SELECT AVG(player_count) as avg_player_count, SUM(player_count) as total_players\n  FROM college_counts\n),\nabove_avg_colleges AS (\n  SELECT cc.player_count, os.avg_player_count, os.total_players\n  FROM college_counts cc\n  CROSS JOIN overall_stats os\n  WHERE cc.player_count > os.avg_player_count\n)\nSELECT \n  AVG(player_count) as avg_count_above_avg,\n  AVG(CAST(player_count AS NUMERIC) / total_players) as avg_fraction_of_total,\n  AVG(player_count - avg_player_count) as avg_excess_above_mean\nFROM above_avg_colleges",
+  "executes": true,
+  "matches": []
+ },
+ "a": {
+  "request": "In `player_college`, give each college (by `college_id`, with records lacking a college_id treated as one group) a count equal to its number of records, so every player-year row counts. Find the colleges whose count is strictly above the average count across all colleges. Return a single row with: (1) the average count among those colleges; (2) the average of each such college's count divided by the total of the counts summed over all colleges; and (3) the average amount by which their counts exceed the all-college average count. Do not round.",
+  "sql": "WITH college_counts AS (\n  SELECT college_id, COUNT(*) as cnt\n  FROM player_college\n  GROUP BY college_id\n),\noverall_stats AS (\n  SELECT \n    AVG(CAST(cnt AS FLOAT)) as avg_count,\n    SUM(cnt) as total_count\n  FROM college_counts\n),\nabove_average_colleges AS (\n  SELECT cc.cnt\n  FROM college_counts cc\n  CROSS JOIN overall_stats os\n  WHERE cc.cnt > os.avg_count\n)\nSELECT\n  AVG(CAST(aac.cnt AS FLOAT)) as metric1,\n  AVG(CAST(aac.cnt AS FLOAT) / CAST(os.total_count AS FLOAT)) as metric2,\n  AVG(CAST(aac.cnt AS FLOAT) - os.avg_count) as metric3\nFROM above_average_colleges aac\nCROSS JOIN overall_stats os",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Rephrased as a standalone question:\n\nUsing `player_college`, count the number of `player_college` records for each `college_id` (treating records with no college_id as one group). Then find the colleges whose record count is strictly above the average record count across all colleges. Return a single row with: (1) the average record count of those colleges; (2) the average of each of those colleges' record count as a fraction of the total record count across all colleges; and (3) the average amount by which those colleges' record counts exceed the all-college average. Do not round.",
-  "sql": "WITH counts AS (SELECT college_id, COUNT(*) AS cnt FROM player_college GROUP BY college_id), avg_c AS (SELECT AVG(cnt) AS avg_cnt FROM counts), total AS (SELECT SUM(cnt) AS total_cnt FROM counts), above AS (SELECT c.cnt FROM counts c, avg_c a WHERE c.cnt > a.avg_cnt) SELECT (SELECT AVG(cnt) FROM above) AS avg_record_count, (SELECT AVG(1.0 * cnt / (SELECT total_cnt FROM total)) FROM above) AS avg_fraction_of_total, (SELECT AVG(cnt - (SELECT avg_cnt FROM avg_c)) FROM above) AS avg_excess_over_average",
+ "b": {
+  "request": "Group player_college records by college_id (treating NULL college_id as a single group), count records per group, calculate the mean count across all groups, select groups with count strictly above this mean, and return: (1) the mean record count of selected groups, (2) the mean of each selected group's count divided by the total count across all groups, and (3) the mean difference between each selected group's count and the overall mean count.",
+  "sql": "WITH grouped_counts AS (\n  SELECT college_id, COUNT(*) as group_count\n  FROM player_college\n  GROUP BY college_id\n),\noverall_stats AS (\n  SELECT \n    AVG(group_count) as overall_mean,\n    (SELECT COUNT(*) FROM player_college) as total_count\n  FROM grouped_counts\n),\nselected_groups AS (\n  SELECT \n    gc.group_count,\n    os.total_count,\n    os.overall_mean\n  FROM grouped_counts gc\n  CROSS JOIN overall_stats os\n  WHERE gc.group_count > os.overall_mean\n)\nSELECT \n  AVG(group_count) as mean_record_count_of_selected_groups,\n  AVG(CAST(group_count AS FLOAT) / total_count) as mean_proportion_of_total,\n  AVG(group_count - overall_mean) as mean_difference_from_overall_mean\nFROM selected_groups",
   "executes": true,
   "matches": [
    "A"
-  ]
- }
+  ],
+  "raw": "Group player_college records by college_id (treating NULL college_id as a single group), count records per group, calculate the mean count across all groups, select groups with count strictly above this mean, and return: (1) the mean record count of selected groups, (2) the mean of each selected group's count divided by the total count across all groups, and (3) the mean difference between each selected group's count and the overall mean count."
+ },
+ "calls": 6
 }

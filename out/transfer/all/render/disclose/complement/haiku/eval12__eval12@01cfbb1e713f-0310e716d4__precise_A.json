@@ -4,35 +4,24 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH rental_totals AS (SELECT r.rental_id, i.store_id, SUM(p.amount) AS total_paid FROM rental r JOIN inventory i ON i.inventory_id = r.inventory_id JOIN payment p ON p.rental_id = r.rental_id GROUP BY r.rental_id, i.store_id), store_avg AS (SELECT store_id, AVG(total_paid) AS avg_total FROM rental_totals GROUP BY store_id) SELECT rt.store_id, SUM(rt.total_paid) AS total_paid_sum, AVG(rt.total_paid - sa.avg_total) AS avg_excess FROM rental_totals rt JOIN store_avg sa ON sa.store_id = rt.store_id WHERE rt.total_paid > sa.avg_total GROUP BY rt.store_id ORDER BY rt.store_id;",
+  "sql": "WITH rental_payments AS (SELECT r.rental_id, i.store_id, SUM(p.amount) as rental_payment_total FROM rental r JOIN inventory i ON r.inventory_id = i.inventory_id LEFT JOIN payment p ON r.rental_id = p.rental_id GROUP BY r.rental_id, i.store_id), store_averages AS (SELECT store_id, AVG(rental_payment_total) as store_avg FROM rental_payments GROUP BY store_id) SELECT rp.store_id, SUM(rp.rental_payment_total) as sum_of_totals, AVG(rp.rental_payment_total - sa.store_avg) as avg_excess FROM rental_payments rp JOIN store_averages sa ON rp.store_id = sa.store_id WHERE rp.rental_payment_total > sa.store_avg GROUP BY rp.store_id",
   "assumptions": [
    {
-    "assumption": "Store is taken from the rented inventory copy (rental.inventory_id -> inventory.store_id), as the request specifies.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Only payments with a non-NULL rental_id count; each rental's total is the sum of its linked payments.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Rentals with no linked payments have no payment total, so they are excluded from the store averages (the inner join matches 'averages ignore missing values').",
-    "unresolved": false
-   },
-   {
-    "assumption": "The store-specific average is the mean of rental payment totals over that store's rentals only, and the 'average amount by which they exceed' is the mean of (rental total minus store average) over the qualifying rentals.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Amounts are returned unrounded, as the request asks.",
-    "unresolved": false
+    "assumption": "Rentals without any linked payments are represented as NULL payment totals. AVG() ignores these NULLs when computing the store-specific average, and the WHERE clause excludes them (NULL > average is never true). This interpretation aligns with \"Averages ignore missing values.\"",
+    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Rentals without linked payments should be treated as having payment total 0 (not NULL), so they are included in the store-specific average calculation. This would lower the average when a store has rentals with no payments.",
+    "sql": "WITH rental_payments AS (SELECT r.rental_id, i.store_id, COALESCE(SUM(p.amount), 0) as rental_payment_total FROM rental r JOIN inventory i ON r.inventory_id = i.inventory_id LEFT JOIN payment p ON r.rental_id = p.rental_id GROUP BY r.rental_id, i.store_id), store_averages AS (SELECT store_id, AVG(rental_payment_total) as store_avg FROM rental_payments GROUP BY store_id) SELECT rp.store_id, SUM(rp.rental_payment_total) as sum_of_totals, AVG(rp.rental_payment_total - sa.store_avg) as avg_excess FROM rental_payments rp JOIN store_averages sa ON rp.store_id = sa.store_id WHERE rp.rental_payment_total > sa.store_avg GROUP BY rp.store_id"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 9.9
+ "seconds": 78.2
 }

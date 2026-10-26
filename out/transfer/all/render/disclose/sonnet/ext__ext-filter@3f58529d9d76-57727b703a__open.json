@@ -2,27 +2,31 @@
  "case": "ext:ext-filter@3f58529d9d76-57727b703a",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_site AS (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(CAST(p.procgpu AS REAL) / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb > 60.8 GROUP BY s.zoneregistry, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat",
+  "sql": "WITH per_site AS (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(1.0 * p.procgpu / p.proccpu) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb > 60.8 GROUP BY s.zoneregistry, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat;",
   "assumptions": [
    {
-    "assumption": "'Memory-heavy' means memusagegb strictly greater than 60.8 (cutoff itself excluded).",
+    "assumption": "'Memory-heavy runs using 60.8 GB as the cutoff' means memusagegb strictly greater than 60.8 (runs at exactly 60.8 are excluded).",
+    "unresolved": true
+   },
+   {
+    "assumption": "Runs whose zoneref has no matching site are dropped (inner join). Sites with a NULL entrystat form their own group.",
     "unresolved": false
    },
    {
-    "assumption": "Runs with proccpu = 0 are treated as missing ratio (NULLIF) to avoid division by zero; NULL ratios are ignored by AVG. Ratio is computed per run, then averaged per site, then averaged per access status.",
+    "assumption": "The GPU/CPU ratio is computed per run as procgpu/proccpu using floating-point division. Rows with NULL values, or with proccpu = 0 (which gives NULL in SQLite), are ignored by AVG.",
     "unresolved": false
    },
    {
-    "assumption": "Groups are keyed by site code and entrystat (one entrystat per site), via an inner join to sites so unmatched zonerefs are excluded.",
+    "assumption": "The second-stage averages are unweighted means of the per-site averages. They are not weighted by the number of runs in each site.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Memory-heavy means memusagegb at or above 60.8 (cutoff inclusive).",
-    "sql": "WITH per_site AS (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(CAST(p.procgpu AS REAL) / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY s.zoneregistry, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat"
+    "interpretation": "The cutoff is inclusive: memusagegb >= 60.8.",
+    "sql": "WITH per_site AS (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(1.0 * p.procgpu / p.proccpu) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY s.zoneregistry, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat;"
    }
   ]
  },
@@ -33,14 +37,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Memory-heavy means memusagegb at or above 60.8 (cutoff inclusive).",
-   "sql": "WITH per_site AS (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(CAST(p.procgpu AS REAL) / NULLIF(p.proccpu, 0)) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY s.zoneregistry, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat",
+   "interpretation": "The cutoff is inclusive: memusagegb >= 60.8.",
+   "sql": "WITH per_site AS (SELECT s.zoneregistry, s.entrystat, AVG(p.memusagegb) AS avg_mem, AVG(1.0 * p.procgpu / p.proccpu) AS avg_ratio FROM scanprocessing p JOIN sites s ON s.zoneregistry = p.zoneref WHERE p.memusagegb >= 60.8 GROUP BY s.zoneregistry, s.entrystat) SELECT entrystat, AVG(avg_mem) AS avg_of_avg_memusagegb, AVG(avg_ratio) AS avg_of_avg_gpu_cpu_ratio FROM per_site GROUP BY entrystat;",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 12.2,
- "chars_out": 1490
+ "seconds": 10.1,
+ "chars_out": 1692
 }

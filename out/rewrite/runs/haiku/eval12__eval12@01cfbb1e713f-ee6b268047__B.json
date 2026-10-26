@@ -3,9 +3,16 @@
  "model": "haiku",
  "reading": "B",
  "description": "Rank telescopes by their share of all signals and return every telescope whose share is at least the 10th-highest share, including all ties at the cut.",
- "c": {
-  "request": "What are the top 10 telescopes by share of detected signals? For each telescope reference (`telescref`), show how many signals it detected and what fraction of all signals that is (unrounded), from the largest share down. Rank telescopes by their share of all signals and return every telescope whose share is at least the 10th-highest share, including all ties at the cut.",
-  "sql": "WITH counts AS (SELECT telescref, COUNT(*) AS signal_count FROM signals GROUP BY telescref), total AS (SELECT COUNT(*) AS total_signals FROM signals), shares AS (SELECT c.telescref, c.signal_count, c.signal_count * 1.0 / t.total_signals AS share FROM counts c CROSS JOIN total t) SELECT telescref, signal_count, share FROM shares WHERE share >= (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) ORDER BY share DESC;",
+ "b": {
+  "request": "Rank telescopes by their share of detected signals and return all telescopes whose share is greater than or equal to the 10th-highest share, including all tied at that cutoff point.",
+  "sql": "WITH signal_counts AS (SELECT t.telescregistry, COUNT(s.signalregistry) as signal_count, COUNT(s.signalregistry)::float / (SELECT COUNT(*) FROM signals) as share FROM telescopes t INNER JOIN signals s ON t.telescregistry = s.telescref GROUP BY t.telescregistry), ranked AS (SELECT *, DENSE_RANK() OVER (ORDER BY share DESC) as rank FROM signal_counts) SELECT telescregistry, signal_count, share FROM ranked WHERE rank <= 10 ORDER BY share DESC, telescregistry",
+  "executes": false,
+  "matches": [],
+  "raw": "Rank telescopes by their share of detected signals and return all telescopes whose share is greater than or equal to the 10th-highest share, including all tied at that cutoff point."
+ },
+ "d": {
+  "request": "For each telescope, calculate the number of signals it detected and compute its share of all signals (as an unrounded proportion), then return all telescopes whose share is greater than or equal to the 10th-highest share value, sorted by share in descending order.",
+  "sql": "WITH signal_counts AS (\n  SELECT \n    telescref,\n    COUNT(*) as signal_count\n  FROM signals\n  GROUP BY telescref\n),\ntotal_signals AS (\n  SELECT COUNT(*) as total FROM signals\n),\ntelescope_shares AS (\n  SELECT \n    sc.telescref,\n    sc.signal_count,\n    CAST(sc.signal_count AS FLOAT) / ts.total as share\n  FROM signal_counts sc\n  CROSS JOIN total_signals ts\n),\nthreshold AS (\n  SELECT share FROM telescope_shares \n  ORDER BY share DESC \n  LIMIT 1 OFFSET 9\n)\nSELECT \n  ts.telescref,\n  ts.signal_count,\n  ts.share\nFROM telescope_shares ts\nCROSS JOIN threshold\nWHERE ts.share >= threshold.share\nORDER BY ts.share DESC",
   "executes": true,
   "matches": [
    "B"
@@ -13,27 +20,19 @@
  },
  "a": {
   "request": "For each telescope reference (`telescref`) in the signals table, count its signals and compute that count as an unrounded fraction of all signals. Show the telescope reference, the signal count and the fraction, sorted by fraction from highest to lowest, and return the top 10, including every telescope tied with the 10th one even if that gives more than 10 rows.",
-  "sql": "WITH counts AS (SELECT telescref, COUNT(*) AS signal_count FROM signals GROUP BY telescref), total AS (SELECT COUNT(*) AS n FROM signals), ranked AS (SELECT c.telescref, c.signal_count, CAST(c.signal_count AS DOUBLE PRECISION) / t.n AS fraction, RANK() OVER (ORDER BY CAST(c.signal_count AS DOUBLE PRECISION) / t.n DESC) AS rnk FROM counts c CROSS JOIN total t) SELECT telescref, signal_count, fraction FROM ranked WHERE rnk <= 10 ORDER BY fraction DESC, telescref;",
+  "sql": "WITH signal_counts AS (\n  SELECT \n    telescref,\n    COUNT(*) as signal_count\n  FROM signals\n  GROUP BY telescref\n),\nfractions AS (\n  SELECT \n    sc.telescref,\n    sc.signal_count,\n    sc.signal_count * 1.0 / (SELECT COUNT(*) FROM signals) as fraction\n  FROM signal_counts sc\n)\nSELECT \n  f.telescref,\n  f.signal_count,\n  f.fraction\nFROM fractions f\nWHERE f.fraction >= (\n  SELECT MIN(fraction) FROM (\n    SELECT fraction FROM fractions\n    ORDER BY fraction DESC\n    LIMIT 10\n  ) AS top_10\n)\nORDER BY f.fraction DESC;",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "b": {
-  "request": "Return each telescref with its signal count and unrounded share of all signals, ordered by share descending, including every telescope whose share is at least the 10th-highest share (ties at the cutoff included)",
-  "sql": "WITH counts AS (SELECT telescref, COUNT(*) AS signal_count FROM signals GROUP BY telescref), shares AS (SELECT telescref, signal_count, 1.0 * signal_count / (SELECT COUNT(*) FROM signals) AS share FROM counts) SELECT telescref, signal_count, share FROM shares WHERE share >= (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) ORDER BY share DESC;",
+ "c": {
+  "request": "What are the top 10 telescopes by share of detected signals? For each telescope reference (`telescref`), show how many signals it detected and what fraction of all signals that is (unrounded), from the largest share down. Rank telescopes by their share of all signals and return every telescope whose share is at least the 10th-highest share, including all ties at the cut.",
+  "sql": "WITH signal_counts AS (SELECT telescref, COUNT(*) as signal_count FROM signals GROUP BY telescref), total_signals AS (SELECT COUNT(*) as total FROM signals), signal_shares AS (SELECT sc.telescref, sc.signal_count, CAST(sc.signal_count AS FLOAT) / ts.total as share, ROW_NUMBER() OVER (ORDER BY sc.signal_count DESC) as row_num FROM signal_counts sc CROSS JOIN total_signals ts) SELECT telescref, signal_count, share FROM signal_shares WHERE row_num <= 10 ORDER BY share DESC",
   "executes": true,
   "matches": [
-   "B"
+   "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Which telescopes rank in the top 10 by share of all detected signals, showing each `telescref`, its signal count, and its unrounded fraction of all signals, and include every telescope whose share is at least the 10th-highest share, including ties at the cut?",
-  "sql": "WITH counts AS (SELECT telescref, COUNT(*) AS signal_count FROM signals GROUP BY telescref), total AS (SELECT COUNT(*) AS total_signals FROM signals), shares AS (SELECT c.telescref, c.signal_count, c.signal_count * 1.0 / t.total_signals AS share FROM counts c CROSS JOIN total t), cutoff AS (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) SELECT s.telescref, s.signal_count, s.share FROM shares s WHERE s.share >= COALESCE((SELECT share FROM cutoff), 0) ORDER BY s.share DESC",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

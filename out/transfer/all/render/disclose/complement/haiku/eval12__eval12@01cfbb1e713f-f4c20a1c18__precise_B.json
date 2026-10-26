@@ -4,32 +4,14 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH region_counts AS (SELECT dt.A3 AS region, COUNT(*) AS cnt FROM disp d JOIN account a ON a.account_id = d.account_id JOIN district dt ON dt.district_id = a.district_id GROUP BY dt.A3), shares AS (SELECT region, cnt, 1.0 * cnt / (SELECT SUM(cnt) FROM region_counts) AS share FROM region_counts), stats AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.cnt, s.share, st.avg_share FROM shares s CROSS JOIN stats st WHERE s.share > st.avg_share) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_mean FROM above;",
-  "assumptions": [
-   {
-    "assumption": "Each disp row is a distinct (client, account) link, so COUNT(*) per region counts each link once; all disp.type values (OWNER, USER, DISPONENT) are included because the request does not filter by type.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Only regions with at least one linked client appear in the share calculation, so the average share is the unweighted mean over those regions. Regions with zero links are excluded rather than counted as 0%.",
-    "unresolved": true
-   },
-   {
-    "assumption": "'Above the average share' is a strict comparison (share > average share), and 'how far above' is the mean of (share - average share) over the qualifying regions.",
-    "unresolved": false
-   }
-  ],
-  "alternatives": [
-   {
-    "interpretation": "Include every region in district.A3, including regions with zero linked clients (count 0, share 0), so they lower the average share.",
-    "sql": "WITH region_counts AS (SELECT dt.A3 AS region, COUNT(d.disp_id) AS cnt FROM district dt LEFT JOIN account a ON a.district_id = dt.district_id LEFT JOIN disp d ON d.account_id = a.account_id GROUP BY dt.A3), shares AS (SELECT region, cnt, 1.0 * cnt / (SELECT SUM(cnt) FROM region_counts) AS share FROM region_counts), stats AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.cnt, s.share, st.avg_share FROM shares s CROSS JOIN stats st WHERE s.share > st.avg_share) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess_over_mean FROM above;"
-   }
-  ]
+  "sql": "WITH client_by_region AS (\n  SELECT \n    d.A3 as region,\n    COUNT(*) as region_count\n  FROM disp\n  JOIN account a ON disp.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n  GROUP BY d.A3\n),\ntotal_count AS (\n  SELECT SUM(region_count) as total FROM client_by_region\n),\nregion_shares AS (\n  SELECT \n    region,\n    region_count,\n    CAST(region_count AS FLOAT) / (SELECT total FROM total_count) as share\n  FROM client_by_region\n),\navg_share AS (\n  SELECT AVG(share) as avg_share FROM region_shares\n),\nfiltered_regions AS (\n  SELECT rs.* FROM region_shares rs CROSS JOIN avg_share a\n  WHERE rs.share > a.avg_share\n)\nSELECT \n  SUM(region_count) as total_count,\n  AVG(share) as avg_share,\n  AVG(share - (SELECT avg_share FROM avg_share)) as avg_distance_above\nFROM filtered_regions",
+  "assumptions": [],
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 15.7
+ "seconds": 104.6
 }

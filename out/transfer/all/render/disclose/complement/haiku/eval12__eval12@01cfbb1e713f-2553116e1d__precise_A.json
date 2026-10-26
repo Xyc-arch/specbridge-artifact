@@ -4,27 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH cust_orders AS (SELECT c.customer_id, c.gender, COUNT(o.order_id) AS num_orders FROM Customers c JOIN Orders o ON o.customer_id = c.customer_id WHERE c.gender IS NOT NULL AND TRIM(c.gender) <> '' GROUP BY c.customer_id, c.gender), gender_totals AS (SELECT gender, SUM(num_orders) AS gender_orders FROM cust_orders GROUP BY gender), shares AS (SELECT co.customer_id, co.gender, co.num_orders, CAST(co.num_orders AS REAL) / gt.gender_orders AS share FROM cust_orders co JOIN gender_totals gt ON gt.gender = co.gender), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.customer_id, s.gender, s.num_orders, s.share, s.share - a.avg_share AS gap_above_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share ORDER BY gap_above_avg DESC NULLS LAST LIMIT 10;",
-  "assumptions": [
+  "sql": "WITH customer_orders AS (\n  SELECT \n    c.customer_id,\n    c.gender,\n    COUNT(*) as order_count\n  FROM Customers c\n  INNER JOIN Orders o ON c.customer_id = o.customer_id\n  WHERE c.gender IS NOT NULL\n  GROUP BY c.customer_id, c.gender\n),\ngender_totals AS (\n  SELECT \n    gender,\n    SUM(order_count) as gender_order_total\n  FROM customer_orders\n  GROUP BY gender\n),\nshares AS (\n  SELECT \n    co.customer_id,\n    co.gender,\n    co.order_count,\n    CAST(co.order_count AS DECIMAL(19,4)) / CAST(gt.gender_order_total AS DECIMAL(19,4)) as share\n  FROM customer_orders co\n  JOIN gender_totals gt ON co.gender = gt.gender\n),\navg_share AS (\n  SELECT AVG(share) as average_share\n  FROM shares\n)\nSELECT \n  s.customer_id,\n  s.gender,\n  s.order_count,\n  s.share,\n  s.share - a.average_share as gap_above_average\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.average_share\nORDER BY gap_above_average DESC\nLIMIT 10;",
+  "assumptions": [],
+  "alternatives": [
    {
-    "assumption": "Each customer's order count is the number of rows in Orders for that customer, and only customers with at least one order are included. A customer's share is their order count divided by the total order count of all qualifying customers with the same gender.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A customer has no gender recorded when gender is NULL or blank after trimming. Blank strings are treated as missing, which the request does not spell out.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The average share is the plain mean of every qualifying customer's share, pooled across genders, as the request says 'the average share across these customers'. A customer is above average when share is strictly greater than that mean, and the gap is share minus the mean.",
-    "unresolved": false
+    "interpretation": "The 'average share' could be calculated within each gender group instead of globally, so customers are compared only against the average share of other customers in their same gender.",
+    "sql": "WITH customer_orders AS (\n  SELECT \n    c.customer_id,\n    c.gender,\n    COUNT(*) as order_count\n  FROM Customers c\n  INNER JOIN Orders o ON c.customer_id = o.customer_id\n  WHERE c.gender IS NOT NULL\n  GROUP BY c.customer_id, c.gender\n),\ngender_totals AS (\n  SELECT \n    gender,\n    SUM(order_count) as gender_order_total\n  FROM customer_orders\n  GROUP BY gender\n),\nshares AS (\n  SELECT \n    co.customer_id,\n    co.gender,\n    co.order_count,\n    CAST(co.order_count AS DECIMAL(19,4)) / CAST(gt.gender_order_total AS DECIMAL(19,4)) as share\n  FROM customer_orders co\n  JOIN gender_totals gt ON co.gender = gt.gender\n),\ngender_avg_share AS (\n  SELECT \n    gender,\n    AVG(share) as average_share\n  FROM shares\n  GROUP BY gender\n)\nSELECT \n  s.customer_id,\n  s.gender,\n  s.order_count,\n  s.share,\n  s.share - g.average_share as gap_above_average\nFROM shares s\nJOIN gender_avg_share g ON s.gender = g.gender\nWHERE s.share > g.average_share\nORDER BY gap_above_average DESC\nLIMIT 10;"
    }
-  ],
-  "alternatives": []
+  ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 11.6
+ "primary_matches": [],
+ "seconds": 97.2
 }

@@ -2,12 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH equipment_averages AS (\n  SELECT equipref, AVG(humepct) AS avg_humidity\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n), overall AS (\n  SELECT AVG(avg_humidity) AS overall_avg\n  FROM equipment_averages\n), kept AS (\n  SELECT ea.equipref, ea.avg_humidity, o.overall_avg\n  FROM equipment_averages ea\n  CROSS JOIN overall o\n  WHERE o.overall_avg IS NOT NULL\n    AND ea.avg_humidity > o.overall_avg\n), kept_mean AS (\n  SELECT AVG(avg_humidity) AS kept_avg\n  FROM kept\n), results AS (\n  SELECT k.equipref,\n         k.avg_humidity,\n         k.avg_humidity - k.overall_avg AS above_overall_avg,\n         k.avg_humidity - km.kept_avg AS difference_from_kept_mean\n  FROM kept k\n  CROSS JOIN kept_mean km\n  WHERE k.overall_avg IS NOT NULL\n    AND km.kept_avg IS NOT NULL\n)\nSELECT equipref, avg_humidity, above_overall_avg, difference_from_kept_mean\nFROM results\nORDER BY difference_from_kept_mean DESC NULLS LAST\nFETCH FIRST 10 ROWS WITH TIES;",
+  "sql": "WITH equipment_averages AS (\n  SELECT equipref, AVG(humepct) AS avg_humidity\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n), reference_averages AS (\n  SELECT AVG(avg_humidity) AS all_equipment_avg\n  FROM equipment_averages\n), kept AS (\n  SELECT ea.equipref,\n         ea.avg_humidity,\n         ea.avg_humidity - ra.all_equipment_avg AS excess\n  FROM equipment_averages AS ea\n  CROSS JOIN reference_averages AS ra\n  WHERE ra.all_equipment_avg IS NOT NULL\n    AND ea.avg_humidity > ra.all_equipment_avg\n), kept_reference AS (\n  SELECT AVG(avg_humidity) AS kept_avg\n  FROM kept\n), ranked AS (\n  SELECT k.equipref,\n         k.avg_humidity,\n         k.excess,\n         k.avg_humidity - kr.kept_avg AS difference_from_kept_mean\n  FROM kept AS k\n  CROSS JOIN kept_reference AS kr\n  WHERE kr.kept_avg IS NOT NULL\n)\nSELECT equipref,\n       avg_humidity,\n       excess,\n       difference_from_kept_mean\nFROM ranked\nORDER BY difference_from_kept_mean DESC NULLS LAST\nLIMIT 10 WITH TIES;",
   "assumptions": [
    {
-    "assumption": "The average of all equipment averages is the unweighted mean of per-equipment averages; equipment with no nonmissing humidity readings has no average and is excluded.",
+    "assumption": "The all-equipment average is the unweighted average of each equipment reference's non-NULL humidity average; equipment with no non-NULL readings is excluded. The kept-group mean is likewise the unweighted average of the kept equipment averages.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Use SQLite's LIMIT 10 WITH TIES syntax to include every row tied with the tenth row under the requested sort order.",
     "unresolved": false
    }
   ],
@@ -16,5 +20,5 @@
  "raw": null,
  "primary_executes": false,
  "primary_matches": [],
- "seconds": 3573.2
+ "seconds": 8.2
 }

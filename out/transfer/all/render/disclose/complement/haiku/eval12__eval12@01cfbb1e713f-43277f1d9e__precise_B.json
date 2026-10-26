@@ -2,28 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-43277f1d9e",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (\n  SELECT f.feesnode, f.feerate - f.rebrate AS net_rate, NULLIF(o.mktnote, '') AS pair\n  FROM fees f\n  JOIN orders o ON o.recordvault = f.orderslink\n),\npair_avg AS (\n  SELECT pair, AVG(net_rate) AS avg_net\n  FROM matched\n  GROUP BY pair\n),\nbenchmark AS (\n  SELECT AVG(net_rate) AS bench FROM matched\n),\nkept AS (\n  SELECT p.pair, p.avg_net, p.avg_net - b.bench AS excess\n  FROM pair_avg p\n  CROSS JOIN benchmark b\n  WHERE p.avg_net > b.bench\n)\nSELECT AVG(avg_net) AS avg_of_pair_avg_net,\n       AVG(excess) AS avg_excess_over_benchmark\nFROM kept;",
+  "sql": "WITH matched_fees AS (SELECT f.feerate, f.rebrate, o.mktnote FROM fees f INNER JOIN orders o ON f.orderslink = o.recordvault), fees_with_net AS (SELECT mktnote, (feerate - rebrate) as net_fee_rate FROM matched_fees), benchmark AS (SELECT AVG(net_fee_rate) as benchmark_rate FROM fees_with_net), pair_stats AS (SELECT mktnote, AVG(net_fee_rate) as pair_avg_rate FROM fees_with_net GROUP BY mktnote), above_benchmark AS (SELECT pair_avg_rate, (pair_avg_rate - benchmark_rate) as excess FROM pair_stats CROSS JOIN benchmark WHERE benchmark_rate IS NOT NULL AND pair_avg_rate > benchmark_rate) SELECT AVG(pair_avg_rate) as avg_of_pair_averages, AVG(excess) as avg_excess_over_benchmark FROM above_benchmark;",
   "assumptions": [
    {
-    "assumption": "orders.recordvault is unique, so the join does not duplicate fee rows. The schema only makes orderspivot the primary key, though the documentation calls recordvault a unique reference.",
-    "unresolved": true
-   },
-   {
-    "assumption": "A missing trading pair means mktnote is NULL or an empty string; NULLIF maps both to one NULL group.",
-    "unresolved": true
-   },
-   {
-    "assumption": "A fee record's net rate is feerate - rebrate. If either value is NULL, the net rate is NULL and is skipped in every average, so it does not count as zero.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Order matching uses plain text equality with no trimming or case folding, as the request asks for exact comparison.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The benchmark is the plain average of net rates over all matched fee records, and each pair's average uses the same net-rate definition. If no matched record has a non-NULL net rate, the benchmark is NULL and the query returns NULL for both results.",
+    "assumption": "NULL values in feerate or rebrate produce NULL net_fee_rate, which are skipped by AVG() per the 'skip missing values' directive. If all matched fees lack both non-NULL values, benchmark becomes NULL and the result is NULL (satisfying 'if benchmark is missing, keep none').",
     "unresolved": false
    }
   ],
@@ -34,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 12.8
+ "seconds": 60.2
 }

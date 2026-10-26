@@ -2,23 +2,10 @@
  "case": "eval12:eval12@01cfbb1e713f-11c73410e6",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (\n  SELECT s.signalregistry, s.pulsepersec, t.telescregistry, t.equipstatus\n  FROM signals s\n  INNER JOIN telescopes t ON s.telescref = t.telescregistry\n),\ntelescope_stats AS (\n  SELECT \n    telescregistry,\n    equipstatus,\n    AVG(pulsepersec) as telescope_avg\n  FROM matched\n  WHERE pulsepersec IS NOT NULL\n  GROUP BY telescregistry, equipstatus\n),\nstatus_stats AS (\n  SELECT \n    equipstatus,\n    AVG(telescope_avg) as status_avg\n  FROM telescope_stats\n  GROUP BY equipstatus\n),\nfirst_mean_val AS (\n  SELECT AVG(status_avg) as first_mean FROM status_stats\n),\nabove_first AS (\n  SELECT \n    ss.equipstatus,\n    ss.status_avg,\n    ss.status_avg - fm.first_mean as excess_first\n  FROM status_stats ss\n  CROSS JOIN first_mean_val fm\n  WHERE ss.status_avg > fm.first_mean\n),\nsecond_mean_val AS (\n  SELECT AVG(status_avg) as second_mean FROM above_first\n),\nabove_second AS (\n  SELECT \n    af.equipstatus,\n    af.status_avg,\n    af.excess_first,\n    af.status_avg - sm.second_mean as excess_second\n  FROM above_first af\n  CROSS JOIN second_mean_val sm\n  WHERE af.status_avg > sm.second_mean\n)\nSELECT \n  AVG(status_avg) as avg_pulse_rate_average,\n  AVG(excess_first) as avg_excess_over_first_mean,\n  AVG(excess_second) as avg_excess_over_second_mean\nFROM above_second",
-  "assumptions": [
-   {
-    "assumption": "Signals with NULL pulsepersec are excluded when computing telescope-level averages ('ignoring missing pulse rates' applies to per-telescope averaging).",
-    "unresolved": false
-   },
-   {
-    "assumption": "Telescopes with no signals, or only signals with NULL pulsepersec, do not contribute to status-level averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The strict inequality (>) is used in both filtering passes; a status exactly equal to a mean is not kept.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH step1 AS (\n  SELECT \n    t.equipstatus,\n    t.telescregistry,\n    AVG(s.pulsepersec) as telescope_avg_pulse\n  FROM signals s\n  INNER JOIN telescopes t ON s.telescref = t.telescregistry\n  WHERE s.pulsepersec IS NOT NULL\n  GROUP BY t.equipstatus, t.telescregistry\n),\nstep2 AS (\n  SELECT \n    equipstatus,\n    AVG(telescope_avg_pulse) as status_avg_pulse\n  FROM step1\n  GROUP BY equipstatus\n),\nfirst_mean AS (\n  SELECT AVG(status_avg_pulse) as mean1 FROM step2\n),\nstep3 AS (\n  SELECT \n    step2.equipstatus,\n    step2.status_avg_pulse,\n    step2.status_avg_pulse - first_mean.mean1 as excess1\n  FROM step2\n  CROSS JOIN first_mean\n  WHERE step2.status_avg_pulse > first_mean.mean1\n),\nsecond_mean AS (\n  SELECT AVG(status_avg_pulse) as mean2 FROM step3\n),\nstep4 AS (\n  SELECT \n    step3.equipstatus,\n    step3.status_avg_pulse,\n    step3.excess1,\n    step3.status_avg_pulse - second_mean.mean2 as excess2\n  FROM step3\n  CROSS JOIN second_mean\n  WHERE step3.status_avg_pulse > second_mean.mean2\n)\nSELECT\n  AVG(status_avg_pulse) as final_avg_pulse,\n  AVG(excess1) as avg_excess_over_first,\n  AVG(excess2) as avg_excess_over_second\nFROM step4",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
@@ -27,6 +14,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 45.8,
- "chars_out": 1955
+ "seconds": 76.8,
+ "chars_out": 1255
 }

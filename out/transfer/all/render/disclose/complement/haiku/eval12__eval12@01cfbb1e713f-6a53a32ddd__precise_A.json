@@ -2,39 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH spatial AS (\n  SELECT p.fundflux,\n         (CAST(s.boxy AS DOUBLE PRECISION) - CAST(s.boxx AS DOUBLE PRECISION)) / NULLIF(CAST(s.boxx AS DOUBLE PRECISION), 0) AS yx_diff,\n         CAST(s.aream2 AS DOUBLE PRECISION) / NULLIF(CAST(s.volm3 AS DOUBLE PRECISION), 0) AS atv\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  WHERE p.fundflux IS NOT NULL\n),\nper_source AS (\n  SELECT fundflux,\n         AVG(yx_diff) AS avg_yx_diff,\n         AVG(atv) AS avg_atv\n  FROM spatial\n  GROUP BY fundflux\n),\noverall AS (\n  SELECT AVG(avg_atv) AS cross_avg\n  FROM per_source\n)\nSELECT ps.fundflux,\n       ps.avg_yx_diff,\n       ps.avg_atv,\n       ps.avg_atv - o.cross_avg AS above_cross_avg_by\nFROM per_source ps\nCROSS JOIN overall o\nWHERE ps.avg_atv > o.cross_avg;",
+  "sql": "WITH project_spatial AS (\n  SELECT \n    p.fundflux,\n    ss.boxx,\n    ss.boxy,\n    ss.aream2,\n    ss.volm3\n  FROM projects p\n  JOIN scanspatial ss ON p.arcregistry = ss.arcref\n),\nfunding_metrics AS (\n  SELECT \n    fundflux,\n    AVG(CASE WHEN boxx IS NOT NULL AND boxx != 0 AND boxy IS NOT NULL \n              THEN (boxy - boxx) / boxx ELSE NULL END) as avg_y_vs_x,\n    AVG(CASE WHEN volm3 IS NOT NULL AND volm3 != 0 AND aream2 IS NOT NULL \n              THEN aream2 / volm3 ELSE NULL END) as avg_area_to_vol\n  FROM project_spatial\n  GROUP BY fundflux\n),\ncross_avg AS (\n  SELECT AVG(avg_area_to_vol) as overall_avg\n  FROM funding_metrics\n)\nSELECT \n  fm.fundflux,\n  fm.avg_y_vs_x,\n  fm.avg_area_to_vol,\n  fm.avg_area_to_vol - ca.overall_avg as above_average\nFROM funding_metrics fm\nCROSS JOIN cross_avg ca\nWHERE fm.avg_area_to_vol > ca.overall_avg\nORDER BY fm.fundflux;",
   "assumptions": [
    {
-    "assumption": "Database is PostgreSQL (the CONSTRAINT and quoted-identifier syntax indicates it), so CAST(... AS DOUBLE PRECISION) is used to keep the division exact-as-possible with no rounding.",
+    "assumption": "\"Ignore missing values\" means calculate each metric only from spatial records where the relevant values are non-NULL and non-zero (for denominators). Records with missing values for one metric are still included in calculations for the other metric if they have valid data.",
     "unresolved": false
    },
    {
-    "assumption": "Only scanspatial rows whose arcref matches a projects.arcregistry are kept (inner join); unmatched rows are dropped as the request says.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Projects with a NULL fundflux are not a funding source and are excluded.",
-    "unresolved": true
-   },
-   {
-    "assumption": "A zero boxx or volm3 is treated as missing (NULLIF to NULL) rather than causing a division error, so it is ignored in the averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Per-record NULLs make that record's ratio NULL, and AVG ignores it, so only valid records count toward each source's averages. A source with no valid area-to-volume value is left out of the cross-source average and cannot be listed.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The cross-source average is the simple (unweighted) mean of each source's average area-to-volume figure, as the request states.",
+    "assumption": "The cross-source average of area-to-volume figures is computed from all funding sources in the result set (those with valid avg_area_to_vol values); funding sources with no spatial records contribute NULL and are excluded from the average by SQL's AVG function.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Keep projects with a NULL funding source as their own group, labelled '(unspecified)', instead of excluding them.",
-    "sql": "WITH spatial AS (\n  SELECT COALESCE(p.fundflux, '(unspecified)') AS fundflux,\n         (CAST(s.boxy AS DOUBLE PRECISION) - CAST(s.boxx AS DOUBLE PRECISION)) / NULLIF(CAST(s.boxx AS DOUBLE PRECISION), 0) AS yx_diff,\n         CAST(s.aream2 AS DOUBLE PRECISION) / NULLIF(CAST(s.volm3 AS DOUBLE PRECISION), 0) AS atv\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n),\nper_source AS (\n  SELECT fundflux,\n         AVG(yx_diff) AS avg_yx_diff,\n         AVG(atv) AS avg_atv\n  FROM spatial\n  GROUP BY fundflux\n),\noverall AS (\n  SELECT AVG(avg_atv) AS cross_avg\n  FROM per_source\n)\nSELECT ps.fundflux,\n       ps.avg_yx_diff,\n       ps.avg_atv,\n       ps.avg_atv - o.cross_avg AS above_cross_avg_by\nFROM per_source ps\nCROSS JOIN overall o\nWHERE ps.avg_atv > o.cross_avg;"
+    "interpretation": "\"Ignore missing values\" could mean: exclude any spatial record that has a missing value for either metric from both calculations, rather than treating each metric independently. This would reduce the sample size for both averages if a record lacks data for either metric.",
+    "sql": "WITH project_spatial AS (\n  SELECT \n    p.fundflux,\n    ss.boxx,\n    ss.boxy,\n    ss.aream2,\n    ss.volm3\n  FROM projects p\n  JOIN scanspatial ss ON p.arcregistry = ss.arcref\n  WHERE ss.boxx IS NOT NULL AND ss.boxx != 0 AND ss.boxy IS NOT NULL\n    AND ss.aream2 IS NOT NULL AND ss.volm3 IS NOT NULL AND ss.volm3 != 0\n),\nfunding_metrics AS (\n  SELECT \n    fundflux,\n    AVG((boxy - boxx) / boxx) as avg_y_vs_x,\n    AVG(aream2 / volm3) as avg_area_to_vol\n  FROM project_spatial\n  GROUP BY fundflux\n),\ncross_avg AS (\n  SELECT AVG(avg_area_to_vol) as overall_avg\n  FROM funding_metrics\n)\nSELECT \n  fm.fundflux,\n  fm.avg_y_vs_x,\n  fm.avg_area_to_vol,\n  fm.avg_area_to_vol - ca.overall_avg as above_average\nFROM funding_metrics fm\nCROSS JOIN cross_avg ca\nWHERE fm.avg_area_to_vol > ca.overall_avg\nORDER BY fm.fundflux;"
    }
   ]
  },
@@ -43,5 +27,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 18.0
+ "seconds": 85.3
 }

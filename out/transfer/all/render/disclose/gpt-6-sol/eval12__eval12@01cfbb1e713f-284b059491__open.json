@@ -2,33 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-284b059491",
  "wording": "open",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH total AS (SELECT SUM(articount) AS artifact_total FROM scanfeatures), shares AS (SELECT f.traitregistry, f.zoneref, f.articount, f.articount::numeric / t.artifact_total AS share FROM scanfeatures AS f CROSS JOIN total AS t WHERE f.articount IS NOT NULL AND t.artifact_total IS NOT NULL AND t.artifact_total <> 0), scored AS (SELECT *, AVG(share) OVER () AS average_share FROM shares) SELECT zoneref, articount, share, share - average_share AS difference_from_average FROM scored WHERE average_share IS NOT NULL ORDER BY difference_from_average DESC NULLS LAST, zoneref, traitregistry LIMIT 10;",
+  "sql": "WITH total AS (SELECT SUM(articount) AS artifacts FROM scanfeatures), shares AS (SELECT f.traitregistry, f.zoneref, f.articount, 1.0 * f.articount / NULLIF(t.artifacts, 0) AS share FROM scanfeatures AS f CROSS JOIN total AS t WHERE f.articount IS NOT NULL AND t.artifacts IS NOT NULL), average_share AS (SELECT AVG(share) AS value FROM shares) SELECT s.zoneref, s.articount, s.share, s.share - a.value AS share_minus_average FROM shares AS s CROSS JOIN average_share AS a WHERE a.value IS NOT NULL ORDER BY share_minus_average DESC NULLS LAST, s.zoneref, s.traitregistry LIMIT 10;",
   "assumptions": [
    {
-    "assumption": "Each nonmissing scanfeatures record is a separate count; a site can appear more than once. Shares are defined only when the overall artifact total is nonzero.",
+    "assumption": "Each nonmissing scanfeatures.articount is a separate count, even when several rows have the same site code.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Combine all feature records for each site into one site artifact count, then compare site shares.",
-    "sql": "WITH total AS (SELECT SUM(articount) AS artifact_total FROM scanfeatures), site_counts AS (SELECT zoneref, SUM(articount) AS articount FROM scanfeatures WHERE articount IS NOT NULL GROUP BY zoneref), shares AS (SELECT s.zoneref, s.articount, s.articount::numeric / t.artifact_total AS share FROM site_counts AS s CROSS JOIN total AS t WHERE t.artifact_total IS NOT NULL AND t.artifact_total <> 0), scored AS (SELECT *, AVG(share) OVER () AS average_share FROM shares) SELECT zoneref, articount, share, share - average_share AS difference_from_average FROM scored WHERE average_share IS NOT NULL ORDER BY difference_from_average DESC NULLS LAST, zoneref LIMIT 10;"
+    "interpretation": "Combine artifact counts for each site before calculating shares and their average.",
+    "sql": "WITH total AS (SELECT SUM(articount) AS artifacts FROM scanfeatures), site_counts AS (SELECT zoneref, SUM(articount) AS articount FROM scanfeatures GROUP BY zoneref HAVING COUNT(articount) > 0), shares AS (SELECT s.zoneref, s.articount, 1.0 * s.articount / NULLIF(t.artifacts, 0) AS share FROM site_counts AS s CROSS JOIN total AS t WHERE t.artifacts IS NOT NULL), average_share AS (SELECT AVG(share) AS value FROM shares) SELECT s.zoneref, s.articount, s.share, s.share - a.value AS share_minus_average FROM shares AS s CROSS JOIN average_share AS a WHERE a.value IS NOT NULL ORDER BY share_minus_average DESC NULLS LAST, s.zoneref LIMIT 10;"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [
   {
-   "interpretation": "Combine all feature records for each site into one site artifact count, then compare site shares.",
-   "sql": "WITH total AS (SELECT SUM(articount) AS artifact_total FROM scanfeatures), site_counts AS (SELECT zoneref, SUM(articount) AS articount FROM scanfeatures WHERE articount IS NOT NULL GROUP BY zoneref), shares AS (SELECT s.zoneref, s.articount, s.articount::numeric / t.artifact_total AS share FROM site_counts AS s CROSS JOIN total AS t WHERE t.artifact_total IS NOT NULL AND t.artifact_total <> 0), scored AS (SELECT *, AVG(share) OVER () AS average_share FROM shares) SELECT zoneref, articount, share, share - average_share AS difference_from_average FROM scored WHERE average_share IS NOT NULL ORDER BY difference_from_average DESC NULLS LAST, zoneref LIMIT 10;",
-   "executes": false,
-   "matches": []
+   "interpretation": "Combine artifact counts for each site before calculating shares and their average.",
+   "sql": "WITH total AS (SELECT SUM(articount) AS artifacts FROM scanfeatures), site_counts AS (SELECT zoneref, SUM(articount) AS articount FROM scanfeatures GROUP BY zoneref HAVING COUNT(articount) > 0), shares AS (SELECT s.zoneref, s.articount, 1.0 * s.articount / NULLIF(t.artifacts, 0) AS share FROM site_counts AS s CROSS JOIN total AS t WHERE t.artifacts IS NOT NULL), average_share AS (SELECT AVG(share) AS value FROM shares) SELECT s.zoneref, s.articount, s.share, s.share - a.value AS share_minus_average FROM shares AS s CROSS JOIN average_share AS a WHERE a.value IS NOT NULL ORDER BY share_minus_average DESC NULLS LAST, s.zoneref LIMIT 10;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
   }
  ],
- "seconds": 35.7,
- "chars_out": 1625
+ "seconds": 18.3,
+ "chars_out": 1592
 }

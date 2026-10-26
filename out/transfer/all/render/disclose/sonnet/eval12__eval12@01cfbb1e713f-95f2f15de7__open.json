@@ -2,31 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-95f2f15de7",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH s AS (SELECT si.healtheval, sc.scancount, sc.gbsize, sc.spanmin FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref), g AS (SELECT healtheval, SUM(scancount) AS total_scans, SUM(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL THEN gbsize END) * 1.0 / NULLIF(SUM(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL THEN spanmin END), 0) AS gb_per_min FROM s GROUP BY healtheval), a AS (SELECT AVG(gb_per_min) AS avg_gb_per_min FROM g) SELECT g.healtheval, g.total_scans, g.gb_per_min, g.gb_per_min - a.avg_gb_per_min AS excess_over_avg FROM g CROSS JOIN a WHERE g.gb_per_min > a.avg_gb_per_min",
+  "sql": "WITH per AS (SELECT si.healtheval AS status, SUM(sc.scancount) AS total_scans, SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize END) * 1.0 / NULLIF(SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.spanmin END), 0) AS gb_per_min FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref GROUP BY si.healtheval), avgt AS (SELECT AVG(gb_per_min) AS avg_gpm FROM per) SELECT per.status, per.total_scans, per.gb_per_min, per.gb_per_min - avgt.avg_gpm AS excess_over_average FROM per CROSS JOIN avgt WHERE per.gb_per_min > avgt.avg_gpm",
   "assumptions": [
    {
-    "assumption": "GB per minute for a status is total gbsize divided by total spanmin (ratio of sums), using only scans where both gbsize and spanmin are present.",
+    "assumption": "GB per minute for a status is total gbsize divided by total spanmin (ratio of sums), using only scans where both gbsize and spanmin are non-null.",
     "unresolved": true
    },
    {
-    "assumption": "The average is the unweighted mean of the per-status GB per minute values. Statuses with a missing value are ignored. If the average is missing, no rows are returned.",
+    "assumption": "total scans is the sum of scancount over all matched scans in the status, including scans with missing gbsize or spanmin.",
     "unresolved": false
    },
    {
-    "assumption": "total scans is the sum of scancount over all matched scans in the status, ignoring null scancount. It is not limited to scans that have both gbsize and spanmin.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A null healtheval is treated as its own group, as GROUP BY does by default.",
+    "assumption": "The average is the unweighted mean of the per-status GB per minute values over statuses with a non-null figure. Scans whose site has a NULL healtheval form their own group and count as a status.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "GB per minute for a status is the average of each scan's own gbsize/spanmin ratio, rather than the ratio of totals. Scans with a null or zero spanmin or a null gbsize are skipped.",
-    "sql": "WITH s AS (SELECT si.healtheval, sc.scancount, sc.gbsize / NULLIF(sc.spanmin, 0) AS r FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref), g AS (SELECT healtheval, SUM(scancount) AS total_scans, AVG(r) AS gb_per_min FROM s GROUP BY healtheval), a AS (SELECT AVG(gb_per_min) AS avg_gb_per_min FROM g) SELECT g.healtheval, g.total_scans, g.gb_per_min, g.gb_per_min - a.avg_gb_per_min AS excess_over_avg FROM g CROSS JOIN a WHERE g.gb_per_min > a.avg_gb_per_min"
+    "interpretation": "GB per minute for a status is the average of each scan's own gbsize/spanmin ratio (scans with non-null values and spanmin > 0), rather than a ratio of sums.",
+    "sql": "WITH per AS (SELECT si.healtheval AS status, SUM(sc.scancount) AS total_scans, AVG(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 THEN sc.gbsize * 1.0 / sc.spanmin END) AS gb_per_min FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref GROUP BY si.healtheval), avgt AS (SELECT AVG(gb_per_min) AS avg_gpm FROM per) SELECT per.status, per.total_scans, per.gb_per_min, per.gb_per_min - avgt.avg_gpm AS excess_over_average FROM per CROSS JOIN avgt WHERE per.gb_per_min > avgt.avg_gpm"
    }
   ]
  },
@@ -37,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "GB per minute for a status is the average of each scan's own gbsize/spanmin ratio, rather than the ratio of totals. Scans with a null or zero spanmin or a null gbsize are skipped.",
-   "sql": "WITH s AS (SELECT si.healtheval, sc.scancount, sc.gbsize / NULLIF(sc.spanmin, 0) AS r FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref), g AS (SELECT healtheval, SUM(scancount) AS total_scans, AVG(r) AS gb_per_min FROM s GROUP BY healtheval), a AS (SELECT AVG(gb_per_min) AS avg_gb_per_min FROM g) SELECT g.healtheval, g.total_scans, g.gb_per_min, g.gb_per_min - a.avg_gb_per_min AS excess_over_avg FROM g CROSS JOIN a WHERE g.gb_per_min > a.avg_gb_per_min",
+   "interpretation": "GB per minute for a status is the average of each scan's own gbsize/spanmin ratio (scans with non-null values and spanmin > 0), rather than a ratio of sums.",
+   "sql": "WITH per AS (SELECT si.healtheval AS status, SUM(sc.scancount) AS total_scans, AVG(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 THEN sc.gbsize * 1.0 / sc.spanmin END) AS gb_per_min FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref GROUP BY si.healtheval), avgt AS (SELECT AVG(gb_per_min) AS avg_gpm FROM per) SELECT per.status, per.total_scans, per.gb_per_min, per.gb_per_min - avgt.avg_gpm AS excess_over_average FROM per CROSS JOIN avgt WHERE per.gb_per_min > avgt.avg_gpm",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 12.4,
- "chars_out": 2023
+ "seconds": 14.7,
+ "chars_out": 1981
 }

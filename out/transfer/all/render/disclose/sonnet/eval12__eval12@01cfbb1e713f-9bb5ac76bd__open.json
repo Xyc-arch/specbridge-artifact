@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH linked AS (SELECT t.telescregistry, o.weathprofile, s.modindex, s.phaseshiftdeg FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry JOIN observatories o ON t.observstation = o.observstation), grp AS (SELECT telescregistry, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescregistry, weathprofile), overall AS (SELECT AVG(modindex) AS overall_mod FROM linked) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - ov.overall_mod) AS avg_excess_over_overall FROM grp g CROSS JOIN overall ov WHERE g.avg_mod > ov.overall_mod GROUP BY g.weathprofile",
+  "sql": "WITH linked AS (SELECT s.telescref, o.weathprofile, s.modindex, s.phaseshiftdeg FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation), overall AS (SELECT AVG(modindex) AS overall_avg FROM linked), grp AS (SELECT telescref, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescref, weathprofile) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - ov.overall_avg) AS avg_excess_over_overall FROM grp g CROSS JOIN overall ov WHERE g.avg_mod > ov.overall_avg GROUP BY g.weathprofile",
   "assumptions": [
    {
-    "assumption": "The overall average modulation index is the average of modindex over all linked signals (those that match a telescope and an observatory), not the average of the group averages.",
+    "assumption": "The overall average modulation index is the mean over all linked signal rows (after the inner joins), not the mean of the group averages.",
     "unresolved": true
    },
    {
-    "assumption": "The per-weather-profile figures are simple averages of the retained telescope/weather group averages. Each group counts once, whatever its number of signals. Null modindex and phaseshiftdeg values are ignored by AVG.",
+    "assumption": "Per-weather-profile figures are unweighted means of the qualifying telescope/weather group averages (each group counts once, regardless of signal count).",
     "unresolved": false
    },
    {
-    "assumption": "The 'how far above' figure is the average of (group avg modindex minus overall avg modindex) over the retained groups.",
+    "assumption": "Signals with a NULL modindex or phaseshiftdeg are ignored by AVG. Groups whose weathprofile is NULL form their own group.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The overall average modulation index is the average of the telescope/weather group averages, so each group counts once.",
-    "sql": "WITH linked AS (SELECT t.telescregistry, o.weathprofile, s.modindex, s.phaseshiftdeg FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry JOIN observatories o ON t.observstation = o.observstation), grp AS (SELECT telescregistry, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescregistry, weathprofile), overall AS (SELECT AVG(avg_mod) AS overall_mod FROM grp) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - ov.overall_mod) AS avg_excess_over_overall FROM grp g CROSS JOIN overall ov WHERE g.avg_mod > ov.overall_mod GROUP BY g.weathprofile"
+    "interpretation": "The overall average is the mean of the telescope/weather group averages (each group weighted equally) instead of the mean over all signals.",
+    "sql": "WITH linked AS (SELECT s.telescref, o.weathprofile, s.modindex, s.phaseshiftdeg FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation), grp AS (SELECT telescref, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescref, weathprofile), overall AS (SELECT AVG(avg_mod) AS overall_avg FROM grp) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - ov.overall_avg) AS avg_excess_over_overall FROM grp g CROSS JOIN overall ov WHERE g.avg_mod > ov.overall_avg GROUP BY g.weathprofile"
    }
   ]
  },
@@ -33,8 +33,8 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The overall average modulation index is the average of the telescope/weather group averages, so each group counts once.",
-   "sql": "WITH linked AS (SELECT t.telescregistry, o.weathprofile, s.modindex, s.phaseshiftdeg FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry JOIN observatories o ON t.observstation = o.observstation), grp AS (SELECT telescregistry, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescregistry, weathprofile), overall AS (SELECT AVG(avg_mod) AS overall_mod FROM grp) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - ov.overall_mod) AS avg_excess_over_overall FROM grp g CROSS JOIN overall ov WHERE g.avg_mod > ov.overall_mod GROUP BY g.weathprofile",
+   "interpretation": "The overall average is the mean of the telescope/weather group averages (each group weighted equally) instead of the mean over all signals.",
+   "sql": "WITH linked AS (SELECT s.telescref, o.weathprofile, s.modindex, s.phaseshiftdeg FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation), grp AS (SELECT telescref, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescref, weathprofile), overall AS (SELECT AVG(avg_mod) AS overall_avg FROM grp) SELECT g.weathprofile, AVG(g.avg_mod) AS avg_modindex, AVG(g.avg_phase) AS avg_phaseshift, AVG(g.avg_mod - ov.overall_avg) AS avg_excess_over_overall FROM grp g CROSS JOIN overall ov WHERE g.avg_mod > ov.overall_avg GROUP BY g.weathprofile",
    "executes": true,
    "matches": [
     "A"
@@ -42,5 +42,5 @@
   }
  ],
  "seconds": 11.3,
- "chars_out": 2144
+ "chars_out": 2115
 }

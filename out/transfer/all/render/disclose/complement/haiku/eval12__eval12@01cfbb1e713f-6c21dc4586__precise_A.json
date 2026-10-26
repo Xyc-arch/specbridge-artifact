@@ -2,21 +2,30 @@
  "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH joined AS (SELECT o.lunarstage, t.observstation, t.bandusagepct FROM telescopes t INNER JOIN observatories o ON o.observstation = t.observstation), station_stats AS (SELECT lunarstage, observstation, AVG(bandusagepct) AS station_avg, COUNT(*) AS n FROM joined GROUP BY lunarstage, observstation) SELECT lunarstage, AVG(station_avg) AS avg_bandusagepct, SUM(n) AS telescope_count, CAST(SUM(n) AS REAL) / (SELECT COUNT(*) FROM joined) AS telescope_fraction FROM station_stats GROUP BY lunarstage;",
+  "sql": "WITH matched_data AS (\n  SELECT\n    t.telescregistry,\n    t.observstation,\n    t.bandusagepct,\n    obs.lunarstage\n  FROM telescopes t\n  INNER JOIN observatories obs ON t.observstation = obs.observstation\n),\nstation_avgs AS (\n  SELECT\n    lunarstage,\n    observstation,\n    AVG(bandusagepct) AS station_avg\n  FROM matched_data\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY lunarstage, observstation\n),\nphase_avgs AS (\n  SELECT\n    lunarstage,\n    AVG(station_avg) AS avg_bandwidth_usage\n  FROM station_avgs\n  GROUP BY lunarstage\n),\ntelescope_counts AS (\n  SELECT\n    lunarstage,\n    COUNT(*) AS telescope_count\n  FROM matched_data\n  GROUP BY lunarstage\n),\ntotal AS (\n  SELECT COUNT(*) AS total_telescopes FROM matched_data\n)\nSELECT\n  tc.lunarstage AS phase,\n  pa.avg_bandwidth_usage,\n  tc.telescope_count,\n  CAST(tc.telescope_count AS REAL) / t.total_telescopes AS fraction_of_total\nFROM telescope_counts tc\nLEFT JOIN phase_avgs pa ON tc.lunarstage = pa.lunarstage\nCROSS JOIN total t\nORDER BY CASE WHEN tc.lunarstage IS NULL THEN 1 ELSE 0 END, tc.lunarstage",
   "assumptions": [
    {
-    "assumption": "Each telescope's moon phase is the lunarstage of its matched observatory row, and NULL lunarstage values form one group. Station averages ignore NULL bandusagepct values, while telescopes with NULL bandusagepct still count toward telescope_count and the total.",
+    "assumption": "The two-step averaging (first per observatory station, then across station averages) gives each station equal weight regardless of how many telescopes it contains. This is an unweighted average of station averages rather than a weighted overall average.",
+    "unresolved": true
+   },
+   {
+    "assumption": "NULL values in telescopes.bandusagepct are excluded from average calculations per the phrase 'missing values ignored', but telescopes with NULL bandwidth are still counted in telescope totals.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Average all valid bandwidth values for all telescopes in each phase, without first computing per-station averages. This weights each telescope equally rather than each station equally.",
+    "sql": "WITH matched_data AS (\n  SELECT\n    t.telescregistry,\n    t.observstation,\n    t.bandusagepct,\n    obs.lunarstage\n  FROM telescopes t\n  INNER JOIN observatories obs ON t.observstation = obs.observstation\n),\ntelescope_counts AS (\n  SELECT\n    lunarstage,\n    COUNT(*) AS telescope_count\n  FROM matched_data\n  GROUP BY lunarstage\n),\nbandwidth_avgs AS (\n  SELECT\n    lunarstage,\n    AVG(bandusagepct) AS avg_bandwidth_usage\n  FROM matched_data\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY lunarstage\n),\ntotal AS (\n  SELECT COUNT(*) AS total_telescopes FROM matched_data\n)\nSELECT\n  tc.lunarstage AS phase,\n  ba.avg_bandwidth_usage,\n  tc.telescope_count,\n  CAST(tc.telescope_count AS REAL) / t.total_telescopes AS fraction_of_total\nFROM telescope_counts tc\nLEFT JOIN bandwidth_avgs ba ON tc.lunarstage = ba.lunarstage\nCROSS JOIN total t\nORDER BY CASE WHEN tc.lunarstage IS NULL THEN 1 ELSE 0 END, tc.lunarstage"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 14.9
+ "seconds": 59.4
 }

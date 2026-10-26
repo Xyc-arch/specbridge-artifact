@@ -3,9 +3,11 @@
  "sample": 4,
  "model": "haiku",
  "response": {
-  "sql": "WITH event_ratio AS (SELECT e.event_id, e.location, AVG((b.spent - b.amount) * 1.0 / NULLIF(b.amount, 0)) AS avg_ratio FROM event e LEFT JOIN budget b ON b.link_to_event = e.event_id GROUP BY e.event_id, e.location), ranked AS (SELECT event_id, location, avg_ratio, RANK() OVER (PARTITION BY location ORDER BY CASE WHEN avg_ratio IS NULL THEN 1 ELSE 0 END, avg_ratio DESC) AS rnk FROM event_ratio) SELECT event_id, location, avg_ratio, rnk AS rank FROM ranked WHERE rnk <= 3 ORDER BY location, rnk;"
+  "sql": "WITH budget_ratios AS (\n  SELECT \n    e.event_id,\n    e.location,\n    CASE \n      WHEN b.amount = 0 THEN NULL\n      ELSE (b.spent - b.amount) / CAST(b.amount AS REAL)\n    END AS ratio\n  FROM event e\n  JOIN budget b ON e.event_id = b.link_to_event\n),\nevent_avg_ratios AS (\n  SELECT \n    event_id,\n    location,\n    AVG(ratio) AS avg_ratio\n  FROM budget_ratios\n  GROUP BY event_id, location\n),\nranked_events AS (\n  SELECT \n    event_id,\n    location,\n    avg_ratio,\n    RANK() OVER (\n      PARTITION BY location \n      ORDER BY \n        CASE WHEN avg_ratio IS NULL THEN 1 ELSE 0 END,\n        avg_ratio DESC\n    ) AS rank\n  FROM event_avg_ratios\n)\nSELECT \n  event_id,\n  location,\n  avg_ratio,\n  rank\nFROM ranked_events\nWHERE rank <= 3\nORDER BY location, rank;"
  },
  "primary_executes": true,
- "primary_matches": [],
- "seconds": 7.0
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 30.5
 }

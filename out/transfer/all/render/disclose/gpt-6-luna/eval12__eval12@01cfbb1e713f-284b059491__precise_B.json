@@ -2,21 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-284b059491",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH unit_shares AS (\n  SELECT\n    sf.zoneref AS site_code,\n    sf.articount AS artifact_count,\n    sf.articount::numeric / NULLIF(SUM(sf.articount) OVER (), 0) AS share\n  FROM scanfeatures AS sf\n),\nscored AS (\n  SELECT\n    site_code,\n    artifact_count,\n    share,\n    share - AVG(share) OVER () AS difference_from_average\n  FROM unit_shares\n)\nSELECT site_code, artifact_count, share, difference_from_average\nFROM scored\nWHERE share IS NOT NULL\n  AND difference_from_average IS NOT NULL\nORDER BY difference_from_average DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH totals AS (\n  SELECT SUM(articount) AS overall_total\n  FROM scanfeatures\n), unit_shares AS (\n  SELECT\n    sf.zoneref AS site_code,\n    sf.articount AS artifact_count,\n    1.0 * sf.articount / t.overall_total AS share\n  FROM scanfeatures AS sf\n  CROSS JOIN totals AS t\n  WHERE t.overall_total IS NOT NULL\n    AND sf.articount IS NOT NULL\n), scored AS (\n  SELECT\n    site_code,\n    artifact_count,\n    share,\n    share - AVG(share) OVER () AS difference\n  FROM unit_shares\n)\nSELECT site_code, artifact_count, share, difference\nFROM scored\nWHERE difference IS NOT NULL\nORDER BY difference DESC, site_code ASC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "A zero overall artifact total makes shares undefined, so the query returns no rows, consistent with the instruction to return no rows when the overall total is missing.",
+    "assumption": "A site code may appear on multiple output rows because each scanfeatures record is treated as a separate unit; ties in the difference are ordered by site code for deterministic results.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [],
- "seconds": 14.9,
- "chars_out": 815
+ "seconds": 4.7,
+ "chars_out": 910
 }

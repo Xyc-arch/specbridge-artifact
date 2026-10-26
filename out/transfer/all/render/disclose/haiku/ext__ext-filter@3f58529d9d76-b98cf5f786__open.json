@@ -4,39 +4,35 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_invoice_price AS (SELECT invoice_number, AVG(product_price) AS mean_price FROM Invoice_Line_Items WHERE product_price IS NOT NULL GROUP BY invoice_number), per_invoice_lines AS (SELECT i.invoice_number, COUNT(ili.order_item_id) AS line_count FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON ili.invoice_number = i.invoice_number GROUP BY i.invoice_number) SELECT (SELECT AVG(mean_price) FROM per_invoice_price) AS avg_invoice_mean_price, (SELECT AVG(line_count) FROM per_invoice_lines) AS avg_line_items_per_invoice;",
+  "sql": "WITH price_stats AS ( SELECT invoice_number, AVG(product_price) as mean_price FROM Invoice_Line_Items WHERE product_price IS NOT NULL GROUP BY invoice_number ), item_counts AS ( SELECT invoice_number, COUNT(*) as total_line_items FROM Invoice_Line_Items GROUP BY invoice_number ) SELECT AVG(ps.mean_price) as avg_of_mean_prices, AVG(ic.total_line_items) as avg_line_items_per_invoice FROM price_stats ps JOIN item_counts ic ON ps.invoice_number = ic.invoice_number",
   "assumptions": [
    {
-    "assumption": "Invoices with no line items count as zero line items in the line-item average, so the average runs over every row of Invoices. Invoices with only missing prices are still counted in the line-item average; only the price average skips them.",
+    "assumption": "Both metrics are calculated over the same set of invoices: those with at least one line item having a non-NULL product_price. Invoices with only NULL prices or no line items are excluded from both averages.",
     "unresolved": true
-   },
-   {
-    "assumption": "A line item is a row of Invoice_Line_Items, and a line item with a missing product_price still counts toward the line-item total.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The line-item average covers only invoices that have at least one line item, so invoices with no lines are excluded from that average as well as from the price average.",
-    "sql": "WITH per_invoice_price AS (SELECT invoice_number, AVG(product_price) AS mean_price FROM Invoice_Line_Items WHERE product_price IS NOT NULL GROUP BY invoice_number), per_invoice_lines AS (SELECT invoice_number, COUNT(*) AS line_count FROM Invoice_Line_Items GROUP BY invoice_number) SELECT (SELECT AVG(mean_price) FROM per_invoice_price) AS avg_invoice_mean_price, (SELECT AVG(line_count) FROM per_invoice_lines) AS avg_line_items_per_invoice;"
+    "interpretation": "The two metrics are calculated over different sets of invoices. The first metric (average of mean prices) is for invoices with at least one non-NULL price. The second metric (average line item count) is for all invoices in the database, including those with zero line items.",
+    "sql": "WITH price_stats AS ( SELECT invoice_number, AVG(product_price) as mean_price FROM Invoice_Line_Items WHERE product_price IS NOT NULL GROUP BY invoice_number ), all_item_counts AS ( SELECT i.invoice_number, COUNT(ili.order_item_id) as total_line_items FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON i.invoice_number = ili.invoice_number GROUP BY i.invoice_number ) SELECT (SELECT AVG(mean_price) FROM price_stats) as avg_of_mean_prices, (SELECT AVG(total_line_items) FROM all_item_counts) as avg_line_items_per_invoice"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
  "alternatives": [
   {
-   "interpretation": "The line-item average covers only invoices that have at least one line item, so invoices with no lines are excluded from that average as well as from the price average.",
-   "sql": "WITH per_invoice_price AS (SELECT invoice_number, AVG(product_price) AS mean_price FROM Invoice_Line_Items WHERE product_price IS NOT NULL GROUP BY invoice_number), per_invoice_lines AS (SELECT invoice_number, COUNT(*) AS line_count FROM Invoice_Line_Items GROUP BY invoice_number) SELECT (SELECT AVG(mean_price) FROM per_invoice_price) AS avg_invoice_mean_price, (SELECT AVG(line_count) FROM per_invoice_lines) AS avg_line_items_per_invoice;",
+   "interpretation": "The two metrics are calculated over different sets of invoices. The first metric (average of mean prices) is for invoices with at least one non-NULL price. The second metric (average line item count) is for all invoices in the database, including those with zero line items.",
+   "sql": "WITH price_stats AS ( SELECT invoice_number, AVG(product_price) as mean_price FROM Invoice_Line_Items WHERE product_price IS NOT NULL GROUP BY invoice_number ), all_item_counts AS ( SELECT i.invoice_number, COUNT(ili.order_item_id) as total_line_items FROM Invoices i LEFT JOIN Invoice_Line_Items ili ON i.invoice_number = ili.invoice_number GROUP BY i.invoice_number ) SELECT (SELECT AVG(mean_price) FROM price_stats) as avg_of_mean_prices, (SELECT AVG(total_line_items) FROM all_item_counts) as avg_line_items_per_invoice",
    "executes": true,
    "matches": [
-    "A"
+    "B"
    ]
   }
  ],
- "seconds": 10.9,
- "chars_out": 1668
+ "seconds": 89.2,
+ "chars_out": 1660
 }

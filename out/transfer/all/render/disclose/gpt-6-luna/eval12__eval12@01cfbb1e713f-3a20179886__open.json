@@ -2,21 +2,21 @@
  "case": "eval12:eval12@01cfbb1e713f-3a20179886",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH by_trader_type AS (\n  SELECT\n    tr.tradekind,\n    COUNT(*) AS analysed_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON tx.transreg = ab.translink\n  JOIN trader AS tr ON tr.tradereg = tx.trdref\n  GROUP BY tr.tradekind\n),\nwith_shares AS (\n  SELECT\n    tradekind,\n    analysed_count,\n    analysed_count::numeric / SUM(analysed_count) OVER () AS share\n  FROM by_trader_type\n),\nabove_average AS (\n  SELECT *, AVG(analysed_count) OVER () AS average_count\n  FROM with_shares\n)\nSELECT\n  SUM(analysed_count) AS combined_count,\n  AVG(share) AS average_share,\n  AVG(analysed_count - average_count) AS average_excess_count\nFROM above_average\nWHERE analysed_count > average_count;",
+  "sql": "WITH type_counts AS (\n  SELECT t.tradekind, COUNT(*) AS analysed_count\n  FROM advancedbehavior AS a\n  JOIN transactionrecord AS tr ON tr.transreg = a.translink\n  JOIN trader AS t ON t.tradereg = tr.trdref\n  GROUP BY t.tradekind\n), totals AS (\n  SELECT SUM(analysed_count) AS overall_count,\n         AVG(analysed_count) AS avg_count\n  FROM type_counts\n), above_average AS (\n  SELECT tc.analysed_count,\n         1.0 * tc.analysed_count / totals.overall_count AS share\n  FROM type_counts AS tc\n  CROSS JOIN totals\n  WHERE tc.analysed_count > totals.avg_count\n)\nSELECT tc.tradekind,\n       tc.analysed_count,\n       1.0 * tc.analysed_count / totals.overall_count AS share_of_overall_total,\n       NULL AS combined_count,\n       NULL AS average_share,\n       NULL AS average_excess_over_type_average\nFROM type_counts AS tc\nCROSS JOIN totals\nUNION ALL\nSELECT 'Combined above-average trader types',\n       SUM(analysed_count),\n       NULL,\n       SUM(analysed_count),\n       AVG(share),\n       AVG(analysed_count - totals.avg_count)\nFROM above_average\nCROSS JOIN totals",
   "assumptions": [
    {
-    "assumption": "Trader types are the distinct values present among qualifying analysed records; a NULL tradekind, if present, is counted as its own group. The share denominator is all qualifying advancedbehavior records.",
-    "unresolved": true
+    "assumption": "The request's combined figures are presented as a final summary row alongside the per-trader-type results; shares are proportions of the total analysed records, and the average is unweighted across trader types.",
+    "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
+ "primary_executes": true,
  "primary_matches": [],
  "alternatives": [],
- "seconds": 23.7,
- "chars_out": 1004
+ "seconds": 10.9,
+ "chars_out": 1387
 }

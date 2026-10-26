@@ -3,38 +3,38 @@
  "model": "haiku",
  "reading": "B",
  "description": "Only fee records whose maker rebate rate is strictly greater than 0.0005 are included.",
- "a": {
-  "request": "Using only fee records whose maker rebate rate (`rebrate`) is greater than 0.0005, group them by order (`orderslink`) and, for each order, compute the average total rebate (`rebtotal`) and the average of rebate rate divided by fee rate (`rebrate` / `feerate`), ignoring missing values. Then take the mean of those per-order average ratios across all orders and, provided that overall mean is not missing, divide each order's average ratio by it. Return the order link, the average total rebate, the average ratio and this relative ratio for the 10 orders with the highest relative ratio, sorted from highest to lowest with missing values last.",
-  "sql": "WITH per_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio\n  FROM fees\n  WHERE rebrate > 0.0005\n  GROUP BY orderslink\n),\nstats AS (\n  SELECT orderslink, avg_rebtotal, avg_ratio,\n         AVG(avg_ratio) OVER () AS mean_ratio\n  FROM per_order\n)\nSELECT orderslink AS order_link,\n       avg_rebtotal,\n       avg_ratio,\n       avg_ratio / NULLIF(mean_ratio, 0) AS relative_ratio\nFROM stats\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "d": {
-  "request": "For fee records with `rebrate > 0.0005` (strictly greater), group by `orderslink`, compute each order's average `rebtotal` and average of `rebrate / feerate` (skipping NULLs), divide each order's average ratio by the mean of those averages across all orders (when that mean is not NULL), and return the top 10 orders by relative ratio, descending, NULLs last.",
-  "sql": "WITH per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_rebtotal, AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio FROM fees WHERE rebrate > 0.0005 GROUP BY orderslink), stats AS (SELECT AVG(avg_ratio) AS mean_avg_ratio FROM per_order) SELECT p.orderslink, p.avg_rebtotal, p.avg_ratio, p.avg_ratio / NULLIF(s.mean_avg_ratio, 0) AS relative_ratio FROM per_order p CROSS JOIN stats s ORDER BY relative_ratio DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
  "c": {
   "request": "For fee records that clear the 0.0005 maker rebate rate (`rebrate`) threshold, group them by order (`orderslink`) and, for each order, work out the average total rebate (`rebtotal`) and the average of rebate rate divided by fee rate (`rebrate` / `feerate`), ignoring missing values. Then take the mean of those per-order average ratios across all orders and, as long as that overall mean isn't missing, divide each order's average ratio by it. Show the order link, the average total rebate, the average ratio and the relative ratio for the top 10 orders by relative ratio, highest first, with missing values last. Only fee records whose maker rebate rate is strictly greater than 0.0005 are included.",
-  "sql": "WITH filtered AS (\n  SELECT orderslink, rebtotal, rebrate, feerate\n  FROM fees\n  WHERE rebrate > 0.0005\n),\nper_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio\n  FROM filtered\n  GROUP BY orderslink\n),\noverall AS (\n  SELECT AVG(avg_ratio) AS mean_ratio FROM per_order\n)\nSELECT p.orderslink,\n       p.avg_rebtotal,\n       p.avg_ratio,\n       CASE WHEN o.mean_ratio IS NOT NULL AND o.mean_ratio <> 0\n            THEN p.avg_ratio / o.mean_ratio\n       END AS relative_ratio\nFROM per_order p\nCROSS JOIN overall o\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH filtered_fees AS (\n  SELECT \n    orderslink,\n    rebtotal,\n    rebrate,\n    feerate\n  FROM fees\n  WHERE rebrate > 0.0005\n),\norder_averages AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(CASE WHEN rebrate IS NOT NULL AND feerate IS NOT NULL AND feerate != 0 THEN rebrate / feerate ELSE NULL END) as avg_ratio\n  FROM filtered_fees\n  WHERE orderslink IS NOT NULL\n  GROUP BY orderslink\n),\noverall_mean_calc AS (\n  SELECT AVG(avg_ratio) as mean_ratio\n  FROM order_averages\n),\nwith_relative_ratio AS (\n  SELECT\n    oa.orderslink,\n    oa.avg_rebtotal,\n    oa.avg_ratio,\n    CASE \n      WHEN om.mean_ratio IS NOT NULL AND oa.avg_ratio IS NOT NULL\n      THEN oa.avg_ratio / om.mean_ratio \n      ELSE NULL \n    END as relative_ratio\n  FROM order_averages oa\n  CROSS JOIN overall_mean_calc om\n)\nSELECT\n  orderslink,\n  avg_rebtotal,\n  avg_ratio,\n  relative_ratio\nFROM with_relative_ratio\nORDER BY \n  relative_ratio IS NULL,\n  relative_ratio DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "a": {
+  "request": "Using only fee records whose maker rebate rate (`rebrate`) is greater than 0.0005, group them by order (`orderslink`) and, for each order, compute the average total rebate (`rebtotal`) and the average of rebate rate divided by fee rate (`rebrate` / `feerate`), ignoring missing values. Then take the mean of those per-order average ratios across all orders and, provided that overall mean is not missing, divide each order's average ratio by it. Return the order link, the average total rebate, the average ratio and this relative ratio for the 10 orders with the highest relative ratio, sorted from highest to lowest with missing values last.",
+  "sql": "WITH filtered_fees AS (\n  SELECT orderslink, rebtotal, rebrate, feerate\n  FROM fees\n  WHERE rebrate > 0.0005\n),\nper_order_stats AS (\n  SELECT \n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(rebrate / feerate) as avg_ratio\n  FROM filtered_fees\n  GROUP BY orderslink\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) as mean_ratio\n  FROM per_order_stats\n),\nwith_relative_ratio AS (\n  SELECT \n    pos.orderslink,\n    pos.avg_rebtotal,\n    pos.avg_ratio,\n    CASE \n      WHEN om.mean_ratio IS NOT NULL \n      THEN pos.avg_ratio / om.mean_ratio \n      ELSE NULL \n    END as relative_ratio\n  FROM per_order_stats pos\n  CROSS JOIN overall_mean om\n)\nSELECT \n  orderslink,\n  avg_rebtotal,\n  avg_ratio,\n  relative_ratio\nFROM with_relative_ratio\nORDER BY \n  relative_ratio IS NULL,\n  relative_ratio DESC\nLIMIT 10;",
   "executes": true,
   "matches": [
    "B"
   ]
  },
  "b": {
-  "request": "Group fee records where `rebrate > 0.0005` by `orderslink`, compute per-order AVG(`rebtotal`) and AVG(`rebrate` / `feerate`) ignoring NULLs, normalize each order's average ratio by the mean of those per-order averages, and return the top 10 orders by relative ratio descending with NULLs last.",
-  "sql": "WITH per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_rebtotal, AVG(rebrate / NULLIF(feerate, 0)) AS avg_rebate_fee_ratio FROM fees WHERE rebrate > 0.0005 GROUP BY orderslink), normalized AS (SELECT orderslink, avg_rebtotal, avg_rebate_fee_ratio, avg_rebate_fee_ratio / NULLIF(AVG(avg_rebate_fee_ratio) OVER (), 0) AS relative_ratio FROM per_order) SELECT orderslink, avg_rebtotal, avg_rebate_fee_ratio, relative_ratio FROM normalized ORDER BY relative_ratio DESC NULLS LAST LIMIT 10;",
+  "request": "Filter fee records to include only those where rebrate > 0.0005 (strictly greater); group by orderslink; for each order calculate average rebtotal and average (rebrate / feerate); compute the global mean of all per-order average ratios; divide each order's average ratio by this global mean; return the top 10 orders by relative ratio in descending order with nulls last, displaying orderslink, average rebtotal, average ratio, and relative ratio.",
+  "sql": "WITH filtered_fees AS (SELECT orderslink, rebtotal, rebrate, feerate FROM fees WHERE rebrate > 0.0005 AND feerate IS NOT NULL AND feerate != 0), order_stats AS (SELECT orderslink, AVG(rebtotal) as avg_rebtotal, AVG(rebrate / feerate) as avg_ratio FROM filtered_fees GROUP BY orderslink), global_mean AS (SELECT AVG(avg_ratio) as global_mean_ratio FROM order_stats) SELECT os.orderslink, os.avg_rebtotal, os.avg_ratio, CASE WHEN gm.global_mean_ratio IS NOT NULL AND gm.global_mean_ratio != 0 THEN os.avg_ratio / gm.global_mean_ratio ELSE NULL END as relative_ratio FROM order_stats os CROSS JOIN global_mean gm ORDER BY CASE WHEN relative_ratio IS NULL THEN 1 ELSE 0 END, relative_ratio DESC LIMIT 10",
   "executes": true,
   "matches": [
    "B"
   ],
-  "raw": "Group fee records where `rebrate > 0.0005` by `orderslink`, compute per-order AVG(`rebtotal`) and AVG(`rebrate` / `feerate`) ignoring NULLs, normalize each order's average ratio by the mean of those per-order averages, and return the top 10 orders by relative ratio descending with NULLs last."
+  "raw": "Filter fee records to include only those where rebrate > 0.0005 (strictly greater); group by orderslink; for each order calculate average rebtotal and average (rebrate / feerate); compute the global mean of all per-order average ratios; divide each order's average ratio by this global mean; return the top 10 orders by relative ratio in descending order with nulls last, displaying orderslink, average rebtotal, average ratio, and relative ratio."
+ },
+ "d": {
+  "request": "Select fee records where rebrate > 0.0005, group by orderslink, calculate average rebtotal and average (rebrate/feerate) for each order, compute the overall mean of these per-order averages, divide each order's average ratio by the overall mean to get relative ratio, and output the top 10 orders by highest relative ratio (nulls last), displaying orderslink, average rebtotal, average ratio, and relative ratio.",
+  "sql": "WITH filtered_fees AS (\n  SELECT *\n  FROM fees\n  WHERE rebrate > 0.0005\n),\nper_order_stats AS (\n  SELECT \n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(rebrate / feerate) as avg_ratio\n  FROM filtered_fees\n  WHERE feerate IS NOT NULL AND feerate != 0\n  GROUP BY orderslink\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) as overall_avg_ratio\n  FROM per_order_stats\n),\nwith_relative_ratio AS (\n  SELECT \n    pos.orderslink,\n    pos.avg_rebtotal,\n    pos.avg_ratio,\n    pos.avg_ratio / om.overall_avg_ratio as relative_ratio\n  FROM per_order_stats pos\n  CROSS JOIN overall_mean om\n)\nSELECT \n  orderslink,\n  avg_rebtotal,\n  avg_ratio,\n  relative_ratio\nFROM with_relative_ratio\nORDER BY relative_ratio DESC NULLS LAST\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
  },
  "calls": 6
 }

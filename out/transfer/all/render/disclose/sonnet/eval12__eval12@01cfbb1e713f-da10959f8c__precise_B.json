@@ -2,16 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-da10959f8c",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH counts AS (SELECT observstation, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation), shares AS (SELECT observstation, telescope_count, telescope_count * 1.0 / SUM(telescope_count) OVER () AS share FROM counts), diffs AS (SELECT observstation, telescope_count, share, share - AVG(share) OVER () AS share_diff FROM shares) SELECT observstation, telescope_count, share, share_diff FROM (SELECT d.*, RANK() OVER (ORDER BY share_diff DESC) AS rnk FROM diffs d) t WHERE rnk <= 10 ORDER BY share_diff DESC, observstation",
+  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / (SELECT COUNT(*) FROM telescopes) AS share FROM c), d AS (SELECT observstation, telescope_count, share, share - (SELECT AVG(share) FROM s) AS diff_from_avg FROM s) SELECT observstation, telescope_count, share, diff_from_avg FROM d WHERE diff_from_avg >= (SELECT diff_from_avg FROM d ORDER BY diff_from_avg DESC LIMIT 1 OFFSET 9) OR (SELECT COUNT(*) FROM d) <= 10 ORDER BY diff_from_avg DESC",
   "assumptions": [
    {
-    "assumption": "The average share is taken across observatories that have at least one telescope (those appearing in the telescopes table), as the request defines observatories by telescopes.observstation; observatories with zero telescopes are excluded.",
+    "assumption": "Observatories are those appearing in the telescopes table (observatories with no telescopes are excluded), and the average share is taken over those observatories.",
     "unresolved": false
    },
    {
-    "assumption": "Ties at 10th place are handled with RANK() on the computed difference, so all rows tied with the 10th-ranked value are included.",
+    "assumption": "Ties at 10th place are detected by exact equality of the computed floating-point difference, which is equivalent to tying on telescope count.",
     "unresolved": false
    }
   ],
@@ -23,6 +23,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 5.6,
- "chars_out": 1031
+ "seconds": 5.7,
+ "chars_out": 983
 }

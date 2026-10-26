@@ -3,10 +3,12 @@
  "wording": "open",
  "model": "haiku",
  "response": {
-  "sql": "WITH scan_rates AS (\n  SELECT s.healtheval AS status,\n         sc.scancount,\n         sc.gbsize / NULLIF(sc.spanmin, 0) AS gb_per_min\n  FROM scans sc\n  JOIN sites s ON s.zoneregistry = sc.zoneref\n  WHERE sc.chronotag::text BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797'\n),\nstatus_stats AS (\n  SELECT status,\n         SUM(scancount) AS total_scancount,\n         AVG(gb_per_min) AS avg_gb_per_min\n  FROM scan_rates\n  GROUP BY status\n),\noverall AS (\n  SELECT AVG(avg_gb_per_min) AS mean_avg FROM status_stats\n)\nSELECT ss.status,\n       ss.total_scancount,\n       ss.avg_gb_per_min,\n       ss.avg_gb_per_min - o.mean_avg AS gap_from_mean\nFROM status_stats ss\nCROSS JOIN overall o\nWHERE o.mean_avg IS NOT NULL;"
+  "sql": "WITH status_averages AS (SELECT si.healtheval, SUM(sc.scancount) as total_scancount, AVG(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin != 0 THEN sc.gbsize / sc.spanmin ELSE NULL END) as avg_gb_per_scan_min FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry WHERE sc.chronotag >= '2024-06-06 11:53:59.684274' AND sc.chronotag <= '2024-11-03 19:51:13.516797' GROUP BY si.healtheval), mean_of_averages AS (SELECT AVG(avg_gb_per_scan_min) as mean_avg FROM status_averages WHERE avg_gb_per_scan_min IS NOT NULL) SELECT sa.healtheval, sa.total_scancount, sa.avg_gb_per_scan_min, sa.avg_gb_per_scan_min - mo.mean_avg as gap_from_mean FROM status_averages sa CROSS JOIN mean_of_averages mo WHERE mo.mean_avg IS NOT NULL ORDER BY sa.healtheval"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 11.6,
- "chars_out": 763
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 31.9,
+ "chars_out": 798
 }

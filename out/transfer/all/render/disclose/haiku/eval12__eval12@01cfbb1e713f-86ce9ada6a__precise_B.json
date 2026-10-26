@@ -2,10 +2,15 @@
  "case": "eval12:eval12@01cfbb1e713f-86ce9ada6a",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH units AS (\n  SELECT s.sentreg, s.instownpct, t.ordertypedist\n  FROM sentimentandfundamentals s\n  INNER JOIN transactionrecord t ON s.transref = t.transreg\n  WHERE t.ordertypedist IS NOT NULL\n),\nmix_baselines AS (\n  SELECT ordertypedist, AVG(instownpct) as baseline\n  FROM units\n  GROUP BY ordertypedist\n),\noverall_average AS (\n  SELECT AVG(instownpct) as overall_avg\n  FROM units\n),\nunits_with_baseline AS (\n  SELECT u.sentreg, u.instownpct, u.ordertypedist, mb.baseline, oa.overall_avg\n  FROM units u\n  JOIN mix_baselines mb ON u.ordertypedist = mb.ordertypedist\n  CROSS JOIN overall_average oa\n),\nkept_units AS (\n  SELECT *\n  FROM units_with_baseline\n  WHERE instownpct > overall_avg\n)\nSELECT \n  AVG(instownpct) as avg_ownership_kept,\n  AVG(instownpct / baseline) as avg_ownership_ratio,\n  AVG(instownpct - overall_avg) as avg_excess_ownership\nFROM kept_units;",
-  "assumptions": [],
+  "sql": "WITH units AS (\n  SELECT \n    sf.sentreg,\n    sf.instownpct,\n    tr.ordertypedist\n  FROM sentimentandfundamentals sf\n  INNER JOIN transactionrecord tr ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL \n    AND sf.instownpct IS NOT NULL\n),\nmix_baselines AS (\n  SELECT \n    ordertypedist,\n    AVG(instownpct) as mix_avg\n  FROM units\n  GROUP BY ordertypedist\n),\noverall_stats AS (\n  SELECT AVG(instownpct) as overall_avg\n  FROM units\n)\nSELECT\n  AVG(u.instownpct) as avg_kept_ownership,\n  AVG(u.instownpct / mb.mix_avg) as avg_ratio_to_mix_baseline,\n  AVG(u.instownpct - os.overall_avg) as avg_excess_over_overall\nFROM units u\nJOIN mix_baselines mb ON u.ordertypedist = mb.ordertypedist\nCROSS JOIN overall_stats os\nWHERE u.instownpct > os.overall_avg;",
+  "assumptions": [
+   {
+    "assumption": "Sentiment snapshots with NULL institutional ownership (instownpct) are excluded from all calculations, following the pattern of the explicit requirement to exclude units with no order type mix.",
+    "unresolved": false
+   }
+  ],
   "alternatives": []
  },
  "raw": null,
@@ -14,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 72.9,
- "chars_out": 967
+ "seconds": 71.9,
+ "chars_out": 1119
 }

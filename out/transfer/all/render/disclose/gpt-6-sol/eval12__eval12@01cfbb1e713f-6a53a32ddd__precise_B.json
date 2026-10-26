@@ -2,23 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
  "wording": "precise_B",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH by_source AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_y_vs_x_difference, SUM(s.aream2) / NULLIF(SUM(s.volm3), 0) AS area_to_volume_ratio FROM projects AS p JOIN scanspatial AS s ON s.arcref = p.arcregistry WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), compared AS (SELECT by_source.*, AVG(area_to_volume_ratio) OVER () AS cross_source_average FROM by_source) SELECT fundflux, avg_y_vs_x_difference, area_to_volume_ratio, area_to_volume_ratio - cross_source_average AS amount_above_average FROM compared WHERE area_to_volume_ratio > cross_source_average;",
+  "sql": "WITH source_metrics AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_y_vs_x_difference, SUM(s.aream2) / NULLIF(SUM(s.volm3), 0) AS area_to_volume FROM scanspatial AS s JOIN projects AS p ON s.arcref = p.arcregistry WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), cross_source AS (SELECT AVG(area_to_volume) AS avg_ratio FROM source_metrics) SELECT m.fundflux, m.avg_y_vs_x_difference, m.area_to_volume, m.area_to_volume - c.avg_ratio AS above_average_by FROM source_metrics AS m CROSS JOIN cross_source AS c WHERE m.area_to_volume > c.avg_ratio;",
   "assumptions": [
    {
-    "assumption": "Missing funding sources are excluded. Zero denominators produce NULL ratios, which are omitted from averages.",
-    "unresolved": false
+    "assumption": "Missing funding sources are excluded. Area and volume totals each ignore their own NULL values; zero denominators yield NULL and are excluded from the cross-source average.",
+    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Count a spatial record in the area and volume totals only when both values are present.",
+    "sql": "WITH source_metrics AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_y_vs_x_difference, SUM(CASE WHEN s.aream2 IS NOT NULL AND s.volm3 IS NOT NULL THEN s.aream2 END) / NULLIF(SUM(CASE WHEN s.aream2 IS NOT NULL AND s.volm3 IS NOT NULL THEN s.volm3 END), 0) AS area_to_volume FROM scanspatial AS s JOIN projects AS p ON s.arcref = p.arcregistry WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), cross_source AS (SELECT AVG(area_to_volume) AS avg_ratio FROM source_metrics) SELECT m.fundflux, m.avg_y_vs_x_difference, m.area_to_volume, m.area_to_volume - c.avg_ratio AS above_average_by FROM source_metrics AS m CROSS JOIN cross_source AS c WHERE m.area_to_volume > c.avg_ratio;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 19.4,
- "chars_out": 782
+ "alternatives": [
+  {
+   "interpretation": "Count a spatial record in the area and volume totals only when both values are present.",
+   "sql": "WITH source_metrics AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_y_vs_x_difference, SUM(CASE WHEN s.aream2 IS NOT NULL AND s.volm3 IS NOT NULL THEN s.aream2 END) / NULLIF(SUM(CASE WHEN s.aream2 IS NOT NULL AND s.volm3 IS NOT NULL THEN s.volm3 END), 0) AS area_to_volume FROM scanspatial AS s JOIN projects AS p ON s.arcref = p.arcregistry WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), cross_source AS (SELECT AVG(area_to_volume) AS avg_ratio FROM source_metrics) SELECT m.fundflux, m.avg_y_vs_x_difference, m.area_to_volume, m.area_to_volume - c.avg_ratio AS above_average_by FROM source_metrics AS m CROSS JOIN cross_source AS c WHERE m.area_to_volume > c.avg_ratio;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 23.8,
+ "chars_out": 1712
 }

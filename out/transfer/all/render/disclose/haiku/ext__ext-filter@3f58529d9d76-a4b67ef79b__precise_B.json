@@ -4,25 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH item_stats AS (SELECT oi.order_item_id, AVG(ili.product_price * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio, COUNT(ili.order_item_id) AS line_item_count FROM Order_Items oi LEFT JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id GROUP BY oi.order_item_id) SELECT AVG(avg_ratio) AS avg_of_item_avg_ratios, AVG(line_item_count) AS avg_of_item_line_item_counts FROM item_stats;",
+  "sql": "WITH item_stats AS (\n  SELECT \n    oi.order_item_id,\n    COUNT(ili.invoice_number) AS ili_count,\n    AVG(CASE \n      WHEN ili.derived_total_cost IS NOT NULL AND ili.derived_total_cost != 0 \n      THEN ili.product_price / ili.derived_total_cost \n      ELSE NULL \n    END) AS avg_ratio\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_average_ratios,\n  AVG(ili_count) AS avg_of_line_item_counts\nFROM item_stats;",
   "assumptions": [
    {
-    "assumption": "A ratio is missing when product_price is NULL or derived_total_cost is NULL or zero (NULLIF turns a zero divisor into NULL); missing ratios are skipped by AVG.",
+    "assumption": "\"Skipping missing ratios\" means excluding rows where `derived_total_cost` is NULL or 0 (preventing division by zero), not merely skipping NULL results from missing data",
     "unresolved": true
-   },
-   {
-    "assumption": "Each order item's line-item count includes every invoice line item linked to it by order_item_id, including those whose ratio is missing; order items with no line items count as zero.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Invoice_Line_Items is joined to Order_Items on order_item_id alone; an order item can appear on several invoices, and all of its line items are included.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count only the invoice line items that have a usable ratio (product_price and a nonzero derived_total_cost), so the per-item count matches the ratio average's basis. Order items with no usable line items still count as zero.",
-    "sql": "WITH item_stats AS (SELECT oi.order_item_id, AVG(ili.product_price * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio, COUNT(CASE WHEN ili.product_price IS NOT NULL AND NULLIF(ili.derived_total_cost, 0) IS NOT NULL THEN 1 END) AS valid_line_item_count FROM Order_Items oi LEFT JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id GROUP BY oi.order_item_id) SELECT AVG(avg_ratio) AS avg_of_item_avg_ratios, AVG(valid_line_item_count) AS avg_of_item_valid_line_item_counts FROM item_stats;"
+    "interpretation": "\"Missing ratios\" refers strictly to NULL values in operands (either `product_price` or `derived_total_cost` is NULL), with the assumption that `derived_total_cost` is never 0 in the data",
+    "sql": "WITH item_stats AS (\n  SELECT \n    oi.order_item_id,\n    COUNT(ili.invoice_number) AS ili_count,\n    AVG(CASE \n      WHEN ili.product_price IS NOT NULL AND ili.derived_total_cost IS NOT NULL\n      THEN ili.product_price / ili.derived_total_cost \n      ELSE NULL \n    END) AS avg_ratio\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_average_ratios,\n  AVG(ili_count) AS avg_of_line_item_counts\nFROM item_stats;"
    }
   ]
  },
@@ -33,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count only the invoice line items that have a usable ratio (product_price and a nonzero derived_total_cost), so the per-item count matches the ratio average's basis. Order items with no usable line items still count as zero.",
-   "sql": "WITH item_stats AS (SELECT oi.order_item_id, AVG(ili.product_price * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio, COUNT(CASE WHEN ili.product_price IS NOT NULL AND NULLIF(ili.derived_total_cost, 0) IS NOT NULL THEN 1 END) AS valid_line_item_count FROM Order_Items oi LEFT JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id GROUP BY oi.order_item_id) SELECT AVG(avg_ratio) AS avg_of_item_avg_ratios, AVG(valid_line_item_count) AS avg_of_item_valid_line_item_counts FROM item_stats;",
+   "interpretation": "\"Missing ratios\" refers strictly to NULL values in operands (either `product_price` or `derived_total_cost` is NULL), with the assumption that `derived_total_cost` is never 0 in the data",
+   "sql": "WITH item_stats AS (\n  SELECT \n    oi.order_item_id,\n    COUNT(ili.invoice_number) AS ili_count,\n    AVG(CASE \n      WHEN ili.product_price IS NOT NULL AND ili.derived_total_cost IS NOT NULL\n      THEN ili.product_price / ili.derived_total_cost \n      ELSE NULL \n    END) AS avg_ratio\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_average_ratios,\n  AVG(ili_count) AS avg_of_line_item_counts\nFROM item_stats;",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 13.1,
- "chars_out": 1835
+ "seconds": 55.5,
+ "chars_out": 1628
 }

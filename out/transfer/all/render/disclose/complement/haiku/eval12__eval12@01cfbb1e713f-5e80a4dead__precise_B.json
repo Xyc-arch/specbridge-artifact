@@ -4,36 +4,22 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH type_totals AS (SELECT m.Name AS name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t INNER JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), mean_rate AS (SELECT AVG(rate) AS mean_rate FROM type_totals) SELECT tt.name, tt.rate, tt.track_count, tt.rate - mr.mean_rate AS rate_minus_mean FROM type_totals tt CROSS JOIN mean_rate mr WHERE tt.rate > mr.mean_rate;",
+  "sql": "WITH media_stats AS (\n  SELECT \n    m.Name,\n    SUM(CAST(t.Bytes AS DECIMAL(18,2))) / SUM(t.Milliseconds) as rate,\n    COUNT(t.TrackId) as track_count\n  FROM MediaType m\n  INNER JOIN Track t ON m.MediaTypeId = t.MediaTypeId\n  WHERE t.Bytes IS NOT NULL\n  GROUP BY m.Name\n),\nmean_rate AS (\n  SELECT AVG(rate) as mean_rate\n  FROM media_stats\n)\nSELECT \n  ms.Name,\n  ms.rate,\n  ms.track_count,\n  ms.rate - mr.mean_rate as rate_minus_mean\nFROM media_stats ms\nCROSS JOIN mean_rate mr\nWHERE ms.rate > mr.mean_rate;",
   "assumptions": [
    {
-    "assumption": "Media types are identified by their Name, so tracks are grouped by MediaType.Name and each name counts once in the mean. The schema does not enforce unique names, but the data is assumed to have none duplicated.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The inner join drops tracks whose MediaTypeId has no matching MediaType row, as the request asks.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Bytes and Milliseconds are integers, so the division casts the byte sum to REAL to avoid integer truncation (SQLite-style semantics). A zero Milliseconds total would make a rate undefined; this query does not guard against it.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL Bytes value adds nothing to the byte total, while that track's Milliseconds and count still apply.",
+    "assumption": "Tracks with NULL Bytes are excluded from both the rate calculation and the track count, since they cannot contribute to the sum of bytes and would prevent meaningful rate calculation.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Treat each media type as identified by its MediaTypeId rather than its name, so two types that share a name would stay separate in the grouping and in the mean.",
-    "sql": "WITH type_totals AS (SELECT m.MediaTypeId AS media_type_id, m.Name AS name, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS rate, COUNT(*) AS track_count FROM Track t INNER JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name), mean_rate AS (SELECT AVG(rate) AS mean_rate FROM type_totals) SELECT tt.name, tt.rate, tt.track_count, tt.rate - mr.mean_rate AS rate_minus_mean FROM type_totals tt CROSS JOIN mean_rate mr WHERE tt.rate > mr.mean_rate;"
+    "interpretation": "Count all tracks in each media type (including those with NULL Bytes) rather than only those with Bytes data used in the rate calculation.",
+    "sql": "WITH all_tracks AS (\n  SELECT m.Name, COUNT(t.TrackId) as track_count\n  FROM MediaType m\n  INNER JOIN Track t ON m.MediaTypeId = t.MediaTypeId\n  GROUP BY m.Name\n),\ntrack_rates AS (\n  SELECT m.Name,\n    SUM(CAST(t.Bytes AS DECIMAL(18,2))) / SUM(t.Milliseconds) as rate\n  FROM MediaType m\n  INNER JOIN Track t ON m.MediaTypeId = t.MediaTypeId\n  WHERE t.Bytes IS NOT NULL\n  GROUP BY m.Name\n),\nmean_rate AS (\n  SELECT AVG(rate) as mean_rate FROM track_rates\n)\nSELECT at.Name, tr.rate, at.track_count,\n  tr.rate - mr.mean_rate as rate_minus_mean\nFROM all_tracks at\nINNER JOIN track_rates tr ON at.Name = tr.Name\nCROSS JOIN mean_rate mr\nWHERE tr.rate > mr.mean_rate;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 10.9
+ "primary_matches": [],
+ "seconds": 87.3
 }

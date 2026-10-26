@@ -2,16 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-f7b50ba44b",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH j AS (SELECT o.ordertune AS t FROM orderexecutions e JOIN orders o ON o.recordvault = e.ordersmark), c AS (SELECT t, COUNT(*) AS cnt FROM j GROUP BY t), s AS (SELECT t, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT t, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(share - avg_share) AS avg_excess FROM a WHERE share > avg_share",
+  "sql": "WITH j AS (SELECT o.ordertune AS t, COUNT(*) AS c FROM orderexecutions e JOIN orders o ON o.recordvault = e.ordersmark GROUP BY o.ordertune), s AS (SELECT t, c, CAST(c AS REAL) / (SELECT SUM(c) FROM j) AS share FROM j), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.c) AS total_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess FROM s CROSS JOIN a WHERE s.share > a.avg_share",
   "assumptions": [
    {
-    "assumption": "The average share across all order types is the mean of the per-group shares (including the NULL group), which equals 1/number of groups; the NULL ordertune group counts as one type.",
+    "assumption": "Executions are inner-joined to orders on recordvault = ordersmark; if recordvault were duplicated across orders, executions would be counted once per matching order row (recordvault is presumed unique).",
     "unresolved": false
    },
    {
-    "assumption": "Orders.recordvault is unique, so the inner join does not duplicate executions beyond one per execution record.",
+    "assumption": "A NULL ordertune forms its own group and is included in the number of groups when computing the overall average share.",
+    "unresolved": false
+   },
+   {
+    "assumption": "If no group has a share strictly above average (all equal), the query returns a row with NULLs.",
     "unresolved": false
    }
   ],
@@ -22,5 +26,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 5.5
+ "seconds": 5.7
 }

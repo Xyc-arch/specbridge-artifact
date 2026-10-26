@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH op AS (SELECT crewref, COUNT(*) AS n_scans, AVG(gbsize * 1.0 / NULLIF(spanmin, 0)) AS avg_rate FROM scans GROUP BY crewref), overall AS (SELECT AVG(avg_rate) AS g FROM op) SELECT AVG(op.n_scans * 1.0) AS avg_scans_per_operator, AVG(op.avg_rate) AS avg_gb_per_min, AVG(op.avg_rate - overall.g) AS avg_excess_over_all FROM op CROSS JOIN overall WHERE op.avg_rate > overall.g",
+  "sql": "WITH per_scan AS (SELECT crewref, gbsize * 1.0 / NULLIF(spanmin, 0) AS gb_per_min FROM scans), op AS (SELECT crewref, COUNT(*) AS scan_n, AVG(gb_per_min) AS op_avg FROM per_scan GROUP BY crewref HAVING AVG(gb_per_min) IS NOT NULL), g AS (SELECT AVG(op_avg) AS all_avg FROM op) SELECT AVG(op.scan_n) AS avg_scans, AVG(op.op_avg) AS avg_gb_per_min, AVG(op.op_avg - g.all_avg) AS avg_excess FROM op CROSS JOIN g WHERE op.op_avg > g.all_avg;",
   "assumptions": [
    {
-    "assumption": "The all-operator figure is the simple (unweighted) average of each operator's own average GB/min, not the average over all scans pooled. Operators with no valid ratio are excluded from it.",
+    "assumption": "The all-operator figure is the unweighted mean of each operator's average per-scan gbsize/spanmin (each operator counts once), not the pooled mean over all scans.",
     "unresolved": false
    },
    {
-    "assumption": "A scan with spanmin of 0 is treated as a missing ratio (NULLIF avoids division by zero), and scans with null gbsize or spanmin are ignored in the rate average.",
+    "assumption": "Scans with NULL gbsize or NULL/zero spanmin give a NULL ratio and are ignored in the averages; operators with no valid ratio are excluded from the all-operator average.",
     "unresolved": false
    },
    {
-    "assumption": "'How many scans' counts every row in scans for the operator (COUNT(*)), including rows whose ratio is missing, rather than summing the scancount column.",
+    "assumption": "The scan count per operator is the total number of scans they did (COUNT(*)), including scans whose ratio is missing.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count only the scans that have a valid GB/min ratio (non-null gbsize and non-zero spanmin) when computing the average number of scans per operator.",
-    "sql": "WITH op AS (SELECT crewref, COUNT(gbsize * 1.0 / NULLIF(spanmin, 0)) AS n_scans, AVG(gbsize * 1.0 / NULLIF(spanmin, 0)) AS avg_rate FROM scans GROUP BY crewref), overall AS (SELECT AVG(avg_rate) AS g FROM op) SELECT AVG(op.n_scans * 1.0) AS avg_scans_per_operator, AVG(op.avg_rate) AS avg_gb_per_min, AVG(op.avg_rate - overall.g) AS avg_excess_over_all FROM op CROSS JOIN overall WHERE op.avg_rate > overall.g"
+    "interpretation": "Scan count per operator includes only scans with a valid (non-missing) gb/min ratio.",
+    "sql": "WITH per_scan AS (SELECT crewref, gbsize * 1.0 / NULLIF(spanmin, 0) AS gb_per_min FROM scans), op AS (SELECT crewref, COUNT(gb_per_min) AS scan_n, AVG(gb_per_min) AS op_avg FROM per_scan GROUP BY crewref HAVING AVG(gb_per_min) IS NOT NULL), g AS (SELECT AVG(op_avg) AS all_avg FROM op) SELECT AVG(op.scan_n) AS avg_scans, AVG(op.op_avg) AS avg_gb_per_min, AVG(op.op_avg - g.all_avg) AS avg_excess FROM op CROSS JOIN g WHERE op.op_avg > g.all_avg;"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count only the scans that have a valid GB/min ratio (non-null gbsize and non-zero spanmin) when computing the average number of scans per operator.",
-   "sql": "WITH op AS (SELECT crewref, COUNT(gbsize * 1.0 / NULLIF(spanmin, 0)) AS n_scans, AVG(gbsize * 1.0 / NULLIF(spanmin, 0)) AS avg_rate FROM scans GROUP BY crewref), overall AS (SELECT AVG(avg_rate) AS g FROM op) SELECT AVG(op.n_scans * 1.0) AS avg_scans_per_operator, AVG(op.avg_rate) AS avg_gb_per_min, AVG(op.avg_rate - overall.g) AS avg_excess_over_all FROM op CROSS JOIN overall WHERE op.avg_rate > overall.g",
+   "interpretation": "Scan count per operator includes only scans with a valid (non-missing) gb/min ratio.",
+   "sql": "WITH per_scan AS (SELECT crewref, gbsize * 1.0 / NULLIF(spanmin, 0) AS gb_per_min FROM scans), op AS (SELECT crewref, COUNT(gb_per_min) AS scan_n, AVG(gb_per_min) AS op_avg FROM per_scan GROUP BY crewref HAVING AVG(gb_per_min) IS NOT NULL), g AS (SELECT AVG(op_avg) AS all_avg FROM op) SELECT AVG(op.scan_n) AS avg_scans, AVG(op.op_avg) AS avg_gb_per_min, AVG(op.op_avg - g.all_avg) AS avg_excess FROM op CROSS JOIN g WHERE op.op_avg > g.all_avg;",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 10.6,
- "chars_out": 1697
+ "seconds": 12.0,
+ "chars_out": 1679
 }

@@ -2,31 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-ea536393b9",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (SELECT s.zoneref, si.riskeval, s.pressratio FROM scans s JOIN sites si ON si.zoneregistry = s.zoneref), grouped AS (SELECT zoneref AS site_code, riskeval AS risk_evaluation_status, AVG(pressratio) AS avg_pressratio, COUNT(*) AS scan_count FROM matched GROUP BY zoneref, riskeval), shared AS (SELECT site_code, risk_evaluation_status, avg_pressratio, scan_count, scan_count * 1.0 / SUM(scan_count) OVER () AS share FROM grouped), ranked AS (SELECT shared.*, RANK() OVER (ORDER BY share DESC) AS share_rank FROM shared) SELECT site_code, risk_evaluation_status, avg_pressratio, scan_count, share FROM ranked WHERE share_rank <= 10 ORDER BY share DESC",
+  "sql": "WITH matched_scans AS (SELECT s.zoneref, s.pressratio, st.riskeval FROM scans s INNER JOIN sites st ON s.zoneref = st.zoneregistry), group_stats AS (SELECT zoneref, riskeval, AVG(pressratio) as avg_compression, COUNT(*) as num_scans, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM matched_scans) as share FROM matched_scans GROUP BY zoneref, riskeval), ranked_stats AS (SELECT zoneref, riskeval, avg_compression, num_scans, share, ROW_NUMBER() OVER (ORDER BY share DESC) as rn FROM group_stats), threshold_value AS (SELECT share FROM ranked_stats WHERE rn = 10 UNION ALL SELECT -1.0 WHERE NOT EXISTS (SELECT 1 FROM ranked_stats WHERE rn = 10)) SELECT zoneref, riskeval, avg_compression, num_scans, share FROM ranked_stats WHERE share >= (SELECT MAX(share) FROM threshold_value) ORDER BY share DESC",
   "assumptions": [
    {
-    "assumption": "Matching is an inner join of scans.zoneref to sites.zoneregistry, so unmatched scans are dropped; the foreign key means this drops nothing in practice.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL riskeval is kept as its own risk-status group, and those scans count toward the total matched scans used as the share denominator.",
+    "assumption": "Share is calculated as a decimal proportion (0\u20131), where 0.1 means 10% of all matched scans. The alternative interpretation is percentage (0\u2013100).",
     "unresolved": true
    },
    {
-    "assumption": "Share is the group's scan count divided by the sum of all group counts (the total matched scans), computed as a decimal, not an integer division.",
+    "assumption": "When 'ignoring missing values' for pressratio, SQL's default AVG() behavior is used, which excludes NULL values automatically.",
     "unresolved": false
    },
    {
-    "assumption": "Top-10 with ties uses RANK() on share, so every group whose share equals the 10th-ranked share is kept; ties are exact because equal counts give equal shares.",
+    "assumption": "Scans with no matching site are dropped via INNER JOIN (joining scans.zoneref to sites.zoneregistry).",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Scans whose site has no risk evaluation status (riskeval IS NULL) are excluded before grouping, so they are not counted in any group or in the share denominator.",
-    "sql": "WITH matched AS (SELECT s.zoneref, si.riskeval, s.pressratio FROM scans s JOIN sites si ON si.zoneregistry = s.zoneref WHERE si.riskeval IS NOT NULL), grouped AS (SELECT zoneref AS site_code, riskeval AS risk_evaluation_status, AVG(pressratio) AS avg_pressratio, COUNT(*) AS scan_count FROM matched GROUP BY zoneref, riskeval), shared AS (SELECT site_code, risk_evaluation_status, avg_pressratio, scan_count, scan_count * 1.0 / SUM(scan_count) OVER () AS share FROM grouped), ranked AS (SELECT shared.*, RANK() OVER (ORDER BY share DESC) AS share_rank FROM shared) SELECT site_code, risk_evaluation_status, avg_pressratio, scan_count, share FROM ranked WHERE share_rank <= 10 ORDER BY share DESC"
+    "interpretation": "Share expressed as a percentage (0\u2013100) instead of a proportion (0\u20131).",
+    "sql": "WITH matched_scans AS (SELECT s.zoneref, s.pressratio, st.riskeval FROM scans s INNER JOIN sites st ON s.zoneref = st.zoneregistry), group_stats AS (SELECT zoneref, riskeval, AVG(pressratio) as avg_compression, COUNT(*) as num_scans, COUNT(*) * 100.0 / (SELECT COUNT(*) FROM matched_scans) as share FROM matched_scans GROUP BY zoneref, riskeval), ranked_stats AS (SELECT zoneref, riskeval, avg_compression, num_scans, share, ROW_NUMBER() OVER (ORDER BY share DESC) as rn FROM group_stats), threshold_value AS (SELECT share FROM ranked_stats WHERE rn = 10 UNION ALL SELECT -1.0 WHERE NOT EXISTS (SELECT 1 FROM ranked_stats WHERE rn = 10)) SELECT zoneref, riskeval, avg_compression, num_scans, share FROM ranked_stats WHERE share >= (SELECT MAX(share) FROM threshold_value) ORDER BY share DESC"
    }
   ]
  },
@@ -35,5 +31,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 14.5
+ "seconds": 59.6
 }

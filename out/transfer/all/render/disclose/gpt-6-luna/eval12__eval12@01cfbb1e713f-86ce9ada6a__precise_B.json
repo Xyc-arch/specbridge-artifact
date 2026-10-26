@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-86ce9ada6a",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH units AS (\n    SELECT s.sentreg, t.ordertypedist, s.instownpct AS ownership\n    FROM sentimentandfundamentals AS s\n    JOIN transactionrecord AS t ON s.transref = t.transreg\n    WHERE s.instownpct IS NOT NULL\n      AND t.ordertypedist IS NOT NULL\n), baselined AS (\n    SELECT units.*,\n           AVG(ownership) OVER (PARTITION BY ordertypedist) AS mix_baseline,\n           AVG(ownership) OVER () AS overall_average\n    FROM units\n), kept AS (\n    SELECT *\n    FROM baselined\n    WHERE ownership > overall_average\n)\nSELECT AVG(ownership) AS average_kept_ownership,\n       AVG(ownership / mix_baseline) AS average_ownership_to_mix_baseline_ratio,\n       AVG(ownership - overall_average) AS average_excess_overall_average\nFROM kept;",
+  "sql": "WITH matched_units AS (\n  SELECT s.sentreg, t.ordertypedist AS order_type_mix, s.instownpct AS ownership\n  FROM sentimentandfundamentals AS s\n  JOIN transactionrecord AS t ON s.transref = t.transreg\n  WHERE t.ordertypedist IS NOT NULL\n    AND s.instownpct IS NOT NULL\n), mix_baselines AS (\n  SELECT order_type_mix, AVG(ownership) AS mix_baseline\n  FROM matched_units\n  GROUP BY order_type_mix\n), overall_baseline AS (\n  SELECT AVG(ownership) AS overall_average\n  FROM matched_units\n), kept_units AS (\n  SELECT u.ownership, b.mix_baseline, o.overall_average\n  FROM matched_units AS u\n  JOIN mix_baselines AS b ON u.order_type_mix = b.order_type_mix\n  CROSS JOIN overall_baseline AS o\n  WHERE u.ownership > o.overall_average\n)\nSELECT AVG(ownership) AS average_kept_ownership,\n       AVG(ownership / mix_baseline) AS average_ownership_to_mix_baseline_ratio,\n       AVG(ownership - overall_average) AS average_excess_overall_average\nFROM kept_units;",
   "assumptions": [
    {
-    "assumption": "Missing institutional ownership values are excluded from the mix and overall averages and cannot qualify as kept units; snapshots without a matched transaction or with a missing order type mix are excluded as requested.",
+    "assumption": "Units missing institutional ownership are ignored in the mix baselines, overall average, and kept-unit calculations, consistent with SQL AVG ignoring NULL values.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 9.5,
- "chars_out": 1053
+ "seconds": 9.4,
+ "chars_out": 1211
 }

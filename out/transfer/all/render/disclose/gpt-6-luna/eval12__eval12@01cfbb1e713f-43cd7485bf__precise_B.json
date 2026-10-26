@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-43cd7485bf",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH channel_averages AS (\n  SELECT o.orderbase, AVG(f.feerate) AS avg_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.orderbase\n), benchmark AS (\n  SELECT AVG(f.feerate) AS avg_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n), above_benchmark AS (\n  SELECT c.avg_fee_rate, c.avg_fee_rate - b.avg_fee_rate AS excess_rate\n  FROM channel_averages AS c\n  CROSS JOIN benchmark AS b\n  WHERE c.avg_fee_rate > b.avg_fee_rate\n)\nSELECT AVG(avg_fee_rate) AS mean_channel_avg_fee_rate,\n       AVG(excess_rate) AS mean_excess_over_benchmark\nFROM above_benchmark;",
+  "sql": "WITH linked_fees AS (\n  SELECT o.orderbase, f.feerate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n), channel_averages AS (\n  SELECT orderbase, AVG(feerate) AS avg_feerate\n  FROM linked_fees\n  GROUP BY orderbase\n), benchmark AS (\n  SELECT AVG(feerate) AS avg_feerate\n  FROM linked_fees\n), above_benchmark AS (\n  SELECT c.avg_feerate, c.avg_feerate - b.avg_feerate AS excess\n  FROM channel_averages AS c\n  CROSS JOIN benchmark AS b\n  WHERE c.avg_feerate > b.avg_feerate\n)\nSELECT AVG(avg_feerate) AS mean_channel_avg_feerate,\n       AVG(excess) AS mean_excess_over_benchmark\nFROM above_benchmark;",
   "assumptions": [
    {
-    "assumption": "Channels are grouped by orders.orderbase, and only fee records linked to an existing order contribute to channel averages and the overall benchmark. AVG ignores NULL fee rates; NULL orderbase values form one channel group.",
+    "assumption": "The benchmark is the average of non-NULL feerate values across all fee records linked to an order; each linked fee record is weighted equally. SQLite AVG ignores NULL values.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 6.9,
- "chars_out": 942
+ "seconds": 4.6,
+ "chars_out": 891
 }

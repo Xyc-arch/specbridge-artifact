@@ -5,29 +5,36 @@
  "description": "Budget lines with zero spent are treated as not yet recorded and are excluded before averaging.",
  "a": {
   "request": "Match each budget line to its event (`budget.link_to_event` = `event.event_id`, dropping lines with no matching event). Leaving out lines where `spent` is 0, give the following for each event `type`: the average ratio of `spent` to `amount` across its budget lines (ignoring missing values), and how far that average is from the mean of the per-type averages.",
-  "sql": "WITH line_ratios AS (SELECT e.type AS event_type, CAST(b.spent AS REAL) / NULLIF(b.amount, 0) AS ratio FROM budget b JOIN event e ON b.link_to_event = e.event_id WHERE b.spent IS NOT NULL AND b.spent <> 0), type_avgs AS (SELECT event_type, AVG(ratio) AS avg_ratio FROM line_ratios GROUP BY event_type) SELECT event_type, avg_ratio, ABS(avg_ratio - AVG(avg_ratio) OVER ()) AS distance_from_mean_of_averages FROM type_avgs;",
-  "executes": true,
-  "matches": []
- },
- "b": {
-  "request": "For each event type, join budget to event on `budget.link_to_event = event.event_id`, drop budget lines where `spent = 0` (and NULL), compute the mean of `spent / amount` per `event.type`, then report each type's average minus the mean of those per-type averages",
-  "sql": "WITH filtered AS (SELECT e.type AS type, CAST(b.spent AS REAL) / b.amount AS ratio FROM budget b JOIN event e ON b.link_to_event = e.event_id WHERE b.spent IS NOT NULL AND b.spent <> 0 AND b.amount IS NOT NULL AND b.amount <> 0), per_type AS (SELECT type, AVG(ratio) AS avg_ratio FROM filtered GROUP BY type) SELECT type, avg_ratio - (SELECT AVG(avg_ratio) FROM per_type) AS diff_from_mean_of_type_averages FROM per_type;",
-  "executes": true,
-  "matches": []
- },
- "c": {
-  "request": "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, ignoring missing values? Also show how far each type's average is from the mean of the per-type averages. Budget lines with zero spent are treated as not yet recorded and are excluded before averaging.",
-  "sql": "WITH type_ratios AS (SELECT e.type AS event_type, AVG(b.spent * 1.0 / b.amount) AS avg_ratio FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.spent <> 0 AND b.amount IS NOT NULL AND b.amount <> 0 GROUP BY e.type) SELECT event_type, avg_ratio, avg_ratio - AVG(avg_ratio) OVER () AS diff_from_mean_of_type_averages FROM type_ratios;",
+  "sql": "WITH filtered_budget AS (\n  SELECT \n    b.spent,\n    b.amount,\n    e.type,\n    CAST(b.spent AS REAL) / NULLIF(b.amount, 0) as ratio\n  FROM budget b\n  INNER JOIN event e ON b.link_to_event = e.event_id\n  WHERE b.spent != 0\n),\ntype_averages AS (\n  SELECT \n    type,\n    AVG(ratio) as avg_ratio\n  FROM filtered_budget\n  WHERE ratio IS NOT NULL\n  GROUP BY type\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) as mean_ratio\n  FROM type_averages\n)\nSELECT \n  ta.type,\n  ta.avg_ratio,\n  ta.avg_ratio - om.mean_ratio as distance_from_mean\nFROM type_averages ta\nCROSS JOIN overall_mean om\nORDER BY ta.type",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, excluding budget lines with zero spent (treated as not yet recorded) and ignoring missing values? Also show how far each type's average is from the mean of the per-type averages.",
-  "sql": "WITH ratios AS (\n  SELECT e.type AS event_type,\n         b.spent * 1.0 / b.amount AS ratio\n  FROM budget b\n  JOIN event e ON e.event_id = b.link_to_event\n  WHERE b.spent IS NOT NULL AND b.spent <> 0\n    AND b.amount IS NOT NULL AND b.amount <> 0\n    AND e.type IS NOT NULL\n),\ntype_avg AS (\n  SELECT event_type,\n         AVG(ratio) AS avg_ratio,\n         COUNT(*) AS budget_lines\n  FROM ratios\n  GROUP BY event_type\n)\nSELECT event_type,\n       avg_ratio,\n       budget_lines,\n       avg_ratio - AVG(avg_ratio) OVER () AS diff_from_mean_of_type_averages\nFROM type_avg\nORDER BY event_type;",
+ "b": {
+  "request": "For each event type, calculate the average spent-to-budgeted ratio (spent / amount) across budget lines where spent > 0, then compute the overall mean of these per-type averages and display each type's average alongside its deviation from this overall mean.",
+  "sql": "WITH budget_ratios AS (\n  SELECT \n    e.type,\n    b.spent / b.amount AS ratio\n  FROM budget b\n  JOIN event e ON b.link_to_event = e.event_id\n  WHERE b.spent > 0\n),\ntype_averages AS (\n  SELECT \n    type,\n    AVG(ratio) AS avg_ratio\n  FROM budget_ratios\n  GROUP BY type\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) AS mean_ratio\n  FROM type_averages\n)\nSELECT \n  ta.type,\n  ta.avg_ratio,\n  ta.avg_ratio - om.mean_ratio AS deviation\nFROM type_averages ta\nCROSS JOIN overall_mean om\nORDER BY ta.type",
   "executes": true,
-  "matches": []
- }
+  "matches": [
+   "B"
+  ],
+  "raw": "For each event type, calculate the average spent-to-budgeted ratio (spent / amount) across budget lines where spent > 0, then compute the overall mean of these per-type averages and display each type's average alongside its deviation from this overall mean."
+ },
+ "d": {
+  "request": "For each event type, calculate the average of (spent/amount) ratios, excluding budget lines where spent equals zero or is null, then display each type's average and its deviation from the mean of all per-type averages.",
+  "sql": "WITH budget_with_event AS (\n  SELECT \n    e.type,\n    b.spent / CAST(b.amount AS FLOAT) AS ratio\n  FROM budget b\n  JOIN event e ON b.link_to_event = e.event_id\n  WHERE b.spent IS NOT NULL \n    AND b.spent <> 0 \n    AND b.amount IS NOT NULL \n    AND b.amount <> 0\n),\ntype_averages AS (\n  SELECT \n    type,\n    AVG(ratio) AS type_average\n  FROM budget_with_event\n  GROUP BY type\n),\noverall_mean AS (\n  SELECT AVG(type_average) AS mean_of_averages\n  FROM type_averages\n)\nSELECT \n  ta.type,\n  ta.type_average,\n  ta.type_average - om.mean_of_averages AS deviation_from_mean\nFROM type_averages ta\nCROSS JOIN overall_mean om\nORDER BY ta.type",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "c": {
+  "request": "For each event type (`event.type`), matching budget lines to their events through `budget.link_to_event`, what is the average spent-to-budgeted ratio (`spent` / `amount`) across its budget lines, ignoring missing values? Also show how far each type's average is from the mean of the per-type averages. Budget lines with zero spent are treated as not yet recorded and are excluded before averaging.",
+  "sql": "WITH budget_ratios AS (\n  SELECT \n    e.type,\n    b.spent / b.amount AS ratio\n  FROM budget b\n  JOIN event e ON b.link_to_event = e.event_id\n  WHERE b.spent > 0\n    AND b.amount > 0\n    AND b.spent IS NOT NULL\n    AND b.amount IS NOT NULL\n),\ntype_averages AS (\n  SELECT \n    type,\n    AVG(ratio) AS avg_ratio\n  FROM budget_ratios\n  GROUP BY type\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) AS mean_ratio\n  FROM type_averages\n)\nSELECT \n  ta.type,\n  ta.avg_ratio,\n  ta.avg_ratio - om.mean_ratio AS difference_from_mean\nFROM type_averages ta\nCROSS JOIN overall_mean om\nORDER BY ta.type",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
 }

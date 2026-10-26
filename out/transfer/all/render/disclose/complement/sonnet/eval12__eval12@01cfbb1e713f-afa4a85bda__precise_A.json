@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-afa4a85bda",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT p.fundflux, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON s.arcref = p.arcregistry GROUP BY p.fundflux), t AS (SELECT fundflux, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT fundflux, cnt AS spatial_record_count, share, cnt - avg_cnt AS excess_over_average FROM t WHERE cnt > avg_cnt",
+  "sql": "WITH c AS (SELECT p.fundflux AS fundflux, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), t AS (SELECT CAST(SUM(cnt) AS REAL) AS total, AVG(cnt) AS avg_cnt FROM c) SELECT c.fundflux AS funding_source, c.cnt AS spatial_record_count, c.cnt / t.total AS share, c.cnt - t.avg_cnt AS excess_over_average FROM c, t WHERE c.cnt > t.avg_cnt ORDER BY c.cnt DESC",
   "assumptions": [
    {
-    "assumption": "Projects with a NULL fundflux form their own group. That group counts as one funding source in the total, the average, and the output.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The average count is the unweighted mean of the per-source counts, that is, total matched records divided by the number of funding sources. It is not an average per record or per project.",
+    "assumption": "Records are joined to projects with an inner join on scanspatial.arcref = projects.arcregistry. Unmatched records are dropped, as the request says.",
     "unresolved": false
    },
    {
-    "assumption": "The share and excess are computed with decimal division (no integer truncation) and are not rounded.",
+    "assumption": "A NULL fundflux is treated as its own group, so it counts as a source in the average and the total. The request does not say how to handle NULLs.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The share is a decimal fraction (0 to 1), not a percentage, and is left unrounded.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Treat a NULL funding source as not a real source: drop those projects before counting, so they affect neither the total nor the average.",
-    "sql": "WITH c AS (SELECT p.fundflux, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON s.arcref = p.arcregistry WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), t AS (SELECT fundflux, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT fundflux, cnt AS spatial_record_count, share, cnt - avg_cnt AS excess_over_average FROM t WHERE cnt > avg_cnt"
+    "interpretation": "Exclude projects with a NULL funding source, so they do not count as a source in the total or the average.",
+    "sql": "WITH c AS (SELECT p.fundflux AS fundflux, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), t AS (SELECT CAST(SUM(cnt) AS REAL) AS total, AVG(cnt) AS avg_cnt FROM c) SELECT c.fundflux AS funding_source, c.cnt AS spatial_record_count, c.cnt / t.total AS share, c.cnt - t.avg_cnt AS excess_over_average FROM c, t WHERE c.cnt > t.avg_cnt ORDER BY c.cnt DESC"
    }
   ]
  },
@@ -31,5 +31,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 9.1
+ "seconds": 6.9
 }

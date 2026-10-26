@@ -4,31 +4,32 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_currency AS (\n  SELECT feecoin,\n    AVG(CASE WHEN rebtotal <> 0 THEN rebtotal END) AS avg_rebtotal,\n    AVG(CASE WHEN feerate <> 0 AND rebrate <> 0 THEN (rebrate - feerate) / feerate END) AS avg_gap\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark AS (\n  SELECT AVG(avg_rebtotal) AS bench FROM per_currency\n),\nkept AS (\n  SELECT p.avg_rebtotal, p.avg_gap, p.avg_rebtotal - b.bench AS excess\n  FROM per_currency p\n  CROSS JOIN benchmark b\n  WHERE p.avg_rebtotal > b.bench\n)\nSELECT AVG(avg_rebtotal) AS avg_of_avg_rebtotal,\n       AVG(avg_gap) AS avg_of_avg_gap,\n       AVG(excess) AS avg_excess_over_benchmark\nFROM kept;",
+  "sql": "WITH currency_stats AS (\n  SELECT\n    feecoin,\n    AVG(CASE WHEN rebtotal != 0 THEN rebtotal ELSE NULL END) AS avg_rebtotal,\n    AVG(CASE WHEN rebrate != 0 AND feerate != 0 THEN (rebrate - feerate) / feerate ELSE NULL END) AS avg_gap\n  FROM fees\n  GROUP BY feecoin\n),\nbenchmark_calc AS (\n  SELECT\n    AVG(avg_rebtotal) AS benchmark_value\n  FROM currency_stats\n),\nfiltered_currencies AS (\n  SELECT\n    cs.feecoin,\n    cs.avg_rebtotal,\n    cs.avg_gap\n  FROM currency_stats cs\n  WHERE cs.avg_rebtotal IS NOT NULL\n    AND (SELECT benchmark_value FROM benchmark_calc) IS NOT NULL\n    AND cs.avg_rebtotal > (SELECT benchmark_value FROM benchmark_calc)\n)\nSELECT\n  (SELECT AVG(avg_rebtotal) FROM filtered_currencies) AS avg_of_avg_rebates,\n  (SELECT AVG(avg_gap) FROM filtered_currencies) AS avg_of_avg_gaps,\n  (SELECT AVG(avg_rebtotal) FROM filtered_currencies) - (SELECT benchmark_value FROM benchmark_calc) AS avg_excess_over_benchmark;",
   "assumptions": [
    {
-    "assumption": "The relative gap is computed per record as (rebrate - feerate) / feerate, skipping records where feerate or rebrate is 0 or NULL, and then averaged within each currency group.",
+    "assumption": "Records with rebtotal = 0 are skipped from the rebate average (zero is treated as 'not applicable' rather than NULL), while the gap calculation skips any record where rebrate = 0 or feerate = 0.",
     "unresolved": false
    },
    {
-    "assumption": "Fee records with a NULL feecoin form a single group, which GROUP BY produces naturally.",
+    "assumption": "NULL values in feecoin form a single currency group, as 'records lacking a currency forming one group'.",
     "unresolved": false
    },
    {
-    "assumption": "A currency whose average total rebate is NULL (no non-zero, non-NULL rebtotal) is left out of the benchmark and cannot pass the strictly-greater filter, so it is not kept.",
-    "unresolved": false
-   },
-   {
-    "assumption": "If no currency is kept, the final query still returns one row, with NULL values in all three columns.",
+    "assumption": "The query always returns exactly one row; if no currencies exceed the benchmark or the benchmark is NULL, the row contains all NULLs.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "If 'skip a zero rebate' for the gap average means skip any record where rebrate is zero OR non-positive (rather than only zero), the gap CASE would be `WHEN rebrate > 0 AND feerate > 0`. This produces the same result when rebrate and feerate are non-negative quantities.",
+    "sql": "...CASE WHEN rebrate > 0 AND feerate > 0 THEN (rebrate - feerate) / feerate ELSE NULL END..."
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 12.2
+ "seconds": 84.6
 }

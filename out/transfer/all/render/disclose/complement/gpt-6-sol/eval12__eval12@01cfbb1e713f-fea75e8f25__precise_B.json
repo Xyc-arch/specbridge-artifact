@@ -2,24 +2,24 @@
  "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
  "wording": "precise_B",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH equipment_averages AS (SELECT equipref, AVG(humepct) AS avg_humidity FROM scanenvironment GROUP BY equipref), overall AS (SELECT AVG(avg_humidity) AS overall_avg FROM equipment_averages), kept AS (SELECT e.equipref, e.avg_humidity, o.overall_avg FROM equipment_averages e CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL AND e.avg_humidity > o.overall_avg), compared AS (SELECT equipref, avg_humidity, overall_avg, AVG(avg_humidity) OVER () AS kept_avg FROM kept) SELECT equipref, avg_humidity, avg_humidity - overall_avg AS exceeds_overall_avg, ABS(avg_humidity - kept_avg) AS difference_from_kept_mean FROM compared WHERE kept_avg IS NOT NULL ORDER BY difference_from_kept_mean DESC NULLS LAST FETCH FIRST 10 ROWS WITH TIES",
+  "sql": "WITH equipment_avg AS (SELECT equipref, AVG(humepct) AS avg_humidity FROM scanenvironment GROUP BY equipref), overall AS (SELECT AVG(avg_humidity) AS overall_avg FROM equipment_avg), kept AS (SELECT e.equipref, e.avg_humidity, o.overall_avg FROM equipment_avg AS e CROSS JOIN overall AS o WHERE e.avg_humidity > o.overall_avg), kept_mean AS (SELECT AVG(avg_humidity) AS mean_humidity FROM kept), ranked AS (SELECT k.equipref, k.avg_humidity, k.avg_humidity - k.overall_avg AS above_overall_avg, ABS(k.avg_humidity - m.mean_humidity) AS distance_from_kept_mean, RANK() OVER (ORDER BY ABS(k.avg_humidity - m.mean_humidity) DESC NULLS LAST) AS position FROM kept AS k CROSS JOIN kept_mean AS m WHERE k.overall_avg IS NOT NULL AND m.mean_humidity IS NOT NULL) SELECT equipref, avg_humidity, above_overall_avg, distance_from_kept_mean FROM ranked WHERE position <= 10 ORDER BY distance_from_kept_mean DESC NULLS LAST, equipref;",
   "assumptions": [
    {
-    "assumption": "\u201cHow far\u201d means the absolute distance from the kept-equipment mean.",
+    "assumption": "\u201cHow far\u201d means absolute distance from the mean of the kept equipment.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "If the last difference means signed deviation from the kept-equipment mean, retain negative values for equipment below that mean.",
-    "sql": "WITH equipment_averages AS (SELECT equipref, AVG(humepct) AS avg_humidity FROM scanenvironment GROUP BY equipref), overall AS (SELECT AVG(avg_humidity) AS overall_avg FROM equipment_averages), kept AS (SELECT e.equipref, e.avg_humidity, o.overall_avg FROM equipment_averages e CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL AND e.avg_humidity > o.overall_avg), compared AS (SELECT equipref, avg_humidity, overall_avg, AVG(avg_humidity) OVER () AS kept_avg FROM kept) SELECT equipref, avg_humidity, avg_humidity - overall_avg AS exceeds_overall_avg, avg_humidity - kept_avg AS difference_from_kept_mean FROM compared WHERE kept_avg IS NOT NULL ORDER BY difference_from_kept_mean DESC NULLS LAST FETCH FIRST 10 ROWS WITH TIES"
+    "interpretation": "Treat the last difference as a signed deviation from the kept-equipment mean.",
+    "sql": "WITH equipment_avg AS (SELECT equipref, AVG(humepct) AS avg_humidity FROM scanenvironment GROUP BY equipref), overall AS (SELECT AVG(avg_humidity) AS overall_avg FROM equipment_avg), kept AS (SELECT e.equipref, e.avg_humidity, o.overall_avg FROM equipment_avg AS e CROSS JOIN overall AS o WHERE e.avg_humidity > o.overall_avg), kept_mean AS (SELECT AVG(avg_humidity) AS mean_humidity FROM kept), ranked AS (SELECT k.equipref, k.avg_humidity, k.avg_humidity - k.overall_avg AS above_overall_avg, k.avg_humidity - m.mean_humidity AS difference_from_kept_mean, RANK() OVER (ORDER BY k.avg_humidity - m.mean_humidity DESC NULLS LAST) AS position FROM kept AS k CROSS JOIN kept_mean AS m WHERE k.overall_avg IS NOT NULL AND m.mean_humidity IS NOT NULL) SELECT equipref, avg_humidity, above_overall_avg, difference_from_kept_mean FROM ranked WHERE position <= 10 ORDER BY difference_from_kept_mean DESC NULLS LAST, equipref;"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
+ "primary_executes": true,
  "primary_matches": [],
- "seconds": 27.4
+ "seconds": 26.7
 }

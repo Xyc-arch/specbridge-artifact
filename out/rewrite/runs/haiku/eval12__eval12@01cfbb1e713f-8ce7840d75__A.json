@@ -3,37 +3,36 @@
  "model": "haiku",
  "reading": "A",
  "description": "List only departments whose share is strictly above the average share. A department exactly at the average is excluded.",
- "a": {
-  "request": "For members whose major appears in `major`, count members per department (`major.department`). Take each department's share as its member count divided by the total of these counts, and compute the average share across departments. List the departments whose share is strictly greater than the average share, showing the department, its member count, its share, and its share minus the average share, without rounding.",
-  "sql": "WITH dept_counts AS (\n  SELECT m.department AS department, COUNT(*) AS member_count\n  FROM member mem\n  JOIN major m ON mem.link_to_major = m.major_id\n  GROUP BY m.department\n),\nshares AS (\n  SELECT department,\n         member_count,\n         CAST(member_count AS REAL) / SUM(member_count) OVER () AS share\n  FROM dept_counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.department,\n       s.member_count,\n       s.share,\n       s.share - a.avg_share AS share_minus_avg\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
  "c": {
   "request": "For members whose major appears in `major`, count members per department (`major.department`) and work out each department's share of the total. Which departments are on the high side of the average share across departments? Show the department, its member count, its share, and how much its share differs from the average share, without rounding. List only departments whose share is strictly above the average share. A department exactly at the average is excluded.",
-  "sql": "WITH dept_counts AS (SELECT m.department AS department, COUNT(*) AS member_count FROM member mem JOIN major m ON mem.link_to_major = m.major_id GROUP BY m.department), totals AS (SELECT SUM(member_count) AS total FROM dept_counts), shares AS (SELECT d.department, d.member_count, CAST(d.member_count AS REAL) / t.total AS share FROM dept_counts d CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.department, s.member_count, s.share, s.share - a.avg_share AS share_diff FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share ORDER BY share_diff DESC;",
+  "sql": "WITH department_member_counts AS (SELECT m.department, COUNT(mem.member_id) as member_count FROM major m INNER JOIN member mem ON mem.link_to_major = m.major_id GROUP BY m.department), totals AS (SELECT SUM(member_count) as total_members, COUNT(*) as num_departments FROM department_member_counts), department_shares AS (SELECT dmc.department, dmc.member_count, CAST(dmc.member_count AS FLOAT) / t.total_members as share, 1.0 / t.num_departments as average_share FROM department_member_counts dmc CROSS JOIN totals t) SELECT department, member_count, share, share - average_share as difference_from_average FROM department_shares WHERE share > average_share ORDER BY share DESC",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "For members with a matching major in `major`, count members per `major.department`, compute each department's share of that total, and return only departments whose share is strictly greater than the mean department share, showing department, member count, unrounded share, and unrounded difference from the mean share",
-  "sql": "WITH dept_counts AS (\n    SELECT m.department AS department, COUNT(*) AS member_count\n    FROM member mem\n    JOIN major m ON mem.link_to_major = m.major_id\n    GROUP BY m.department\n),\ntotals AS (\n    SELECT SUM(member_count) AS total FROM dept_counts\n),\nshares AS (\n    SELECT d.department, d.member_count, CAST(d.member_count AS REAL) / t.total AS share\n    FROM dept_counts d\n    CROSS JOIN totals t\n),\nstats AS (\n    SELECT AVG(share) AS mean_share FROM shares\n)\nSELECT s.department, s.member_count, s.share, s.share - st.mean_share AS diff_from_mean\nFROM shares s\nCROSS JOIN stats st\nWHERE s.share > st.mean_share;",
+  "request": "For departments whose member share is strictly greater than the average member share across all departments, display the department name, member count, share, and the difference between that department's share and the average share.",
+  "sql": "WITH total_members AS (\n  SELECT COUNT(DISTINCT member_id) as total\n  FROM member\n  WHERE link_to_major IS NOT NULL\n),\nmember_counts AS (\n  SELECT\n    m.department,\n    COUNT(DISTINCT mem.member_id) as member_count,\n    (COUNT(DISTINCT mem.member_id) * 100.0 / (SELECT total FROM total_members)) as share\n  FROM major m\n  INNER JOIN member mem ON m.major_id = mem.link_to_major\n  GROUP BY m.department\n),\naverage_share AS (\n  SELECT AVG(share) as avg_share\n  FROM member_counts\n)\nSELECT\n  mc.department,\n  mc.member_count,\n  mc.share,\n  mc.share - a.avg_share as difference\nFROM member_counts mc\nCROSS JOIN average_share a\nWHERE mc.share > a.avg_share\nORDER BY mc.department",
+  "executes": true,
+  "matches": [],
+  "raw": "For departments whose member share is strictly greater than the average member share across all departments, display the department name, member count, share, and the difference between that department's share and the average share."
+ },
+ "a": {
+  "request": "For members whose major appears in `major`, count members per department (`major.department`). Take each department's share as its member count divided by the total of these counts, and compute the average share across departments. List the departments whose share is strictly greater than the average share, showing the department, its member count, its share, and its share minus the average share, without rounding.",
+  "sql": "WITH member_depts AS (\n  SELECT m.department, COUNT(mem.member_id) as member_count\n  FROM major m\n  INNER JOIN member mem ON mem.link_to_major = m.major_id\n  GROUP BY m.department\n),\ntotal_members AS (\n  SELECT SUM(member_count) as total FROM member_depts\n),\ndept_shares AS (\n  SELECT \n    md.department,\n    md.member_count,\n    CAST(md.member_count AS REAL) / t.total as share\n  FROM member_depts md\n  CROSS JOIN total_members t\n),\navg_share AS (\n  SELECT AVG(share) as avg_share FROM dept_shares\n)\nSELECT \n  d.department,\n  d.member_count,\n  d.share,\n  d.share - a.avg_share as share_minus_avg\nFROM dept_shares d\nCROSS JOIN avg_share a\nWHERE d.share > a.avg_share",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
  "d": {
-  "request": "Among departments whose members have a major in `major`, which departments have a share strictly above the average share? For each, show the department, member count, share, and difference from the average share, unrounded.",
-  "sql": "WITH dept_counts AS (SELECT m.department AS department, COUNT(mem.member_id) AS member_count FROM member mem JOIN major m ON mem.link_to_major = m.major_id GROUP BY m.department), shares AS (SELECT department, member_count, member_count * 1.0 / SUM(member_count) OVER () AS share FROM dept_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.department, s.member_count, s.share, s.share - a.avg_share AS difference FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
+  "request": "For each department, calculate the proportion of total members (with majors) in that department, then list only departments where this proportion is strictly greater than the average proportion across all departments, showing the department name, member count, member share, and the difference between the department's share and the average share, without rounding.",
+  "sql": "WITH member_by_dept AS (\n    SELECT \n        m.department,\n        COUNT(mem.member_id) AS member_count\n    FROM major m\n    INNER JOIN member mem ON mem.link_to_major = m.major_id\n    GROUP BY m.department\n),\ntotal_members_count AS (\n    SELECT SUM(member_count) AS total FROM member_by_dept\n),\ndept_proportions AS (\n    SELECT \n        mbd.department,\n        mbd.member_count,\n        CAST(mbd.member_count AS FLOAT) / tmc.total AS proportion\n    FROM member_by_dept mbd\n    CROSS JOIN total_members_count tmc\n),\navg_proportion_value AS (\n    SELECT AVG(proportion) AS avg_proportion FROM dept_proportions\n)\nSELECT \n    dp.department,\n    dp.member_count,\n    dp.proportion AS member_share,\n    dp.proportion - apv.avg_proportion AS difference\nFROM dept_proportions dp\nCROSS JOIN avg_proportion_value apv\nWHERE dp.proportion > apv.avg_proportion;",
   "executes": true,
   "matches": [
    "A"
   ]
- }
+ },
+ "calls": 6
 }

@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH matched_data AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    sf.shortintrt,\n    sf.optvolrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON sf.transref = tr.transreg\n),\ntransaction_averages AS (\n  SELECT \n    transreg,\n    ordertypedist,\n    AVG(shortintrt) as avg_shortintrt,\n    AVG(optvolrt) as avg_optvolrt\n  FROM matched_data\n  GROUP BY transreg, ordertypedist\n),\nbaseline_averages AS (\n  SELECT \n    ordertypedist,\n    AVG(shortintrt) as baseline_shortintrt\n  FROM matched_data\n  GROUP BY ordertypedist\n)\nSELECT \n  ta.transreg,\n  ta.ordertypedist,\n  ta.avg_shortintrt,\n  ta.avg_optvolrt,\n  CASE \n    WHEN ba.baseline_shortintrt IS NOT NULL AND ba.baseline_shortintrt != 0\n    THEN ta.avg_shortintrt / ba.baseline_shortintrt\n    ELSE NULL\n  END as shortintrt_ratio\nFROM transaction_averages ta\nLEFT JOIN baseline_averages ba ON ta.ordertypedist = ba.ordertypedist\nORDER BY \n  shortintrt_ratio IS NULL,\n  shortintrt_ratio DESC\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "When the baseline shortintrt is zero or NULL, the ratio cannot be computed and is returned as NULL. This prevents division-by-zero errors and naturally places such rows at the end when sorting with missing ratios last.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The baseline for each ordertypedist is computed from all sentiment snapshots of that order type in the matched data, including any snapshots belonging to the transaction being compared. The phrase '(each snapshot counted once)' indicates snapshot-level granularity, not transaction-level aggregation.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The baseline could be computed at transaction granularity: first average shortintrt per transaction, then average those per-transaction averages within each ordertypedist. This weights each transaction equally rather than each snapshot equally, useful if transaction sample sizes differ widely.",
+    "sql": "WITH matched_data AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    sf.shortintrt,\n    sf.optvolrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON sf.transref = tr.transreg\n),\ntransaction_averages AS (\n  SELECT \n    transreg,\n    ordertypedist,\n    AVG(shortintrt) as avg_shortintrt,\n    AVG(optvolrt) as avg_optvolrt\n  FROM matched_data\n  GROUP BY transreg, ordertypedist\n),\nbaseline_averages AS (\n  SELECT \n    ordertypedist,\n    AVG(avg_shortintrt) as baseline_shortintrt\n  FROM transaction_averages\n  GROUP BY ordertypedist\n)\nSELECT \n  ta.transreg,\n  ta.ordertypedist,\n  ta.avg_shortintrt,\n  ta.avg_optvolrt,\n  CASE \n    WHEN ba.baseline_shortintrt IS NOT NULL AND ba.baseline_shortintrt != 0\n    THEN ta.avg_shortintrt / ba.baseline_shortintrt\n    ELSE NULL\n  END as shortintrt_ratio\nFROM transaction_averages ta\nLEFT JOIN baseline_averages ba ON ta.ordertypedist = ba.ordertypedist\nORDER BY \n  shortintrt_ratio IS NULL,\n  shortintrt_ratio DESC\nLIMIT 10;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 83.1
+}

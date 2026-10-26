@@ -2,21 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-6c0edf283c",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH status_counts AS (\n  SELECT s.healtheval, COUNT(*) AS record_count\n  FROM scanconservation AS c\n  JOIN sites AS s ON s.zoneregistry = c.zoneref\n  GROUP BY s.healtheval\n),\nstatus_shares AS (\n  SELECT healtheval, record_count,\n         record_count::numeric / SUM(record_count) OVER () AS share\n  FROM status_counts\n),\naverages AS (\n  SELECT AVG(share) AS average_share\n  FROM status_shares\n)\nSELECT AVG(ss.record_count) AS average_count,\n       AVG(ss.share) AS average_share,\n       AVG(ss.share - a.average_share) AS average_excess_share\nFROM status_shares AS ss\nCROSS JOIN averages AS a\nWHERE ss.share > a.average_share;",
+  "sql": "WITH status_counts AS (\n  SELECT s.healtheval, COUNT(*) AS conservation_count\n  FROM scanconservation AS c\n  JOIN sites AS s ON s.zoneregistry = c.zoneref\n  GROUP BY s.healtheval\n), shares AS (\n  SELECT healtheval,\n         conservation_count,\n         1.0 * conservation_count / SUM(conservation_count) OVER () AS share\n  FROM status_counts\n), above_average AS (\n  SELECT conservation_count, share\n  FROM shares\n  WHERE share > (SELECT AVG(share) FROM shares)\n)\nSELECT AVG(conservation_count) AS average_count,\n       AVG(share) AS average_share,\n       AVG(share - (SELECT AVG(share) FROM shares)) AS average_excess_share\nFROM above_average;",
   "assumptions": [
    {
-    "assumption": "Each distinct healtheval value, including NULL as its own group, is one status group; a record contributes only when its zoneref matches a site code. Shares use all matched conservation records as the denominator, and the above-average threshold is the unweighted mean of the status-group shares.",
+    "assumption": "Each distinct healtheval value, including NULL as its own group, is one status group; the share denominator is the total conservation record count after dropping records without a matching site. \u201cAbove-average share\u201d compares each group\u2019s share with the unweighted average across status groups.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [],
- "seconds": 11.2,
- "chars_out": 1024
+ "seconds": 32.5,
+ "chars_out": 1036
 }

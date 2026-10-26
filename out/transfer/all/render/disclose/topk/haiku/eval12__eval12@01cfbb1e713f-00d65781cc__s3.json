@@ -3,9 +3,9 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "WITH color_totals AS (SELECT p.product_color AS color, SUM(ili.derived_total_cost) AS invoiced_amount FROM Invoice_Line_Items ili JOIN Products p ON p.product_id = ili.product_id GROUP BY p.product_color), stats AS (SELECT AVG(invoiced_amount) AS avg_amount, SUM(invoiced_amount) AS grand_total FROM color_totals), shares AS (SELECT ct.color, ct.invoiced_amount, ct.invoiced_amount * 1.0 / s.grand_total AS share, s.avg_amount FROM color_totals ct CROSS JOIN stats s) SELECT AVG(invoiced_amount) AS avg_invoiced_amount, AVG(share) AS avg_share, AVG(invoiced_amount - avg_amount) AS avg_above_average FROM shares WHERE invoiced_amount > avg_amount;"
+  "sql": "WITH color_totals AS (\n  SELECT \n    COALESCE(p.product_color, 'No Color') AS color,\n    SUM(ili.derived_total_cost) AS total_invoiced\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON ili.product_id = p.product_id\n  GROUP BY COALESCE(p.product_color, 'No Color')\n),\ngrand_total AS (\n  SELECT \n    SUM(total_invoiced) AS grand_total, \n    COUNT(*) AS color_count\n  FROM color_totals\n),\ncolor_with_stats AS (\n  SELECT \n    ct.color,\n    ct.total_invoiced,\n    ct.total_invoiced / gt.grand_total AS share,\n    gt.grand_total / gt.color_count AS avg_per_color,\n    ct.total_invoiced - (gt.grand_total / gt.color_count) AS above_average\n  FROM color_totals ct\n  CROSS JOIN grand_total gt\n),\nabove_average_colors AS (\n  SELECT *\n  FROM color_with_stats\n  WHERE total_invoiced > avg_per_color\n)\nSELECT \n  AVG(total_invoiced) AS avg_invoiced_amount,\n  AVG(share) AS avg_share,\n  AVG(above_average) AS avg_above_average\nFROM above_average_colors"
  },
  "primary_executes": true,
  "primary_matches": [],
- "seconds": 6.6
+ "seconds": 31.4
 }

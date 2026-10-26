@@ -1,0 +1,26 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ea536393b9",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH matched_scans AS (\n  SELECT \n    sc.\"zoneref\",\n    sc.\"pressratio\",\n    si.\"riskeval\"\n  FROM \"scans\" sc\n  INNER JOIN \"sites\" si ON sc.\"zoneref\" = si.\"zoneregistry\"\n),\ngrouped AS (\n  SELECT \n    \"zoneref\",\n    \"riskeval\",\n    AVG(\"pressratio\") as avg_pressratio,\n    COUNT(*) as scan_count\n  FROM matched_scans\n  GROUP BY \"zoneref\", \"riskeval\"\n),\ntotal_count AS (\n  SELECT COUNT(*) as total FROM matched_scans\n),\nwith_share AS (\n  SELECT \n    \"zoneref\",\n    \"riskeval\",\n    avg_pressratio,\n    scan_count,\n    CAST(scan_count AS FLOAT) / NULLIF((SELECT total FROM total_count), 0) as share\n  FROM grouped\n),\nranked AS (\n  SELECT \n    *,\n    ROW_NUMBER() OVER (ORDER BY share DESC) as row_num\n  FROM with_share\n),\ntop_10_threshold AS (\n  SELECT COALESCE(MIN(share), 0) as threshold FROM (\n    SELECT share FROM ranked WHERE row_num <= 10\n  ) t\n)\nSELECT \n  \"zoneref\",\n  \"riskeval\",\n  avg_pressratio,\n  scan_count,\n  share\nFROM with_share\nWHERE share >= (SELECT threshold FROM top_10_threshold)\nORDER BY share DESC",
+  "assumptions": [
+   {
+    "assumption": "NULL values in riskeval are treated as a distinct group (standard SQL GROUP BY behavior). The query groups by both zoneref and riskeval, so groups with NULL riskeval are separate from groups with non-NULL values.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The share calculation uses floating-point division without rounding. The request says 'Don't round' and the query honors this by using exact division (FLOAT) rather than ROUND().",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 94.1
+}

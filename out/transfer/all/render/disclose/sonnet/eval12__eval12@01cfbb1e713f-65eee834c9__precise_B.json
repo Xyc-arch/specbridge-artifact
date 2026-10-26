@@ -2,27 +2,45 @@
  "case": "eval12:eval12@01cfbb1e713f-65eee834c9",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(DISTINCT o.recordvault) AS cnt FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.dealedge), avg_c AS (SELECT AVG(cnt) AS a FROM side_counts) SELECT SUM(s.cnt) AS total_count, AVG(s.cnt - c.a) AS avg_excess FROM side_counts s CROSS JOIN avg_c c WHERE s.cnt > c.a",
+  "sql": "WITH c AS (SELECT o.dealedge AS side, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.dealedge), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.avg_n) AS avg_excess FROM c CROSS JOIN a WHERE c.n > a.avg_n",
   "assumptions": [
    {
-    "assumption": "Sides are the distinct dealedge values among matched orders; sides with no matched orders are not included in the average. Orders with NULL dealedge form their own group and count as a side.",
+    "assumption": "Orders with a NULL dealedge form their own group (a NULL side) and are included in the per-side counts and the average across sides, since GROUP BY keeps NULL as a group. If no orders have a NULL side this has no effect.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Distinct orders are identified by orders.recordvault, which is the unique order reference. The average is taken over the sides that have at least one matched order.",
     "unresolved": false
    },
    {
-    "assumption": "Orders are identified by recordvault (the unique order reference); the average is the unweighted mean of per-side counts.",
+    "assumption": "If no side is above the average (all counts equal), the query returns one row with NULL values.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Exclude orders with a NULL side from the grouping, so only real sides (Buy, Sell) are counted and averaged.",
+    "sql": "WITH c AS (SELECT o.dealedge AS side, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.avg_n) AS avg_excess FROM c CROSS JOIN a WHERE c.n > a.avg_n"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 5.9,
- "chars_out": 776
+ "alternatives": [
+  {
+   "interpretation": "Exclude orders with a NULL side from the grouping, so only real sides (Buy, Sell) are counted and averaged.",
+   "sql": "WITH c AS (SELECT o.dealedge AS side, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), a AS (SELECT AVG(n) AS avg_n FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.avg_n) AS avg_excess FROM c CROSS JOIN a WHERE c.n > a.avg_n",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 7.5,
+ "chars_out": 1405
 }

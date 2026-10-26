@@ -2,45 +2,49 @@
  "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT f.orderslink, o.dealedge, AVG(f.feerate - f.rebrate) AS avg_net, COUNT(*) AS rec_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate > 0.0009 GROUP BY f.orderslink, o.dealedge), s AS (SELECT g.*, AVG(avg_net) OVER (PARTITION BY dealedge) AS side_avg FROM g) SELECT orderslink, dealedge AS side, avg_net AS avg_net_fee_rate, rec_count AS record_count, avg_net - side_avg AS diff_from_side_avg FROM s WHERE avg_net > side_avg ORDER BY diff_from_side_avg DESC NULLS LAST LIMIT 10",
+  "sql": "WITH g AS (SELECT f.orderslink AS orderslink, o.dealedge AS side, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate, COUNT(*) AS record_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate >= 0.0009 GROUP BY f.orderslink, o.dealedge), s AS (SELECT g.*, AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg FROM g) SELECT orderslink, side, avg_net_fee_rate, record_count, avg_net_fee_rate - side_avg AS diff_from_side_avg FROM s WHERE avg_net_fee_rate > side_avg ORDER BY diff_from_side_avg DESC LIMIT 10",
   "assumptions": [
    {
-    "assumption": "High-rate means feerate strictly greater than 0.0009 (a fee exactly at the cutoff is excluded).",
+    "assumption": "'High-rate' with 0.0009 as the cutoff means feerate >= 0.0009 (the cutoff itself is included).",
     "unresolved": true
    },
    {
-    "assumption": "Record count is the number of matched high-rate fee rows in the group (COUNT(*)), including rows whose net rate is null. The average skips those rows because a null feerate or rebrate makes the difference null.",
+    "assumption": "Record count is the number of fee rows in the group (COUNT(*)), including rows where rebrate is null. The average net fee rate skips those rows because feerate - rebrate is null.",
     "unresolved": false
    },
    {
-    "assumption": "The side average is the unweighted mean of the group averages for that side. Groups with a null average are ignored in that mean and cannot qualify.",
+    "assumption": "The side average is the unweighted mean of the group averages. Groups whose average is null are ignored.",
+    "unresolved": false
+   },
+   {
+    "assumption": "orders.recordvault is unique, so the join does not duplicate fee rows.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "High-rate means feerate at or above 0.0009 (cutoff inclusive).",
-    "sql": "WITH g AS (SELECT f.orderslink, o.dealedge, AVG(f.feerate - f.rebrate) AS avg_net, COUNT(*) AS rec_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate >= 0.0009 GROUP BY f.orderslink, o.dealedge), s AS (SELECT g.*, AVG(avg_net) OVER (PARTITION BY dealedge) AS side_avg FROM g) SELECT orderslink, dealedge AS side, avg_net AS avg_net_fee_rate, rec_count AS record_count, avg_net - side_avg AS diff_from_side_avg FROM s WHERE avg_net > side_avg ORDER BY diff_from_side_avg DESC NULLS LAST LIMIT 10"
+    "interpretation": "High-rate means strictly above the cutoff (feerate > 0.0009).",
+    "sql": "WITH g AS (SELECT f.orderslink AS orderslink, o.dealedge AS side, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate, COUNT(*) AS record_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate > 0.0009 GROUP BY f.orderslink, o.dealedge), s AS (SELECT g.*, AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg FROM g) SELECT orderslink, side, avg_net_fee_rate, record_count, avg_net_fee_rate - side_avg AS diff_from_side_avg FROM s WHERE avg_net_fee_rate > side_avg ORDER BY diff_from_side_avg DESC LIMIT 10"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
  "alternatives": [
   {
-   "interpretation": "High-rate means feerate at or above 0.0009 (cutoff inclusive).",
-   "sql": "WITH g AS (SELECT f.orderslink, o.dealedge, AVG(f.feerate - f.rebrate) AS avg_net, COUNT(*) AS rec_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate >= 0.0009 GROUP BY f.orderslink, o.dealedge), s AS (SELECT g.*, AVG(avg_net) OVER (PARTITION BY dealedge) AS side_avg FROM g) SELECT orderslink, dealedge AS side, avg_net AS avg_net_fee_rate, rec_count AS record_count, avg_net - side_avg AS diff_from_side_avg FROM s WHERE avg_net > side_avg ORDER BY diff_from_side_avg DESC NULLS LAST LIMIT 10",
+   "interpretation": "High-rate means strictly above the cutoff (feerate > 0.0009).",
+   "sql": "WITH g AS (SELECT f.orderslink AS orderslink, o.dealedge AS side, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate, COUNT(*) AS record_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate > 0.0009 GROUP BY f.orderslink, o.dealedge), s AS (SELECT g.*, AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg FROM g) SELECT orderslink, side, avg_net_fee_rate, record_count, avg_net_fee_rate - side_avg AS diff_from_side_avg FROM s WHERE avg_net_fee_rate > side_avg ORDER BY diff_from_side_avg DESC LIMIT 10",
    "executes": true,
    "matches": [
-    "A"
+    "B"
    ]
   }
  ],
- "seconds": 18.6,
- "chars_out": 1807
+ "seconds": 11.1,
+ "chars_out": 1793
 }

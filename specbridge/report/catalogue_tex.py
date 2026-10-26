@@ -149,8 +149,8 @@ def sets(S):
          "\\begin{xltabular}{\\textwidth}{@{}>{\\raggedright\\arraybackslash}p{1.95cm}>{\\hsize=1.1\\hsize\\raggedright\\arraybackslash}X"
          ">{\\hsize=0.9\\hsize\\raggedright\\arraybackslash}X>{\\raggedright\\arraybackslash}p{1.45cm}>{\\centering\\arraybackslash}p{1.0cm}@{}}",
          "\\caption{Selected accepted request sets, up to %d per type.}\\label{tab:catsets}\\\\" % N_SETS,
-         "\\toprule", "Set & Open request & Readings & Answers & Models\\\\", "\\midrule", "\\endfirsthead",
-         "\\toprule", "Set & Open request & Readings & Answers & Models\\\\", "\\midrule", "\\endhead", "\\bottomrule", "\\endfoot"]
+         "\\toprule", "Set & Open request & Interpretations & Answers & Models\\\\", "\\midrule", "\\endfirsthead",
+         "\\toprule", "Set & Open request & Interpretations & Answers & Models\\\\", "\\midrule", "\\endhead", "\\bottomrule", "\\endfoot"]
     for i, t in enumerate(sorted({x["display"] for x in S})):
         xs = [x for x in S if x["display"] == t]
         sel = pick(xs, N_SETS, key=lambda x: (len(x["written"]["open"]), x["id"]), group=lambda x: x["case"]["database"], prefer=lambda x: rank[x["source"]])

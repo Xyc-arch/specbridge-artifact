@@ -2,20 +2,24 @@
  "case": "eval12:eval12@01cfbb1e713f-fd1f07ae25",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (SELECT f.orderslink, o.ordertune, f.rebtotal, (f.rebrate - f.feerate) / NULLIF(f.feerate, 0) AS relgap FROM fees f JOIN orders o ON f.orderslink = o.recordvault), base AS (SELECT AVG(rebtotal) AS baseline FROM matched), grp AS (SELECT orderslink, ordertune, AVG(rebtotal) AS avg_rebate, AVG(relgap) AS avg_relative_gap FROM matched GROUP BY orderslink, ordertune) SELECT g.orderslink, g.ordertune, g.avg_rebate, g.avg_relative_gap, g.avg_rebate - b.baseline AS excess_over_baseline FROM grp g CROSS JOIN base b WHERE g.avg_rebate > b.baseline ORDER BY excess_over_baseline DESC LIMIT 10",
+  "sql": "WITH m AS (SELECT f.orderslink, o.ordertune, f.rebtotal, f.rebrate, f.feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault), b AS (SELECT AVG(rebtotal) AS base FROM m) SELECT m.orderslink, m.ordertune, AVG(m.rebtotal) AS avg_rebate, AVG((m.rebrate - m.feerate) / m.feerate) AS avg_relative_gap, AVG(m.rebtotal) - (SELECT base FROM b) AS excess_over_baseline FROM m GROUP BY m.orderslink, m.ordertune HAVING AVG(m.rebtotal) > (SELECT base FROM b) ORDER BY excess_over_baseline DESC LIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The baseline is the mean of rebtotal over all matched fee rows (inner join to orders), so each fee record is weighted equally, not an average of group averages.",
+    "assumption": "The baseline is the plain average of rebtotal over all matched fee records (inner join to orders), not an average of the group averages, as the request states.",
     "unresolved": false
    },
    {
-    "assumption": "Fee records with feerate = 0 get a NULL relative gap (division by zero avoided with NULLIF), and AVG ignores those NULLs. Such records still count in the average rebate and the baseline.",
-    "unresolved": true
+    "assumption": "orders.recordvault is unique, so the join does not duplicate fee rows.",
+    "unresolved": false
    },
    {
-    "assumption": "orders.recordvault is unique (as documented), so the join does not duplicate fee rows.",
+    "assumption": "Fee records with feerate = 0 give a NULL relative gap in SQLite (division by zero). AVG skips these NULLs, so they are left out of the average gap but still count toward the average rebate.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Fee records with a NULL rebtotal are ignored by AVG in both the group averages and the baseline.",
     "unresolved": false
    }
   ],
@@ -27,6 +31,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 6.9,
- "chars_out": 1241
+ "seconds": 13.2,
+ "chars_out": 1269
 }

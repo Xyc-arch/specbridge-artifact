@@ -2,21 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-989c45ebd2",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH type_counts AS (\n  SELECT tr.tradekind, COUNT(*) AS analysis_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tx ON ab.translink = tx.transreg\n  JOIN trader AS tr ON tx.trdref = tr.tradereg\n  GROUP BY tr.tradekind\n), shares AS (\n  SELECT tradekind, analysis_count,\n         analysis_count::numeric / NULLIF(SUM(analysis_count) OVER (), 0) AS share\n  FROM type_counts\n), averages AS (\n  SELECT AVG(share) AS average_share\n  FROM shares\n)\nSELECT s.tradekind, s.analysis_count, s.share,\n       s.share - a.average_share AS share_minus_average\nFROM shares AS s\nCROSS JOIN averages AS a\nWHERE s.share > a.average_share\nORDER BY s.tradekind NULLS FIRST;",
+  "sql": "WITH counts AS (\n  SELECT t.tradekind, COUNT(*) AS analysis_count\n  FROM advancedbehavior AS a\n  JOIN transactionrecord AS tr ON a.translink = tr.transreg\n  JOIN trader AS t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n), shares AS (\n  SELECT tradekind, analysis_count,\n         1.0 * analysis_count / SUM(analysis_count) OVER () AS share\n  FROM counts\n), scored AS (\n  SELECT tradekind, analysis_count, share,\n         AVG(share) OVER () AS average_share\n  FROM shares\n)\nSELECT tradekind, analysis_count, share, share - average_share AS share_minus_average\nFROM scored\nWHERE average_share IS NOT NULL\n  AND share > average_share;",
   "assumptions": [
    {
-    "assumption": "Each advancedbehavior row counts as one analysis; exact foreign-key text equality defines a match, and unmatched rows are excluded by the inner joins. A NULL tradekind is retained as its own group. The plain average is the arithmetic mean of shares for trader types represented among matched analyses.",
+    "assumption": "Each matching advancedbehavior row counts as one analysis; exact text joins exclude rows without a matching transaction and trader. NULL tradekind values form one group, as SQLite GROUP BY groups them together.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [],
- "seconds": 8.7,
- "chars_out": 1068
+ "seconds": 36.8,
+ "chars_out": 943
 }

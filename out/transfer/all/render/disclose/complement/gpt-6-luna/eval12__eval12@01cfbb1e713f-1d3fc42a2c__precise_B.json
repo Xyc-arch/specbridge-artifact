@@ -2,13 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-1d3fc42a2c",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH project_totals AS (\n  SELECT\n    p.arcregistry,\n    p.fundflux,\n    SUM(ss.boxx) AS total_boxx,\n    SUM(ss.boxz) AS total_boxz\n  FROM projects AS p\n  JOIN scanspatial AS ss\n    ON ss.arcref = p.arcregistry\n  GROUP BY p.arcregistry, p.fundflux\n), project_ratios AS (\n  SELECT\n    arcregistry,\n    fundflux,\n    total_boxx / NULLIF(total_boxz, 0) AS ratio\n  FROM project_totals\n), project_excess AS (\n  SELECT\n    arcregistry,\n    fundflux,\n    ratio,\n    ratio - AVG(ratio) OVER (PARTITION BY fundflux) AS excess\n  FROM project_ratios\n)\nSELECT arcregistry AS project_id, fundflux AS funding_source, ratio, excess\nFROM project_excess\nWHERE excess > 0\nORDER BY excess DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH project_totals AS (\n  SELECT\n    p.arcregistry AS project_id,\n    p.fundflux AS funding_source,\n    SUM(ss.boxx) AS total_boxx,\n    SUM(ss.boxz) AS total_boxz\n  FROM scanspatial AS ss\n  JOIN projects AS p\n    ON p.arcregistry = ss.arcref\n  GROUP BY p.arcregistry, p.fundflux\n), project_ratios AS (\n  SELECT\n    project_id,\n    funding_source,\n    total_boxx / NULLIF(total_boxz, 0) AS ratio\n  FROM project_totals\n), scored AS (\n  SELECT\n    project_id,\n    funding_source,\n    ratio,\n    ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS excess\n  FROM project_ratios\n)\nSELECT project_id, funding_source, ratio, excess\nFROM scored\nWHERE excess > 0\nORDER BY excess DESC NULLS LAST\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "Projects are included in the funding-source average only when they have at least one matching spatial record; missing box values are ignored by SUM, and a zero or missing boxz total yields a NULL ratio, excluded from AVG.",
-    "unresolved": true
+    "assumption": "Projects with no matching spatial records are excluded; each project's ratio is NULL when its summed boxz is zero or all boxz values are missing, and such ratios are omitted from the funding-source average.",
+    "unresolved": false
    }
   ],
   "alternatives": []
@@ -18,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 6.4
+ "seconds": 37.7
 }

@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-f12d27cb47",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_avg AS (SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_faces FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry GROUP BY s.zoneregistry, s.entrystat HAVING AVG(m.facetfaces) IS NOT NULL), overall AS (SELECT AVG(m.facetfaces) AS overall_avg FROM scanmesh m JOIN sites s ON m.zoneref = s.zoneregistry), status_avg AS (SELECT entrystat, AVG(avg_faces) AS st_avg FROM site_avg WHERE entrystat IS NOT NULL GROUP BY entrystat) SELECT AVG(sa.avg_faces) AS avg_face_count, AVG(sa.avg_faces - o.overall_avg) AS avg_above_overall, AVG(sa.avg_faces - st.st_avg) AS avg_above_status FROM site_avg sa JOIN status_avg st ON st.entrystat = sa.entrystat CROSS JOIN overall o WHERE sa.avg_faces > st.st_avg AND o.overall_avg IS NOT NULL",
+  "sql": "WITH m AS (SELECT s.zoneregistry AS z, s.entrystat AS st, sm.facetfaces AS f FROM scanmesh sm JOIN sites s ON s.zoneregistry = sm.zoneref), site AS (SELECT z, st, AVG(f) AS a FROM m GROUP BY z, st HAVING AVG(f) IS NOT NULL), overall AS (SELECT AVG(f) AS ov FROM m), stat AS (SELECT st, AVG(a) AS sa FROM site WHERE st IS NOT NULL GROUP BY st) SELECT AVG(site.a) AS avg_faces, AVG(site.a - overall.ov) AS avg_above_overall, AVG(site.a - stat.sa) AS avg_above_status FROM site JOIN stat ON stat.st = site.st CROSS JOIN overall WHERE site.a > stat.sa AND overall.ov IS NOT NULL;",
   "assumptions": [
    {
-    "assumption": "The overall average number of mesh faces is the row-level average of facetfaces over all scanmesh records that match a site (NULLs ignored), including sites with no entrystat.",
+    "assumption": "The overall average is the pooled average of facetfaces over all matched mesh records (sites with and without an access status), not the average of site averages.",
     "unresolved": true
    },
    {
-    "assumption": "Sites whose facetfaces are all NULL have no site average and are excluded from the status averages and from the comparison.",
+    "assumption": "Sites whose mesh records all have NULL facetfaces have no site average and are dropped. Sites with a NULL entrystat are excluded from the status comparison but still count toward the overall average.",
     "unresolved": false
    },
    {
-    "assumption": "If the overall average is NULL, no sites count and the query returns NULLs (the aggregates over zero rows).",
+    "assumption": "If the overall average is NULL, no sites count and the single row returns NULLs.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The overall average is the simple average of the per-site averages (every matched site weighted equally, including sites without an access status) instead of the row-level average.",
-    "sql": "WITH site_avg AS (SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_faces FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry GROUP BY s.zoneregistry, s.entrystat HAVING AVG(m.facetfaces) IS NOT NULL), overall AS (SELECT AVG(avg_faces) AS overall_avg FROM site_avg), status_avg AS (SELECT entrystat, AVG(avg_faces) AS st_avg FROM site_avg WHERE entrystat IS NOT NULL GROUP BY entrystat) SELECT AVG(sa.avg_faces) AS avg_face_count, AVG(sa.avg_faces - o.overall_avg) AS avg_above_overall, AVG(sa.avg_faces - st.st_avg) AS avg_above_status FROM site_avg sa JOIN status_avg st ON st.entrystat = sa.entrystat CROSS JOIN overall o WHERE sa.avg_faces > st.st_avg AND o.overall_avg IS NOT NULL"
+    "interpretation": "The overall average is the simple average of all matched sites' averages (including sites without an access status), rather than the pooled record-level average.",
+    "sql": "WITH m AS (SELECT s.zoneregistry AS z, s.entrystat AS st, sm.facetfaces AS f FROM scanmesh sm JOIN sites s ON s.zoneregistry = sm.zoneref), site AS (SELECT z, st, AVG(f) AS a FROM m GROUP BY z, st HAVING AVG(f) IS NOT NULL), overall AS (SELECT AVG(a) AS ov FROM site), stat AS (SELECT st, AVG(a) AS sa FROM site WHERE st IS NOT NULL GROUP BY st) SELECT AVG(site.a) AS avg_faces, AVG(site.a - overall.ov) AS avg_above_overall, AVG(site.a - stat.sa) AS avg_above_status FROM site JOIN stat ON stat.st = site.st CROSS JOIN overall WHERE site.a > stat.sa AND overall.ov IS NOT NULL;"
    }
   ]
  },
@@ -33,8 +33,8 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The overall average is the simple average of the per-site averages (every matched site weighted equally, including sites without an access status) instead of the row-level average.",
-   "sql": "WITH site_avg AS (SELECT s.zoneregistry, s.entrystat, AVG(m.facetfaces) AS avg_faces FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry GROUP BY s.zoneregistry, s.entrystat HAVING AVG(m.facetfaces) IS NOT NULL), overall AS (SELECT AVG(avg_faces) AS overall_avg FROM site_avg), status_avg AS (SELECT entrystat, AVG(avg_faces) AS st_avg FROM site_avg WHERE entrystat IS NOT NULL GROUP BY entrystat) SELECT AVG(sa.avg_faces) AS avg_face_count, AVG(sa.avg_faces - o.overall_avg) AS avg_above_overall, AVG(sa.avg_faces - st.st_avg) AS avg_above_status FROM site_avg sa JOIN status_avg st ON st.entrystat = sa.entrystat CROSS JOIN overall o WHERE sa.avg_faces > st.st_avg AND o.overall_avg IS NOT NULL",
+   "interpretation": "The overall average is the simple average of all matched sites' averages (including sites without an access status), rather than the pooled record-level average.",
+   "sql": "WITH m AS (SELECT s.zoneregistry AS z, s.entrystat AS st, sm.facetfaces AS f FROM scanmesh sm JOIN sites s ON s.zoneregistry = sm.zoneref), site AS (SELECT z, st, AVG(f) AS a FROM m GROUP BY z, st HAVING AVG(f) IS NOT NULL), overall AS (SELECT AVG(a) AS ov FROM site), stat AS (SELECT st, AVG(a) AS sa FROM site WHERE st IS NOT NULL GROUP BY st) SELECT AVG(site.a) AS avg_faces, AVG(site.a - overall.ov) AS avg_above_overall, AVG(site.a - stat.sa) AS avg_above_status FROM site JOIN stat ON stat.st = site.st CROSS JOIN overall WHERE site.a > stat.sa AND overall.ov IS NOT NULL;",
    "executes": true,
    "matches": [
     "A"
@@ -42,5 +42,5 @@
   }
  ],
  "seconds": 12.3,
- "chars_out": 2223
+ "chars_out": 2020
 }

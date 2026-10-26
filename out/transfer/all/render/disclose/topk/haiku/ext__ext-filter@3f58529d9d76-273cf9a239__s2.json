@@ -3,11 +3,11 @@
  "sample": 2,
  "model": "haiku",
  "response": {
-  "sql": "WITH grp AS (SELECT st.zoneregistry AS sitecode, st.healtheval AS status, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avgratio, COUNT(*) AS scancount FROM scans sc JOIN sites st ON st.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY st.zoneregistry, st.healtheval), meanavg AS (SELECT AVG(avgratio) AS meanratio FROM grp) SELECT g.sitecode, g.status, g.avgratio, g.scancount, g.avgratio - m.meanratio AS excess FROM grp g CROSS JOIN meanavg m WHERE g.avgratio > m.meanratio ORDER BY excess DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH filtered_scans AS (\n  SELECT s.questregistry, s.zoneref, s.gbsize, s.spanmin\n  FROM scans s\n  WHERE s.chronotag >= '2024-06-06 11:53:59.684274'\n    AND s.chronotag <= '2024-11-03 19:51:13.516797'\n    AND s.zoneref IS NOT NULL\n),\nscans_with_site AS (\n  SELECT fs.questregistry, fs.zoneref, fs.gbsize, fs.spanmin, z.healtheval\n  FROM filtered_scans fs\n  INNER JOIN sites z ON fs.zoneref = z.zoneregistry\n),\ngroup_stats AS (\n  SELECT\n    zoneref,\n    healtheval,\n    AVG(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0\n             THEN gbsize / spanmin\n             ELSE NULL END) as avg_ratio,\n    COUNT(*) as scan_count\n  FROM scans_with_site\n  GROUP BY zoneref, healtheval\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) as mean_value\n  FROM group_stats\n  WHERE avg_ratio IS NOT NULL\n)\nSELECT\n  gs.zoneref,\n  gs.healtheval,\n  gs.avg_ratio,\n  gs.scan_count,\n  gs.avg_ratio - om.mean_value as beat_amount\nFROM group_stats gs\nCROSS JOIN overall_mean om\nWHERE om.mean_value IS NOT NULL\n  AND gs.avg_ratio > om.mean_value\nORDER BY beat_amount DESC NULLS LAST\nLIMIT 10;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 10.2
+ "seconds": 51.7
 }

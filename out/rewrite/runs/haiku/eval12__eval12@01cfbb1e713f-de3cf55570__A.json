@@ -3,37 +3,34 @@
  "model": "haiku",
  "reading": "A",
  "description": "The per-city count is the number of attendance records (one per member per event).",
- "b": {
-  "request": "Count attendance rows per city by joining attendance \u2192 member \u2192 zip_code on `member.zip = zip_code.zip_code`, with each city's share = its count / total attendance rows across all cities; keep cities whose share exceeds the mean city share, and return one row with the mean count, mean share, and mean of (share \u2212 mean share) over those cities",
-  "sql": "WITH city_counts AS (\n  SELECT z.city, COUNT(*) AS cnt\n  FROM attendance a\n  JOIN member m ON a.link_to_member = m.member_id\n  JOIN zip_code z ON m.zip = z.zip_code\n  GROUP BY z.city\n),\ntotals AS (\n  SELECT SUM(cnt) AS total FROM city_counts\n),\nshares AS (\n  SELECT c.city, c.cnt, c.cnt * 1.0 / t.total AS share\n  FROM city_counts c\n  CROSS JOIN totals t\n),\nmean_share AS (\n  SELECT AVG(share) AS ms FROM shares\n),\nkept AS (\n  SELECT s.city, s.cnt, s.share\n  FROM shares s\n  CROSS JOIN mean_share m\n  WHERE s.share > m.ms\n)\nSELECT AVG(k.cnt) AS mean_count,\n       AVG(k.share) AS mean_share,\n       AVG(k.share - m.ms) AS mean_share_deviation\nFROM kept k\nCROSS JOIN mean_share m;",
+ "c": {
+  "request": "Using event attendance and the city of each attending member's zip code (`member.zip` = `zip_code.zip_code`), find the number of event attendees from each city and each city's share of the total across all cities. For the cities whose share is above the average city share, give in one row the average number of attendees, the average share, and the average amount by which the share is above that average. The per-city count is the number of attendance records (one per member per event).",
+  "sql": "WITH city_counts AS (\n  SELECT \n    zc.city,\n    COUNT(a.link_to_member) as attendee_count\n  FROM attendance a\n  JOIN member m ON a.link_to_member = m.member_id\n  JOIN zip_code zc ON m.zip = zc.zip_code\n  GROUP BY zc.city\n),\ntotal_count AS (\n  SELECT SUM(attendee_count) as total FROM city_counts\n),\ncity_with_share AS (\n  SELECT \n    cc.city,\n    cc.attendee_count,\n    cc.attendee_count * 1.0 / tc.total as share\n  FROM city_counts cc, total_count tc\n),\naverage_share AS (\n  SELECT 1.0 / COUNT(*) as avg_share\n  FROM city_with_share\n),\nabove_average_cities AS (\n  SELECT \n    cws.attendee_count,\n    cws.share,\n    cws.share - ashr.avg_share as share_above_avg\n  FROM city_with_share cws, average_share ashr\n  WHERE cws.share > ashr.avg_share\n)\nSELECT \n  AVG(attendee_count) as avg_attendees,\n  AVG(share) as avg_share,\n  AVG(share_above_avg) as avg_share_above_average\nFROM above_average_cities",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "c": {
-  "request": "Using event attendance and the city of each attending member's zip code (`member.zip` = `zip_code.zip_code`), find the number of event attendees from each city and each city's share of the total across all cities. For the cities whose share is above the average city share, give in one row the average number of attendees, the average share, and the average amount by which the share is above that average. The per-city count is the number of attendance records (one per member per event).",
-  "sql": "WITH city_counts AS (SELECT z.city, COUNT(*) AS attendees FROM attendance a JOIN member m ON a.link_to_member = m.member_id JOIN zip_code z ON m.zip = z.zip_code GROUP BY z.city), city_share AS (SELECT city, attendees, attendees * 1.0 / SUM(attendees) OVER () AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM city_share), above AS (SELECT cs.attendees, cs.share, cs.share - a.avg_share AS share_diff FROM city_share cs CROSS JOIN avg_share a WHERE cs.share > a.avg_share) SELECT AVG(attendees) AS avg_attendees, AVG(share) AS avg_share, AVG(share_diff) AS avg_amount_above_average FROM above;",
+ "b": {
+  "request": "Count attendance records per city; calculate each city's share of total attendance records; for cities with above-average share, report in one row the mean attendance record count, mean city share, and mean excess percentage above the overall mean share.",
+  "sql": "WITH city_attendance AS (\n  SELECT \n    zc.city,\n    COUNT(a.link_to_member) as attendance_count\n  FROM attendance a\n  JOIN member m ON a.link_to_member = m.member_id\n  JOIN zip_code zc ON m.zip = zc.zip_code\n  WHERE zc.city IS NOT NULL\n  GROUP BY zc.city\n),\ntotal_attendance AS (\n  SELECT CAST(SUM(attendance_count) as REAL) as total FROM city_attendance\n),\ncity_share AS (\n  SELECT \n    ca.city,\n    ca.attendance_count,\n    ca.attendance_count * 1.0 / ta.total as share\n  FROM city_attendance ca\n  CROSS JOIN total_attendance ta\n),\navg_share AS (\n  SELECT AVG(share) as mean_share FROM city_share\n),\nabove_avg_cities AS (\n  SELECT \n    cs.city,\n    cs.attendance_count,\n    cs.share,\n    asp.mean_share,\n    (cs.share - asp.mean_share) / asp.mean_share * 100 as excess_percentage\n  FROM city_share cs\n  CROSS JOIN avg_share asp\n  WHERE cs.share > asp.mean_share\n)\nSELECT \n  AVG(attendance_count) as mean_attendance_count,\n  AVG(share) as mean_city_share,\n  AVG(excess_percentage) as mean_excess_percentage\nFROM above_avg_cities",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": [],
+  "raw": "Count attendance records per city; calculate each city's share of total attendance records; for cities with above-average share, report in one row the mean attendance record count, mean city share, and mean excess percentage above the overall mean share."
  },
  "a": {
   "request": "Link each attendance record to the attending member and to the city of the member's zip code (`member.zip` = `zip_code.zip_code`). For each city, count the attendance records, so each member counts once for every event attended. Then work out each city's share as its count divided by the sum of all cities' counts. Look only at the cities whose share is above the average share across all cities, and give in one row the average count, the average share, and the average amount by which the share is above that overall average.",
-  "sql": "WITH city_counts AS (\n  SELECT z.city, COUNT(*) AS cnt\n  FROM attendance a\n  JOIN member m ON a.link_to_member = m.member_id\n  JOIN zip_code z ON m.zip = z.zip_code\n  GROUP BY z.city\n),\nshares AS (\n  SELECT city, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share\n  FROM city_counts\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n),\nabove AS (\n  SELECT s.cnt, s.share, s.share - a.avg_share AS diff\n  FROM shares s\n  CROSS JOIN avg_share a\n  WHERE s.share > a.avg_share\n)\nSELECT AVG(cnt) AS avg_count,\n       AVG(share) AS avg_share,\n       AVG(diff) AS avg_share_above_overall_average\nFROM above;",
+  "sql": "WITH city_attendance AS (SELECT z.city, COUNT(*) as attendance_count FROM attendance a JOIN member m ON a.link_to_member = m.member_id JOIN zip_code z ON m.zip = z.zip_code GROUP BY z.city), total_attendance AS (SELECT SUM(attendance_count) as total_count FROM city_attendance), city_shares AS (SELECT ca.city, ca.attendance_count, ca.attendance_count::FLOAT / ta.total_count as share FROM city_attendance ca CROSS JOIN total_attendance ta), overall_avg_share AS (SELECT AVG(share) as avg_share FROM city_shares), filtered_cities AS (SELECT cs.city, cs.attendance_count, cs.share, oas.avg_share FROM city_shares cs CROSS JOIN overall_avg_share oas WHERE cs.share > oas.avg_share) SELECT AVG(attendance_count) as avg_count, AVG(share) as avg_share, AVG(share - avg_share) as avg_share_above_overall_avg FROM filtered_cities",
+  "executes": false,
+  "matches": []
+ },
+ "d": {
+  "request": "Count attendance records per city (each record representing one member attending one event), calculate each city's share of total records, identify cities with above-average share, and report for those cities the average attendance record count, average share, and average excess share.",
+  "sql": "WITH city_attendance AS (SELECT z.city, COUNT(*) as record_count FROM attendance a JOIN member m ON a.link_to_member = m.member_id JOIN zip_code z ON m.zip = z.zip_code GROUP BY z.city), total_records AS (SELECT SUM(record_count) as total FROM city_attendance), city_shares AS (SELECT city, record_count, CAST(record_count AS REAL) / (SELECT total FROM total_records) as share FROM city_attendance), average_share AS (SELECT AVG(share) as avg_share FROM city_shares), above_average_cities AS (SELECT city, record_count, share FROM city_shares WHERE share > (SELECT avg_share FROM average_share)) SELECT AVG(record_count) as avg_record_count, AVG(share) as avg_share, AVG(share) - (SELECT avg_share FROM average_share) as avg_excess_share FROM above_average_cities",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Using event attendance records, where each record is one member attending one event, and each member's city taken from their zip code (`member.zip` = `zip_code.zip_code`), find the number of attendance records per city and each city's share of the total across all cities. For the cities whose share is above the average city share, give in one row the average number of attendance records, the average share, and the average amount by which the share is above that average.",
-  "sql": "WITH city_counts AS (SELECT z.city AS city, COUNT(*) AS cnt FROM attendance a JOIN member m ON a.link_to_member = m.member_id JOIN zip_code z ON m.zip = z.zip_code GROUP BY z.city), city_share AS (SELECT city, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM city_counts) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_s FROM city_share), above_avg AS (SELECT cs.cnt, cs.share, cs.share - a.avg_s AS diff FROM city_share cs CROSS JOIN avg_share a WHERE cs.share > a.avg_s) SELECT AVG(cnt) AS avg_attendance_count, AVG(share) AS avg_share, AVG(diff) AS avg_amount_above_average FROM above_avg;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "calls": 6
 }

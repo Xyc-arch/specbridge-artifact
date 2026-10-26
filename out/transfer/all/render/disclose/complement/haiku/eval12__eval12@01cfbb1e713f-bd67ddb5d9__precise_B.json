@@ -4,18 +4,14 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "SELECT link_to_event,\n       AVG(spent) AS avg_spent,\n       AVG(remaining) AS avg_remaining,\n       AVG(remaining) - (SELECT AVG(remaining) FROM budget) AS remaining_diff\nFROM budget\nWHERE link_to_event IS NOT NULL\nGROUP BY link_to_event\nORDER BY remaining_diff IS NULL, remaining_diff DESC\nLIMIT 10;",
+  "sql": "WITH event_stats AS (\n  SELECT \n    link_to_event,\n    AVG(spent) AS avg_spent,\n    AVG(remaining) AS avg_remaining\n  FROM budget\n  GROUP BY link_to_event\n),\noverall_mean AS (\n  SELECT AVG(remaining) AS mean_remaining\n  FROM budget\n),\nevent_with_diff AS (\n  SELECT \n    e.link_to_event,\n    e.avg_spent,\n    e.avg_remaining,\n    (e.avg_remaining - o.mean_remaining) AS excess_over_mean\n  FROM event_stats e\n  CROSS JOIN overall_mean o\n)\nSELECT \n  link_to_event,\n  avg_spent,\n  avg_remaining,\n  excess_over_mean\nFROM event_with_diff\nORDER BY \n  CASE WHEN excess_over_mean IS NULL THEN 1 ELSE 0 END,\n  excess_over_mean DESC\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "The overall mean of remaining is AVG(remaining) over every row in budget, including lines with a NULL link_to_event, with NULLs ignored by AVG.",
+    "assumption": "AVG() ignores NULL values in spent and remaining columns. This is standard SQL behavior and aligns with the request to 'ignore missing values in the averages.'",
     "unresolved": false
    },
    {
-    "assumption": "Budget lines with a NULL link_to_event are excluded from the per-event groups, since they belong to no event.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The database is SQLite. ORDER BY remaining_diff IS NULL places NULL differences last, and the SQL works without NULLS LAST syntax.",
+    "assumption": "The 'mean of remaining over all budget lines (each line counted once)' refers to the simple average of the remaining column across all budget rows globally, not a weighted mean or per-event aggregation.",
     "unresolved": false
    }
   ],
@@ -26,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 8.9
+ "seconds": 49.5
 }

@@ -2,13 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH overall AS (\n  SELECT AVG(modindex) AS overall_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n), status_avgs AS (\n  SELECT rfistat, AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n), qualifying AS (\n  SELECT sa.rfistat, sa.avg_modindex, o.overall_avg\n  FROM status_avgs AS sa\n  CROSS JOIN overall AS o\n  WHERE sa.avg_modindex > o.overall_avg\n), qualifying_mean AS (\n  SELECT AVG(avg_modindex) AS mean_qualifying_avg\n  FROM qualifying\n)\nSELECT q.rfistat AS status,\n       q.avg_modindex,\n       q.avg_modindex - q.overall_avg AS above_average_by,\n       q.avg_modindex - qm.mean_qualifying_avg AS difference_from_qualifying_mean\nFROM qualifying AS q\nCROSS JOIN qualifying_mean AS qm;",
+  "sql": "WITH status_averages AS (\n  SELECT\n    COALESCE(rfistat, '(no status)') AS status,\n    AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY COALESCE(rfistat, '(no status)')\n), above_overall AS (\n  SELECT status, avg_modindex\n  FROM status_averages\n  WHERE avg_modindex > (SELECT AVG(modindex) FROM signals WHERE modindex IS NOT NULL)\n)\nSELECT\n  status,\n  avg_modindex,\n  avg_modindex - (SELECT AVG(modindex) FROM signals WHERE modindex IS NOT NULL) AS above_overall_average,\n  avg_modindex - (SELECT AVG(avg_modindex) FROM above_overall) AS difference_from_qualifying_status_mean\nFROM above_overall;",
   "assumptions": [
    {
-    "assumption": "\u201cAbove-average\u201d compares each status group\u2019s average modulation index with the overall average across signals that have a non-NULL modulation index. The final difference is status average minus the mean of the qualifying status averages; NULL statuses form their own group.",
-    "unresolved": false
+    "assumption": "\u201cAbove-average\u201d means each status group's mean modulation index is greater than the overall mean across signals with a non-NULL modulation index; the comparison mean of qualifying statuses is the unweighted mean of their group averages. The displayed label \u201c(no status)\u201d represents NULL RFI statuses.",
+    "unresolved": true
    }
   ],
   "alternatives": []
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.1,
- "chars_out": 1110
+ "seconds": 37.8,
+ "chars_out": 1028
 }

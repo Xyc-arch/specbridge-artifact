@@ -4,22 +4,10 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH race_totals AS (SELECT r.name AS race_name, SUM(res.points) AS total_points FROM results res JOIN races r ON r.raceId = res.raceId GROUP BY r.name), kept AS (SELECT race_name, total_points FROM race_totals WHERE total_points > (SELECT AVG(total_points) FROM race_totals)), kept_laps AS (SELECT CAST(res.laps AS REAL) AS laps FROM results res JOIN races r ON r.raceId = res.raceId JOIN kept k ON k.race_name = r.name WHERE res.laps GLOB '[0-9]*') SELECT (SELECT SUM(total_points) FROM kept) AS sum_kept_total_points, (SELECT AVG(laps) FROM kept_laps) AS avg_laps, (SELECT AVG(total_points) FROM kept) - (SELECT AVG(total_points) FROM race_totals) AS avg_excess_over_mean_total",
+  "sql": "WITH race_totals AS (\n  SELECT \n    r.name,\n    SUM(res.points) as total_points\n  FROM results res\n  JOIN races r ON res.raceId = r.raceId\n  GROUP BY r.name\n),\nwith_global_avg AS (\n  SELECT \n    name,\n    total_points,\n    (SELECT AVG(total_points) FROM race_totals) as global_avg_points\n  FROM race_totals\n),\nfiltered_races AS (\n  SELECT name, total_points, global_avg_points\n  FROM with_global_avg\n  WHERE total_points > global_avg_points\n)\nSELECT \n  SUM(fr.total_points) as sum_total_points,\n  (SELECT AVG(CAST(res.laps AS NUMERIC))\n   FROM results res\n   JOIN races r ON res.raceId = r.raceId\n   WHERE r.name IN (SELECT name FROM filtered_races)\n   AND res.laps IS NOT NULL) as avg_laps,\n  AVG(fr.total_points - fr.global_avg_points) as avg_excess\nFROM filtered_races fr",
   "assumptions": [
    {
-    "assumption": "Race names are grouped as plain text, so same-named races from different years or circuits are combined into one race name, as the request specifies.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The threshold is the simple mean of the per-race-name totals, with each race name counting once regardless of how many results it has.",
-    "unresolved": false
-   },
-   {
-    "assumption": "results.laps is stored as text. Only values starting with a digit are kept for the laps average, which excludes NULL and placeholder values such as '\\N'. This filter was not checked against the data.",
-    "unresolved": true
-   },
-   {
-    "assumption": "Total points for a race name is the SUM of results.points over all its results, with NULL points ignored by SUM.",
+    "assumption": "The 'laps' field (TEXT) can be cast to a numeric type, as it contains lap numbers.",
     "unresolved": false
    }
   ],
@@ -30,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 12.4
+ "seconds": 60.2
 }

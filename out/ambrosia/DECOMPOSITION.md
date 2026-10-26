@@ -4,7 +4,7 @@
 
 | solver | AMBROSIA recall | AllFound | every specific right | AllFound where every specific right [Wilson 95%%] | readings missed in the open answer | **missed but computed when asked** [Wilson 95%%] |
 |---|---|---|---|---|---|---|
-| haiku | 0.23 / 0.16 | 3 / 1 of 60 | 22 / 15 | 2 of 22 (9%) [3, 28] / 0 of 15 | 110 / 118 | **57 of 110 (52%)** [43, 61] / 53 of 118 (45%) |
+| haiku | 0.47 / 0.28 | 9 / 2 of 60 | 37 / 26 | 7 of 37 (19%) [9, 34] / 1 of 26 | 76 / 102 | **48 of 76 (63%)** [52, 73] / 52 of 102 (51%) |
 | sonnet | 0.57 / 0.49 | 15 / 10 of 60 | 44 / 33 | 15 of 44 (34%) [22, 49] / 8 of 33 | 62 / 73 | **39 of 62 (63%)** [50, 74] / 41 of 73 (56%) |
 | gpt-6-sol | 0.57 / 0.42 | 15 / 7 of 60 | 42 / 33 | 10 of 42 (24%) [13, 39] / 4 of 33 | 60 / 82 | **37 of 60 (62%)** [49, 73] / 44 of 82 (54%) |
 | gpt-6-luna | 0.35 / 0.25 | 6 / 0 of 60 | 31 / 29 | 4 of 31 (13%) [5, 29] / 0 of 29 | 90 / 106 | **44 of 90 (49%)** [39, 59] / 48 of 106 (45%) |

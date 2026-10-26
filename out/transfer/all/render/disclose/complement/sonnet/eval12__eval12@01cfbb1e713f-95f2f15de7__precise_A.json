@@ -2,29 +2,34 @@
  "case": "eval12:eval12@01cfbb1e713f-95f2f15de7",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT s.healtheval AS healtheval, SUM(sc.scancount) AS total_scan_count, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS gb_per_min_rate FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), a AS (SELECT AVG(gb_per_min_rate) AS avg_rate FROM g) SELECT g.healtheval, g.total_scan_count, g.gb_per_min_rate, g.gb_per_min_rate - a.avg_rate AS rate_minus_avg FROM g CROSS JOIN a WHERE g.gb_per_min_rate > a.avg_rate",
+  "sql": "WITH per AS (SELECT s.healtheval AS status, SUM(sc.scancount) AS total_scans, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.healtheval), stats AS (SELECT AVG(rate) AS avg_rate FROM per) SELECT p.status AS healtheval, p.total_scans, p.rate, p.rate - st.avg_rate AS rate_minus_avg FROM per p CROSS JOIN stats st WHERE p.rate > st.avg_rate",
   "assumptions": [
    {
-    "assumption": "The average rate is the unweighted mean of the per-status rates (each status counts once), taken over statuses with a non-null rate. It is not weighted by scan count or by individual scans.",
+    "assumption": "A spanmin of 0 gives a missing ratio (via NULLIF) and is ignored in the average, rather than causing an error. Scans with a NULL gbsize or spanmin are also ignored.",
     "unresolved": false
    },
    {
-    "assumption": "A scan with spanmin = 0 has no defined ratio, so it is treated as missing (NULLIF) rather than causing a division error.",
+    "assumption": "Sites with a NULL healtheval form their own group (NULL status). That group counts toward the average across statuses and can appear in the output if its rate is above the average.",
     "unresolved": true
    },
    {
-    "assumption": "Scans whose site has a NULL healtheval are kept and form their own NULL group, which counts as a status in the cross-status average.",
-    "unresolved": true
+    "assumption": "The average across statuses is the unweighted mean of the per-status rates. Statuses whose rate is NULL are ignored in that mean.",
+    "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Leave out the NULL healtheval group, so only real statuses are grouped and averaged.",
+    "sql": "WITH per AS (SELECT s.healtheval AS status, SUM(sc.scancount) AS total_scans, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE s.healtheval IS NOT NULL GROUP BY s.healtheval), stats AS (SELECT AVG(rate) AS avg_rate FROM per) SELECT p.status AS healtheval, p.total_scans, p.rate, p.rate - st.avg_rate AS rate_minus_avg FROM per p CROSS JOIN stats st WHERE p.rate > st.avg_rate"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 7.9
+ "seconds": 7.6
 }

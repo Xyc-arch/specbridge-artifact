@@ -2,45 +2,18 @@
  "case": "eval12:eval12@01cfbb1e713f-284b059491",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH all_artifacts AS (\n  SELECT SUM(articount) as total_count\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n),\nsite_artifacts AS (\n  SELECT \n    zoneref,\n    SUM(articount) as site_count\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n  GROUP BY zoneref\n),\nsite_shares AS (\n  SELECT \n    sa.zoneref,\n    sa.site_count,\n    CAST(sa.site_count AS FLOAT) / aa.total_count as share\n  FROM site_artifacts sa\n  CROSS JOIN all_artifacts aa\n  WHERE aa.total_count > 0\n),\navg_calc AS (\n  SELECT AVG(share) as avg_share\n  FROM site_shares\n)\nSELECT \n  ss.zoneref,\n  ss.site_count as articount,\n  ss.share,\n  (ss.share - ac.avg_share) as diff\nFROM site_shares ss\nCROSS JOIN avg_calc ac\nWHERE ac.avg_share IS NOT NULL\nORDER BY \n  (ss.zoneref IS NULL) ASC,\n  diff DESC NULLS LAST\nLIMIT 10;",
-  "assumptions": [
-   {
-    "assumption": "Artifact counts are aggregated by site code (zoneref)\u2014each site is treated as a single unit with a total artifact count equal to SUM(articount) for all rows at that site.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Share is calculated as each site's total articount divided by the grand total of all articount values across all sites.",
-    "unresolved": false
-   },
-   {
-    "assumption": "If the overall total is NULL, zero, or the average share is NULL, the query returns no rows (interpreted as 'return nothing' per the request).",
-    "unresolved": false
-   }
-  ],
-  "alternatives": [
-   {
-    "interpretation": "If 'each count' refers to individual rows in scanfeatures rather than site aggregates, calculate share for each row (articount \u00f7 total), then rank rows by (share - avg_share) and return the top 10 rows. A single site could appear multiple times in results with different articount values.",
-    "sql": "WITH all_artifacts AS (\n  SELECT SUM(articount) as total_count\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n),\nrow_shares AS (\n  SELECT \n    sf.traitregistry,\n    sf.zoneref,\n    sf.articount,\n    CAST(sf.articount AS FLOAT) / aa.total_count as share\n  FROM scanfeatures sf\n  CROSS JOIN all_artifacts aa\n  WHERE sf.articount IS NOT NULL AND aa.total_count > 0\n),\navg_calc AS (\n  SELECT AVG(share) as avg_share\n  FROM row_shares\n)\nSELECT \n  rs.zoneref,\n  rs.articount,\n  rs.share,\n  (rs.share - ac.avg_share) as diff\nFROM row_shares rs\nCROSS JOIN avg_calc ac\nWHERE ac.avg_share IS NOT NULL\nORDER BY \n  (rs.zoneref IS NULL) ASC,\n  diff DESC NULLS LAST\nLIMIT 10;"
-   }
-  ]
+  "sql": "WITH site_totals AS (\n  SELECT \n    zoneref,\n    SUM(articount) as artifact_count\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n  GROUP BY zoneref\n),\ngrand_total AS (\n  SELECT SUM(artifact_count) as total\n  FROM site_totals\n),\nshares_and_avg AS (\n  SELECT \n    st.zoneref,\n    st.artifact_count,\n    gt.total,\n    CAST(st.artifact_count AS REAL) / gt.total as share,\n    AVG(CAST(st.artifact_count AS REAL) / gt.total) OVER () as avg_share\n  FROM site_totals st, grand_total gt\n)\nSELECT \n  zoneref,\n  artifact_count,\n  share,\n  share - avg_share as difference\nFROM shares_and_avg\nWHERE total IS NOT NULL AND avg_share IS NOT NULL\nORDER BY \n  difference IS NULL,\n  difference DESC\nLIMIT 10;",
+  "assumptions": [],
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [
-  {
-   "interpretation": "If 'each count' refers to individual rows in scanfeatures rather than site aggregates, calculate share for each row (articount \u00f7 total), then rank rows by (share - avg_share) and return the top 10 rows. A single site could appear multiple times in results with different articount values.",
-   "sql": "WITH all_artifacts AS (\n  SELECT SUM(articount) as total_count\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n),\nrow_shares AS (\n  SELECT \n    sf.traitregistry,\n    sf.zoneref,\n    sf.articount,\n    CAST(sf.articount AS FLOAT) / aa.total_count as share\n  FROM scanfeatures sf\n  CROSS JOIN all_artifacts aa\n  WHERE sf.articount IS NOT NULL AND aa.total_count > 0\n),\navg_calc AS (\n  SELECT AVG(share) as avg_share\n  FROM row_shares\n)\nSELECT \n  rs.zoneref,\n  rs.articount,\n  rs.share,\n  (rs.share - ac.avg_share) as diff\nFROM row_shares rs\nCROSS JOIN avg_calc ac\nWHERE ac.avg_share IS NOT NULL\nORDER BY \n  (rs.zoneref IS NULL) ASC,\n  diff DESC NULLS LAST\nLIMIT 10;",
-   "executes": true,
-   "matches": [
-    "B"
-   ]
-  }
- ],
- "seconds": 108.6,
- "chars_out": 2552
+ "alternatives": [],
+ "seconds": 96.3,
+ "chars_out": 794
 }

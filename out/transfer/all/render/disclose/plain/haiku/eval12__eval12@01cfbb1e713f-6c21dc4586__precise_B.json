@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH telescope_obs AS (SELECT t.bandusagepct, o.observstation, o.lunarstage FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation), station_avgs AS (SELECT observstation, lunarstage, AVG(bandusagepct) as station_avg FROM telescope_obs WHERE bandusagepct IS NOT NULL GROUP BY observstation, lunarstage), phase_stats AS (SELECT lunarstage, AVG(station_avg) as avg_bandwidth, COUNT(DISTINCT observstation) as num_stations FROM station_avgs GROUP BY lunarstage), total_stations AS (SELECT COUNT(DISTINCT observstation) as total FROM station_avgs) SELECT ps.lunarstage, ps.avg_bandwidth, ps.num_stations, CAST(ps.num_stations AS FLOAT) / ts.total FROM phase_stats ps CROSS JOIN total_stations ts ORDER BY ps.lunarstage"
+  "sql": "WITH station_averages AS (\n  SELECT \n    o.lunarstage,\n    o.observstation,\n    AVG(t.bandusagepct) as station_avg_bandwidth\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n  WHERE t.bandusagepct IS NOT NULL\n  GROUP BY o.observstation, o.lunarstage\n),\nall_stations AS (\n  SELECT DISTINCT\n    o.lunarstage,\n    o.observstation\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\nphase_stats AS (\n  SELECT\n    all_stations.lunarstage as phase,\n    AVG(station_averages.station_avg_bandwidth) as avg_bandwidth,\n    COUNT(DISTINCT all_stations.observstation) as station_count\n  FROM all_stations\n  LEFT JOIN station_averages \n    ON all_stations.observstation = station_averages.observstation \n    AND all_stations.lunarstage = station_averages.lunarstage\n  GROUP BY all_stations.lunarstage\n),\ntotal_count AS (\n  SELECT COUNT(DISTINCT observstation) as total\n  FROM all_stations\n)\nSELECT\n  phase_stats.phase,\n  phase_stats.avg_bandwidth,\n  phase_stats.station_count,\n  CAST(phase_stats.station_count AS FLOAT) / total_count.total as fraction\nFROM phase_stats\nCROSS JOIN total_count\nORDER BY phase_stats.phase"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 38.5,
- "chars_out": 768
+ "seconds": 41.1,
+ "chars_out": 1245
 }

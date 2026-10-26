@@ -2,16 +2,35 @@
  "case": "eval12:eval12@01cfbb1e713f-9e932237ed",
  "wording": "precise_B",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), bucket_shares AS (SELECT order_count, order_count::numeric / SUM(order_count) OVER () AS share FROM bucket_counts), compared AS (SELECT order_count, share, AVG(share) OVER () AS average_share FROM bucket_shares) SELECT COALESCE(SUM(order_count), 0) AS total_count, AVG(share) AS average_share, AVG(share - average_share) AS average_excess FROM compared WHERE share > average_share;",
-  "assumptions": [],
-  "alternatives": []
+  "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), bucket_shares AS (SELECT timespan, order_count, 1.0 * order_count / SUM(order_count) OVER () AS share FROM bucket_counts), scored AS (SELECT order_count, share, AVG(share) OVER () AS all_bucket_average FROM bucket_shares) SELECT COALESCE(SUM(order_count), 0) AS total_count, AVG(share) AS average_share, AVG(share - all_bucket_average) AS average_excess FROM scored WHERE share > all_bucket_average",
+  "assumptions": [
+   {
+    "assumption": "\u201cThat average share\u201d in the excess calculation means the plain average across all buckets, which is also the threshold for keeping a bucket.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\u201cThat average share\u201d means the average share of the kept buckets. The resulting average signed difference is zero, apart from possible floating-point effects.",
+    "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), bucket_shares AS (SELECT timespan, order_count, 1.0 * order_count / SUM(order_count) OVER () AS share FROM bucket_counts), scored AS (SELECT order_count, share, AVG(share) OVER () AS all_bucket_average FROM bucket_shares), kept AS (SELECT order_count, share FROM scored WHERE share > all_bucket_average), kept_with_average AS (SELECT order_count, share, AVG(share) OVER () AS kept_average FROM kept) SELECT COALESCE(SUM(order_count), 0) AS total_count, AVG(share) AS average_share, AVG(share - kept_average) AS average_excess FROM kept_with_average"
+   }
+  ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "alternatives": [],
- "seconds": 20.0,
- "chars_out": 608
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\u201cThat average share\u201d means the average share of the kept buckets. The resulting average signed difference is zero, apart from possible floating-point effects.",
+   "sql": "WITH bucket_counts AS (SELECT o.timespan, COUNT(DISTINCT o.recordvault) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.timespan), bucket_shares AS (SELECT timespan, order_count, 1.0 * order_count / SUM(order_count) OVER () AS share FROM bucket_counts), scored AS (SELECT order_count, share, AVG(share) OVER () AS all_bucket_average FROM bucket_shares), kept AS (SELECT order_count, share FROM scored WHERE share > all_bucket_average), kept_with_average AS (SELECT order_count, share, AVG(share) OVER () AS kept_average FROM kept) SELECT COALESCE(SUM(order_count), 0) AS total_count, AVG(share) AS average_share, AVG(share - kept_average) AS average_excess FROM kept_with_average",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 42.4,
+ "chars_out": 1789
 }

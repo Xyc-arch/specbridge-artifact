@@ -3,11 +3,11 @@
  "sample": 4,
  "model": "haiku",
  "response": {
-  "sql": "WITH per_order AS (SELECT ordersmark, AVG(fillcount) AS avg_fill FROM orderexecutions GROUP BY ordersmark), bench1 AS (SELECT AVG(avg_fill) AS b1 FROM per_order), stage1 AS (SELECT p.ordersmark, p.avg_fill, p.avg_fill - b.b1 AS margin1 FROM per_order p CROSS JOIN bench1 b WHERE p.avg_fill > b.b1), bench2 AS (SELECT AVG(avg_fill) AS b2 FROM stage1), stage2 AS (SELECT s.avg_fill, s.margin1, s.avg_fill - b.b2 AS margin2 FROM stage1 s CROSS JOIN bench2 b WHERE s.avg_fill > b.b2) SELECT AVG(avg_fill) AS avg_fill_final, AVG(margin1) AS avg_margin_over_overall, AVG(margin2) AS avg_margin_over_group FROM stage2;"
+  "sql": "WITH order_averages AS (\n  SELECT\n    COALESCE(ordersmark, 'NO_REFERENCE') as order_ref,\n    AVG(fillcount) as avg_fillcount\n  FROM orderexecutions\n  GROUP BY COALESCE(ordersmark, 'NO_REFERENCE')\n),\nglobal_avg AS (\n  SELECT AVG(avg_fillcount) as global_average\n  FROM order_averages\n),\nfirst_filter AS (\n  SELECT\n    order_ref,\n    avg_fillcount,\n    avg_fillcount - (SELECT global_average FROM global_avg) as margin_over_global\n  FROM order_averages\n  WHERE avg_fillcount > (SELECT global_average FROM global_avg)\n),\nsecond_benchmark AS (\n  SELECT AVG(avg_fillcount) as second_average\n  FROM first_filter\n),\nsecond_filter AS (\n  SELECT\n    order_ref,\n    avg_fillcount,\n    margin_over_global,\n    avg_fillcount - (SELECT second_average FROM second_benchmark) as margin_over_second\n  FROM first_filter\n  WHERE avg_fillcount > (SELECT second_average FROM second_benchmark)\n)\nSELECT\n  AVG(avg_fillcount) as avg_per_order_fill_size,\n  AVG(margin_over_global) as avg_margin_over_first_benchmark,\n  AVG(margin_over_second) as avg_margin_over_second_benchmark\nFROM second_filter;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 7.4
+ "seconds": 41.7
 }

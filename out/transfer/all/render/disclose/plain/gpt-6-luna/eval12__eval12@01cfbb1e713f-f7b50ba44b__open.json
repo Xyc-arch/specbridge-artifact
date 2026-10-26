@@ -3,10 +3,12 @@
  "wording": "open",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH order_type_counts AS (\n  SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS executed_order_count\n  FROM orderexecutions oe\n  JOIN orders o ON o.recordvault = oe.ordersmark\n  GROUP BY o.ordertune\n), shares AS (\n  SELECT ordertune, executed_order_count,\n         executed_order_count::numeric / SUM(executed_order_count) OVER () AS share\n  FROM order_type_counts\n), scored AS (\n  SELECT *, AVG(share) OVER () AS average_share\n  FROM shares\n)\nSELECT SUM(executed_order_count) AS sum_counts,\n       AVG(share) AS average_share,\n       AVG(share - average_share) AS average_excess_share\nFROM scored\nWHERE share > average_share;"
+  "sql": "WITH type_counts AS (\n  SELECT o.ordertune, COUNT(*) AS execution_count\n  FROM orders AS o\n  JOIN orderexecutions AS e\n    ON o.recordvault = e.ordersmark\n  GROUP BY o.ordertune\n), shares AS (\n  SELECT execution_count * 1.0 / SUM(execution_count) OVER () AS share\n  FROM type_counts\n), above_average AS (\n  SELECT execution_count, share\n  FROM (\n    SELECT execution_count,\n           share,\n           AVG(share) OVER () AS average_share\n    FROM (\n      SELECT execution_count,\n             execution_count * 1.0 / SUM(execution_count) OVER () AS share\n      FROM type_counts\n    )\n  )\n  WHERE share > average_share\n)\nSELECT SUM(execution_count) AS sum_counts,\n       AVG(share) AS average_share,\n       AVG(share - (SELECT AVG(share) FROM shares)) AS average_excess_share\nFROM above_average;"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 6.6,
- "chars_out": 656
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 5.0,
+ "chars_out": 830
 }

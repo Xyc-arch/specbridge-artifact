@@ -5,33 +5,28 @@
  "description": "Return the top 10 pairs by difference, cut at exactly 10 rows, with ties at the cut broken arbitrarily.",
  "a": {
   "request": "Link each risk/margin record to its order (`riskandmargin.ordervault` = `orders.recordvault`, dropping records with no matching order), and count the records for each combination of order reference (`ordervault`) and order status (`orderflow`). For each combination, compute its share of the total count for that status, then compare that share with the average share across all combinations with the same status. Keep only the combinations whose share is above their status's average. List the order reference, status, count, share and share minus the status average, without rounding, sorted by that difference from largest to smallest. Show exactly 10 rows, and if several rows tie at the cut, keep any of them arbitrarily.",
-  "sql": "WITH joined AS (SELECT r.ordervault, o.orderflow, COUNT(*) AS cnt FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY r.ordervault, o.orderflow), shares AS (SELECT ordervault, orderflow, cnt, cnt * 1.0 / SUM(cnt) OVER (PARTITION BY orderflow) AS share FROM joined), stats AS (SELECT ordervault, orderflow, cnt, share, share - AVG(share) OVER (PARTITION BY orderflow) AS diff_from_avg FROM shares) SELECT ordervault, orderflow, cnt AS record_count, share, diff_from_avg FROM stats WHERE diff_from_avg > 0 ORDER BY diff_from_avg DESC LIMIT 10",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
+  "sql": "WITH joined_data AS (SELECT r.ordervault, o.orderflow, COUNT(*) as count FROM riskandmargin r INNER JOIN orders o ON r.ordervault = o.recordvault GROUP BY r.ordervault, o.orderflow), status_totals AS (SELECT orderflow, SUM(count) as status_total FROM joined_data GROUP BY orderflow), with_shares AS (SELECT j.ordervault, j.orderflow, j.count, j.count::numeric / st.status_total::numeric as share FROM joined_data j JOIN status_totals st ON j.orderflow = st.orderflow), status_averages AS (SELECT orderflow, AVG(share) as avg_share FROM with_shares GROUP BY orderflow), with_avg_share AS (SELECT ws.ordervault, ws.orderflow, ws.count, ws.share, sa.avg_share, ws.share - sa.avg_share as diff FROM with_shares ws JOIN status_averages sa ON ws.orderflow = sa.orderflow) SELECT ordervault, orderflow, count, share, diff FROM with_avg_share WHERE share > avg_share ORDER BY diff DESC LIMIT 10",
+  "executes": false,
+  "matches": []
  },
  "c": {
   "request": "Link each risk/margin record to its order (`riskandmargin.ordervault` = `orders.recordvault`, dropping records with no matching order), and count the records for each combination of order reference and order status (`orderflow`). Compute each combination's share of the total count for its status. Which 10 combinations stand out most above their status's average share? For each one, show the order reference, status, count, share and how far the share is above the average, without rounding, from largest gap to smallest. Return the top 10 pairs by difference, cut at exactly 10 rows, with ties at the cut broken arbitrarily.",
-  "sql": "WITH pair_counts AS (SELECT o.recordvault AS order_ref, o.orderflow AS status, COUNT(*) AS cnt FROM riskandmargin r INNER JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.recordvault, o.orderflow), shares AS (SELECT order_ref, status, cnt, cnt * 1.0 / SUM(cnt) OVER (PARTITION BY status) AS share FROM pair_counts), gaps AS (SELECT order_ref, status, cnt, share, share - AVG(share) OVER (PARTITION BY status) AS diff FROM shares) SELECT order_ref, status, cnt AS count, share, diff FROM gaps ORDER BY diff DESC LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
+  "sql": "WITH joined AS (SELECT o.recordvault, o.orderflow, COUNT(*) as cnt FROM riskandmargin ram INNER JOIN orders o ON ram.ordervault = o.recordvault GROUP BY o.recordvault, o.orderflow), status_totals AS (SELECT orderflow, SUM(cnt) as status_total FROM joined GROUP BY orderflow), with_shares AS (SELECT j.recordvault, j.orderflow, j.cnt, j.cnt::REAL / st.status_total as share FROM joined j JOIN status_totals st ON j.orderflow = st.orderflow), status_avg_share AS (SELECT orderflow, AVG(share) as avg_share FROM with_shares GROUP BY orderflow), gaps AS (SELECT ws.recordvault, ws.orderflow, ws.cnt, ws.share, ws.share - sas.avg_share as gap_above_avg FROM with_shares ws JOIN status_avg_share sas ON ws.orderflow = sas.orderflow) SELECT recordvault, orderflow, cnt, share, gap_above_avg FROM gaps ORDER BY gap_above_avg DESC LIMIT 10;",
+  "executes": false,
+  "matches": []
  },
  "b": {
-  "request": "Return the 10 highest-gap (order reference, orderflow) combinations, ranked by how far each combination's share of its status total exceeds that status's average share, with ties at the 10th position broken arbitrarily",
-  "sql": "WITH combo AS (SELECT recordvault, orderflow, SUM(COALESCE(notionsum, 0)) AS val FROM orders WHERE orderflow IS NOT NULL GROUP BY recordvault, orderflow), shares AS (SELECT recordvault, orderflow, val / NULLIF(SUM(val) OVER (PARTITION BY orderflow), 0) AS share FROM combo), gaps AS (SELECT recordvault, orderflow, share - AVG(share) OVER (PARTITION BY orderflow) AS gap FROM shares) SELECT recordvault, orderflow, gap FROM gaps WHERE gap IS NOT NULL ORDER BY gap DESC LIMIT 10;",
+  "request": "For each order status group, compute the mean share of all (order_reference, status) combinations in that group, then return the 10 combinations with the largest positive deviation from their respective status's mean share, ordered by deviation descending with arbitrary tie-breaking at rank 10.",
+  "sql": "WITH order_counts AS (SELECT o.recordvault as order_reference, o.orderflow as status, COUNT(*) as count FROM orders o GROUP BY o.recordvault, o.orderflow), status_totals AS (SELECT status, SUM(count) as total_in_status FROM order_counts GROUP BY status), with_shares AS (SELECT oc.order_reference, oc.status, oc.count, st.total_in_status, CAST(oc.count AS FLOAT) / st.total_in_status as share FROM order_counts oc JOIN status_totals st ON oc.status = st.status), with_mean_share AS (SELECT status, AVG(share) as mean_share FROM with_shares GROUP BY status), with_deviations AS (SELECT ws.order_reference, ws.status, ws.share, wms.mean_share, ws.share - wms.mean_share as deviation FROM with_shares ws JOIN with_mean_share wms ON ws.status = wms.status WHERE ws.share > wms.mean_share) SELECT order_reference, status, share, mean_share, deviation FROM with_deviations ORDER BY deviation DESC LIMIT 10",
+  "executes": true,
+  "matches": [],
+  "raw": "For each order status group, compute the mean share of all (order_reference, status) combinations in that group, then return the 10 combinations with the largest positive deviation from their respective status's mean share, ordered by deviation descending with arbitrary tie-breaking at rank 10."
+ },
+ "d": {
+  "request": "Return exactly 10 (order reference, status) combinations ranked by the difference between their share and the status average share (descending), breaking ties at position 10 arbitrarily.",
+  "sql": "SELECT recordvault, orderflow, notionsum - AVG(notionsum) OVER (PARTITION BY orderflow) as share_difference FROM orders ORDER BY share_difference DESC LIMIT 10",
   "executes": true,
   "matches": []
  },
- "calls": 6,
- "d": {
-  "request": "Link each risk/margin record to its order (`riskandmargin.ordervault` = `orders.recordvault`, dropping records with no matching order), and count the records for each combination of order reference and order status (`orderflow`). Compute each combination's share of the total count for its status. Which 10 combinations stand out most above their status's average share? For each one, show the order reference, status, count, share, and how far the share is above the average, without rounding, from largest gap to smallest. Return exactly 10 rows, breaking ties at the cut arbitrarily.",
-  "sql": "WITH combo AS (SELECT o.recordvault AS order_ref, o.orderflow AS status, COUNT(*) AS cnt FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.recordvault, o.orderflow), shares AS (SELECT order_ref, status, cnt, cnt * 1.0 / SUM(cnt) OVER (PARTITION BY status) AS share FROM combo), gaps AS (SELECT order_ref, status, cnt, share, share - AVG(share) OVER (PARTITION BY status) AS gap FROM shares) SELECT order_ref, status, cnt AS count, share, gap FROM gaps ORDER BY gap DESC LIMIT 10",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "calls": 6
 }

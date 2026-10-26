@@ -4,37 +4,21 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS avg_acl_igm FROM Patient p JOIN Examination e ON e.ID = p.ID WHERE EXISTS (SELECT 1 FROM Examination x WHERE x.ID = p.ID AND x.`ANA Pattern` IS NOT NULL AND TRIM(x.`ANA Pattern`) <> '' AND x.`ANA Pattern` <> 'S') GROUP BY p.ID, p.SEX ORDER BY (avg_acl_igm IS NULL), avg_acl_igm DESC LIMIT 10;",
+  "sql": "SELECT e.ID, p.SEX, AVG(e.`aCL IgM`) as avg_acl_igm FROM Examination e JOIN Patient p ON e.ID = p.ID WHERE e.ID IN (SELECT DISTINCT e2.ID FROM Examination e2 WHERE e2.`ANA Pattern` IS NOT NULL AND e2.`ANA Pattern` != 'S') GROUP BY e.ID, p.SEX ORDER BY avg_acl_igm IS NULL, avg_acl_igm DESC LIMIT 10",
   "assumptions": [
    {
-    "assumption": "'Recorded' means ANA Pattern is neither NULL nor a blank/whitespace-only string.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The qualifying condition is checked per patient with EXISTS: at least one examination has a recorded ANA Pattern other than 'S' (the comparison is case-sensitive).",
+    "assumption": "The phrase \"average across all of their examinations\" means all examination records of the qualifying patient, not just those matching the ANA Pattern filter. The request first identifies patients by their ANA Pattern criteria, then computes the average across all exams of those patients.",
     "unresolved": false
    },
    {
-    "assumption": "The average aCL IgM uses all of the patient's examinations, not only the ones that satisfy the ANA Pattern condition, as the request states.",
+    "assumption": "\"Missing averages last\" refers to NULL values in the average (when a patient has no aCL IgM values across any of their exams). These sort last using the IS NULL predicate as the primary sort key.",
     "unresolved": false
-   },
-   {
-    "assumption": "Only patients with a row in the Patient table are included, via the inner join, and the sex comes from that table.",
-    "unresolved": false
-   },
-   {
-    "assumption": "AVG ignores NULL aCL IgM values and is not rounded. A patient whose aCL IgM values are all NULL gets a NULL average, which sorts last.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Ties in the average are ordered arbitrarily, so the cutoff at the top 10 may be ambiguous when averages are equal.",
-    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "'Recorded' means only NULL is excluded, so a blank ANA Pattern string counts as recorded.",
-    "sql": "SELECT p.ID, p.SEX, AVG(e.`aCL IgM`) AS avg_acl_igm FROM Patient p JOIN Examination e ON e.ID = p.ID WHERE EXISTS (SELECT 1 FROM Examination x WHERE x.ID = p.ID AND x.`ANA Pattern` IS NOT NULL AND x.`ANA Pattern` <> 'S') GROUP BY p.ID, p.SEX ORDER BY (avg_acl_igm IS NULL), avg_acl_igm DESC LIMIT 10;"
+    "interpretation": "Compute the average aCL IgM only from the filtered examinations (those with ANA Pattern recorded and not 'S'), rather than from all examinations of qualifying patients.",
+    "sql": "SELECT e.ID, p.SEX, AVG(e.`aCL IgM`) as avg_acl_igm FROM Examination e JOIN Patient p ON e.ID = p.ID WHERE e.`ANA Pattern` IS NOT NULL AND e.`ANA Pattern` != 'S' GROUP BY e.ID, p.SEX ORDER BY avg_acl_igm IS NULL, avg_acl_igm DESC LIMIT 10"
    }
   ]
  },
@@ -43,5 +27,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 12.7
+ "seconds": 44.5
 }

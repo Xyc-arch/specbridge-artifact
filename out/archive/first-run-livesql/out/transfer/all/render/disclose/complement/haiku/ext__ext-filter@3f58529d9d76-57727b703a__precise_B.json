@@ -1,0 +1,31 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-57727b703a",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH filtered_processing AS (\n  SELECT \n    sp.zoneref,\n    sp.memusagegb,\n    sp.procgpu,\n    sp.proccpu,\n    s.entrystat\n  FROM scanprocessing sp\n  INNER JOIN sites s ON sp.zoneref = s.zoneregistry\n  WHERE sp.memusagegb > 60.8\n),\nper_site_stats AS (\n  SELECT \n    zoneref,\n    entrystat,\n    AVG(memusagegb) as avg_ram,\n    AVG(CASE WHEN proccpu IS NOT NULL AND proccpu > 0 AND procgpu IS NOT NULL\n            THEN CAST(procgpu AS FLOAT) / CAST(proccpu AS FLOAT)\n            ELSE NULL END) as avg_gpu_cpu_ratio\n  FROM filtered_processing\n  GROUP BY zoneref, entrystat\n)\nSELECT \n  entrystat,\n  AVG(avg_ram) as avg_per_site_ram,\n  AVG(avg_gpu_cpu_ratio) as avg_per_site_gpu_cpu_ratio\nFROM per_site_stats\nGROUP BY entrystat\nORDER BY entrystat",
+  "assumptions": [
+   {
+    "assumption": "\"whose site code matches a site\" means the zoneref value exists in the sites table (i.e., there is a row where sites.zoneregistry equals scanprocessing.zoneref)",
+    "unresolved": false
+   },
+   {
+    "assumption": "When calculating GPU-to-CPU ratio, rows where proccpu is zero or NULL, or procgpu is NULL, are excluded from the ratio average (but included in RAM average if valid)",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Exclude all rows with NULL or zero proccpu or NULL procgpu at the filtering stage, so both RAM and GPU/CPU ratio averages are computed only on rows with valid ratio values",
+    "sql": "WITH filtered_processing AS (\n  SELECT \n    sp.zoneref,\n    sp.memusagegb,\n    sp.procgpu,\n    sp.proccpu,\n    s.entrystat\n  FROM scanprocessing sp\n  INNER JOIN sites s ON sp.zoneref = s.zoneregistry\n  WHERE sp.memusagegb > 60.8\n    AND sp.procgpu IS NOT NULL\n    AND sp.proccpu IS NOT NULL\n    AND sp.proccpu > 0\n),\nper_site_stats AS (\n  SELECT \n    zoneref,\n    entrystat,\n    AVG(memusagegb) as avg_ram,\n    AVG(CAST(procgpu AS FLOAT) / CAST(proccpu AS FLOAT)) as avg_gpu_cpu_ratio\n  FROM filtered_processing\n  GROUP BY zoneref, entrystat\n)\nSELECT \n  entrystat,\n  AVG(avg_ram) as avg_per_site_ram,\n  AVG(avg_gpu_cpu_ratio) as avg_per_site_gpu_cpu_ratio\nFROM per_site_stats\nGROUP BY entrystat\nORDER BY entrystat"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 86.4
+}

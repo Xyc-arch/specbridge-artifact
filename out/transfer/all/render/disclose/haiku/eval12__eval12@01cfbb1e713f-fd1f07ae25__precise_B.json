@@ -2,17 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-fd1f07ae25",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched_fees AS (\n  SELECT \n    f.orderslink,\n    f.rebtotal,\n    f.rebrate,\n    f.feerate,\n    o.ordertune\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\nbaseline AS (\n  SELECT AVG(rebtotal) as baseline_rebate\n  FROM matched_fees\n),\ngrouped_stats AS (\n  SELECT \n    orderslink,\n    ordertune,\n    AVG(rebtotal) as avg_rebate,\n    AVG((rebrate - feerate) / feerate) as avg_relative_gap,\n    (SELECT baseline_rebate FROM baseline) as baseline_rebate\n  FROM matched_fees\n  GROUP BY orderslink, ordertune\n)\nSELECT \n  orderslink,\n  ordertune,\n  avg_rebate,\n  avg_relative_gap,\n  avg_rebate - baseline_rebate as excess_above_baseline\nFROM grouped_stats\nWHERE avg_rebate > baseline_rebate\nORDER BY excess_above_baseline DESC\nLIMIT 10;",
+  "sql": "WITH matched_fees AS (\n  SELECT \n    f.orderslink,\n    f.rebtotal,\n    f.rebrate,\n    f.feerate,\n    o.ordertune\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\nbaseline AS (\n  SELECT AVG(rebtotal) as baseline_rebate\n  FROM matched_fees\n),\ngroup_stats AS (\n  SELECT \n    mf.orderslink,\n    mf.ordertune,\n    AVG(mf.rebtotal) as avg_rebate,\n    AVG((mf.rebrate - mf.feerate) / mf.feerate) as avg_gap\n  FROM matched_fees mf\n  GROUP BY mf.orderslink, mf.ordertune\n)\nSELECT \n  gs.orderslink,\n  gs.ordertune,\n  gs.avg_rebate,\n  gs.avg_gap,\n  gs.avg_rebate - b.baseline_rebate as excess\nFROM group_stats gs\nCROSS JOIN baseline b\nWHERE gs.avg_rebate > b.baseline_rebate\nORDER BY excess DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "feerate is never zero or NULL; division by feerate in the relative gap calculation is safe",
-    "unresolved": false
-   },
-   {
-    "assumption": "rebtotal, rebrate, and feerate contain no NULL values in the matched fee records; SQL aggregates will compute as expected",
-    "unresolved": false
+    "assumption": "feerate is never zero; the query will fail or produce NULL gaps if any fee record has feerate = 0, which the request does not specify how to handle",
+    "unresolved": true
    }
   ],
   "alternatives": []
@@ -23,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 31.2,
- "chars_out": 1199
+ "seconds": 46.5,
+ "chars_out": 1030
 }

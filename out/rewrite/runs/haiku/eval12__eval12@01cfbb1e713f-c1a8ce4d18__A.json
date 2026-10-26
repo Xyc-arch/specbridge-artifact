@@ -3,17 +3,15 @@
  "model": "haiku",
  "reading": "A",
  "description": "Each city's count is its number of driver qualifying entries, and its share is its share of all qualifying entries.",
- "b": {
-  "request": "Which circuit cities have an above-average share of qualifying entries? For each city, show the city name, its count of driver qualifying entries (qualifying rows joined to races and circuits, grouped by circuits.location), that count divided by the total qualifying entries across all cities, and that share minus the average per-city share, with all values unrounded",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(q.qualifyId) AS entries FROM qualifying q JOIN races r ON q.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId GROUP BY c.location), shares AS (SELECT city, entries, entries * 1.0 / (SELECT SUM(entries) FROM city_counts) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.city, s.entries, s.share, s.share - a.avg_share AS share_diff FROM shares s, avg_share a WHERE s.share > a.avg_share;",
+ "d": {
+  "request": "For each circuit city, count qualifying driver entries, calculate its percentage share of all qualifying entries, identify cities exceeding the average share (100 percent divided by the number of distinct cities with qualifying entries), and report city name, entry count, share percentage, and percentage point excess above average.",
+  "sql": "WITH city_counts AS (\n  SELECT \n    c.location as city,\n    COUNT(*) as entry_count\n  FROM qualifying q\n  JOIN races r ON q.raceId = r.raceId\n  JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY c.location\n),\ntotals AS (\n  SELECT \n    SUM(entry_count) as total_entries,\n    COUNT(*) as distinct_cities\n  FROM city_counts\n),\nwith_percentages AS (\n  SELECT \n    cc.city,\n    cc.entry_count,\n    (cc.entry_count * 100.0 / t.total_entries) as share_percentage,\n    (100.0 / t.distinct_cities) as average_share,\n    (cc.entry_count * 100.0 / t.total_entries) - (100.0 / t.distinct_cities) as excess_percentage\n  FROM city_counts cc\n  CROSS JOIN totals t\n)\nSELECT \n  city,\n  entry_count,\n  ROUND(share_percentage, 2) as share_percentage,\n  ROUND(excess_percentage, 2) as excess_percentage\nFROM with_percentages\nWHERE share_percentage > average_share\nORDER BY excess_percentage DESC;",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
  },
  "a": {
   "request": "For each circuit city (`circuits.location`), count the qualifying records (one per driver per race) at races held there, and work out the city's share as that count divided by the total across all cities. List the cities whose share is above the average share across cities, showing the city, the count, the share, and how far the share is above the average share, all unrounded.",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(q.qualifyId) AS cnt FROM qualifying q JOIN races r ON q.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId WHERE c.location IS NOT NULL GROUP BY c.location), shares AS (SELECT city, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM city_counts) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.city, s.cnt AS count, s.share, s.share - a.avg_share AS above_average FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share ORDER BY s.share DESC;",
+  "sql": "WITH city_qualifying_counts AS (\n  SELECT \n    c.location,\n    COUNT(q.qualifyId) as count,\n    COUNT(q.qualifyId) * 1.0 / (SELECT COUNT(*) FROM qualifying) as share\n  FROM qualifying q\n  JOIN races r ON q.raceId = r.raceId\n  JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY c.location\n)\nSELECT \n  location as city,\n  count,\n  share,\n  share - 1.0 / (SELECT COUNT(*) FROM city_qualifying_counts) as above_average\nFROM city_qualifying_counts\nWHERE share > 1.0 / (SELECT COUNT(*) FROM city_qualifying_counts)\nORDER BY share DESC",
   "executes": true,
   "matches": [
    "A"
@@ -21,19 +19,18 @@
  },
  "c": {
   "request": "Which circuit cities have an above-average share of qualifying? For each, show the city, its qualifying count, that count as a share of the total across all cities, and how far its share is above the average city share (all unrounded). Each city's count is its number of driver qualifying entries, and its share is its share of all qualifying entries.",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(*) AS cnt FROM qualifying q JOIN races r ON q.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId GROUP BY c.location), shares AS (SELECT city, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM city_counts) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.city AS city, s.cnt AS qualifying_count, s.share AS share, s.share - a.avg_share AS above_average_by FROM shares s, avg_share a WHERE s.share > a.avg_share ORDER BY above_average_by DESC;",
+  "sql": "WITH city_qualifying AS (\n  SELECT \n    c.location as city,\n    COUNT(q.qualifyId) as qualifying_count\n  FROM circuits c\n  JOIN races r ON c.circuitId = r.circuitId\n  JOIN qualifying q ON r.raceId = q.raceId\n  GROUP BY c.location\n),\ntotals AS (\n  SELECT \n    SUM(qualifying_count) as total_qualifying,\n    COUNT(*) as num_cities\n  FROM city_qualifying\n)\nSELECT \n  cq.city,\n  cq.qualifying_count,\n  cq.qualifying_count * 1.0 / t.total_qualifying as share,\n  cq.qualifying_count * 1.0 / t.total_qualifying - 1.0 / t.num_cities as above_average\nFROM city_qualifying cq\nCROSS JOIN totals t\nWHERE cq.qualifying_count * 1.0 / t.total_qualifying > 1.0 / t.num_cities\nORDER BY cq.qualifying_count DESC",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Which circuit cities have an above-average share of qualifying, where each city's count is its number of driver qualifying entries and its share is that count as a fraction of all qualifying entries across all cities? For each, show the city, its qualifying count, that count as a share of the total, and how far its share is above the average city share (all unrounded).",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(*) AS cnt FROM qualifying q JOIN races r ON q.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId GROUP BY c.location), totals AS (SELECT SUM(cnt) AS total FROM city_counts), shares AS (SELECT city, cnt, CAST(cnt AS REAL) / (SELECT total FROM totals) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.city, s.cnt AS qualifying_count, s.share, s.share - a.avg_share AS above_avg_by FROM shares s, avg_share a WHERE s.share > a.avg_share ORDER BY above_avg_by DESC;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "b": {
+  "request": "Count qualifying entries by circuit city, identify cities with above-average share of total qualifying entries, and for each report the city, qualifying entry count, share as a percentage of total, and excess percentage above the average city share.",
+  "sql": "WITH qualifying_by_city AS (\n  SELECT \n    c.location as city,\n    COUNT(*) as qualifying_count\n  FROM qualifying q\n  JOIN races r ON q.raceId = r.raceId\n  JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY c.location\n),\ntotal_qualifying AS (\n  SELECT SUM(qualifying_count) as total_entries FROM qualifying_by_city\n),\nnum_cities AS (\n  SELECT COUNT(*) as city_count FROM qualifying_by_city\n),\ncity_stats AS (\n  SELECT \n    qbc.city,\n    qbc.qualifying_count,\n    (qbc.qualifying_count::FLOAT / tq.total_entries * 100) as share_percentage,\n    (100.0 / nc.city_count) as average_share\n  FROM qualifying_by_city qbc\n  CROSS JOIN total_qualifying tq\n  CROSS JOIN num_cities nc\n)\nSELECT \n  city,\n  qualifying_count,\n  ROUND(share_percentage, 2) as share_percentage,\n  ROUND(share_percentage - average_share, 2) as excess_percentage_above_average\nFROM city_stats\nWHERE share_percentage > average_share\nORDER BY share_percentage DESC;",
+  "executes": false,
+  "matches": [],
+  "raw": "Count qualifying entries by circuit city, identify cities with above-average share of total qualifying entries, and for each report the city, qualifying entry count, share as a percentage of total, and excess percentage above the average city share."
+ },
+ "calls": 6
 }

@@ -44,6 +44,7 @@ def per_set():
                 if all(os.path.exists(f) for f in fs): topk = {"A", "B"} <= set().union(*(set(json.load(open(f))["primary_matches"]) for f in fs))
             per[(m, k)] = {"explore_both": C[k]["intended"] in pr[(k, "precise")] and oth(C[k]["intended"]) in pr[(k, "precise_other")],
                            "single_both": sw[-1] in Dm[(k, sw)]["primary_matches"] and (k, ow) in Cm and ow[-1] in Cm[(k, ow)]["primary_matches"],
+                           "runs": Dm[(k, sw)]["primary_executes"] and (k, ow) in Cm and Cm[(k, ow)]["primary_executes"],
                            "covers": {"A", "B"} <= got, "names": (J.get("%s|open|%s" % (k, m)) or {}).get("flags_decision") is True, "topk": topk}
     return C, per
 
@@ -71,7 +72,8 @@ def main():
                    "topk": [c(lambda x: x["topk"] is True), c(lambda x: x["topk"] is not None)]}
             row["outcomes"] = {"both": c(lambda x: x["covers"]), "named_one": c(lambda x: not x["covers"] and x["single_both"] and x["names"]),
                                "silent_computable": c(lambda x: not x["covers"] and x["single_both"] and not x["names"]),
-                               "not_computable": c(lambda x: not x["covers"] and not x["single_both"])}   # every open request, one outcome each
+                               "not_computable": c(lambda x: not x["covers"] and not x["single_both"] and x["runs"]),
+                               "no_run": c(lambda x: not x["covers"] and not x["single_both"] and not x["runs"])}   # every open request, one outcome each
             row["ci_covers_given_explore_both"] = _wilson(*row["covers_given_explore_both"])
             row["ci_covers_given_single_both"] = _wilson(*row["covers_given_single_both"])
             S["models"][m] = row

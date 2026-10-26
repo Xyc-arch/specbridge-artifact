@@ -4,33 +4,31 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH team_avg AS (SELECT team_id, AVG(l * 1.0 / g) AS avg_ratio FROM manager_half WHERE g > 53 GROUP BY team_id) SELECT AVG(avg_ratio) AS result FROM team_avg;",
+  "sql": "WITH filtered_records AS (\n  SELECT team_id, CAST(l AS NUMERIC) / g AS loss_ratio\n  FROM manager_half\n  WHERE g > 53\n),\nteam_averages AS (\n  SELECT team_id, AVG(loss_ratio) AS avg_loss_ratio\n  FROM filtered_records\n  GROUP BY team_id\n)\nSELECT AVG(avg_loss_ratio)\nFROM team_averages",
   "assumptions": [
    {
-    "assumption": "\"Each team\" means each team_id, pooled across all years and leagues in manager_half. Rows with NULL l or NULL g produce a NULL ratio, which AVG ignores. The multiplication by 1.0 avoids integer division.",
-    "unresolved": true
+    "assumption": "The phrase 'average of losses divided by games managed' is interpreted as the average of the ratio (l/g), not the ratio of aggregates (SUM(l)/SUM(g))",
+    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Each team-season is a separate team: group by team_id and year, average the l/g ratios within each team-season, then average those values across all team-seasons.",
-    "sql": "WITH team_year_avg AS (SELECT team_id, year, AVG(l * 1.0 / g) AS avg_ratio FROM manager_half WHERE g > 53 GROUP BY team_id, year) SELECT AVG(avg_ratio) AS result FROM team_year_avg;"
+    "interpretation": "Compute each team's total losses divided by total games managed, then average those ratios across teams",
+    "sql": "WITH filtered_records AS (\n  SELECT team_id, l, g\n  FROM manager_half\n  WHERE g > 53\n),\nteam_totals AS (\n  SELECT team_id, CAST(SUM(l) AS NUMERIC) / SUM(g) AS loss_ratio\n  FROM filtered_records\n  GROUP BY team_id\n)\nSELECT AVG(loss_ratio)\nFROM team_totals"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
+ "primary_matches": [],
  "alternatives": [
   {
-   "interpretation": "Each team-season is a separate team: group by team_id and year, average the l/g ratios within each team-season, then average those values across all team-seasons.",
-   "sql": "WITH team_year_avg AS (SELECT team_id, year, AVG(l * 1.0 / g) AS avg_ratio FROM manager_half WHERE g > 53 GROUP BY team_id, year) SELECT AVG(avg_ratio) AS result FROM team_year_avg;",
+   "interpretation": "Compute each team's total losses divided by total games managed, then average those ratios across teams",
+   "sql": "WITH filtered_records AS (\n  SELECT team_id, l, g\n  FROM manager_half\n  WHERE g > 53\n),\nteam_totals AS (\n  SELECT team_id, CAST(SUM(l) AS NUMERIC) / SUM(g) AS loss_ratio\n  FROM filtered_records\n  GROUP BY team_id\n)\nSELECT AVG(loss_ratio)\nFROM team_totals",
    "executes": true,
    "matches": []
   }
  ],
- "seconds": 11.0,
- "chars_out": 828
+ "seconds": 63.7,
+ "chars_out": 1003
 }

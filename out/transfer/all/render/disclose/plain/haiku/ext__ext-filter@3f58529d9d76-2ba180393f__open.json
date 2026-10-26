@@ -3,12 +3,12 @@
  "wording": "open",
  "model": "haiku",
  "response": {
-  "sql": "WITH fee_base AS (SELECT f.orderslink, o.dealedge AS side, f.feerate - f.rebrate AS net_rate FROM fees f INNER JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate > 0.0009), group_stats AS (SELECT orderslink, side, AVG(net_rate) AS group_avg_net, COUNT(*) AS record_count FROM fee_base GROUP BY orderslink, side), side_stats AS (SELECT side, AVG(group_avg_net) AS side_avg FROM group_stats GROUP BY side) SELECT g.orderslink, g.side, g.group_avg_net, g.record_count, g.group_avg_net - s.side_avg AS diff_from_side_avg FROM group_stats g JOIN side_stats s ON g.side IS NOT DISTINCT FROM s.side WHERE g.group_avg_net > s.side_avg ORDER BY diff_from_side_avg DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH high_rate_fees AS (\n  SELECT f.feesnode, f.feerate, f.rebrate, f.orderslink\n  FROM fees f\n  WHERE f.feerate > 0.0009\n),\nfees_with_orders AS (\n  SELECT \n    hrf.feesnode,\n    hrf.feerate,\n    hrf.rebrate,\n    hrf.orderslink,\n    o.dealedge\n  FROM high_rate_fees hrf\n  INNER JOIN orders o ON hrf.orderslink = o.recordvault\n),\ngroup_stats AS (\n  SELECT \n    fwo.orderslink,\n    fwo.dealedge,\n    AVG(fwo.feerate - fwo.rebrate) AS group_avg_net_fee,\n    COUNT(*) AS record_count\n  FROM fees_with_orders fwo\n  GROUP BY fwo.orderslink, fwo.dealedge\n),\nside_averages AS (\n  SELECT \n    gs.dealedge,\n    AVG(gs.group_avg_net_fee) AS side_avg\n  FROM group_stats gs\n  GROUP BY gs.dealedge\n),\nfiltered_groups AS (\n  SELECT \n    gs.orderslink,\n    gs.dealedge,\n    gs.group_avg_net_fee,\n    gs.record_count,\n    gs.group_avg_net_fee - sa.side_avg AS difference\n  FROM group_stats gs\n  JOIN side_averages sa ON gs.dealedge = sa.dealedge\n  WHERE gs.group_avg_net_fee > sa.side_avg\n)\nSELECT \n  fg.orderslink,\n  fg.dealedge,\n  fg.group_avg_net_fee,\n  fg.record_count,\n  fg.difference\nFROM filtered_groups fg\nORDER BY \n  CASE WHEN fg.difference IS NULL THEN 1 ELSE 0 END,\n  fg.difference DESC\nLIMIT 10"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 7.9,
- "chars_out": 714
+ "seconds": 32.5,
+ "chars_out": 1268
 }

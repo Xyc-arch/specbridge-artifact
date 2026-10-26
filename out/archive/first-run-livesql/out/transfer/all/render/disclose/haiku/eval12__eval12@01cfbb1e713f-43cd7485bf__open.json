@@ -1,0 +1,36 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-43cd7485bf",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH overall_avg AS (\n  SELECT AVG(fees.feerate) as overall_avg_rate\n  FROM fees\n  WHERE fees.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    orders.orderbase,\n    AVG(fees.feerate) as channel_avg_rate\n  FROM fees\n  JOIN orders ON fees.orderslink = orders.recordvault\n  WHERE fees.feerate IS NOT NULL\n  GROUP BY orders.orderbase\n),\nabove_avg_channels AS (\n  SELECT \n    cs.channel_avg_rate,\n    (cs.channel_avg_rate - oa.overall_avg_rate) as difference_above_avg\n  FROM channel_stats cs\n  CROSS JOIN overall_avg oa\n  WHERE cs.channel_avg_rate > oa.overall_avg_rate\n)\nSELECT \n  AVG(channel_avg_rate) as mean_fee_rate_of_above_avg_channels,\n  AVG(difference_above_avg) as avg_distance_above_overall_average\nFROM above_avg_channels;",
+  "assumptions": [
+   {
+    "assumption": "Above-average means strictly greater than (>) the overall average, not including equal values",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Calculate the weighted average fee rate across all individual fees in above-average channels (rather than the unweighted mean of each channel's average)",
+    "sql": "WITH overall_avg AS (\n  SELECT AVG(fees.feerate) as overall_avg_rate\n  FROM fees\n  WHERE fees.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    orders.orderbase,\n    AVG(fees.feerate) as channel_avg_rate\n  FROM fees\n  JOIN orders ON fees.orderslink = orders.recordvault\n  WHERE fees.feerate IS NOT NULL\n  GROUP BY orders.orderbase\n),\nabove_avg_channel_list AS (\n  SELECT cs.orderbase\n  FROM channel_stats cs\n  CROSS JOIN overall_avg oa\n  WHERE cs.channel_avg_rate > oa.overall_avg_rate\n)\nSELECT \n  AVG(fees.feerate) as mean_fee_rate_of_above_avg_channels,\n  AVG(fees.feerate) - (SELECT overall_avg_rate FROM overall_avg) as avg_distance_above_overall_average\nFROM fees\nJOIN orders ON fees.orderslink = orders.recordvault\nWHERE fees.feerate IS NOT NULL\nAND orders.orderbase IN (SELECT orderbase FROM above_avg_channel_list);"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "Calculate the weighted average fee rate across all individual fees in above-average channels (rather than the unweighted mean of each channel's average)",
+   "sql": "WITH overall_avg AS (\n  SELECT AVG(fees.feerate) as overall_avg_rate\n  FROM fees\n  WHERE fees.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    orders.orderbase,\n    AVG(fees.feerate) as channel_avg_rate\n  FROM fees\n  JOIN orders ON fees.orderslink = orders.recordvault\n  WHERE fees.feerate IS NOT NULL\n  GROUP BY orders.orderbase\n),\nabove_avg_channel_list AS (\n  SELECT cs.orderbase\n  FROM channel_stats cs\n  CROSS JOIN overall_avg oa\n  WHERE cs.channel_avg_rate > oa.overall_avg_rate\n)\nSELECT \n  AVG(fees.feerate) as mean_fee_rate_of_above_avg_channels,\n  AVG(fees.feerate) - (SELECT overall_avg_rate FROM overall_avg) as avg_distance_above_overall_average\nFROM fees\nJOIN orders ON fees.orderslink = orders.recordvault\nWHERE fees.feerate IS NOT NULL\nAND orders.orderbase IN (SELECT orderbase FROM above_avg_channel_list);",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 77.2,
+ "chars_out": 2055
+}

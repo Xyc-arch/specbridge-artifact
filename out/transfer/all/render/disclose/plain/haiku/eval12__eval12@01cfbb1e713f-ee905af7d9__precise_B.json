@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH joined_data AS (SELECT tr.transreg, tr.ordertypedist FROM advancedbehavior ab INNER JOIN transactionrecord tr ON ab.translink = tr.transreg), grouped_counts AS (SELECT ordertypedist, COUNT(DISTINCT transreg) as transaction_count FROM joined_data GROUP BY ordertypedist), total_transactions AS (SELECT SUM(transaction_count) as total FROM grouped_counts), with_shares AS (SELECT ordertypedist, transaction_count, CAST(transaction_count AS FLOAT) / (SELECT total FROM total_transactions) as share FROM grouped_counts), baseline AS (SELECT AVG(share) as avg_share FROM with_shares) SELECT ordertypedist, transaction_count, share, share - (SELECT avg_share FROM baseline) as above_baseline FROM with_shares WHERE share > (SELECT avg_share FROM baseline)"
+  "sql": "WITH joined AS (\n  SELECT\n    tr.transreg,\n    tr.ordertypedist\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n),\ngrouped AS (\n  SELECT\n    ordertypedist,\n    COUNT(DISTINCT transreg) as trans_count\n  FROM joined\n  GROUP BY ordertypedist\n),\nwith_totals AS (\n  SELECT\n    ordertypedist,\n    trans_count,\n    SUM(trans_count) OVER () as total_count,\n    CAST(trans_count AS FLOAT) / SUM(trans_count) OVER () as share\n  FROM grouped\n),\nbaseline AS (\n  SELECT\n    AVG(share) as baseline_share\n  FROM with_totals\n),\nfinal AS (\n  SELECT\n    wt.ordertypedist,\n    wt.trans_count,\n    wt.share,\n    wt.share - b.baseline_share as above_baseline\n  FROM with_totals wt\n  CROSS JOIN baseline b\n  WHERE wt.share > b.baseline_share\n)\nSELECT\n  ordertypedist,\n  trans_count,\n  share,\n  above_baseline\nFROM final"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 19.8,
- "chars_out": 781
+ "seconds": 38.2,
+ "chars_out": 909
 }

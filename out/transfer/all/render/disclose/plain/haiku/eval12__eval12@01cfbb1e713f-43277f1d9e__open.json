@@ -3,12 +3,12 @@
  "wording": "open",
  "model": "haiku",
  "response": {
-  "sql": "WITH matched_fees AS (\n  SELECT \n    f.feerate,\n    f.rebrate,\n    COALESCE(o.mktnote, '') AS pair_group\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\npair_avgs AS (\n  SELECT \n    pair_group,\n    AVG(feerate - rebrate) AS avg_net_rate\n  FROM matched_fees\n  WHERE feerate IS NOT NULL AND rebrate IS NOT NULL\n  GROUP BY pair_group\n),\noverall_avg AS (\n  SELECT AVG(feerate - rebrate) AS overall_avg\n  FROM matched_fees\n  WHERE feerate IS NOT NULL AND rebrate IS NOT NULL\n),\nabove_avg_pairs AS (\n  SELECT \n    pa.avg_net_rate,\n    pa.avg_net_rate - oa.overall_avg AS excess\n  FROM pair_avgs pa\n  CROSS JOIN overall_avg oa\n  WHERE oa.overall_avg IS NOT NULL\n    AND pa.avg_net_rate > oa.overall_avg\n)\nSELECT \n  AVG(avg_net_rate) AS mean_of_avg_net_fee_rates,\n  AVG(excess) AS mean_excess_over_overall\nFROM above_avg_pairs"
+  "sql": "WITH matched_fees_orders AS (SELECT f.feerate - f.rebrate AS net_fee_rate, o.mktnote FROM fees f INNER JOIN orders o ON f.orderslink = o.recordvault), overall_avg_calc AS (SELECT AVG(net_fee_rate) AS overall_avg_rate FROM matched_fees_orders), pair_stats AS (SELECT COALESCE(mfo.mktnote, '') AS trading_pair, AVG(mfo.net_fee_rate) AS pair_avg_rate FROM matched_fees_orders mfo GROUP BY COALESCE(mfo.mktnote, '')), filtered_pairs AS (SELECT ps.pair_avg_rate, ps.pair_avg_rate - oac.overall_avg_rate AS excess FROM pair_stats ps CROSS JOIN overall_avg_calc oac WHERE oac.overall_avg_rate IS NOT NULL AND ps.pair_avg_rate > oac.overall_avg_rate) SELECT AVG(pair_avg_rate) AS mean_of_pair_averages, AVG(excess) AS mean_excess FROM filtered_pairs"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 33.2,
- "chars_out": 901
+ "seconds": 28.1,
+ "chars_out": 768
 }

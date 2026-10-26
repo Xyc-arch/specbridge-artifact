@@ -4,25 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_media AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price, 1.0 * SUM(Bytes) / SUM(Milliseconds) AS byte_rate FROM Track GROUP BY MediaTypeId), overall AS (SELECT AVG(byte_rate) AS avg_rate FROM per_media), above AS (SELECT p.avg_price, p.byte_rate, p.byte_rate - o.avg_rate AS excess FROM per_media p CROSS JOIN overall o WHERE p.byte_rate > o.avg_rate) SELECT AVG(avg_price) AS avg_of_avg_unit_price, AVG(byte_rate) AS avg_byte_rate, AVG(excess) AS avg_excess_over_overall FROM above;",
+  "sql": "WITH media_type_stats AS (\n  SELECT\n    MediaTypeId,\n    AVG(UnitPrice) as avg_unit_price,\n    SUM(Bytes) * 1.0 / SUM(Milliseconds) as byte_rate\n  FROM Track\n  WHERE Bytes IS NOT NULL\n  GROUP BY MediaTypeId\n),\noverall_avg_byte_rate AS (\n  SELECT AVG(byte_rate) as avg_byte_rate\n  FROM media_type_stats\n),\nfiltered_media_types AS (\n  SELECT\n    mts.avg_unit_price,\n    mts.byte_rate,\n    oabr.avg_byte_rate\n  FROM media_type_stats mts\n  CROSS JOIN overall_avg_byte_rate oabr\n  WHERE mts.byte_rate > oabr.avg_byte_rate\n)\nSELECT\n  AVG(avg_unit_price) as avg_of_avg_unit_prices,\n  AVG(byte_rate) as avg_of_byte_rates,\n  AVG(byte_rate - avg_byte_rate) as avg_excess\nFROM filtered_media_types;",
   "assumptions": [
    {
-    "assumption": "A track with NULL Bytes adds 0 to its media type's byte total, but its Milliseconds still count toward the denominator, since the request says 'total Bytes divided by total Milliseconds' over all its tracks.",
+    "assumption": "Tracks with NULL Bytes are excluded from both the average unit price and byte rate calculation for each media type. Only media types with at least one track having a non-NULL Bytes value are included in the final result.",
     "unresolved": true
-   },
-   {
-    "assumption": "The average unit price per media type is a plain AVG over all of its tracks, unweighted by quantity or sales.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Every media type has nonzero total Milliseconds, so no division by zero occurs. The 1.0 multiplier keeps the byte rate fractional, so nothing is truncated. The SQL is standard and runs on SQLite, which this schema resembles.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Ignore tracks with NULL Bytes entirely, so they contribute to neither the byte total, the millisecond total, nor the unit-price average for their media type.",
-    "sql": "WITH base AS (SELECT * FROM Track WHERE Bytes IS NOT NULL), per_media AS (SELECT MediaTypeId, AVG(UnitPrice) AS avg_price, 1.0 * SUM(Bytes) / SUM(Milliseconds) AS byte_rate FROM base GROUP BY MediaTypeId), overall AS (SELECT AVG(byte_rate) AS avg_rate FROM per_media), above AS (SELECT p.avg_price, p.byte_rate, p.byte_rate - o.avg_rate AS excess FROM per_media p CROSS JOIN overall o WHERE p.byte_rate > o.avg_rate) SELECT AVG(avg_price) AS avg_of_avg_unit_price, AVG(byte_rate) AS avg_byte_rate, AVG(excess) AS avg_excess_over_overall FROM above;"
+    "interpretation": "Only the byte rate calculation excludes tracks with NULL Bytes; the average unit price is calculated across all tracks in the media type (not just those with non-NULL Bytes), but the media type must still have at least one track with non-NULL Bytes to be included overall.",
+    "sql": "WITH media_type_price AS (\n  SELECT\n    MediaTypeId,\n    AVG(UnitPrice) as avg_unit_price\n  FROM Track\n  GROUP BY MediaTypeId\n),\nmedia_type_bytes AS (\n  SELECT\n    MediaTypeId,\n    SUM(Bytes) * 1.0 / SUM(Milliseconds) as byte_rate\n  FROM Track\n  WHERE Bytes IS NOT NULL\n  GROUP BY MediaTypeId\n),\nmedia_type_stats AS (\n  SELECT\n    p.MediaTypeId,\n    p.avg_unit_price,\n    b.byte_rate\n  FROM media_type_price p\n  INNER JOIN media_type_bytes b ON p.MediaTypeId = b.MediaTypeId\n),\noverall_avg_byte_rate AS (\n  SELECT AVG(byte_rate) as avg_byte_rate\n  FROM media_type_stats\n),\nfiltered_media_types AS (\n  SELECT\n    mts.avg_unit_price,\n    mts.byte_rate,\n    oabr.avg_byte_rate\n  FROM media_type_stats mts\n  CROSS JOIN overall_avg_byte_rate oabr\n  WHERE mts.byte_rate > oabr.avg_byte_rate\n)\nSELECT\n  AVG(avg_unit_price) as avg_of_avg_unit_prices,\n  AVG(byte_rate) as avg_of_byte_rates,\n  AVG(byte_rate - avg_byte_rate) as avg_excess\nFROM filtered_media_types;"
    }
   ]
  },
@@ -31,5 +23,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 12.2
+ "seconds": 76.5
 }

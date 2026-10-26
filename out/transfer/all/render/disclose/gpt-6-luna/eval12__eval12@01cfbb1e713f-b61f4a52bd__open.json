@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-b61f4a52bd",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(fillcount) AS avg_fill_size\n  FROM orderexecutions\n  GROUP BY ordersmark\n), first_benchmark AS (\n  SELECT AVG(avg_fill_size) AS benchmark\n  FROM per_order\n), first_winners AS (\n  SELECT p.ordersmark, p.avg_fill_size, p.avg_fill_size - b.benchmark AS first_margin\n  FROM per_order p\n  CROSS JOIN first_benchmark b\n  WHERE p.avg_fill_size > b.benchmark\n), second_benchmark AS (\n  SELECT AVG(avg_fill_size) AS benchmark\n  FROM first_winners\n), final_orders AS (\n  SELECT w.avg_fill_size,\n         w.first_margin,\n         w.avg_fill_size - b.benchmark AS second_margin\n  FROM first_winners w\n  CROSS JOIN second_benchmark b\n  WHERE w.avg_fill_size > b.benchmark\n)\nSELECT AVG(avg_fill_size) AS average_per_order_fill_size,\n       AVG(first_margin) AS average_margin_over_first_benchmark,\n       AVG(second_margin) AS average_margin_over_second_benchmark\nFROM final_orders;",
+  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(fillcount) AS avg_fill_size\n  FROM orderexecutions\n  GROUP BY ordersmark\n), benchmark AS (\n  SELECT AVG(avg_fill_size) AS overall_avg\n  FROM per_order\n), first_pass AS (\n  SELECT p.ordersmark, p.avg_fill_size,\n         p.avg_fill_size - b.overall_avg AS margin_over_overall\n  FROM per_order AS p\n  CROSS JOIN benchmark AS b\n  WHERE p.avg_fill_size > b.overall_avg\n), group_benchmark AS (\n  SELECT AVG(avg_fill_size) AS first_pass_avg\n  FROM first_pass\n), final_orders AS (\n  SELECT f.avg_fill_size, f.margin_over_overall,\n         f.avg_fill_size - g.first_pass_avg AS margin_over_first_pass\n  FROM first_pass AS f\n  CROSS JOIN group_benchmark AS g\n  WHERE f.avg_fill_size > g.first_pass_avg\n)\nSELECT AVG(avg_fill_size) AS avg_per_order_fill_size,\n       AVG(margin_over_overall) AS avg_margin_over_first_benchmark,\n       AVG(margin_over_first_pass) AS avg_margin_over_second_benchmark\nFROM final_orders",
   "assumptions": [
    {
-    "assumption": "Orders are grouped by ordersmark, with all NULL ordersmark executions treated as one group. Each group's size is the unweighted average of its fillcount values; both benchmarks are unweighted averages across groups, and margins are absolute differences in fillcount units.",
+    "assumption": "The overall benchmark is the unweighted average of per-order average fill sizes, counting NULL ordersmark values as one group, as requested by grouping executions with no order reference together. Margin means the arithmetic difference between an order's average fill size and the relevant benchmark.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 10.1,
- "chars_out": 1292
+ "seconds": 6.6,
+ "chars_out": 1356
 }

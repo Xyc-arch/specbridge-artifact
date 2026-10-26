@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH order_net_rates AS (SELECT o.recordvault, u.userstamp, u.acctscope, AVG(f.feerate) - AVG(f.rebrate) AS net_rate FROM orders o INNER JOIN fees f ON f.orderslink = o.recordvault INNER JOIN users u ON u.userstamp = o.userlink WHERE f.feerate IS NOT NULL AND f.rebrate IS NOT NULL GROUP BY o.recordvault, u.userstamp, u.acctscope), scope_stats AS (SELECT acctscope, AVG(net_rate) AS avg_net_rate, COUNT(*) AS order_count FROM order_net_rates GROUP BY acctscope), overall_avg AS (SELECT AVG(avg_net_rate) AS overall_avg FROM scope_stats) SELECT ss.acctscope, ss.avg_net_rate, ss.order_count, ss.avg_net_rate - oa.overall_avg AS deviation FROM scope_stats ss CROSS JOIN overall_avg oa ORDER BY ss.acctscope"
+  "sql": "WITH fee_order_user AS (\n  SELECT \n    f.feerate,\n    f.rebrate,\n    o.recordvault,\n    u.acctscope\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  INNER JOIN users u ON o.userlink = u.userstamp\n),\norder_net_rates AS (\n  SELECT \n    recordvault,\n    acctscope,\n    AVG(feerate) - AVG(rebrate) as order_net_rate\n  FROM fee_order_user\n  GROUP BY recordvault, acctscope\n),\nscope_averages AS (\n  SELECT \n    acctscope,\n    AVG(order_net_rate) as scope_avg_net_rate,\n    COUNT(*) as order_count\n  FROM order_net_rates\n  GROUP BY acctscope\n),\noverall_average AS (\n  SELECT AVG(scope_avg_net_rate) as overall_avg\n  FROM scope_averages\n)\nSELECT \n  s.acctscope as scope,\n  s.scope_avg_net_rate as avg_net_fee_rate,\n  s.order_count as num_orders,\n  s.scope_avg_net_rate - (SELECT overall_avg FROM overall_average) as difference_from_overall\nFROM scope_averages s"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 39.4,
- "chars_out": 732
+ "seconds": 31.0,
+ "chars_out": 936
 }

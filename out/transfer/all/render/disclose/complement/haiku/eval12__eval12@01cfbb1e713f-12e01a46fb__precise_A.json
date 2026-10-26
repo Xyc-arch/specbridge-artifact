@@ -4,18 +4,14 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH standings AS (\n  SELECT ci.country, cs.wins\n  FROM constructorStandings cs\n  JOIN races r ON r.raceId = cs.raceId\n  JOIN circuits ci ON ci.circuitId = r.circuitId\n  WHERE ci.country IS NOT NULL\n),\ncountry_avg AS (\n  SELECT country, AVG(wins) AS avg_wins\n  FROM standings\n  GROUP BY country\n),\nmean_all AS (\n  SELECT AVG(avg_wins) AS m FROM country_avg\n),\nabove_all AS (\n  SELECT c.country, c.avg_wins\n  FROM country_avg c, mean_all\n  WHERE c.avg_wins > mean_all.m\n),\nmean_above AS (\n  SELECT AVG(avg_wins) AS m FROM above_all\n),\nfinal AS (\n  SELECT a.country, a.avg_wins\n  FROM above_all a, mean_above\n  WHERE a.avg_wins > mean_above.m\n)\nSELECT\n  AVG(f.avg_wins) AS mean_final_avg_wins,\n  AVG(f.avg_wins - mean_all.m) AS mean_excess_over_all_mean,\n  AVG(f.avg_wins - mean_above.m) AS mean_excess_over_above_mean\nFROM final f, mean_all, mean_above;",
+  "sql": "WITH country_avgs AS (\n  SELECT \n    c.country,\n    AVG(cs.wins) as avg_wins\n  FROM constructorStandings cs\n  JOIN races r ON cs.raceId = r.raceId\n  JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY c.country\n),\noverall_mean AS (\n  SELECT AVG(avg_wins) as overall_avg FROM country_avgs\n),\nabove_overall AS (\n  SELECT \n    ca.country,\n    ca.avg_wins,\n    om.overall_avg,\n    ca.avg_wins - om.overall_avg as excess_overall\n  FROM country_avgs ca\n  CROSS JOIN overall_mean om\n  WHERE ca.avg_wins > om.overall_avg\n),\nabove_group_mean AS (\n  SELECT AVG(avg_wins) as group_avg FROM above_overall\n),\nfinal_countries AS (\n  SELECT \n    aa.country,\n    aa.avg_wins,\n    aa.overall_avg,\n    aa.excess_overall,\n    ag.group_avg,\n    aa.avg_wins - ag.group_avg as excess_group\n  FROM above_overall aa\n  CROSS JOIN above_group_mean ag\n  WHERE aa.avg_wins > ag.group_avg\n)\nSELECT \n  AVG(avg_wins) as mean_final_avg_wins,\n  AVG(excess_overall) as mean_excess_overall,\n  AVG(excess_group) as mean_excess_group\nFROM final_countries",
   "assumptions": [
    {
-    "assumption": "Each constructorStandings row is linked to its circuit through races.raceId and races.circuitId, and each country's average is the plain average of wins over its linked standings rows, so countries with more rows weigh more. wins is used exactly as stored, per the request, not converted to per-race wins.",
+    "assumption": "The condition 'above the mean' uses strictly greater-than (>) not greater-than-or-equal, following standard usage",
     "unresolved": false
    },
    {
-    "assumption": "'Mean of all country averages' is the unweighted mean over countries, and 'above' means strictly greater than. The second cut uses the mean of the first-round kept countries' averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Circuits with a NULL country are excluded, since they are not a country. The schema's foreign keys mean no standings rows should be dropped by the joins.",
+    "assumption": "All constructorStandings rows for each circuit country are included in the average, with no year or season filtering",
     "unresolved": false
    }
   ],
@@ -26,5 +22,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 13.0
+ "seconds": 38.7
 }

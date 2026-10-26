@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH order_type_counts AS (\n  SELECT \n    ordertune,\n    COUNT(DISTINCT orderspivot) as order_count\n  FROM orderexecutions\n  INNER JOIN orders ON orderexecutions.ordersmark = orders.recordvault\n  GROUP BY ordertune\n),\ntype_shares AS (\n  SELECT \n    ordertune,\n    order_count,\n    order_count * 1.0 / SUM(order_count) OVER () as share\n  FROM order_type_counts\n),\noverall_avg AS (\n  SELECT \n    AVG(share) as overall_avg_share\n  FROM type_shares\n),\nabove_avg_types AS (\n  SELECT \n    ts.ordertune,\n    ts.order_count,\n    ts.share,\n    oa.overall_avg_share\n  FROM type_shares ts\n  CROSS JOIN overall_avg oa\n  WHERE ts.share > oa.overall_avg_share\n)\nSELECT \n  SUM(order_count) as sum_counts,\n  AVG(share) as avg_share,\n  AVG(share - overall_avg_share) as avg_excess_share\nFROM above_avg_types"
+  "sql": "WITH order_exec_linked AS (SELECT DISTINCT o.ordertune, o.orderspivot FROM orderexecutions oe INNER JOIN orders o ON oe.ordersmark = o.recordvault), order_counts_by_type AS (SELECT ordertune, COUNT(*) as order_count FROM order_exec_linked GROUP BY ordertune), total_count_cte AS (SELECT SUM(order_count) as total_count FROM order_counts_by_type), order_shares AS (SELECT ordertune, order_count, 1.0 * order_count / (SELECT total_count FROM total_count_cte) as share FROM order_counts_by_type), avg_share_cte AS (SELECT AVG(share) as avg_share FROM order_shares), above_average AS (SELECT ordertune, order_count, share, (SELECT avg_share FROM avg_share_cte) as overall_avg_share FROM order_shares WHERE share > (SELECT avg_share FROM avg_share_cte)) SELECT SUM(order_count) as sum_counts, AVG(share) as avg_share, AVG(share - overall_avg_share) as avg_excess FROM above_average"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 35.7,
- "chars_out": 847
+ "seconds": 30.9,
+ "chars_out": 903
 }

@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-1c7e18597b",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH telescope_counts AS (\n  SELECT observstation, COUNT(*) as telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\naggregate_stats AS (\n  SELECT COUNT(*) as num_observatories,\n    CAST(SUM(telescope_count) AS FLOAT) as total_count,\n    1.0 / COUNT(*) as avg_share\n  FROM telescope_counts\n),\nwith_shares AS (\n  SELECT tc.observstation,\n    tc.telescope_count,\n    CAST(tc.telescope_count AS FLOAT) / a.total_count as share,\n    (CAST(tc.telescope_count AS FLOAT) / a.total_count) - a.avg_share as difference_from_avg\n  FROM telescope_counts tc\n  CROSS JOIN aggregate_stats a\n)\nSELECT observstation,\n  telescope_count,\n  share,\n  difference_from_avg\nFROM with_shares\nWHERE share > (SELECT avg_share FROM aggregate_stats)\nORDER BY difference_from_avg DESC\nLIMIT 10;",
+  "sql": "WITH obs_telescope_counts AS (\n  SELECT \n    observstation,\n    COUNT(*) as telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\nwith_totals AS (\n  SELECT \n    observstation,\n    telescope_count,\n    SUM(telescope_count) OVER () as total\n  FROM obs_telescope_counts\n),\nwith_shares AS (\n  SELECT \n    observstation,\n    telescope_count,\n    CAST(telescope_count AS REAL) / total as share,\n    AVG(CAST(telescope_count AS REAL) / total) OVER () as avg_share\n  FROM with_totals\n)\nSELECT \n  observstation,\n  telescope_count,\n  share,\n  share - avg_share as difference_from_avg\nFROM with_shares\nWHERE share > avg_share\nORDER BY difference_from_avg DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "Only observatory stations that have at least one telescope are counted when calculating average share. Observatory stations in the observatories table with zero telescopes are excluded from the count of observatories.",
+    "assumption": "Only observatories that have at least one telescope (appearing in the telescopes table) are included when calculating the average share. Observatories in the observatories table with zero telescopes are excluded. The average share across observatories is calculated as 1 / (number of observatories with telescopes).",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "All observatories from the observatories table are included in the observatory count when calculating average share, even those with zero telescopes. This would lower the average share threshold and potentially change which observatories meet the 'above average' criterion.",
-    "sql": "WITH all_observatories AS (\n  SELECT DISTINCT observstation FROM observatories\n),\ntelescope_counts AS (\n  SELECT o.observstation, COUNT(t.telescregistry) as telescope_count\n  FROM all_observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n),\naggregate_stats AS (\n  SELECT COUNT(*) as num_observatories,\n    CAST(SUM(telescope_count) AS FLOAT) as total_count,\n    1.0 / COUNT(*) as avg_share\n  FROM telescope_counts\n),\nwith_shares AS (\n  SELECT tc.observstation,\n    tc.telescope_count,\n    CASE WHEN a.total_count > 0 THEN CAST(tc.telescope_count AS FLOAT) / a.total_count ELSE 0 END as share,\n    (CASE WHEN a.total_count > 0 THEN CAST(tc.telescope_count AS FLOAT) / a.total_count ELSE 0 END) - a.avg_share as difference_from_avg\n  FROM telescope_counts tc\n  CROSS JOIN aggregate_stats a\n)\nSELECT observstation,\n  telescope_count,\n  share,\n  difference_from_avg\nFROM with_shares\nWHERE share > (SELECT avg_share FROM aggregate_stats)\nORDER BY difference_from_avg DESC\nLIMIT 10;"
+    "interpretation": "If 'all observatories' means all observatories in the observatories table (including those with zero telescopes), include observatories with no assigned telescopes in the average share calculation via LEFT JOIN.",
+    "sql": "WITH obs_telescope_counts AS (\n  SELECT \n    o.observstation,\n    COUNT(t.telescregistry) as telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n),\nwith_totals AS (\n  SELECT \n    observstation,\n    telescope_count,\n    SUM(telescope_count) OVER () as total\n  FROM obs_telescope_counts\n),\nwith_shares AS (\n  SELECT \n    observstation,\n    telescope_count,\n    CAST(telescope_count AS REAL) / total as share,\n    AVG(CAST(telescope_count AS REAL) / total) OVER () as avg_share\n  FROM with_totals\n)\nSELECT \n  observstation,\n  telescope_count,\n  share,\n  share - avg_share as difference_from_avg\nFROM with_shares\nWHERE share > avg_share\nORDER BY difference_from_avg DESC\nLIMIT 10;"
    }
   ]
  },
@@ -25,12 +25,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "All observatories from the observatories table are included in the observatory count when calculating average share, even those with zero telescopes. This would lower the average share threshold and potentially change which observatories meet the 'above average' criterion.",
-   "sql": "WITH all_observatories AS (\n  SELECT DISTINCT observstation FROM observatories\n),\ntelescope_counts AS (\n  SELECT o.observstation, COUNT(t.telescregistry) as telescope_count\n  FROM all_observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n),\naggregate_stats AS (\n  SELECT COUNT(*) as num_observatories,\n    CAST(SUM(telescope_count) AS FLOAT) as total_count,\n    1.0 / COUNT(*) as avg_share\n  FROM telescope_counts\n),\nwith_shares AS (\n  SELECT tc.observstation,\n    tc.telescope_count,\n    CASE WHEN a.total_count > 0 THEN CAST(tc.telescope_count AS FLOAT) / a.total_count ELSE 0 END as share,\n    (CASE WHEN a.total_count > 0 THEN CAST(tc.telescope_count AS FLOAT) / a.total_count ELSE 0 END) - a.avg_share as difference_from_avg\n  FROM telescope_counts tc\n  CROSS JOIN aggregate_stats a\n)\nSELECT observstation,\n  telescope_count,\n  share,\n  difference_from_avg\nFROM with_shares\nWHERE share > (SELECT avg_share FROM aggregate_stats)\nORDER BY difference_from_avg DESC\nLIMIT 10;",
+   "interpretation": "If 'all observatories' means all observatories in the observatories table (including those with zero telescopes), include observatories with no assigned telescopes in the average share calculation via LEFT JOIN.",
+   "sql": "WITH obs_telescope_counts AS (\n  SELECT \n    o.observstation,\n    COUNT(t.telescregistry) as telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n),\nwith_totals AS (\n  SELECT \n    observstation,\n    telescope_count,\n    SUM(telescope_count) OVER () as total\n  FROM obs_telescope_counts\n),\nwith_shares AS (\n  SELECT \n    observstation,\n    telescope_count,\n    CAST(telescope_count AS REAL) / total as share,\n    AVG(CAST(telescope_count AS REAL) / total) OVER () as avg_share\n  FROM with_totals\n)\nSELECT \n  observstation,\n  telescope_count,\n  share,\n  share - avg_share as difference_from_avg\nFROM with_shares\nWHERE share > avg_share\nORDER BY difference_from_avg DESC\nLIMIT 10;",
    "executes": true,
    "matches": []
   }
  ],
- "seconds": 71.9,
- "chars_out": 2538
+ "seconds": 67.9,
+ "chars_out": 2198
 }

@@ -2,18 +2,45 @@
  "case": "eval12:eval12@01cfbb1e713f-b61f4a52bd",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH all_executions AS (\n  SELECT ordersmark, fillcount\n  FROM orderexecutions\n  WHERE fillcount IS NOT NULL AND fillcount > 0\n),\nper_order_avg AS (\n  SELECT ordersmark, AVG(fillcount) as avg_fillcount\n  FROM all_executions\n  GROUP BY ordersmark\n),\nfirst_benchmark AS (\n  SELECT AVG(avg_fillcount) as first_bench_value\n  FROM per_order_avg\n),\nfirst_filter AS (\n  SELECT poa.ordersmark, poa.avg_fillcount, (poa.avg_fillcount - fb.first_bench_value) as first_excess\n  FROM per_order_avg poa\n  CROSS JOIN first_benchmark fb\n  WHERE poa.avg_fillcount > fb.first_bench_value\n),\nsecond_benchmark AS (\n  SELECT AVG(avg_fillcount) as second_bench_value\n  FROM first_filter\n),\nfinal_filter AS (\n  SELECT ff.avg_fillcount, ff.first_excess, (ff.avg_fillcount - sb.second_bench_value) as second_excess\n  FROM first_filter ff\n  CROSS JOIN second_benchmark sb\n  WHERE ff.avg_fillcount > sb.second_bench_value\n)\nSELECT AVG(avg_fillcount) as avg_per_order_fill_quantity, AVG(first_excess) as avg_first_excess, AVG(second_excess) as avg_second_excess\nFROM final_filter;",
-  "assumptions": [],
-  "alternatives": []
+  "sql": "WITH per_order_avgs AS (\n  SELECT \n    ordersmark,\n    AVG(CASE WHEN fillcount > 0 THEN fillcount ELSE NULL END) as avg_fillcount\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\nbenchmark1 AS (\n  SELECT AVG(avg_fillcount) as bench1_value\n  FROM per_order_avgs\n),\nabove_bench1 AS (\n  SELECT \n    p.ordersmark,\n    p.avg_fillcount,\n    (p.avg_fillcount - b.bench1_value) as first_excess\n  FROM per_order_avgs p\n  CROSS JOIN benchmark1 b\n  WHERE p.avg_fillcount > b.bench1_value\n),\nbenchmark2 AS (\n  SELECT AVG(avg_fillcount) as bench2_value\n  FROM above_bench1\n),\nabove_bench2 AS (\n  SELECT \n    a.ordersmark,\n    a.avg_fillcount,\n    a.first_excess,\n    (a.avg_fillcount - b.bench2_value) as second_excess\n  FROM above_bench1 a\n  CROSS JOIN benchmark2 b\n  WHERE a.avg_fillcount > b.bench2_value\n)\nSELECT \n  AVG(avg_fillcount) as avg_fillcount,\n  AVG(first_excess) as avg_first_excess,\n  AVG(second_excess) as avg_second_excess\nFROM above_bench2",
+  "assumptions": [
+   {
+    "assumption": "Zero-valued fillcount (0, 0.0000, etc.) and NULL fillcount entries are excluded entirely from per-order average calculations, not treated as zero contributors.",
+    "unresolved": false
+   },
+   {
+    "assumption": "NULL ordersmark values are grouped together as a single cohort and processed identically to non-null ordersmark groups.",
+    "unresolved": false
+   },
+   {
+    "assumption": "All three final summary statistics (avg_fillcount, avg_first_excess, avg_second_excess) are computed only from the orders that remain after the second threshold filter (those exceeding benchmark2).",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"Average per-order fill quantity\" could mean the arithmetic mean of *all* fillcount values in the final orders (treating each execution equally), rather than the average of per-order averages (treating each order equally regardless of execution count). This would yield different results if orders have unequal execution counts.",
+    "sql": "WITH per_order_avgs AS (\n  SELECT \n    ordersmark,\n    AVG(CASE WHEN fillcount > 0 THEN fillcount ELSE NULL END) as avg_fillcount\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\nbenchmark1 AS (\n  SELECT AVG(avg_fillcount) as bench1_value\n  FROM per_order_avgs\n),\nabove_bench1 AS (\n  SELECT \n    p.ordersmark,\n    p.avg_fillcount,\n    (p.avg_fillcount - b.bench1_value) as first_excess\n  FROM per_order_avgs p\n  CROSS JOIN benchmark1 b\n  WHERE p.avg_fillcount > b.bench1_value\n),\nbenchmark2 AS (\n  SELECT AVG(avg_fillcount) as bench2_value\n  FROM above_bench1\n),\nabove_bench2_orders AS (\n  SELECT \n    a.ordersmark,\n    a.avg_fillcount,\n    a.first_excess,\n    (a.avg_fillcount - b.bench2_value) as second_excess\n  FROM above_bench1 a\n  CROSS JOIN benchmark2 b\n  WHERE a.avg_fillcount > b.bench2_value\n),\nfinal_execs AS (\n  SELECT \n    o.fillcount,\n    ab.first_excess,\n    ab.second_excess\n  FROM orderexecutions o\n  JOIN above_bench2_orders ab ON o.ordersmark = ab.ordersmark\n  WHERE o.fillcount > 0\n)\nSELECT \n  AVG(fillcount) as avg_fillcount,\n  AVG(first_excess) as avg_first_excess,\n  AVG(second_excess) as avg_second_excess\nFROM final_execs"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 94.8,
- "chars_out": 1153
+ "alternatives": [
+  {
+   "interpretation": "\"Average per-order fill quantity\" could mean the arithmetic mean of *all* fillcount values in the final orders (treating each execution equally), rather than the average of per-order averages (treating each order equally regardless of execution count). This would yield different results if orders have unequal execution counts.",
+   "sql": "WITH per_order_avgs AS (\n  SELECT \n    ordersmark,\n    AVG(CASE WHEN fillcount > 0 THEN fillcount ELSE NULL END) as avg_fillcount\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\nbenchmark1 AS (\n  SELECT AVG(avg_fillcount) as bench1_value\n  FROM per_order_avgs\n),\nabove_bench1 AS (\n  SELECT \n    p.ordersmark,\n    p.avg_fillcount,\n    (p.avg_fillcount - b.bench1_value) as first_excess\n  FROM per_order_avgs p\n  CROSS JOIN benchmark1 b\n  WHERE p.avg_fillcount > b.bench1_value\n),\nbenchmark2 AS (\n  SELECT AVG(avg_fillcount) as bench2_value\n  FROM above_bench1\n),\nabove_bench2_orders AS (\n  SELECT \n    a.ordersmark,\n    a.avg_fillcount,\n    a.first_excess,\n    (a.avg_fillcount - b.bench2_value) as second_excess\n  FROM above_bench1 a\n  CROSS JOIN benchmark2 b\n  WHERE a.avg_fillcount > b.bench2_value\n),\nfinal_execs AS (\n  SELECT \n    o.fillcount,\n    ab.first_excess,\n    ab.second_excess\n  FROM orderexecutions o\n  JOIN above_bench2_orders ab ON o.ordersmark = ab.ordersmark\n  WHERE o.fillcount > 0\n)\nSELECT \n  AVG(fillcount) as avg_fillcount,\n  AVG(first_excess) as avg_first_excess,\n  AVG(second_excess) as avg_second_excess\nFROM final_execs",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 54.3,
+ "chars_out": 3298
 }

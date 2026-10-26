@@ -4,34 +4,31 @@
  "reading": "B",
  "description": "Take the above-average races ranked by how far their entry count exceeds the average, and return every race whose entry count reaches the 10th-highest entry count. All races tied at the cutoff are included.",
  "b": {
-  "request": "Return every race whose count of constructorResults rows is at least the 10th-highest such count among races with entry count above the average entries per race, and for each give raceId, the circuit's country, SUM of constructorResults.points ignoring NULLs, the entry count, and (entry count \u2212 average), ordered by difference descending",
-  "sql": "WITH cr AS (SELECT raceId, COUNT(*) AS entries, SUM(points) AS total_points FROM constructorResults GROUP BY raceId), avg_e AS (SELECT AVG(entries) AS avg_entries FROM cr), above AS (SELECT cr.entries FROM cr CROSS JOIN avg_e WHERE cr.entries > avg_e.avg_entries), threshold AS (SELECT entries FROM above ORDER BY entries DESC LIMIT 1 OFFSET 9) SELECT cr.raceId, c.country, cr.total_points, cr.entries, cr.entries - avg_e.avg_entries AS diff FROM cr CROSS JOIN avg_e JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId WHERE cr.entries > avg_e.avg_entries AND cr.entries >= (SELECT entries FROM threshold) ORDER BY diff DESC;",
+  "request": "Return all races with above-average constructor result entry counts, ranked by their difference from average, including all races tied at the 10th-highest difference value.",
+  "sql": "WITH race_counts AS (\n  SELECT raceId, COUNT(*) as entry_count\n  FROM constructorResults\n  GROUP BY raceId\n),\navg_count AS (\n  SELECT AVG(entry_count) as avg_count\n  FROM race_counts\n),\nraces_with_diff AS (\n  SELECT rc.raceId, rc.entry_count, ac.avg_count, (rc.entry_count - ac.avg_count) as diff\n  FROM race_counts rc, avg_count ac\n  WHERE rc.entry_count > ac.avg_count\n)\nSELECT r.*, rwd.entry_count, rwd.avg_count, rwd.diff\nFROM races_with_diff rwd\nJOIN races r ON rwd.raceId = r.raceId\nWHERE rwd.diff >= (\n  SELECT MIN(diff) FROM (\n    SELECT DISTINCT diff FROM races_with_diff\n    ORDER BY diff DESC\n    LIMIT 10\n  )\n)\nORDER BY rwd.diff DESC, r.raceId",
   "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "c": {
-  "request": "Which are the top 10 races by how far their number of constructor result entries exceeds the average number of entries per race? Look only at races above that average. For each one, give the race id, the circuit's country, the total constructor points scored in that race (ignoring missing points), the number of entries, and the difference from the average. List them from the biggest difference down. Take the above-average races ranked by how far their entry count exceeds the average, and return every race whose entry count reaches the 10th-highest entry count. All races tied at the cutoff are included.",
-  "sql": "WITH per_race AS (SELECT raceId, COUNT(*) AS entries, SUM(points) AS total_points FROM constructorResults GROUP BY raceId), avg_entries AS (SELECT AVG(entries) AS avg_entries FROM per_race), above AS (SELECT p.raceId, p.entries, p.total_points, p.entries - a.avg_entries AS diff FROM per_race p CROSS JOIN avg_entries a WHERE p.entries > a.avg_entries), ranked AS (SELECT above.*, RANK() OVER (ORDER BY entries DESC) AS rnk FROM above) SELECT r.raceId, c.country, ranked.total_points, ranked.entries, ranked.diff FROM ranked JOIN races r ON r.raceId = ranked.raceId JOIN circuits c ON c.circuitId = r.circuitId WHERE ranked.rnk <= 10 ORDER BY ranked.diff DESC;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": [],
+  "raw": "Return all races with above-average constructor result entry counts, ranked by their difference from average, including all races tied at the 10th-highest difference value."
  },
  "a": {
   "request": "Count each race's constructor result entries (`constructorResults` records, linked to the race and its circuit) and total their points, ignoring missing points. Group by race id and circuit country. Among the races whose entry count is above the average entry count across all races, list every race whose entry count is at least the 10th-highest entry count, so races tied at the cutoff are all included. Show the race id, the circuit `country`, the total points, the entry count, and how far the entry count is above the average (unrounded). Sort from the largest difference to the smallest.",
-  "sql": "WITH rc AS (SELECT cr.raceId, c.country, SUM(cr.points) AS total_points, COUNT(*) AS entry_count FROM constructorResults cr JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY cr.raceId, c.country), avg_cnt AS (SELECT AVG(entry_count) AS avg_entries FROM rc), cutoff AS (SELECT entry_count AS cutoff_cnt FROM rc ORDER BY entry_count DESC LIMIT 1 OFFSET 9) SELECT rc.raceId, rc.country, rc.total_points, rc.entry_count, rc.entry_count - avg_cnt.avg_entries AS diff_above_avg FROM rc, avg_cnt, cutoff WHERE rc.entry_count > avg_cnt.avg_entries AND rc.entry_count >= cutoff.cutoff_cnt ORDER BY diff_above_avg DESC",
+  "sql": "WITH race_stats AS (SELECT cr.raceId, c.country, COUNT(*) as entry_count, SUM(cr.points) as total_points FROM constructorResults cr JOIN races r ON cr.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId GROUP BY cr.raceId, c.country), average_stats AS (SELECT AVG(entry_count) as avg_entry_count FROM race_stats), high_entries AS (SELECT rs.* FROM race_stats rs WHERE rs.entry_count > (SELECT avg_entry_count FROM average_stats)) SELECT he.raceId, he.country, he.total_points, he.entry_count, (he.entry_count - (SELECT avg_entry_count FROM average_stats)) as difference_from_avg FROM high_entries he WHERE he.entry_count >= COALESCE((SELECT entry_count FROM (SELECT DISTINCT entry_count FROM high_entries ORDER BY entry_count DESC LIMIT 1 OFFSET 9)), (SELECT MIN(entry_count) FROM high_entries)) ORDER BY difference_from_avg DESC;",
+  "executes": true,
+  "matches": []
+ },
+ "c": {
+  "request": "Which are the top 10 races by how far their number of constructor result entries exceeds the average number of entries per race? Look only at races above that average. For each one, give the race id, the circuit's country, the total constructor points scored in that race (ignoring missing points), the number of entries, and the difference from the average. List them from the biggest difference down. Take the above-average races ranked by how far their entry count exceeds the average, and return every race whose entry count reaches the 10th-highest entry count. All races tied at the cutoff are included.",
+  "sql": "WITH race_entry_counts AS (\n  SELECT raceId, COUNT(*) as entry_count\n  FROM constructorResults\n  GROUP BY raceId\n),\navg_count AS (\n  SELECT AVG(entry_count) as avg_val\n  FROM race_entry_counts\n),\nabove_avg AS (\n  SELECT \n    rec.raceId,\n    rec.entry_count,\n    ac.avg_val,\n    (rec.entry_count - ac.avg_val) as difference\n  FROM race_entry_counts rec\n  CROSS JOIN avg_count ac\n  WHERE rec.entry_count > ac.avg_val\n),\nranked_races AS (\n  SELECT \n    raceId,\n    entry_count,\n    difference,\n    DENSE_RANK() OVER (ORDER BY difference DESC) as rank\n  FROM above_avg\n)\nSELECT \n  rr.raceId,\n  c.country,\n  SUM(cr.points) as total_points,\n  rr.entry_count,\n  rr.difference\nFROM ranked_races rr\nJOIN races r ON rr.raceId = r.raceId\nJOIN circuits c ON r.circuitId = c.circuitId\nLEFT JOIN constructorResults cr ON rr.raceId = cr.raceId\nWHERE rr.rank <= 10\nGROUP BY rr.raceId, c.country, rr.entry_count, rr.difference\nORDER BY rr.difference DESC",
+  "executes": true,
+  "matches": []
+ },
+ "d": {
+  "request": "Return all above-average races that rank in the top 10 by constructor result entry count including all races tied at the 10th position, sorted descending by difference from average, showing race id, circuit country, total constructor points, entry count, and difference from average.",
+  "sql": "WITH constructor_stats AS (SELECT raceId, COUNT(*) as entry_count, SUM(points) as total_points FROM constructorResults GROUP BY raceId), avg_stats AS (SELECT AVG(entry_count) as avg_entries FROM constructor_stats), ranked_races AS (SELECT cs.raceId, cs.entry_count, cs.total_points, avgs.avg_entries, cs.entry_count - avgs.avg_entries as diff_from_avg, RANK() OVER (ORDER BY cs.entry_count DESC) as rank FROM constructor_stats cs CROSS JOIN avg_stats avgs WHERE cs.entry_count > avgs.avg_entries), max_rank_at_10 AS (SELECT MAX(rank) as max_rank FROM ranked_races WHERE rank <= 10) SELECT rr.raceId, c.country, rr.total_points, rr.entry_count, rr.diff_from_avg FROM ranked_races rr JOIN races r ON rr.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId WHERE rr.rank <= (SELECT max_rank FROM max_rank_at_10) ORDER BY rr.diff_from_avg DESC;",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Among the above-average races ranked by how far their entry count exceeds the average, which races have an entry count equal to or greater than the 10th-highest entry count, including all races tied at that cutoff?",
-  "sql": "WITH ec AS (SELECT raceId, COUNT(*) AS entries FROM results GROUP BY raceId), avg_ec AS (SELECT AVG(entries) AS avg_entries FROM ec), above AS (SELECT ec.raceId, ec.entries, ec.entries - avg_ec.avg_entries AS excess FROM ec, avg_ec WHERE ec.entries > avg_ec.avg_entries), cutoff AS (SELECT entries FROM above ORDER BY excess DESC LIMIT 1 OFFSET 9) SELECT raceId, entries, excess FROM above WHERE entries >= (SELECT entries FROM cutoff) ORDER BY excess DESC",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

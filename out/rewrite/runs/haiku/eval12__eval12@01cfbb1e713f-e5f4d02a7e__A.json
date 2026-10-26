@@ -5,33 +5,28 @@
  "description": "Each store's count includes all of its customer records, whether active or inactive.",
  "c": {
   "request": "How many customers does each store have? For each store, show its store id, its customer count, its share of all customers across the stores (as an unrounded fraction), and its count as a multiple of the average store's count (count divided by the average, unrounded). Each store's count includes all of its customer records, whether active or inactive.",
-  "sql": "SELECT store_id, COUNT(*) AS customer_count, 1.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS customer_share, 1.0 * COUNT(*) / AVG(COUNT(*)) OVER () AS multiple_of_average_store FROM customer GROUP BY store_id ORDER BY store_id",
+  "sql": "WITH store_counts AS (\n  SELECT \n    store_id,\n    COUNT(*) as customer_count\n  FROM customer\n  GROUP BY store_id\n),\ntotals AS (\n  SELECT \n    SUM(customer_count) as total_customers,\n    COUNT(*) as num_stores,\n    SUM(customer_count) / COUNT(*) as avg_per_store\n  FROM store_counts\n)\nSELECT \n  sc.store_id,\n  sc.customer_count,\n  sc.customer_count / t.total_customers as customer_share,\n  sc.customer_count / t.avg_per_store as count_multiple\nFROM store_counts sc\nCROSS JOIN totals t\nORDER BY sc.store_id",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
  },
  "a": {
   "request": "For each store (`customer.store_id`), how many customers does it have, counting every customer record whether active or inactive? Show the store id, that count, the store's share of the combined count across all stores (count divided by the total, as an unrounded fraction), and its count relative to the average count per store (count divided by that average, unrounded).",
-  "sql": "SELECT store_id, COUNT(*) AS customers, CAST(COUNT(*) AS DOUBLE) / SUM(COUNT(*)) OVER () AS share_of_total, CAST(COUNT(*) AS DOUBLE) / AVG(COUNT(*)) OVER () AS relative_to_avg_per_store FROM customer GROUP BY store_id ORDER BY store_id;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "b": {
-  "request": "For each store_id in customer, count all customer rows regardless of active status, and return store_id, that count, count / (total customers across all stores), and count / (total customers / number of stores), with no rounding",
-  "sql": "SELECT store_id, COUNT(*) AS customer_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share_of_total, COUNT(*) * 1.0 / (SUM(COUNT(*)) OVER () * 1.0 / COUNT(*) OVER ()) AS ratio_to_average_per_store FROM customer GROUP BY store_id ORDER BY store_id",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "For each store, show its store id, its customer count (counting all customer records, both active and inactive), its share of all customers across the stores (as an unrounded fraction), and its count as a multiple of the average store's count (count divided by the average, unrounded).",
-  "sql": "SELECT s.store_id, COUNT(c.customer_id) AS customer_count, COUNT(c.customer_id) / (SELECT COUNT(*) FROM customer) AS customer_share, COUNT(c.customer_id) / ((SELECT COUNT(*) FROM customer) / (SELECT COUNT(*) FROM store)) AS multiple_of_average FROM store s LEFT JOIN customer c ON c.store_id = s.store_id GROUP BY s.store_id ORDER BY s.store_id;",
+  "sql": "SELECT store_id, COUNT(*) AS count, COUNT(*) / SUM(COUNT(*)) OVER () AS share_of_total, COUNT(*) / AVG(COUNT(*)) OVER () AS relative_to_average FROM customer GROUP BY store_id ORDER BY store_id",
   "executes": true,
   "matches": []
- }
+ },
+ "b": {
+  "request": "For each store, report its store ID, the total count of customers in that store (both active and inactive combined), that customer count as an unrounded fraction of the total customers across all stores, and that customer count divided by the mean customers per store (unrounded).",
+  "sql": "WITH store_stats AS (SELECT store_id, COUNT(*) as customer_count FROM customer GROUP BY store_id), totals AS (SELECT SUM(customer_count) as total_customers, AVG(customer_count) as mean_customers FROM store_stats) SELECT s.store_id, s.customer_count, s.customer_count / t.total_customers as fraction_of_total, s.customer_count / t.mean_customers as ratio_to_mean FROM store_stats s CROSS JOIN totals t ORDER BY s.store_id",
+  "executes": true,
+  "matches": [],
+  "raw": "For each store, report its store ID, the total count of customers in that store (both active and inactive combined), that customer count as an unrounded fraction of the total customers across all stores, and that customer count divided by the mean customers per store (unrounded)."
+ },
+ "d": {
+  "request": "For each store, display its store ID, the count of all customers assigned to it regardless of active status, that count as a decimal fraction of the total customer count across all stores, and that count divided by the average customer count per store.",
+  "sql": "WITH store_counts AS (\n  SELECT \n    s.store_id,\n    COUNT(c.customer_id) AS customer_count\n  FROM store s\n  LEFT JOIN customer c ON s.store_id = c.store_id\n  GROUP BY s.store_id\n),\ntotals AS (\n  SELECT \n    SUM(customer_count) AS total_customers,\n    AVG(customer_count) AS avg_customers\n  FROM store_counts\n)\nSELECT \n  sc.store_id,\n  sc.customer_count,\n  sc.customer_count / t.total_customers AS fraction_of_total,\n  sc.customer_count / t.avg_customers AS count_divided_by_avg\nFROM store_counts sc, totals t\nORDER BY sc.store_id",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6
 }

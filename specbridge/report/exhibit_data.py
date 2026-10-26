@@ -493,8 +493,37 @@ def impact():
     save("fig_impact", out, "per silent choice: the library edit applied to the reference SQL; answers that change, single values that move > 10% / > 50% (Wilson)")
 
 
+# ---------------- the human review: what it removes, and whether the results depend on it --------------------------------------
+def review():
+    """The author's review of the 307 sets that pass every check: sets rejected, sets kept where one reviewer model disputed the open
+    request, and both interpretations returned (among the sets each model computes, as in Fig. disclosure) on every set (no human
+    filter), on the kept sets, and on the rejected sets."""
+    from specbridge.comm.transfer.evaluate import matches
+    from specbridge.comm.transfer import combined as CB
+    R = CB.D; C = {c["case"]: c for c in json.load(open(R + "/eval/frozen.json"))["cases"]}; V = json.load(open("human_supervision/verdicts.json"))
+    oth = lambda x: "B" if x == "A" else "A"
+    keeps = lambda k: (lambda v: v["verdict"] == "yes" or v["note"].startswith("No: the type is rare"))(V[k.split("-")[-1]])   # the 1% rule is not the author's
+    kept = {k for k in C if keeps(k)}; disputed = {k for k in C if C[k]["label"] == "disputed open"}
+    pops = {"all": set(C), "kept": kept, "rejected": set(C) - kept}
+    out = {"sets": len(C), "rejected": len(C) - len(kept), "disputed": len(disputed), "disputed_kept": len(disputed & kept), "models": {}}
+    for m in MODELS:
+        d = R + "/eval/runs/%s_b1" % m.replace("-", "_"); pr = {}
+        for f in os.listdir(d):
+            o = json.load(open(os.path.join(d, f))); k, v = o["key"].rsplit("|", 1); pr[(k, v)] = matches(C[k], o["answer"]) if o.get("answer") is not None else []
+        D = {}
+        for f in os.listdir(R + "/disclose/" + m):
+            x = json.load(open(os.path.join(R, "disclose", m, f))); D[(x["case"], x["wording"])] = x
+        got = lambda o: set(o["primary_matches"]) | {y for a in o["alternatives"] for y in a["matches"]}
+        res = {}
+        for name, ks in pops.items():
+            comp = [k for k in ks if C[k]["intended"] in pr.get((k, "precise"), []) and oth(C[k]["intended"]) in pr.get((k, "precise_other"), [])]
+            res[name] = {"k": sum({"A", "B"} <= got(D[(k, "open")]) for k in comp), "n": len(comp)}
+        out["models"][m] = res
+    save("review", out, "author review of the 307 sets: rejected, disputed kept; both interpretations returned with and without the human filter")
+
+
 if __name__ == "__main__":
-    for f in (sys.argv[1:] and [globals()[a] for a in sys.argv[1:]]) or (fig1, tab1, fig2, fig3, tab2, fam, disclosure, inclination, impact):
+    for f in (sys.argv[1:] and [globals()[a] for a in sys.argv[1:]]) or (fig1, tab1, fig2, fig3, tab2, fam, disclosure, inclination, impact, review):
         print("==", f.__name__, flush=True); f()
     if sys.argv[1:] and os.path.exists(OUT + "/INDEX.md"):   # a partial build keeps the other exhibits' lines
         new = {l.split("`")[1].split(".")[0] for l in INDEX}

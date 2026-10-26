@@ -2,13 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-11c73410e6",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH telescope_averages AS (\n  SELECT\n    t.telescregistry,\n    t.equipstatus,\n    AVG(s.pulsepersec) AS avg_pulse_rate\n  FROM telescopes AS t\n  JOIN signals AS s\n    ON s.telescref = t.telescregistry\n  GROUP BY t.telescregistry, t.equipstatus\n), status_averages AS (\n  SELECT equipstatus, AVG(avg_pulse_rate) AS avg_pulse_rate\n  FROM telescope_averages\n  GROUP BY equipstatus\n), first_mean AS (\n  SELECT AVG(avg_pulse_rate) AS value\n  FROM status_averages\n), first_kept AS (\n  SELECT sa.equipstatus, sa.avg_pulse_rate,\n         sa.avg_pulse_rate - fm.value AS excess_first\n  FROM status_averages AS sa\n  CROSS JOIN first_mean AS fm\n  WHERE sa.avg_pulse_rate > fm.value\n), second_mean AS (\n  SELECT AVG(avg_pulse_rate) AS value\n  FROM first_kept\n), remaining AS (\n  SELECT fk.avg_pulse_rate, fk.excess_first,\n         fk.avg_pulse_rate - sm.value AS excess_second\n  FROM first_kept AS fk\n  CROSS JOIN second_mean AS sm\n  WHERE fk.avg_pulse_rate > sm.value\n)\nSELECT AVG(avg_pulse_rate) AS avg_remaining_status_pulse_rate,\n       AVG(excess_first) AS avg_excess_over_first_mean,\n       AVG(excess_second) AS avg_excess_over_second_mean\nFROM remaining;",
+  "sql": "WITH telescope_averages AS (\n    SELECT\n        t.telescregistry,\n        t.equipstatus,\n        AVG(s.pulsepersec) AS avg_pulse_rate\n    FROM telescopes AS t\n    JOIN signals AS s\n      ON s.telescref = t.telescregistry\n    GROUP BY t.telescregistry, t.equipstatus\n), status_averages AS (\n    SELECT equipstatus, AVG(avg_pulse_rate) AS avg_pulse_rate\n    FROM telescope_averages\n    GROUP BY equipstatus\n), first_mean AS (\n    SELECT AVG(avg_pulse_rate) AS mean_rate FROM status_averages\n), first_kept AS (\n    SELECT sa.equipstatus, sa.avg_pulse_rate,\n           sa.avg_pulse_rate - fm.mean_rate AS excess_first\n    FROM status_averages AS sa\n    CROSS JOIN first_mean AS fm\n    WHERE sa.avg_pulse_rate > fm.mean_rate\n), second_mean AS (\n    SELECT AVG(avg_pulse_rate) AS mean_rate FROM first_kept\n), remaining AS (\n    SELECT fk.avg_pulse_rate,\n           fk.excess_first,\n           fk.avg_pulse_rate - sm.mean_rate AS excess_second\n    FROM first_kept AS fk\n    CROSS JOIN second_mean AS sm\n    WHERE fk.avg_pulse_rate > sm.mean_rate\n)\nSELECT AVG(avg_pulse_rate) AS avg_remaining_status_rate,\n       AVG(excess_first) AS avg_excess_over_first_mean,\n       AVG(excess_second) AS avg_excess_over_second_mean\nFROM remaining;",
   "assumptions": [
    {
-    "assumption": "Telescope averages with no non-NULL pulse rates are excluded because AVG ignores NULL values and such a telescope has no defined average; statuses with no qualifying telescope averages are likewise excluded.",
-    "unresolved": true
+    "assumption": "Statuses with no matched telescope-signal pulse-rate values are excluded from the status averages; AVG ignores missing pulse rates, and the inner join drops signals without a matching telescope.",
+    "unresolved": false
    }
   ],
   "alternatives": []
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 9.8,
- "chars_out": 1471
+ "seconds": 9.5,
+ "chars_out": 1535
 }

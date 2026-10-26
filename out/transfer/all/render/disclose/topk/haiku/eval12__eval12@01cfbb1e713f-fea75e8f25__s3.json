@@ -3,11 +3,9 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "WITH eq_avg AS (SELECT equipref, AVG(humepct) AS avg_hum FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), ref AS (SELECT AVG(avg_hum) AS overall_avg FROM eq_avg), above AS (SELECT e.equipref, e.avg_hum FROM eq_avg e CROSS JOIN ref r WHERE e.avg_hum > r.overall_avg), grp AS (SELECT AVG(avg_hum) AS group_mean FROM above) SELECT a.equipref AS equip_ref, a.avg_hum AS avg_humidity, a.avg_hum - r.overall_avg AS excess_over_overall, a.avg_hum - g.group_mean AS diff_from_group_mean FROM above a CROSS JOIN ref r CROSS JOIN grp g WHERE r.overall_avg IS NOT NULL AND g.group_mean IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH overall_stats AS (\n  SELECT AVG(humepct) as overall_avg\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n),\nequip_avg AS (\n  SELECT \n    equipref,\n    AVG(humepct) as equip_avg_humidity\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n),\nabove_avg AS (\n  SELECT \n    e.equipref,\n    e.equip_avg_humidity,\n    o.overall_avg\n  FROM equip_avg e\n  CROSS JOIN overall_stats o\n  WHERE e.equip_avg_humidity > o.overall_avg\n    AND o.overall_avg IS NOT NULL\n),\ngroup_stats AS (\n  SELECT AVG(equip_avg_humidity) as group_mean\n  FROM above_avg\n),\nfinal_calc AS (\n  SELECT \n    a.equipref,\n    a.equip_avg_humidity,\n    (a.equip_avg_humidity - a.overall_avg) as exceeds_overall,\n    (a.equip_avg_humidity - g.group_mean) as diff_from_group_mean\n  FROM above_avg a\n  CROSS JOIN group_stats g\n  WHERE g.group_mean IS NOT NULL\n)\nSELECT \n  equipref,\n  equip_avg_humidity,\n  exceeds_overall,\n  diff_from_group_mean\nFROM final_calc\nORDER BY diff_from_group_mean DESC\nLIMIT 10"
  },
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 8.3
+ "primary_matches": [],
+ "seconds": 43.2
 }

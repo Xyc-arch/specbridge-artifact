@@ -3,10 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH site_ratios AS (\n  SELECT s.zoneregistry, s.insurstat, AVG(CASE WHEN m.facetresmm IS NOT NULL AND m.geomdeltamm IS NOT NULL AND m.geomdeltamm != 0 THEN m.facetresmm::float / m.geomdeltamm::float ELSE NULL END) as site_avg_ratio\n  FROM sites s\n  JOIN scanmesh m ON s.zoneregistry = m.zoneref\n  WHERE s.insurstat IS NOT NULL\n  GROUP BY s.zoneregistry, s.insurstat\n),\nstatus_averages AS (\n  SELECT insurstat, AVG(site_avg_ratio) as status_avg_ratio\n  FROM site_ratios\n  WHERE site_avg_ratio IS NOT NULL\n  GROUP BY insurstat\n),\nfiltered_sites AS (\n  SELECT sr.insurstat, sr.site_avg_ratio, sa.status_avg_ratio\n  FROM site_ratios sr\n  JOIN status_averages sa ON sr.insurstat = sa.insurstat\n  WHERE sr.site_avg_ratio IS NOT NULL AND sr.site_avg_ratio > sa.status_avg_ratio\n)\nSELECT insurstat, AVG(site_avg_ratio) as average_ratio, COUNT(*) as kept_sites_count, AVG(site_avg_ratio - status_avg_ratio) as average_excess\nFROM filtered_sites\nGROUP BY insurstat"
+  "sql": "WITH site_ratios AS (SELECT s.zoneregistry, s.insurstat, AVG(CAST(sm.facetresmm AS REAL) / CAST(sm.geomdeltamm AS REAL)) as site_ratio FROM sites s JOIN scanmesh sm ON s.zoneregistry = sm.zoneref WHERE sm.facetresmm IS NOT NULL AND sm.geomdeltamm IS NOT NULL AND sm.geomdeltamm != 0 AND s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_averages AS (SELECT insurstat, AVG(site_ratio) as status_avg_ratio FROM site_ratios GROUP BY insurstat), kept_sites AS (SELECT sr.zoneregistry, sr.insurstat, sr.site_ratio, sa.status_avg_ratio FROM site_ratios sr JOIN status_averages sa ON sr.insurstat = sa.insurstat WHERE sr.site_ratio > sa.status_avg_ratio) SELECT ks.insurstat, AVG(ks.site_ratio) as avg_ratio_kept_sites, COUNT(DISTINCT ks.zoneregistry) as num_kept_sites, AVG(ks.site_ratio - ks.status_avg_ratio) as avg_excess FROM kept_sites ks GROUP BY ks.insurstat"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 67.1,
- "chars_out": 999
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 26.6,
+ "chars_out": 906
 }

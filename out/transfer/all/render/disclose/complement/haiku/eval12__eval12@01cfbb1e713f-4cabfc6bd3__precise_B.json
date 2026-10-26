@@ -2,23 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-4cabfc6bd3",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH status_counts AS (SELECT archstat, COUNT(DISTINCT arcref) AS cnt FROM scanqc GROUP BY archstat), shares AS (SELECT archstat, cnt, 1.0 * cnt / SUM(cnt) OVER () AS share FROM status_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.archstat AS status, s.cnt AS count, s.share, s.share - a.avg_share AS above_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
+  "sql": "WITH status_counts AS (\n  SELECT \n    archstat,\n    COUNT(DISTINCT arcref) as distinct_projects\n  FROM scanqc\n  GROUP BY archstat\n),\ntotals AS (\n  SELECT \n    SUM(distinct_projects) as total_count,\n    COUNT(*) as num_statuses\n  FROM status_counts\n),\nwith_shares AS (\n  SELECT \n    archstat,\n    distinct_projects,\n    CAST(distinct_projects AS REAL) / (SELECT total_count FROM totals) as share,\n    1.0 / (SELECT num_statuses FROM totals) as avg_share\n  FROM status_counts\n)\nSELECT \n  archstat,\n  distinct_projects as count,\n  share,\n  share - avg_share as above_average\nFROM with_shares\nWHERE share > avg_share\nORDER BY share DESC",
   "assumptions": [
    {
-    "assumption": "A missing archstat means a NULL value. GROUP BY places all NULLs in one group, and that group's status is returned as NULL. Blank or whitespace-only strings are not treated as missing.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The average share is the unweighted mean of the per-status shares, and the sum in the denominator is the sum of the per-status distinct-project counts. A project with QC records in several statuses is counted in each of them, as the request describes.",
+    "assumption": "NULL values in archstat are treated as a distinct status group (standard SQL GROUP BY behavior in SQLite)",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Blank or whitespace-only archstat values also count as missing and form the same group as NULL.",
-    "sql": "WITH status_counts AS (SELECT NULLIF(TRIM(archstat), '') AS archstat, COUNT(DISTINCT arcref) AS cnt FROM scanqc GROUP BY 1), shares AS (SELECT archstat, cnt, 1.0 * cnt / SUM(cnt) OVER () AS share FROM status_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.archstat AS status, s.cnt AS count, s.share, s.share - a.avg_share AS above_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;"
+    "interpretation": "If NULL archstat values should be excluded from the analysis rather than treated as their own group, add WHERE archstat IS NOT NULL to the first CTE.",
+    "sql": "WITH status_counts AS (\n  SELECT \n    archstat,\n    COUNT(DISTINCT arcref) as distinct_projects\n  FROM scanqc\n  WHERE archstat IS NOT NULL\n  GROUP BY archstat\n),\ntotals AS (\n  SELECT \n    SUM(distinct_projects) as total_count,\n    COUNT(*) as num_statuses\n  FROM status_counts\n),\nwith_shares AS (\n  SELECT \n    archstat,\n    distinct_projects,\n    CAST(distinct_projects AS REAL) / (SELECT total_count FROM totals) as share,\n    1.0 / (SELECT num_statuses FROM totals) as avg_share\n  FROM status_counts\n)\nSELECT \n  archstat,\n  distinct_projects as count,\n  share,\n  share - avg_share as above_average\nFROM with_shares\nWHERE share > avg_share\nORDER BY share DESC"
+   },
+   {
+    "interpretation": "If the intent was to count QC records per status (not distinct projects), replace COUNT(DISTINCT arcref) with COUNT(*).",
+    "sql": "WITH status_counts AS (\n  SELECT \n    archstat,\n    COUNT(*) as record_count\n  FROM scanqc\n  GROUP BY archstat\n),\ntotals AS (\n  SELECT \n    SUM(record_count) as total_count,\n    COUNT(*) as num_statuses\n  FROM status_counts\n),\nwith_shares AS (\n  SELECT \n    archstat,\n    record_count,\n    CAST(record_count AS REAL) / (SELECT total_count FROM totals) as share,\n    1.0 / (SELECT num_statuses FROM totals) as avg_share\n  FROM status_counts\n)\nSELECT \n  archstat,\n  record_count as count,\n  share,\n  share - avg_share as above_average\nFROM with_shares\nWHERE share > avg_share\nORDER BY share DESC"
    }
   ]
  },
@@ -27,5 +27,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 12.2
+ "seconds": 61.3
 }

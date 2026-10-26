@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-9e5dda7b4a",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched_fees AS (\n  SELECT u.acctscope, o.recordvault, f.feerate, f.rebrate\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  JOIN users AS u ON u.userstamp = o.userlink\n), per_order AS (\n  SELECT acctscope, recordvault,\n         AVG(feerate) - AVG(rebrate) AS net_rate\n  FROM matched_fees\n  GROUP BY acctscope, recordvault\n  HAVING AVG(feerate) IS NOT NULL AND AVG(rebrate) IS NOT NULL\n), per_scope AS (\n  SELECT acctscope, AVG(net_rate) AS avg_net_rate, COUNT(*) AS order_count\n  FROM per_order\n  GROUP BY acctscope\n)\nSELECT acctscope, avg_net_rate, order_count,\n       avg_net_rate - AVG(avg_net_rate) OVER () AS difference_from_plain_scope_average\nFROM per_scope;",
+  "sql": "WITH per_order AS (\n  SELECT\n    u.acctscope,\n    o.recordvault,\n    AVG(f.feerate) - AVG(f.rebrate) AS net_rate\n  FROM fees AS f\n  JOIN orders AS o ON o.recordvault = f.orderslink\n  JOIN users AS u ON u.userstamp = o.userlink\n  GROUP BY u.acctscope, o.recordvault\n  HAVING AVG(f.feerate) IS NOT NULL\n     AND AVG(f.rebrate) IS NOT NULL\n), per_scope AS (\n  SELECT acctscope, AVG(net_rate) AS avg_net_rate, COUNT(*) AS order_count\n  FROM per_order\n  GROUP BY acctscope\n), overall AS (\n  SELECT AVG(avg_net_rate) AS plain_avg_scope_rate\n  FROM per_scope\n)\nSELECT\n  p.acctscope,\n  p.avg_net_rate,\n  p.order_count,\n  p.avg_net_rate - x.plain_avg_scope_rate AS difference_from_plain_avg\nFROM per_scope AS p\nCROSS JOIN overall AS x;",
   "assumptions": [
    {
-    "assumption": "An order is identified by orders.recordvault, and its net rate is included only when both its average feerate and average rebrate are present; NULL rate values are ignored by AVG.",
+    "assumption": "Orders are identified by orders.recordvault, which is the key referenced by fees.orderslink; an order is included only when both its average feerate and average rebrate are present. The comparison baseline is the unweighted average of the per-scope averages returned by the query.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.7,
- "chars_out": 970
+ "seconds": 48.6,
+ "chars_out": 1112
 }

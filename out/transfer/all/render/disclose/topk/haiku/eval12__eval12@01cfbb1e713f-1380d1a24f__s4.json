@@ -3,11 +3,11 @@
  "sample": 4,
  "model": "haiku",
  "response": {
-  "sql": "WITH rep_counts AS (SELECT e.EmployeeId, e.City, COUNT(c.CustomerId) AS cnt FROM Employee e JOIN Customer c ON c.SupportRepId = e.EmployeeId GROUP BY e.EmployeeId, e.City), city_avg AS (SELECT City, AVG(cnt) AS city_avg FROM rep_counts GROUP BY City), above AS (SELECT r.EmployeeId, r.City, r.cnt, (r.cnt - a.city_avg) AS excess FROM rep_counts r JOIN city_avg a ON r.City IS a.City WHERE r.cnt > a.city_avg), overall AS (SELECT COUNT(*) AS total FROM Customer WHERE SupportRepId IN (SELECT EmployeeId FROM Employee)) SELECT ab.City AS city, SUM(ab.cnt) AS total_customers, AVG(ab.excess) AS avg_excess_above_city_avg, AVG(ab.cnt * 1.0 / o.total) AS avg_share_of_overall_total FROM above ab CROSS JOIN overall o GROUP BY ab.City;"
+  "sql": "WITH rep_customer_counts AS (\n  SELECT \n    e.EmployeeId,\n    e.City,\n    COUNT(c.CustomerId) as customer_count\n  FROM Employee e\n  JOIN Customer c ON e.EmployeeId = c.SupportRepId\n  GROUP BY e.EmployeeId, e.City\n),\nrep_with_city_avg AS (\n  SELECT \n    EmployeeId,\n    City,\n    customer_count,\n    AVG(customer_count) OVER (PARTITION BY City) as city_avg\n  FROM rep_customer_counts\n),\nfiltered_reps AS (\n  SELECT \n    EmployeeId,\n    City,\n    customer_count,\n    city_avg\n  FROM rep_with_city_avg\n  WHERE customer_count > city_avg\n),\ntotal_customers_overall AS (\n  SELECT SUM(customer_count) as total FROM filtered_reps\n),\ncity_summary AS (\n  SELECT \n    City,\n    SUM(customer_count) as total_customers,\n    AVG(customer_count - city_avg) as avg_above_average,\n    AVG(customer_count * 1.0 / (SELECT total FROM total_customers_overall)) as avg_share\n  FROM filtered_reps\n  GROUP BY City\n)\nSELECT * FROM city_summary\nORDER BY City"
  },
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
- "seconds": 6.2
+ "seconds": 50.0
 }

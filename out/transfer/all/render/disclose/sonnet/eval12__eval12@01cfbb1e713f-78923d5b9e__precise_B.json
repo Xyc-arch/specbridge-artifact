@@ -2,20 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-78923d5b9e",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH grp AS (SELECT sc.zoneref AS zoneref, s.insurstat AS insurstat, COUNT(*) AS n FROM scanconservation sc JOIN sites s ON s.zoneregistry = sc.zoneref GROUP BY sc.zoneref, s.insurstat), frac AS (SELECT zoneref, insurstat, n AS conservation_records, n * 1.0 / SUM(n) OVER () AS fraction FROM grp), ranked AS (SELECT *, RANK() OVER (ORDER BY fraction DESC) AS rnk FROM frac) SELECT zoneref, insurstat, conservation_records, fraction FROM ranked WHERE rnk <= 10 ORDER BY fraction DESC NULLS LAST, zoneref, insurstat;",
+  "sql": "WITH g AS (SELECT c.zoneref AS zoneref, s.insurstat AS insurstat, COUNT(*) AS conservation_records, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS fraction FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY c.zoneref, s.insurstat) SELECT zoneref, insurstat, conservation_records, fraction FROM g WHERE fraction >= COALESCE((SELECT fraction FROM g ORDER BY fraction DESC LIMIT 1 OFFSET 9), (SELECT MIN(fraction) FROM g)) ORDER BY fraction DESC",
   "assumptions": [
    {
-    "assumption": "An inner join to sites drops conservation records with no matching site. The denominator is the total of matched records only. A NULL insurstat is kept as its own group, and the GROUP BY puts all NULLs in one group.",
+    "assumption": "The 10th-highest is the 10th row in the ordering of (zoneref, insurstat) groups. All groups whose fraction is at least that row's fraction are returned, so ties at 10th place are kept. If there are fewer than 10 groups, all are returned.",
     "unresolved": false
    },
    {
-    "assumption": "'At least the 10th-highest' is implemented with RANK() <= 10, so all rows tied at 10th place are kept. Ranking is over the group rows, not over distinct fraction values.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The fraction is count / total matched records, computed as a non-rounded decimal (n * 1.0 / total). Because the fraction is never NULL, 'missing last' has no effect, and NULLS LAST is included only for safety.",
+    "assumption": "The denominator is the total number of conservation records that matched a site (inner join). The fraction is unrounded and uses real division.",
     "unresolved": false
    }
   ],
@@ -27,6 +23,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 6.8,
- "chars_out": 1314
+ "seconds": 18.3,
+ "chars_out": 960
 }

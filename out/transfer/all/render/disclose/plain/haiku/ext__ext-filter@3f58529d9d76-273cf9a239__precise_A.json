@@ -3,12 +3,12 @@
  "wording": "precise_A",
  "model": "haiku",
  "response": {
-  "sql": "WITH grp AS (SELECT s.zoneregistry AS site_code, s.healtheval AS status, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avg_ratio, COUNT(*) AS scan_count FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY s.zoneregistry, s.healtheval), stats AS (SELECT AVG(avg_ratio) AS mean_ratio FROM grp) SELECT g.site_code, g.status, g.avg_ratio, g.scan_count, g.avg_ratio - st.mean_ratio AS excess FROM grp g CROSS JOIN stats st WHERE g.avg_ratio > st.mean_ratio ORDER BY excess DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH scan_data AS (SELECT s.zoneref, st.healtheval, CASE WHEN s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin != 0 THEN s.gbsize / s.spanmin ELSE NULL END AS ratio_per_min FROM scans s JOIN sites st ON s.zoneref = st.zoneregistry WHERE s.chronotag >= '2024-06-06 11:53:59.684274' AND s.chronotag <= '2024-11-03 19:51:13.516797'), group_stats AS (SELECT zoneref, healtheval, AVG(ratio_per_min) AS avg_ratio, COUNT(*) AS scan_count FROM scan_data WHERE ratio_per_min IS NOT NULL GROUP BY zoneref, healtheval), overall_mean AS (SELECT AVG(avg_ratio) AS mean_avg_ratio FROM group_stats), filtered_groups AS (SELECT gs.zoneref, gs.healtheval, gs.avg_ratio, gs.scan_count, gs.avg_ratio - om.mean_avg_ratio AS exceeds_mean FROM group_stats gs CROSS JOIN overall_mean om WHERE om.mean_avg_ratio IS NOT NULL AND gs.avg_ratio > om.mean_avg_ratio) SELECT zoneref, healtheval, avg_ratio, scan_count, exceeds_mean FROM filtered_groups ORDER BY exceeds_mean DESC NULLS LAST LIMIT 10"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 8.9,
- "chars_out": 604
+ "seconds": 32.3,
+ "chars_out": 1008
 }

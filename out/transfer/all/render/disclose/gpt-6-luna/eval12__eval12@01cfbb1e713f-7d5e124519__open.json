@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH order_fills AS (\n  SELECT\n    oe.ordersmark,\n    o.timespan,\n    AVG(oe.fillcount) AS avg_fill\n  FROM orderexecutions AS oe\n  JOIN orders AS o\n    ON oe.ordersmark = o.recordvault\n  GROUP BY oe.ordersmark, o.timespan\n), compared AS (\n  SELECT\n    ordersmark,\n    timespan,\n    avg_fill,\n    AVG(avg_fill) OVER (PARTITION BY timespan) AS timespan_avg_fill,\n    RANK() OVER (PARTITION BY timespan ORDER BY avg_fill DESC NULLS LAST) AS fill_rank\n  FROM order_fills\n)\nSELECT\n  ordersmark,\n  timespan,\n  avg_fill,\n  avg_fill - timespan_avg_fill AS above_timespan_average,\n  fill_rank\nFROM compared\nWHERE avg_fill > timespan_avg_fill\n  AND fill_rank <= 3\nORDER BY timespan, fill_rank;",
+  "sql": "WITH order_fills AS (\n  SELECT\n    o.recordvault AS ordersmark,\n    o.timespan,\n    AVG(e.fillcount) AS avg_fill\n  FROM orderexecutions AS e\n  JOIN orders AS o\n    ON e.ordersmark = o.recordvault\n  GROUP BY o.recordvault, o.timespan\n), compared AS (\n  SELECT\n    ordersmark,\n    timespan,\n    avg_fill,\n    avg_fill - AVG(avg_fill) OVER (PARTITION BY timespan) AS above_tif_avg,\n    RANK() OVER (\n      PARTITION BY timespan\n      ORDER BY avg_fill DESC\n    ) AS fill_rank\n  FROM order_fills\n)\nSELECT ordersmark, timespan, avg_fill, above_tif_avg, fill_rank\nFROM compared\nWHERE avg_fill > (\n  SELECT AVG(avg_fill)\n  FROM order_fills AS peer\n  WHERE peer.timespan = compared.timespan\n)\n  AND fill_rank <= 3\nORDER BY timespan, fill_rank;",
   "assumptions": [
    {
-    "assumption": "Each order is identified by ordersmark and its timespan; the time-in-force average is the mean of the per-order average fills within that timespan. AVG ignores missing fillcount values, while an order with no nonmissing fillcount is excluded by the strict comparison.",
+    "assumption": "The time-in-force average is the mean of per-order average fills among matched orders, computed separately for each timespan; orders with no non-NULL fillcount have a NULL average and are excluded by the strict comparison.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 9.3,
- "chars_out": 1058
+ "seconds": 26.5,
+ "chars_out": 1067
 }

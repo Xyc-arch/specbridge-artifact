@@ -4,16 +4,25 @@
  "reading": "A",
  "description": "All examination records with no ID are lumped into one group that is treated like a patient.",
  "b": {
-  "request": "For each ID in Examination, including one group for all NULL-ID rows, count records and divide by total Examination rows to get its share. Among groups with share above the mean share across groups, return one unrounded row with the average count, the average share, and the average of (share \u2212 mean share)",
-  "sql": "WITH total AS (SELECT COUNT(*) AS n FROM Examination), groups AS (SELECT ID, COUNT(*) AS cnt, CAST(COUNT(*) AS REAL) / (SELECT n FROM total) AS share FROM Examination GROUP BY ID), stats AS (SELECT AVG(share) AS mean_share FROM groups), above AS (SELECT g.cnt, g.share, g.share - s.mean_share AS diff FROM groups g, stats s WHERE g.share > s.mean_share) SELECT AVG(cnt) AS avg_count, AVG(share) AS avg_share, AVG(diff) AS avg_share_minus_mean FROM above;",
+  "request": "Group Examination records by patient ID with all NULL IDs treated as a single group, calculate each group's share of total records, identify groups whose share exceeds the mean share, and output one row with the mean record count, mean share, and mean share excess for those above-average groups.",
+  "sql": "WITH grouped AS (\n  SELECT \n    COALESCE(ID, 0) as patient_id,\n    COUNT(*) as record_count\n  FROM Examination\n  GROUP BY COALESCE(ID, 0)\n),\nwith_share AS (\n  SELECT \n    patient_id,\n    record_count,\n    CAST(record_count AS FLOAT) / (SELECT COUNT(*) FROM Examination) as share,\n    AVG(CAST(record_count AS FLOAT) / (SELECT COUNT(*) FROM Examination)) OVER () as mean_share\n  FROM grouped\n),\nfiltered AS (\n  SELECT \n    record_count,\n    share,\n    mean_share,\n    share - mean_share as share_excess\n  FROM with_share\n  WHERE share > mean_share\n)\nSELECT \n  AVG(record_count) as mean_record_count,\n  AVG(share) as mean_share,\n  AVG(share_excess) as mean_share_excess\nFROM filtered",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "Group Examination records by patient ID with all NULL IDs treated as a single group, calculate each group's share of total records, identify groups whose share exceeds the mean share, and output one row with the mean record count, mean share, and mean share excess for those above-average groups."
+ },
+ "a": {
+  "request": "Group the Examination records by `ID` and count the records in each group. All records whose `ID` is missing are counted together as one more group, which is included in the total, in the average share, and in the filtering. Divide each group's count by the total of all group counts to get its share, find the plain average of the shares, and keep the groups whose share is above it. Return one unrounded row with: the kept groups' average record count, their average share, and the average amount by which their share exceeds the average share.",
+  "sql": "WITH group_counts AS (SELECT ID, COUNT(*) as cnt FROM Examination GROUP BY ID), stats AS (SELECT SUM(cnt) as total_count, COUNT(*) as num_groups FROM group_counts), with_shares AS (SELECT gc.cnt, CAST(gc.cnt AS FLOAT) / CAST(s.total_count AS FLOAT) as share, 1.0 / CAST(s.num_groups AS FLOAT) as avg_share FROM group_counts gc CROSS JOIN stats s), filtered_groups AS (SELECT cnt, share, avg_share FROM with_shares WHERE share > avg_share) SELECT AVG(CAST(cnt AS FLOAT)) as avg_record_count, AVG(share) as avg_share, AVG(share - avg_share) as avg_excess FROM filtered_groups",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "a": {
-  "request": "Group the Examination records by `ID` and count the records in each group. All records whose `ID` is missing are counted together as one more group, which is included in the total, in the average share, and in the filtering. Divide each group's count by the total of all group counts to get its share, find the plain average of the shares, and keep the groups whose share is above it. Return one unrounded row with: the kept groups' average record count, their average share, and the average amount by which their share exceeds the average share.",
-  "sql": "WITH grp AS (SELECT ID, COUNT(*) AS cnt FROM Examination GROUP BY ID), tot AS (SELECT SUM(cnt) AS total FROM grp), shares AS (SELECT grp.ID, grp.cnt, grp.cnt * 1.0 / tot.total AS share FROM grp, tot), avg_s AS (SELECT AVG(share) AS avg_share FROM shares), kept AS (SELECT shares.cnt, shares.share FROM shares, avg_s WHERE shares.share > avg_s.avg_share) SELECT AVG(kept.cnt) AS avg_record_count, AVG(kept.share) AS avg_share, AVG(kept.share - avg_s.avg_share) AS avg_excess_share FROM kept, avg_s;",
+ "d": {
+  "request": "Count the Examination records for each `ID` (treating all NULL `ID` values as a single group), express each count as a share of the total, and for the ID groups whose share is above the average share, return their average record count, average share, and average amount by which their share exceeds the average share in one unrounded row.",
+  "sql": "WITH id_counts AS (SELECT ID, COUNT(*) as count FROM Examination GROUP BY ID), total_count AS (SELECT SUM(count) as total FROM id_counts), id_shares AS (SELECT ID, count, count * 1.0 / (SELECT total FROM total_count) as share FROM id_counts), average_share AS (SELECT AVG(share) as avg_share FROM id_shares), above_average AS (SELECT ID, count, share FROM id_shares WHERE share > (SELECT avg_share FROM average_share)) SELECT AVG(count) as avg_record_count, AVG(share) as avg_share, AVG(share) - (SELECT avg_share FROM average_share) as avg_excess_share FROM above_average",
   "executes": true,
   "matches": [
    "A"
@@ -21,17 +30,11 @@
  },
  "c": {
   "request": "Count the Examination records for each `ID` and express each count as a share of the total. For the IDs whose share is above the average share, what are their average record count, their average share, and the average amount by which their share beats the average share? Give one unrounded row. All examination records with no ID are lumped into one group that is treated like a patient.",
-  "sql": "WITH counts AS (SELECT ID, COUNT(*) AS cnt FROM Examination GROUP BY ID), shares AS (SELECT ID, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM counts) AS share FROM counts), avg_share AS (SELECT AVG(share) AS avg_s FROM shares) SELECT AVG(s.cnt) AS avg_record_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_s) AS avg_share_excess FROM shares s, avg_share a WHERE s.share > a.avg_s;",
+  "sql": "WITH examination_data AS (SELECT COALESCE(ID, -1) as patient_id, COUNT(*) as record_count FROM Examination GROUP BY COALESCE(ID, -1)), with_shares AS (SELECT patient_id, record_count, CAST(record_count AS REAL) / (SELECT SUM(record_count) FROM examination_data) as share FROM examination_data), stats AS (SELECT 1.0 / COUNT(*) as avg_share FROM with_shares), above_average AS (SELECT ws.record_count, ws.share FROM with_shares ws WHERE ws.share > (SELECT avg_share FROM stats)) SELECT AVG(record_count) as avg_record_count, AVG(share) as avg_share, AVG(share) - (SELECT avg_share FROM stats) as avg_excess_share FROM above_average",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Among the examination records, treat any record with no ID as its own patient group, so the count, share, and averages are computed with that group included. For the IDs whose share is above the average share, what are their average record count, average share, and average amount by which their share exceeds the average share, with records lacking an ID counted as one group, returned as one unrounded row?",
-  "sql": "WITH keyed AS (SELECT CASE WHEN ID IS NULL THEN 'noid_' || rowid ELSE CAST(ID AS TEXT) END AS gkey FROM Examination), grp AS (SELECT gkey, COUNT(*) AS cnt FROM keyed GROUP BY gkey), tot AS (SELECT SUM(cnt) AS total FROM grp), shares AS (SELECT gkey, cnt, CAST(cnt AS REAL) / (SELECT total FROM tot) AS share FROM grp), avgs AS (SELECT AVG(share) AS avg_share FROM shares) SELECT AVG(s.cnt) AS avg_record_count, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_share FROM shares s, avgs a WHERE s.share > a.avg_share;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

@@ -4,29 +4,21 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH large AS (SELECT account_id, type, amount, balance FROM trans WHERE amount >= 2400), per_account AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS signed_avg, AVG(balance) AS balance_avg FROM large GROUP BY account_id) SELECT AVG(signed_avg) AS avg_signed_amount, AVG(balance_avg) AS avg_balance FROM per_account;",
+  "sql": "WITH large_trans AS (\n  SELECT \n    account_id,\n    amount,\n    balance,\n    type\n  FROM trans\n  WHERE amount >= 2400\n),\naccount_stats AS (\n  SELECT \n    account_id,\n    AVG(CASE \n      WHEN type = 'PRIJEM' THEN CAST(amount AS REAL)\n      WHEN type = 'VYDAJ' THEN -CAST(amount AS REAL)\n    END) as avg_signed_amount,\n    AVG(CAST(balance AS REAL)) as avg_balance,\n    SUM(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN 1 ELSE 0 END) as signed_count\n  FROM large_trans\n  GROUP BY account_id\n)\nSELECT \n  AVG(CASE WHEN signed_count > 0 THEN avg_signed_amount END) as avg_signed_amount,\n  AVG(avg_balance) as avg_balance\nFROM account_stats",
   "assumptions": [
    {
-    "assumption": "The cutoff is inclusive: transactions with amount >= 2400 count as large.",
+    "assumption": "\"Cutoff at amount 2400\" means amount >= 2400 (inclusive), not > 2400",
     "unresolved": true
    },
    {
-    "assumption": "Signed amount uses trans.type only: 'PRIJEM' is +amount, 'VYDAJ' is -amount, and every other type, including 'VYBER' and any missing value, is excluded. The stored amount is unsigned, as the verified notes state.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The balance average per account uses all large transactions regardless of type. The request's note that accounts with no signed amount are skipped applies only to the first figure, so the second figure is not restricted to signed rows.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Each account's figures are averaged per account first, then the account-level values are averaged across accounts. Accounts whose signed average is NULL are ignored by the outer AVG for the first figure.",
-    "unresolved": false
+    "assumption": "The second figure (average balance) is calculated and averaged across all accounts with large transactions, including those with no PRIJEM/VYDAJ; only the first figure's average excludes such accounts",
+    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The cutoff is exclusive: only transactions with amount strictly greater than 2400 count as large.",
-    "sql": "WITH large AS (SELECT account_id, type, amount, balance FROM trans WHERE amount > 2400), per_account AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS signed_avg, AVG(balance) AS balance_avg FROM large GROUP BY account_id) SELECT AVG(signed_avg) AS avg_signed_amount, AVG(balance_avg) AS avg_balance FROM per_account;"
+    "interpretation": "Both figures are calculated and averaged only for accounts that have at least one signed (PRIJEM or VYDAJ) transaction among their large transactions",
+    "sql": "WITH large_trans AS (\n  SELECT \n    account_id,\n    amount,\n    balance,\n    type\n  FROM trans\n  WHERE amount >= 2400\n),\naccount_stats AS (\n  SELECT \n    account_id,\n    AVG(CASE \n      WHEN type = 'PRIJEM' THEN CAST(amount AS REAL)\n      WHEN type = 'VYDAJ' THEN -CAST(amount AS REAL)\n    END) as avg_signed_amount,\n    AVG(CAST(balance AS REAL)) as avg_balance\n  FROM large_trans\n  GROUP BY account_id\n  HAVING SUM(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN 1 ELSE 0 END) > 0\n)\nSELECT \n  AVG(avg_signed_amount) as avg_signed_amount,\n  AVG(avg_balance) as avg_balance\nFROM account_stats"
    }
   ]
  },
@@ -37,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The cutoff is exclusive: only transactions with amount strictly greater than 2400 count as large.",
-   "sql": "WITH large AS (SELECT account_id, type, amount, balance FROM trans WHERE amount > 2400), per_account AS (SELECT account_id, AVG(CASE WHEN type = 'PRIJEM' THEN amount WHEN type = 'VYDAJ' THEN -amount END) AS signed_avg, AVG(balance) AS balance_avg FROM large GROUP BY account_id) SELECT AVG(signed_avg) AS avg_signed_amount, AVG(balance_avg) AS avg_balance FROM per_account;",
+   "interpretation": "Both figures are calculated and averaged only for accounts that have at least one signed (PRIJEM or VYDAJ) transaction among their large transactions",
+   "sql": "WITH large_trans AS (\n  SELECT \n    account_id,\n    amount,\n    balance,\n    type\n  FROM trans\n  WHERE amount >= 2400\n),\naccount_stats AS (\n  SELECT \n    account_id,\n    AVG(CASE \n      WHEN type = 'PRIJEM' THEN CAST(amount AS REAL)\n      WHEN type = 'VYDAJ' THEN -CAST(amount AS REAL)\n    END) as avg_signed_amount,\n    AVG(CAST(balance AS REAL)) as avg_balance\n  FROM large_trans\n  GROUP BY account_id\n  HAVING SUM(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN 1 ELSE 0 END) > 0\n)\nSELECT \n  AVG(avg_signed_amount) as avg_signed_amount,\n  AVG(avg_balance) as avg_balance\nFROM account_stats",
    "executes": true,
    "matches": [
-    "B"
+    "A"
    ]
   }
  ],
- "seconds": 15.7,
- "chars_out": 1811
+ "seconds": 61.0,
+ "chars_out": 1940
 }

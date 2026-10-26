@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH scan_rates AS (\n  SELECT s.questregistry,\n         si.healtheval,\n         s.scancount,\n         s.gbsize / NULLIF(s.spanmin, 0) AS rate\n  FROM scans AS s\n  JOIN sites AS si ON si.zoneregistry = s.zoneref\n), status_stats AS (\n  SELECT healtheval,\n         AVG(rate) AS avg_rate,\n         AVG(scancount) AS avg_count\n  FROM scan_rates\n  GROUP BY healtheval\n), overall AS (\n  SELECT AVG(avg_rate) AS all_status_avg_rate\n  FROM status_stats\n), qualifying AS (\n  SELECT ss.avg_rate, ss.avg_count, o.all_status_avg_rate\n  FROM status_stats AS ss\n  CROSS JOIN overall AS o\n  WHERE o.all_status_avg_rate IS NOT NULL\n    AND ss.avg_rate > o.all_status_avg_rate\n)\nSELECT AVG(avg_rate) AS average_rate,\n       AVG(avg_count) AS average_count,\n       AVG(avg_rate - all_status_avg_rate) AS average_excess\nFROM qualifying;",
+  "sql": "WITH site_rates AS (\n  SELECT\n    s.healtheval AS status,\n    AVG(1.0 * sc.gbsize / sc.spanmin) AS avg_rate,\n    AVG(sc.scancount) AS avg_count\n  FROM scans AS sc\n  JOIN sites AS s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n), overall AS (\n  SELECT AVG(1.0 * gbsize / spanmin) AS avg_rate\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n)\nSELECT\n  AVG(sr.avg_rate) AS average_rate,\n  AVG(sr.avg_count) AS average_count,\n  AVG(sr.avg_rate - o.avg_rate) AS average_excess\nFROM site_rates AS sr\nCROSS JOIN overall AS o\nWHERE sr.avg_rate > o.avg_rate",
   "assumptions": [
    {
-    "assumption": "\u201cAverage count\u201d means the average of scans.scancount within each qualifying health and safety status, then the unweighted average of those status averages. The all-status average likewise gives each status equal weight. Zero-minute scans are excluded from rate averages; missing rates are ignored.",
+    "assumption": "The all-status average is the scan-weighted average of gbsize/spanmin across matched scans with both values present; status averages are then compared equally when averaging the qualifying statuses.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "If \u201caverage count\u201d means the average number of matched scan records per qualifying status, use this query instead.",
-    "sql": "WITH scan_rates AS (\n  SELECT s.questregistry,\n         si.healtheval,\n         s.gbsize / NULLIF(s.spanmin, 0) AS rate\n  FROM scans AS s\n  JOIN sites AS si ON si.zoneregistry = s.zoneref\n), status_stats AS (\n  SELECT healtheval,\n         AVG(rate) AS avg_rate,\n         COUNT(*) AS scan_count\n  FROM scan_rates\n  GROUP BY healtheval\n), overall AS (\n  SELECT AVG(avg_rate) AS all_status_avg_rate\n  FROM status_stats\n), qualifying AS (\n  SELECT ss.avg_rate, ss.scan_count, o.all_status_avg_rate\n  FROM status_stats AS ss\n  CROSS JOIN overall AS o\n  WHERE o.all_status_avg_rate IS NOT NULL\n    AND ss.avg_rate > o.all_status_avg_rate\n)\nSELECT AVG(avg_rate) AS average_rate,\n       AVG(scan_count) AS average_count,\n       AVG(avg_rate - all_status_avg_rate) AS average_excess\nFROM qualifying;"
+    "interpretation": "If the all-status average should include every scan, even scans without a matched site, use this query.",
+    "sql": "WITH site_rates AS (\n  SELECT s.healtheval AS status, AVG(1.0 * sc.gbsize / sc.spanmin) AS avg_rate, AVG(sc.scancount) AS avg_count\n  FROM scans AS sc JOIN sites AS s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n), overall AS (\n  SELECT AVG(1.0 * gbsize / spanmin) AS avg_rate\n  FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n)\nSELECT AVG(sr.avg_rate) AS average_rate, AVG(sr.avg_count) AS average_count, AVG(sr.avg_rate - o.avg_rate) AS average_excess\nFROM site_rates AS sr CROSS JOIN overall AS o\nWHERE sr.avg_rate > o.avg_rate"
    }
   ]
  },
@@ -23,14 +23,12 @@
  "primary_matches": [],
  "alternatives": [
   {
-   "interpretation": "If \u201caverage count\u201d means the average number of matched scan records per qualifying status, use this query instead.",
-   "sql": "WITH scan_rates AS (\n  SELECT s.questregistry,\n         si.healtheval,\n         s.gbsize / NULLIF(s.spanmin, 0) AS rate\n  FROM scans AS s\n  JOIN sites AS si ON si.zoneregistry = s.zoneref\n), status_stats AS (\n  SELECT healtheval,\n         AVG(rate) AS avg_rate,\n         COUNT(*) AS scan_count\n  FROM scan_rates\n  GROUP BY healtheval\n), overall AS (\n  SELECT AVG(avg_rate) AS all_status_avg_rate\n  FROM status_stats\n), qualifying AS (\n  SELECT ss.avg_rate, ss.scan_count, o.all_status_avg_rate\n  FROM status_stats AS ss\n  CROSS JOIN overall AS o\n  WHERE o.all_status_avg_rate IS NOT NULL\n    AND ss.avg_rate > o.all_status_avg_rate\n)\nSELECT AVG(avg_rate) AS average_rate,\n       AVG(scan_count) AS average_count,\n       AVG(avg_rate - all_status_avg_rate) AS average_excess\nFROM qualifying;",
+   "interpretation": "If the all-status average should include every scan, even scans without a matched site, use this query.",
+   "sql": "WITH site_rates AS (\n  SELECT s.healtheval AS status, AVG(1.0 * sc.gbsize / sc.spanmin) AS avg_rate, AVG(sc.scancount) AS avg_count\n  FROM scans AS sc JOIN sites AS s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n), overall AS (\n  SELECT AVG(1.0 * gbsize / spanmin) AS avg_rate\n  FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n)\nSELECT AVG(sr.avg_rate) AS average_rate, AVG(sr.avg_count) AS average_count, AVG(sr.avg_rate - o.avg_rate) AS average_excess\nFROM site_rates AS sr CROSS JOIN overall AS o\nWHERE sr.avg_rate > o.avg_rate",
    "executes": true,
-   "matches": [
-    "A"
-   ]
+   "matches": []
   }
  ],
- "seconds": 28.8,
- "chars_out": 2177
+ "seconds": 26.4,
+ "chars_out": 1566
 }

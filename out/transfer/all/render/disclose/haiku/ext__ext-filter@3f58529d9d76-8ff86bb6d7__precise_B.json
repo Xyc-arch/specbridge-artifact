@@ -4,21 +4,12 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH qualifying AS (\n  SELECT ID\n  FROM Laboratory\n  GROUP BY ID\n  HAVING SUM(CASE WHEN `U-PRO` = '-' THEN 1 ELSE 0 END) > 0\n     AND SUM(CASE WHEN RA = '-' THEN 1 ELSE 0 END) > 0\n),\nper_patient AS (\n  SELECT l.ID,\n         AVG(l.PT) AS avg_pt,\n         AVG(l.TAT - l.TAT2) AS avg_tat_diff\n  FROM Laboratory l\n  JOIN qualifying q ON q.ID = l.ID\n  GROUP BY l.ID\n)\nSELECT AVG(avg_pt) AS avg_of_pt_averages,\n       AVG(avg_tat_diff) AS avg_of_tat_diff_averages\nFROM per_patient;",
-  "assumptions": [
-   {
-    "assumption": "'-' is compared as an exact string match against the stored TEXT values, with no trimming or case handling. The qualifying U-PRO and RA records may be different records of the same patient.",
-    "unresolved": false
-   },
-   {
-    "assumption": "TAT minus TAT2 is computed per laboratory record and then averaged, so any record with a NULL in TAT or TAT2 is skipped for that average. Missing PT values are skipped by AVG. A patient with no non-null PT or TAT-TAT2 value contributes NULL and is dropped from the outer average.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH qualified_patients AS (\n  SELECT DISTINCT l1.ID\n  FROM Laboratory l1\n  WHERE l1.`U-PRO` = '-'\n  AND l1.ID IN (\n    SELECT l2.ID\n    FROM Laboratory l2\n    WHERE l2.RA = '-'\n  )\n),\npatient_averages AS (\n  SELECT \n    l.ID,\n    AVG(l.PT) as pt_avg,\n    AVG(l.TAT - l.TAT2) as tat_diff_avg\n  FROM Laboratory l\n  WHERE l.ID IN (SELECT ID FROM qualified_patients)\n  GROUP BY l.ID\n)\nSELECT\n  AVG(pt_avg) as overall_pt_avg,\n  AVG(tat_diff_avg) as overall_tat_diff_avg\nFROM patient_averages",
+  "assumptions": [],
   "alternatives": [
    {
-    "interpretation": "Take the difference of the per-patient averages, AVG(TAT) minus AVG(TAT2), rather than the average of the per-record differences. Each average then uses its own non-null records.",
-    "sql": "WITH qualifying AS (\n  SELECT ID\n  FROM Laboratory\n  GROUP BY ID\n  HAVING SUM(CASE WHEN `U-PRO` = '-' THEN 1 ELSE 0 END) > 0\n     AND SUM(CASE WHEN RA = '-' THEN 1 ELSE 0 END) > 0\n),\nper_patient AS (\n  SELECT l.ID,\n         AVG(l.PT) AS avg_pt,\n         AVG(l.TAT) - AVG(l.TAT2) AS avg_tat_diff\n  FROM Laboratory l\n  JOIN qualifying q ON q.ID = l.ID\n  GROUP BY l.ID\n)\nSELECT AVG(avg_pt) AS avg_of_pt_averages,\n       AVG(avg_tat_diff) AS avg_of_tat_diff_averages\nFROM per_patient;"
+    "interpretation": "The phrase \"the average of TAT minus TAT2\" interpreted as (average of per-patient TAT averages) minus (average of per-patient TAT2 averages), rather than the average of per-patient (TAT - TAT2) differences.",
+    "sql": "WITH qualified_patients AS (\n  SELECT DISTINCT l1.ID\n  FROM Laboratory l1\n  WHERE l1.`U-PRO` = '-'\n  AND l1.ID IN (\n    SELECT l2.ID\n    FROM Laboratory l2\n    WHERE l2.RA = '-'\n  )\n),\npatient_averages AS (\n  SELECT \n    l.ID,\n    AVG(l.PT) as pt_avg,\n    AVG(l.TAT) as tat_avg,\n    AVG(l.TAT2) as tat2_avg\n  FROM Laboratory l\n  WHERE l.ID IN (SELECT ID FROM qualified_patients)\n  GROUP BY l.ID\n)\nSELECT\n  AVG(pt_avg) as overall_pt_avg,\n  AVG(tat_avg) - AVG(tat2_avg) as overall_tat_diff_avg\nFROM patient_averages"
    }
   ]
  },
@@ -29,12 +20,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Take the difference of the per-patient averages, AVG(TAT) minus AVG(TAT2), rather than the average of the per-record differences. Each average then uses its own non-null records.",
-   "sql": "WITH qualifying AS (\n  SELECT ID\n  FROM Laboratory\n  GROUP BY ID\n  HAVING SUM(CASE WHEN `U-PRO` = '-' THEN 1 ELSE 0 END) > 0\n     AND SUM(CASE WHEN RA = '-' THEN 1 ELSE 0 END) > 0\n),\nper_patient AS (\n  SELECT l.ID,\n         AVG(l.PT) AS avg_pt,\n         AVG(l.TAT) - AVG(l.TAT2) AS avg_tat_diff\n  FROM Laboratory l\n  JOIN qualifying q ON q.ID = l.ID\n  GROUP BY l.ID\n)\nSELECT AVG(avg_pt) AS avg_of_pt_averages,\n       AVG(avg_tat_diff) AS avg_of_tat_diff_averages\nFROM per_patient;",
+   "interpretation": "The phrase \"the average of TAT minus TAT2\" interpreted as (average of per-patient TAT averages) minus (average of per-patient TAT2 averages), rather than the average of per-patient (TAT - TAT2) differences.",
+   "sql": "WITH qualified_patients AS (\n  SELECT DISTINCT l1.ID\n  FROM Laboratory l1\n  WHERE l1.`U-PRO` = '-'\n  AND l1.ID IN (\n    SELECT l2.ID\n    FROM Laboratory l2\n    WHERE l2.RA = '-'\n  )\n),\npatient_averages AS (\n  SELECT \n    l.ID,\n    AVG(l.PT) as pt_avg,\n    AVG(l.TAT) as tat_avg,\n    AVG(l.TAT2) as tat2_avg\n  FROM Laboratory l\n  WHERE l.ID IN (SELECT ID FROM qualified_patients)\n  GROUP BY l.ID\n)\nSELECT\n  AVG(pt_avg) as overall_pt_avg,\n  AVG(tat_avg) - AVG(tat2_avg) as overall_tat_diff_avg\nFROM patient_averages",
    "executes": true,
    "matches": []
   }
  ],
- "seconds": 11.3,
- "chars_out": 1798
+ "seconds": 88.8,
+ "chars_out": 1382
 }

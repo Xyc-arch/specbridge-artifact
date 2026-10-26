@@ -3,9 +3,9 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "WITH state_base AS (\n  SELECT NULLIF(TRIM(c.state_county_province), '') AS state,\n         COUNT(a.account_id) AS account_count\n  FROM Customers c\n  LEFT JOIN Accounts a ON a.customer_id = c.customer_id\n  GROUP BY NULLIF(TRIM(c.state_county_province), '')\n),\nshares AS (\n  SELECT state,\n         account_count,\n         account_count * 1.0 / NULLIF(SUM(account_count) OVER (), 0) AS share\n  FROM state_base\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n),\nabove_avg AS (\n  SELECT s.share, s.account_count, a.avg_share\n  FROM shares s\n  CROSS JOIN avg_share a\n  WHERE s.share > a.avg_share\n)\nSELECT SUM(account_count) AS combined_account_base,\n       AVG(share) AS average_share,\n       AVG(share - avg_share) AS average_excess_share\nFROM above_avg;"
+  "sql": "WITH state_accounts AS (SELECT COALESCE(c.state_county_province, 'NULL') as state_group, COUNT(a.account_id) as account_count FROM Customers c LEFT JOIN Accounts a ON c.customer_id = a.customer_id GROUP BY c.state_county_province), total_accounts AS (SELECT SUM(account_count) as total FROM state_accounts), state_shares AS (SELECT s.state_group, s.account_count, s.account_count * 1.0 / (SELECT total FROM total_accounts) as share FROM state_accounts s), average_share AS (SELECT AVG(share) as avg_share FROM state_shares) SELECT ss.state_group, ss.account_count as combined_account_base, ss.share as average_share, ss.share - a.avg_share as above_average_amount FROM state_shares ss CROSS JOIN average_share a WHERE ss.share > a.avg_share ORDER BY ss.state_group"
  },
  "primary_executes": true,
  "primary_matches": [],
- "seconds": 8.5
+ "seconds": 37.8
 }

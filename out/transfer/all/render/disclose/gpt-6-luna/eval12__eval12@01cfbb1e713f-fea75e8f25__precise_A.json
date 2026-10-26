@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH equipment_averages AS (\n    SELECT equipref, AVG(humepct) AS avg_humidity\n    FROM scanenvironment\n    GROUP BY equipref\n), reference_averages AS (\n    SELECT AVG(avg_humidity) AS all_equipment_avg\n    FROM equipment_averages\n), kept AS (\n    SELECT ea.equipref,\n           ea.avg_humidity,\n           ea.avg_humidity - ra.all_equipment_avg AS excess_humidity\n    FROM equipment_averages ea\n    CROSS JOIN reference_averages ra\n    WHERE ra.all_equipment_avg IS NOT NULL\n      AND ea.avg_humidity IS NOT NULL\n      AND ea.avg_humidity > ra.all_equipment_avg\n), with_kept_mean AS (\n    SELECT k.*,\n           AVG(avg_humidity) OVER () AS kept_avg\n    FROM kept k\n)\nSELECT equipref,\n       avg_humidity,\n       excess_humidity,\n       avg_humidity - kept_avg AS difference_from_kept_mean\nFROM with_kept_mean\nWHERE kept_avg IS NOT NULL\nORDER BY difference_from_kept_mean DESC NULLS LAST, equipref\nLIMIT 10;",
+  "sql": "WITH equipment_averages AS (\n  SELECT equipref, AVG(humepct) AS avg_humidity\n  FROM scanenvironment\n  GROUP BY equipref\n), reference_averages AS (\n  SELECT AVG(avg_humidity) AS all_equipment_avg\n  FROM equipment_averages\n), kept AS (\n  SELECT ea.equipref, ea.avg_humidity,\n         ea.avg_humidity - ra.all_equipment_avg AS excess\n  FROM equipment_averages AS ea\n  CROSS JOIN reference_averages AS ra\n  WHERE ra.all_equipment_avg IS NOT NULL\n    AND ea.avg_humidity IS NOT NULL\n    AND ea.avg_humidity > ra.all_equipment_avg\n), kept_mean AS (\n  SELECT AVG(avg_humidity) AS mean_kept_humidity\n  FROM kept\n)\nSELECT k.equipref,\n       k.avg_humidity,\n       k.excess,\n       k.avg_humidity - km.mean_kept_humidity AS difference_from_kept_mean\nFROM kept AS k\nCROSS JOIN kept_mean AS km\nWHERE km.mean_kept_humidity IS NOT NULL\nORDER BY difference_from_kept_mean DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "\u201cAverage of all equipment averages\u201d means the unweighted mean of per-equipment averages; equipment with no non-missing humidity readings has no average and is excluded. The kept-only difference is signed (equipment average minus the kept-equipment mean).",
+    "assumption": "The all-equipment average is the unweighted mean of per-equipment humidity averages, and each equipment average ignores NULL readings as SQLite AVG does.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 8.5,
- "chars_out": 1271
+ "seconds": 21.8,
+ "chars_out": 1143
 }

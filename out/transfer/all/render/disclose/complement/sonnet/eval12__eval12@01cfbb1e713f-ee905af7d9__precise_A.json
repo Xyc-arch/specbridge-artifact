@@ -2,12 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT t.ordertypedist AS ordertypedist, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), s AS (SELECT ordertypedist, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM g), b AS (SELECT ordertypedist, cnt, share, AVG(share) OVER () AS baseline FROM s) SELECT ordertypedist, cnt AS behaviour_record_count, share, share - baseline AS share_above_baseline FROM b WHERE share > baseline ORDER BY share DESC",
+  "sql": "WITH grp AS (SELECT t.ordertypedist AS ordertypedist, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM grp) AS share FROM grp), base AS (SELECT AVG(share) AS baseline FROM shares) SELECT s.ordertypedist AS order_type_mix, s.cnt AS behaviour_record_count, s.share AS share, s.share - b.baseline AS share_above_baseline FROM shares s CROSS JOIN base b WHERE s.share > b.baseline ORDER BY s.share DESC",
   "assumptions": [
    {
-    "assumption": "Share is a fraction (count / total count across all mixes, 0\u20131), not a percentage. The baseline is the simple average of the per-mix shares, with the NULL-mix group counted as one mix. 'How far above' is the plain difference share - baseline.",
+    "assumption": "Records whose ordertypedist is NULL form their own group (a NULL group in the output is possible), and that group counts as one mix in the baseline average.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Share is computed against the total of matched (inner-joined) behaviour records across all mixes, including the NULL group.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The baseline is the unweighted average of the per-mix shares (equals 1 divided by the number of mixes), and the output shows share minus baseline as a raw fraction, not a percentage.",
     "unresolved": false
    }
   ],
@@ -18,5 +26,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 4.7
+ "seconds": 11.2
 }

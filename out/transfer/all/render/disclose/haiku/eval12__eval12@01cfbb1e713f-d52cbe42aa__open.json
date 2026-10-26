@@ -2,16 +2,41 @@
  "case": "eval12:eval12@01cfbb1e713f-d52cbe42aa",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH execution_counts AS (SELECT ordersmark, COUNT(*) as exec_count FROM orderexecutions GROUP BY ordersmark), total_executions AS (SELECT COUNT(*) as total FROM orderexecutions), execution_shares AS (SELECT ec.ordersmark, ec.exec_count, ec.exec_count::float / te.total as share, AVG(ec.exec_count::float / te.total) OVER () as avg_share FROM execution_counts ec CROSS JOIN total_executions te) SELECT ordersmark, exec_count, share, share - avg_share as share_diff FROM execution_shares ORDER BY ordersmark IS NULL, share_diff DESC LIMIT 10;",
-  "assumptions": [],
-  "alternatives": []
+  "sql": "WITH execution_counts AS (\n  SELECT \n    ordersmark,\n    COUNT(*) as exec_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\ntotal_count AS (\n  SELECT SUM(exec_count) as total_exec FROM execution_counts\n),\nwith_share AS (\n  SELECT \n    ec.ordersmark,\n    ec.exec_count,\n    CAST(ec.exec_count AS REAL) / CAST(tc.total_exec AS REAL) as share\n  FROM execution_counts ec\n  CROSS JOIN total_count tc\n),\navg_share AS (\n  SELECT AVG(share) as avg_share_val\n  FROM with_share\n)\nSELECT \n  ws.ordersmark,\n  ws.exec_count,\n  ws.share,\n  ws.share - av.avg_share_val as share_minus_avg\nFROM with_share ws\nCROSS JOIN avg_share av\nORDER BY share_minus_avg DESC, CASE WHEN ws.ordersmark IS NULL THEN 1 ELSE 0 END\nLIMIT 10;",
+  "assumptions": [
+   {
+    "assumption": "By 'executions lacking a reference', ordersmark is NULL; SQLite naturally groups NULL values together in GROUP BY.",
+    "unresolved": false
+   },
+   {
+    "assumption": "By 'average share across order references', the request means the arithmetic mean of individual shares (not a uniform expectation like 1/N).",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If 'missing values last' requires NULL ordersmarks to be placed at the end of output *after* selecting the top 10 (rather than sorted naturally by share_minus_avg), apply a secondary sort to move any NULL to the absolute end.",
+    "sql": "SELECT * FROM (\n  WITH execution_counts AS (\n    SELECT ordersmark, COUNT(*) as exec_count FROM orderexecutions GROUP BY ordersmark\n  ),\n  total_count AS (\n    SELECT SUM(exec_count) as total_exec FROM execution_counts\n  ),\n  with_share AS (\n    SELECT ec.ordersmark, ec.exec_count, CAST(ec.exec_count AS REAL) / CAST(tc.total_exec AS REAL) as share\n    FROM execution_counts ec CROSS JOIN total_count tc\n  ),\n  avg_share AS (\n    SELECT AVG(share) as avg_share_val FROM with_share\n  )\n  SELECT ws.ordersmark, ws.exec_count, ws.share, ws.share - av.avg_share_val as share_minus_avg\n  FROM with_share ws CROSS JOIN avg_share av\n  ORDER BY share_minus_avg DESC\n  LIMIT 10\n) ORDER BY CASE WHEN ordersmark IS NULL THEN 1 ELSE 0 END, share_minus_avg DESC;"
+   }
+  ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "alternatives": [],
- "seconds": 59.9,
- "chars_out": 611
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "If 'missing values last' requires NULL ordersmarks to be placed at the end of output *after* selecting the top 10 (rather than sorted naturally by share_minus_avg), apply a secondary sort to move any NULL to the absolute end.",
+   "sql": "SELECT * FROM (\n  WITH execution_counts AS (\n    SELECT ordersmark, COUNT(*) as exec_count FROM orderexecutions GROUP BY ordersmark\n  ),\n  total_count AS (\n    SELECT SUM(exec_count) as total_exec FROM execution_counts\n  ),\n  with_share AS (\n    SELECT ec.ordersmark, ec.exec_count, CAST(ec.exec_count AS REAL) / CAST(tc.total_exec AS REAL) as share\n    FROM execution_counts ec CROSS JOIN total_count tc\n  ),\n  avg_share AS (\n    SELECT AVG(share) as avg_share_val FROM with_share\n  )\n  SELECT ws.ordersmark, ws.exec_count, ws.share, ws.share - av.avg_share_val as share_minus_avg\n  FROM with_share ws CROSS JOIN avg_share av\n  ORDER BY share_minus_avg DESC\n  LIMIT 10\n) ORDER BY CASE WHEN ordersmark IS NULL THEN 1 ELSE 0 END, share_minus_avg DESC;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 90.1,
+ "chars_out": 2244
 }

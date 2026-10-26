@@ -2,31 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-9a9ca0e90a",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(feerate - rebrate) AS avg_net_rate\n  FROM fees\n  GROUP BY orderslink\n),\nbench AS (\n  SELECT AVG(avg_net_rate) AS benchmark\n  FROM per_order\n),\nabove AS (\n  SELECT p.avg_rebtotal, p.avg_net_rate, b.benchmark\n  FROM per_order p\n  CROSS JOIN bench b\n  WHERE p.avg_net_rate > b.benchmark\n)\nSELECT AVG(avg_rebtotal) AS avg_of_avg_rebtotal,\n       AVG(avg_net_rate) AS avg_of_avg_net_rate,\n       AVG(avg_net_rate - benchmark) AS avg_excess_over_benchmark\nFROM above;",
+  "sql": "WITH order_fee_stats AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(feerate - rebrate) as avg_net_fee_rate\n  FROM fees\n  GROUP BY orderslink\n),\nbenchmark AS (\n  SELECT AVG(avg_net_fee_rate) as benchmark_rate\n  FROM order_fee_stats\n)\nSELECT\n  AVG(ofs.avg_rebtotal) as avg_avg_rebtotal,\n  AVG(ofs.avg_net_fee_rate) as avg_avg_net_fee_rate,\n  AVG(ofs.avg_net_fee_rate - b.benchmark_rate) as avg_excess_over_benchmark\nFROM order_fee_stats ofs\nCROSS JOIN benchmark b\nWHERE ofs.orderslink IS NOT NULL\n  AND ofs.avg_net_fee_rate > b.benchmark_rate;",
   "assumptions": [
    {
-    "assumption": "Each fee record's net rate is feerate - rebrate. A record missing either value yields a NULL net rate, which AVG skips. Per-order averages skip NULL rebtotal values the same way.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The NULL-orderslink records form one group, as GROUP BY produces, and that group counts once in the benchmark like any order.",
+    "assumption": "The benchmark mean includes the group of fees with no order (NULL orderslink), but the final result set excludes that group\u2014only rows with non-NULL orderslink and above-benchmark rates are returned. This distinguishes between 'orders' (non-NULL) and 'fee records with no order' mentioned in the request.",
     "unresolved": true
-   },
-   {
-    "assumption": "An order whose net rates are all NULL has a NULL average net rate. It is left out of the benchmark and cannot exceed it, so it is not returned.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The query uses standard SQL with CTEs and AVG, which runs on PostgreSQL and SQLite.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Compute each order's net fee rate as the average fee rate minus the average rebate rate, not as the average of per-record differences. This differs only when NULLs are present, because a record with one missing value then still contributes its other rate.",
-    "sql": "WITH per_order AS (\n  SELECT orderslink,\n         AVG(rebtotal) AS avg_rebtotal,\n         AVG(feerate) - AVG(rebrate) AS avg_net_rate\n  FROM fees\n  GROUP BY orderslink\n),\nbench AS (\n  SELECT AVG(avg_net_rate) AS benchmark\n  FROM per_order\n),\nabove AS (\n  SELECT p.avg_rebtotal, p.avg_net_rate, b.benchmark\n  FROM per_order p\n  CROSS JOIN bench b\n  WHERE p.avg_net_rate > b.benchmark\n)\nSELECT AVG(avg_rebtotal) AS avg_of_avg_rebtotal,\n       AVG(avg_net_rate) AS avg_of_avg_net_rate,\n       AVG(avg_net_rate - benchmark) AS avg_excess_over_benchmark\nFROM above;"
+    "interpretation": "Exclude fees with no order (NULL orderslink) entirely from both the benchmark calculation and the final result. The mention of 'fee records with no order form one group of their own' is a clarification about SQL's NULL-grouping behavior rather than an instruction to include them.",
+    "sql": "WITH order_fee_stats AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(feerate - rebrate) as avg_net_fee_rate\n  FROM fees\n  WHERE orderslink IS NOT NULL\n  GROUP BY orderslink\n),\nbenchmark AS (\n  SELECT AVG(avg_net_fee_rate) as benchmark_rate\n  FROM order_fee_stats\n)\nSELECT\n  AVG(ofs.avg_rebtotal) as avg_avg_rebtotal,\n  AVG(ofs.avg_net_fee_rate) as avg_avg_net_fee_rate,\n  AVG(ofs.avg_net_fee_rate - b.benchmark_rate) as avg_excess_over_benchmark\nFROM order_fee_stats ofs\nCROSS JOIN benchmark b\nWHERE ofs.avg_net_fee_rate > b.benchmark_rate;"
    }
   ]
  },
@@ -35,5 +23,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 12.3
+ "seconds": 60.7
 }

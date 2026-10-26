@@ -2,23 +2,35 @@
  "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH overall_avg AS (\n  SELECT AVG(modindex) as overall_average\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_averages AS (\n  SELECT \n    rfistat,\n    AVG(modindex) as status_avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nqualifying_statuses AS (\n  SELECT sa.rfistat, sa.status_avg_modindex\n  FROM status_averages sa, overall_avg oa\n  WHERE sa.status_avg_modindex > oa.overall_average\n),\nmean_of_qualifying AS (\n  SELECT AVG(status_avg_modindex) as mean_qualifying_avg\n  FROM qualifying_statuses\n)\nSELECT \n  qs.rfistat,\n  qs.status_avg_modindex,\n  qs.status_avg_modindex - oa.overall_average as above_average,\n  qs.status_avg_modindex - mq.mean_qualifying_avg as diff_from_qualifying_mean\nFROM qualifying_statuses qs, overall_avg oa, mean_of_qualifying mq\nORDER BY qs.status_avg_modindex DESC;",
+  "sql": "WITH avg_modindex AS (\n  SELECT AVG(modindex) as overall_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_averages AS (\n  SELECT \n    rfistat,\n    AVG(modindex) as status_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nabove_average_statuses AS (\n  SELECT \n    sa.rfistat,\n    sa.status_avg,\n    am.overall_avg\n  FROM status_averages sa\n  CROSS JOIN avg_modindex am\n  WHERE sa.status_avg > am.overall_avg\n),\nqualifying_mean AS (\n  SELECT AVG(status_avg) as mean_of_qualifying\n  FROM above_average_statuses\n)\nSELECT \n  aas.rfistat,\n  aas.status_avg as avg_modindex,\n  aas.status_avg - aas.overall_avg as above_overall_avg,\n  aas.status_avg - qm.mean_of_qualifying as diff_from_qualifying_mean\nFROM above_average_statuses aas\nCROSS JOIN qualifying_mean qm\nORDER BY aas.status_avg DESC",
   "assumptions": [
    {
-    "assumption": "Each RFI status value (including NULL representing signals with no status) is treated as a group with its collective average modindex; we filter for statuses whose group average exceeds the overall average across all non-NULL modindex values",
+    "assumption": "\"above-average\" means each RFI status's average modindex is strictly greater than the overall average modindex (not equal to).",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Qualify RFI statuses that have at least one signal with modindex > overall average, then show the average modindex of all signals for each qualifying status.",
+    "sql": "WITH avg_modindex AS (\n  SELECT AVG(modindex) as overall_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_with_stats AS (\n  SELECT \n    rfistat,\n    AVG(modindex) as status_avg,\n    MAX(CASE WHEN modindex > (SELECT overall_avg FROM avg_modindex) THEN 1 ELSE 0 END) as has_above_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nstatus_averages AS (\n  SELECT rfistat, status_avg\n  FROM status_with_stats\n  WHERE has_above_avg = 1\n),\nqualifying_mean AS (\n  SELECT AVG(status_avg) as mean_of_qualifying\n  FROM status_averages\n)\nSELECT \n  sa.rfistat,\n  sa.status_avg as avg_modindex,\n  sa.status_avg - (SELECT overall_avg FROM avg_modindex) as above_overall_avg,\n  sa.status_avg - qm.mean_of_qualifying as diff_from_qualifying_mean\nFROM status_averages sa\nCROSS JOIN qualifying_mean qm\nORDER BY sa.status_avg DESC"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 67.4,
- "chars_out": 1237
+ "alternatives": [
+  {
+   "interpretation": "Qualify RFI statuses that have at least one signal with modindex > overall average, then show the average modindex of all signals for each qualifying status.",
+   "sql": "WITH avg_modindex AS (\n  SELECT AVG(modindex) as overall_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_with_stats AS (\n  SELECT \n    rfistat,\n    AVG(modindex) as status_avg,\n    MAX(CASE WHEN modindex > (SELECT overall_avg FROM avg_modindex) THEN 1 ELSE 0 END) as has_above_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nstatus_averages AS (\n  SELECT rfistat, status_avg\n  FROM status_with_stats\n  WHERE has_above_avg = 1\n),\nqualifying_mean AS (\n  SELECT AVG(status_avg) as mean_of_qualifying\n  FROM status_averages\n)\nSELECT \n  sa.rfistat,\n  sa.status_avg as avg_modindex,\n  sa.status_avg - (SELECT overall_avg FROM avg_modindex) as above_overall_avg,\n  sa.status_avg - qm.mean_of_qualifying as diff_from_qualifying_mean\nFROM status_averages sa\nCROSS JOIN qualifying_mean qm\nORDER BY sa.status_avg DESC",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 81.7,
+ "chars_out": 2193
 }

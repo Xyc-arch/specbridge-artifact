@@ -3,11 +3,11 @@
  "sample": 5,
  "model": "haiku",
  "response": {
-  "sql": "WITH overall AS (\n  SELECT AVG(modindex) AS grand_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_avgs AS (\n  SELECT rfistat, AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nqualifying AS (\n  SELECT s.rfistat, s.avg_modindex, o.grand_avg\n  FROM status_avgs s\n  CROSS JOIN overall o\n  WHERE s.avg_modindex > o.grand_avg\n)\nSELECT q.rfistat,\n       q.avg_modindex,\n       q.avg_modindex - q.grand_avg AS above_average_by,\n       q.avg_modindex - (SELECT AVG(avg_modindex) FROM qualifying) AS diff_from_qualifying_mean\nFROM qualifying q\nORDER BY q.avg_modindex DESC;"
+  "sql": "WITH overall_avg AS (\n  SELECT AVG(modindex) as overall_average\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_stats AS (\n  SELECT \n    COALESCE(rfistat, 'No Status') as rfistat,\n    AVG(modindex) as status_avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY COALESCE(rfistat, 'No Status')\n),\nstatus_with_overall AS (\n  SELECT \n    ss.rfistat,\n    ss.status_avg_modindex,\n    oa.overall_average,\n    ss.status_avg_modindex - oa.overall_average as above_average\n  FROM status_stats ss\n  CROSS JOIN overall_avg oa\n  WHERE ss.status_avg_modindex > oa.overall_average\n),\nmean_of_qualifying AS (\n  SELECT AVG(status_avg_modindex) as mean_qualifying_avg\n  FROM status_with_overall\n)\nSELECT \n  swo.rfistat,\n  swo.status_avg_modindex,\n  swo.above_average,\n  swo.status_avg_modindex - mq.mean_qualifying_avg\nFROM status_with_overall swo\nCROSS JOIN mean_of_qualifying mq\nORDER BY swo.status_avg_modindex DESC;"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 7.4
+ "seconds": 45.0
 }

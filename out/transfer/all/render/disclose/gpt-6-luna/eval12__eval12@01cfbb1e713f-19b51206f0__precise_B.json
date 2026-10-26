@@ -2,23 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_operator AS (\n  SELECT crewref,\n         COUNT(*) AS scan_count,\n         AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_minute\n  FROM scans\n  WHERE gbsize IS NOT NULL\n    AND spanmin IS NOT NULL\n    AND spanmin <> 0\n  GROUP BY crewref\n),\noperator_baseline AS (\n  SELECT AVG(avg_gb_per_minute) AS all_operator_avg\n  FROM per_operator\n),\nabove_average AS (\n  SELECT p.scan_count,\n         p.avg_gb_per_minute,\n         b.all_operator_avg\n  FROM per_operator p\n  CROSS JOIN operator_baseline b\n  WHERE p.avg_gb_per_minute > b.all_operator_avg\n)\nSELECT AVG(scan_count) AS avg_number_of_scans,\n       AVG(avg_gb_per_minute) AS avg_gb_per_minute,\n       AVG(avg_gb_per_minute - all_operator_avg) AS avg_margin_above_all_operator_avg\nFROM above_average;",
+  "sql": "WITH operator_stats AS (\n  SELECT crewref,\n         COUNT(*) AS scan_count,\n         AVG(gbsize / spanmin) AS avg_gb_per_minute\n  FROM scans\n  WHERE gbsize IS NOT NULL\n    AND spanmin IS NOT NULL\n    AND spanmin <> 0\n  GROUP BY crewref\n),\nall_operator_average AS (\n  SELECT AVG(avg_gb_per_minute) AS overall_avg\n  FROM operator_stats\n),\nabove_average AS (\n  SELECT os.scan_count,\n         os.avg_gb_per_minute,\n         os.avg_gb_per_minute - aoa.overall_avg AS margin\n  FROM operator_stats AS os\n  CROSS JOIN all_operator_average AS aoa\n  WHERE os.avg_gb_per_minute > aoa.overall_avg\n)\nSELECT AVG(scan_count) AS avg_scan_count,\n       AVG(avg_gb_per_minute) AS avg_gb_per_minute,\n       AVG(margin) AS avg_margin_above_overall\nFROM above_average;",
   "assumptions": [
    {
-    "assumption": "Only scans with both file size and a nonzero duration contribute to each operator\u2019s average GB per minute; operators with no such scans are excluded from the operator baseline and comparison.",
-    "unresolved": false
+    "assumption": "Each operator's scan count includes only records with both file size and nonzero duration, matching the rows usable to compute that operator's average GB per minute.",
+    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Count all scan records per operator, even when file size or duration is missing, while calculating the rate from nonmissing values with nonzero duration.",
+    "sql": "WITH operator_stats AS (\n  SELECT crewref,\n         COUNT(*) AS scan_count,\n         AVG(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0\n                  THEN gbsize / spanmin END) AS avg_gb_per_minute\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_average AS (\n  SELECT AVG(avg_gb_per_minute) AS overall_avg\n  FROM operator_stats\n),\nabove_average AS (\n  SELECT os.scan_count,\n         os.avg_gb_per_minute,\n         os.avg_gb_per_minute - aoa.overall_avg AS margin\n  FROM operator_stats AS os\n  CROSS JOIN all_operator_average AS aoa\n  WHERE os.avg_gb_per_minute > aoa.overall_avg\n)\nSELECT AVG(scan_count) AS avg_scan_count,\n       AVG(avg_gb_per_minute) AS avg_gb_per_minute,\n       AVG(margin) AS avg_margin_above_overall\nFROM above_average;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 10.1,
- "chars_out": 1053
+ "alternatives": [
+  {
+   "interpretation": "Count all scan records per operator, even when file size or duration is missing, while calculating the rate from nonmissing values with nonzero duration.",
+   "sql": "WITH operator_stats AS (\n  SELECT crewref,\n         COUNT(*) AS scan_count,\n         AVG(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0\n                  THEN gbsize / spanmin END) AS avg_gb_per_minute\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_average AS (\n  SELECT AVG(avg_gb_per_minute) AS overall_avg\n  FROM operator_stats\n),\nabove_average AS (\n  SELECT os.scan_count,\n         os.avg_gb_per_minute,\n         os.avg_gb_per_minute - aoa.overall_avg AS margin\n  FROM operator_stats AS os\n  CROSS JOIN all_operator_average AS aoa\n  WHERE os.avg_gb_per_minute > aoa.overall_avg\n)\nSELECT AVG(scan_count) AS avg_scan_count,\n       AVG(avg_gb_per_minute) AS avg_gb_per_minute,\n       AVG(margin) AS avg_margin_above_overall\nFROM above_average;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 11.0,
+ "chars_out": 1991
 }

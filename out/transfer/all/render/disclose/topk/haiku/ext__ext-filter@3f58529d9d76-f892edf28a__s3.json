@@ -3,9 +3,11 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "SELECT ab.translink, tr.ordertypedist, COUNT(ab.abhvreg) AS match_count, COUNT(ab.abhvreg)::numeric / SUM(COUNT(ab.abhvreg)) OVER (PARTITION BY tr.ordertypedist) AS fraction FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink WHERE ab.peercorr >= 0.149 AND tr.ordertypedist IS NOT NULL GROUP BY ab.translink, tr.ordertypedist ORDER BY fraction DESC LIMIT 10;"
+  "sql": "WITH filtered_ab AS (\n  SELECT *\n  FROM advancedbehavior\n  WHERE peercorr > 0.149\n),\nmatched AS (\n  SELECT \n    fab.translink,\n    tr.ordertypedist\n  FROM filtered_ab fab\n  INNER JOIN transactionrecord tr ON tr.transreg = fab.translink\n  WHERE tr.ordertypedist IS NOT NULL\n),\ncombination_counts AS (\n  SELECT \n    translink,\n    ordertypedist,\n    COUNT(*) as count\n  FROM matched\n  GROUP BY translink, ordertypedist\n),\ntotal_by_ordertype AS (\n  SELECT \n    ordertypedist,\n    SUM(count) as total_count\n  FROM combination_counts\n  GROUP BY ordertypedist\n)\nSELECT \n  cc.translink,\n  cc.ordertypedist,\n  cc.count,\n  CAST(cc.count AS FLOAT) / tbo.total_count as fraction\nFROM combination_counts cc\nJOIN total_by_ordertype tbo ON cc.ordertypedist = tbo.ordertypedist\nORDER BY fraction DESC\nLIMIT 10;"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 7.0
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 14.2
 }

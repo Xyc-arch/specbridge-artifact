@@ -3,9 +3,26 @@
  "model": "haiku",
  "reading": "B",
  "description": "The ownership gap is the size of the difference between the two, with the sign ignored.",
+ "a": {
+  "request": "For each nearby corporate event type (`corpeventprx`) in the sentiment and fundamentals snapshots, with snapshots that have no event type as their own group, show the event type, the average number of analyst coverage reports (`anlycount`), and the average absolute difference between insider ownership and institutional ownership (|`inholdpct` \u2212 `instownpct`|). Ignore the sign of that difference, so it is never negative. Also show the event type's average difference minus the plain average of all the event types' average differences; this last value can be negative. Averages ignore missing values. Return nothing if that overall average is missing, and don't round anything.",
+  "sql": "WITH sentiment_groups AS (SELECT corpeventprx, AVG(anlycount) as avg_analysts, AVG(ABS(inholdpct - instownpct)) as avg_ownership_diff FROM sentimentandfundamentals GROUP BY corpeventprx), overall_avg_calc AS (SELECT AVG(avg_ownership_diff) as overall_avg FROM sentiment_groups) SELECT sg.corpeventprx, sg.avg_analysts, sg.avg_ownership_diff, sg.avg_ownership_diff - overall_avg_calc.overall_avg as diff_from_overall FROM sentiment_groups sg, overall_avg_calc WHERE overall_avg_calc.overall_avg IS NOT NULL",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
  "b": {
-  "request": "For each `corpeventprx` value in sentimentandfundamentals, with NULL as its own group, return the group's AVG(anlycount), its AVG(ABS(inholdpct - instownpct)) with missing inputs excluded, and that AVG gap minus the plain average of all groups' AVG gaps (no rows if that plain average is NULL, no rounding)",
-  "sql": "WITH g AS (\n  SELECT corpeventprx,\n         AVG(anlycount) AS avg_anlycount,\n         AVG(ABS(inholdpct - instownpct)) AS avg_gap\n  FROM sentimentandfundamentals\n  GROUP BY corpeventprx\n),\noverall AS (\n  SELECT AVG(avg_gap) AS plain_avg_gap FROM g\n)\nSELECT g.corpeventprx,\n       g.avg_anlycount,\n       g.avg_gap,\n       g.avg_gap - o.plain_avg_gap AS gap_minus_overall\nFROM g\nCROSS JOIN overall o\nWHERE o.plain_avg_gap IS NOT NULL;",
+  "request": "For each value of `corpeventprx` (grouping NULL records separately) in sentiment and fundamentals snapshots, calculate the average `anlycount`, the average absolute difference between `inholdpct` and `instownpct`, and that group's average absolute difference minus the overall average of all groups' average absolute differences; ignore missing values and return nothing if the overall average is missing.",
+  "sql": "WITH group_stats AS (\n  SELECT \n    corpeventprx,\n    AVG(anlycount) AS avg_anlycount,\n    AVG(ABS(inholdpct - instownpct)) AS avg_abs_diff\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL \n    AND inholdpct IS NOT NULL \n    AND instownpct IS NOT NULL\n  GROUP BY corpeventprx\n),\noverall_avg AS (\n  SELECT AVG(avg_abs_diff) AS overall_avg_abs_diff\n  FROM group_stats\n)\nSELECT \n  corpeventprx,\n  avg_anlycount,\n  avg_abs_diff,\n  avg_abs_diff - overall_avg.overall_avg_abs_diff AS diff_from_overall\nFROM group_stats\nCROSS JOIN overall_avg\nWHERE overall_avg.overall_avg_abs_diff IS NOT NULL\nORDER BY corpeventprx;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For each value of `corpeventprx` (grouping NULL records separately) in sentiment and fundamentals snapshots, calculate the average `anlycount`, the average absolute difference between `inholdpct` and `instownpct`, and that group's average absolute difference minus the overall average of all groups' average absolute differences; ignore missing values and return nothing if the overall average is missing."
+ },
+ "d": {
+  "request": "Group sentiment and fundamentals records by corporate event proximity type (with no event type as its own group), calculate for each group the average analyst coverage count and the average absolute difference between insider ownership percentage and institutional ownership percentage (ignoring missing values in both), report each group's average gap minus the overall mean of all groups' average gaps, and return nothing if that overall mean is NULL.",
+  "sql": "WITH group_stats AS (\n  SELECT\n    COALESCE(corpeventprx, 'No Event') AS event_type,\n    AVG(anlycount) AS avg_analyst_count,\n    AVG(ABS(inholdpct - instownpct)) AS avg_gap\n  FROM sentimentandfundamentals\n  WHERE inholdpct IS NOT NULL AND instownpct IS NOT NULL\n  GROUP BY COALESCE(corpeventprx, 'No Event')\n),\noverall_mean_calc AS (\n  SELECT AVG(avg_gap) AS overall_avg_gap\n  FROM group_stats\n)\nSELECT\n  g.event_type,\n  g.avg_analyst_count,\n  g.avg_gap,\n  g.avg_gap - o.overall_avg_gap AS gap_minus_overall_mean\nFROM group_stats g\nCROSS JOIN overall_mean_calc o\nWHERE o.overall_avg_gap IS NOT NULL;",
   "executes": true,
   "matches": [
    "B"
@@ -13,27 +30,11 @@
  },
  "c": {
   "request": "For each nearby corporate event type (`corpeventprx`) in the sentiment and fundamentals snapshots, with snapshots that have no event type as their own group, what is the average number of analyst coverage reports (`anlycount`), and what is the average gap between insider ownership (`inholdpct`) and institutional ownership (`instownpct`)? Also show each event type's average gap minus the plain average of all the event types' average gaps; this last value can be negative. Averages ignore missing values. Return nothing if that overall average is missing, and don't round anything. The ownership gap is the size of the difference between the two, with the sign ignored.",
-  "sql": "WITH group_stats AS (SELECT corpeventprx, AVG(anlycount) AS avg_anlycount, AVG(ABS(inholdpct - instownpct)) AS avg_gap FROM sentimentandfundamentals GROUP BY corpeventprx), overall AS (SELECT AVG(avg_gap) AS overall_avg_gap FROM group_stats) SELECT g.corpeventprx, g.avg_anlycount, g.avg_gap, g.avg_gap - o.overall_avg_gap AS gap_diff_from_overall FROM group_stats g CROSS JOIN overall o WHERE o.overall_avg_gap IS NOT NULL;",
+  "sql": "WITH event_groups AS (SELECT corpeventprx, AVG(anlycount) as avg_analyst_count, AVG(ABS(inholdpct - instownpct)) as avg_gap FROM sentimentandfundamentals GROUP BY corpeventprx), gap_stats AS (SELECT AVG(avg_gap) as overall_avg_gap FROM event_groups WHERE avg_gap IS NOT NULL) SELECT event_groups.corpeventprx as event_type, event_groups.avg_analyst_count, event_groups.avg_gap, event_groups.avg_gap - gap_stats.overall_avg_gap as gap_diff FROM event_groups CROSS JOIN gap_stats WHERE gap_stats.overall_avg_gap IS NOT NULL ORDER BY event_groups.corpeventprx",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "a": {
-  "request": "For each nearby corporate event type (`corpeventprx`) in the sentiment and fundamentals snapshots, with snapshots that have no event type as their own group, show the event type, the average number of analyst coverage reports (`anlycount`), and the average absolute difference between insider ownership and institutional ownership (|`inholdpct` \u2212 `instownpct`|). Ignore the sign of that difference, so it is never negative. Also show the event type's average difference minus the plain average of all the event types' average differences; this last value can be negative. Averages ignore missing values. Return nothing if that overall average is missing, and don't round anything.",
-  "sql": "WITH g AS (SELECT corpeventprx AS event_type, AVG(anlycount) AS avg_anlycount, AVG(ABS(inholdpct - instownpct)) AS avg_abs_diff FROM sentimentandfundamentals GROUP BY corpeventprx), overall AS (SELECT AVG(avg_abs_diff) AS overall_avg FROM g) SELECT g.event_type, g.avg_anlycount, g.avg_abs_diff, g.avg_abs_diff - o.overall_avg AS diff_from_overall_avg FROM g CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "For each nearby corporate event type (`corpeventprx`) in the sentiment and fundamentals snapshots, with snapshots lacking an event type grouped separately, what is the average analyst coverage count (`anlycount`), and what is the average absolute gap between insider ownership (`inholdpct`) and institutional ownership (`instownpct`), ignoring missing values? Also report each event type's average absolute gap minus the plain average of all event types' average absolute gaps, which can be negative. Return nothing if that overall average is missing, and do not round any values.",
-  "sql": "WITH grp AS (SELECT corpeventprx, AVG(anlycount) AS avg_anlycount, AVG(ABS(inholdpct - instownpct)) AS avg_abs_gap FROM sentimentandfundamentals GROUP BY corpeventprx), overall AS (SELECT AVG(avg_abs_gap) AS overall_avg_gap FROM grp) SELECT g.corpeventprx, g.avg_anlycount, g.avg_abs_gap, g.avg_abs_gap - o.overall_avg_gap AS gap_vs_overall FROM grp g CROSS JOIN overall o WHERE o.overall_avg_gap IS NOT NULL;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

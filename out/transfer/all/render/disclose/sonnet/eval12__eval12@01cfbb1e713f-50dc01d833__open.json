@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (SELECT ordersmark, AVG(remaincount) AS avg_rem FROM orderexecutions GROUP BY ordersmark), overall AS (SELECT AVG(remaincount) AS overall_avg FROM orderexecutions), above AS (SELECT p.ordersmark, p.avg_rem, p.avg_rem - o.overall_avg AS excess_overall FROM per_order p CROSS JOIN overall o WHERE p.avg_rem > o.overall_avg), grp AS (SELECT AVG(avg_rem) AS grp_avg FROM above), kept AS (SELECT a.avg_rem, a.excess_overall, a.avg_rem - g.grp_avg AS excess_group FROM above a CROSS JOIN grp g WHERE a.avg_rem > g.grp_avg) SELECT AVG(avg_rem) AS avg_of_order_avgs, AVG(excess_overall) AS avg_excess_over_overall, AVG(excess_group) AS avg_excess_over_group FROM kept",
+  "sql": "WITH o AS (SELECT ordersmark, AVG(remaincount) AS a FROM orderexecutions GROUP BY ordersmark HAVING COUNT(remaincount) > 0), ov AS (SELECT AVG(remaincount) AS v FROM orderexecutions), g AS (SELECT o.ordersmark, o.a, o.a - ov.v AS ex1 FROM o, ov WHERE o.a > ov.v), g2 AS (SELECT AVG(a) AS m FROM g), f AS (SELECT g.a, g.ex1, g.a - g2.m AS ex2 FROM g, g2 WHERE g.a > g2.m) SELECT AVG(a) AS avg_of_order_avgs, AVG(ex1) AS avg_excess_over_overall, AVG(ex2) AS avg_excess_over_group_avg FROM f",
   "assumptions": [
    {
-    "assumption": "The overall average unfilled quantity is the mean of remaincount across all executions (nulls ignored), not the mean of the per-order averages.",
+    "assumption": "The 'overall average unfilled quantity' is the average of remaincount across all execution rows (NULLs ignored), not the average of the per-order averages.",
     "unresolved": true
    },
    {
-    "assumption": "The group's own average is the mean of the per-order averages for the orders above the overall average. The final three values are computed only over the orders that are also above that group average.",
+    "assumption": "Executions with NULL ordersmark form a single group (GROUP BY puts NULLs together), and that group is treated as one order.",
     "unresolved": false
    },
    {
-    "assumption": "Executions with a NULL ordersmark form a single order group. Orders whose remaincount values are all NULL have a NULL average and drop out of the comparisons.",
+    "assumption": "The 'group's own average' is the average of the per-order averages among orders above the overall average; only orders strictly above it are kept. Orders whose remaincount is entirely NULL have no average and are excluded.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The overall average is the mean of the per-order averages, so each order counts equally regardless of how many executions it has.",
-    "sql": "WITH per_order AS (SELECT ordersmark, AVG(remaincount) AS avg_rem FROM orderexecutions GROUP BY ordersmark), overall AS (SELECT AVG(avg_rem) AS overall_avg FROM per_order), above AS (SELECT p.ordersmark, p.avg_rem, p.avg_rem - o.overall_avg AS excess_overall FROM per_order p CROSS JOIN overall o WHERE p.avg_rem > o.overall_avg), grp AS (SELECT AVG(avg_rem) AS grp_avg FROM above), kept AS (SELECT a.avg_rem, a.excess_overall, a.avg_rem - g.grp_avg AS excess_group FROM above a CROSS JOIN grp g WHERE a.avg_rem > g.grp_avg) SELECT AVG(avg_rem) AS avg_of_order_avgs, AVG(excess_overall) AS avg_excess_over_overall, AVG(excess_group) AS avg_excess_over_group FROM kept"
+    "interpretation": "The overall average is the mean of the per-order averages (each order weighted equally) rather than the mean over all execution rows.",
+    "sql": "WITH o AS (SELECT ordersmark, AVG(remaincount) AS a FROM orderexecutions GROUP BY ordersmark HAVING COUNT(remaincount) > 0), ov AS (SELECT AVG(a) AS v FROM o), g AS (SELECT o.ordersmark, o.a, o.a - ov.v AS ex1 FROM o, ov WHERE o.a > ov.v), g2 AS (SELECT AVG(a) AS m FROM g), f AS (SELECT g.a, g.ex1, g.a - g2.m AS ex2 FROM g, g2 WHERE g.a > g2.m) SELECT AVG(a) AS avg_of_order_avgs, AVG(ex1) AS avg_excess_over_overall, AVG(ex2) AS avg_excess_over_group_avg FROM f"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The overall average is the mean of the per-order averages, so each order counts equally regardless of how many executions it has.",
-   "sql": "WITH per_order AS (SELECT ordersmark, AVG(remaincount) AS avg_rem FROM orderexecutions GROUP BY ordersmark), overall AS (SELECT AVG(avg_rem) AS overall_avg FROM per_order), above AS (SELECT p.ordersmark, p.avg_rem, p.avg_rem - o.overall_avg AS excess_overall FROM per_order p CROSS JOIN overall o WHERE p.avg_rem > o.overall_avg), grp AS (SELECT AVG(avg_rem) AS grp_avg FROM above), kept AS (SELECT a.avg_rem, a.excess_overall, a.avg_rem - g.grp_avg AS excess_group FROM above a CROSS JOIN grp g WHERE a.avg_rem > g.grp_avg) SELECT AVG(avg_rem) AS avg_of_order_avgs, AVG(excess_overall) AS avg_excess_over_overall, AVG(excess_group) AS avg_excess_over_group FROM kept",
+   "interpretation": "The overall average is the mean of the per-order averages (each order weighted equally) rather than the mean over all execution rows.",
+   "sql": "WITH o AS (SELECT ordersmark, AVG(remaincount) AS a FROM orderexecutions GROUP BY ordersmark HAVING COUNT(remaincount) > 0), ov AS (SELECT AVG(a) AS v FROM o), g AS (SELECT o.ordersmark, o.a, o.a - ov.v AS ex1 FROM o, ov WHERE o.a > ov.v), g2 AS (SELECT AVG(a) AS m FROM g), f AS (SELECT g.a, g.ex1, g.a - g2.m AS ex2 FROM g, g2 WHERE g.a > g2.m) SELECT AVG(a) AS avg_of_order_avgs, AVG(ex1) AS avg_excess_over_overall, AVG(ex2) AS avg_excess_over_group_avg FROM f",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 10.4,
- "chars_out": 2170
+ "seconds": 12.0,
+ "chars_out": 1850
 }

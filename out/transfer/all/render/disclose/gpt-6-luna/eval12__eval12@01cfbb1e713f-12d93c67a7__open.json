@@ -2,23 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_timespan AS (\n  SELECT o.timespan,\n         AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio,\n         COUNT(*) AS match_count\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\nwith_cross_group_avg AS (\n  SELECT *, AVG(match_count) OVER () AS cross_group_avg\n  FROM per_timespan\n)\nSELECT AVG(avg_ratio) AS average_of_group_average_ratios,\n       SUM(match_count) AS total_match_count,\n       AVG(match_count - cross_group_avg) AS average_excess_match_count\nFROM with_cross_group_avg\nWHERE match_count > cross_group_avg;",
+  "sql": "WITH per_timespan AS (\n  SELECT o.timespan,\n         AVG(f.rebrate / f.feerate) AS avg_ratio,\n         COUNT(*) AS match_count\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\nthreshold AS (\n  SELECT AVG(match_count) AS avg_match_count\n  FROM per_timespan\n),\nqualifying AS (\n  SELECT p.avg_ratio, p.match_count, t.avg_match_count\n  FROM per_timespan AS p\n  CROSS JOIN threshold AS t\n  WHERE p.match_count > t.avg_match_count\n)\nSELECT AVG(avg_ratio) AS avg_of_group_avg_ratios,\n       SUM(match_count) AS total_match_count,\n       AVG(match_count - avg_match_count) AS avg_excess_match_count\nFROM qualifying;",
   "assumptions": [
    {
-    "assumption": "A match count counts every joined fees-to-orders row, including rows where either rate is missing; the ratio average ignores NULL inputs and treats a zero feerate as undefined.",
-    "unresolved": false
+    "assumption": "A match count is the number of joined fee\u2013order rows in each time-in-force group; ratio averages ignore NULL ratios, and SQLite also treats division by zero as NULL.",
+    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "If a match count should count distinct matched orders, while retaining the average ratio across fee rows, use COUNT(DISTINCT order reference) for the group counts.",
+    "sql": "WITH per_timespan AS (\n  SELECT o.timespan,\n         AVG(f.rebrate / f.feerate) AS avg_ratio,\n         COUNT(DISTINCT o.recordvault) AS match_count\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\nthreshold AS (\n  SELECT AVG(match_count) AS avg_match_count\n  FROM per_timespan\n),\nqualifying AS (\n  SELECT p.avg_ratio, p.match_count, t.avg_match_count\n  FROM per_timespan AS p\n  CROSS JOIN threshold AS t\n  WHERE p.match_count > t.avg_match_count\n)\nSELECT AVG(avg_ratio) AS avg_of_group_avg_ratios,\n       SUM(match_count) AS total_match_count,\n       AVG(match_count - avg_match_count) AS avg_excess_match_count\nFROM qualifying;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [],
- "seconds": 6.7,
- "chars_out": 846
+ "alternatives": [
+  {
+   "interpretation": "If a match count should count distinct matched orders, while retaining the average ratio across fee rows, use COUNT(DISTINCT order reference) for the group counts.",
+   "sql": "WITH per_timespan AS (\n  SELECT o.timespan,\n         AVG(f.rebrate / f.feerate) AS avg_ratio,\n         COUNT(DISTINCT o.recordvault) AS match_count\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\nthreshold AS (\n  SELECT AVG(match_count) AS avg_match_count\n  FROM per_timespan\n),\nqualifying AS (\n  SELECT p.avg_ratio, p.match_count, t.avg_match_count\n  FROM per_timespan AS p\n  CROSS JOIN threshold AS t\n  WHERE p.match_count > t.avg_match_count\n)\nSELECT AVG(avg_ratio) AS avg_of_group_avg_ratios,\n       SUM(match_count) AS total_match_count,\n       AVG(match_count - avg_match_count) AS avg_excess_match_count\nFROM qualifying;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 10.9,
+ "chars_out": 1803
 }

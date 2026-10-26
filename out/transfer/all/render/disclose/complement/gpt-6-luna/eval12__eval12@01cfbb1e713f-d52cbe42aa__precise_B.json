@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-d52cbe42aa",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_reference AS (\n  SELECT ordersmark, COUNT(*) AS execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n), shares AS (\n  SELECT ordersmark,\n         execution_count,\n         execution_count::numeric / NULLIF(SUM(execution_count) OVER (), 0) AS share\n  FROM per_reference\n), deviations AS (\n  SELECT ordersmark,\n         execution_count,\n         share,\n         share - AVG(share) OVER () AS share_minus_average\n  FROM shares\n), ranked AS (\n  SELECT *, RANK() OVER (ORDER BY share_minus_average DESC NULLS LAST) AS place\n  FROM deviations\n)\nSELECT ordersmark, execution_count, share, share_minus_average\nFROM ranked\nWHERE place <= 10\nORDER BY share_minus_average DESC NULLS LAST;",
+  "sql": "WITH per_reference AS (\n  SELECT\n    ordersmark,\n    COUNT(*) AS execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n), shares AS (\n  SELECT\n    ordersmark,\n    execution_count,\n    1.0 * execution_count / SUM(execution_count) OVER () AS share\n  FROM per_reference\n), ranked AS (\n  SELECT\n    ordersmark,\n    execution_count,\n    share,\n    share - AVG(share) OVER () AS difference,\n    RANK() OVER (ORDER BY share - AVG(share) OVER () DESC) AS difference_rank\n  FROM shares\n)\nSELECT ordersmark, execution_count, share, difference\nFROM ranked\nWHERE difference_rank <= 10\nORDER BY difference_rank ASC, ordersmark ASC;",
   "assumptions": [
    {
-    "assumption": "The average share is the unweighted arithmetic mean of the per-reference shares, with all NULL ordersmark executions grouped together as one reference. SQL NULLS LAST applies to the difference; when there are no executions, the result is empty.",
+    "assumption": "All executions with a NULL ordersmark form one group, as specified. The average share is the unweighted arithmetic mean across the resulting order-reference groups.",
     "unresolved": false
    }
   ],
@@ -16,5 +16,5 @@
  "raw": null,
  "primary_executes": false,
  "primary_matches": [],
- "seconds": 5.3
+ "seconds": 6.3
 }

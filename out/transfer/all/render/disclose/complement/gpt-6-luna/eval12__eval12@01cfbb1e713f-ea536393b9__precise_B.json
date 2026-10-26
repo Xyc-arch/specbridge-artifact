@@ -2,19 +2,21 @@
  "case": "eval12:eval12@01cfbb1e713f-ea536393b9",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched_scans AS (\n  SELECT sc.zoneref, si.riskeval, sc.pressratio\n  FROM scans AS sc\n  INNER JOIN sites AS si ON si.zoneregistry = sc.zoneref\n), grouped AS (\n  SELECT zoneref, riskeval, AVG(pressratio) AS avg_pressratio, COUNT(*) AS scan_count\n  FROM matched_scans\n  GROUP BY zoneref, riskeval\n), shares AS (\n  SELECT zoneregistry, COUNT(*) AS matched_scan_count\n  FROM matched_scans\n  GROUP BY zoneregistry\n), ranked AS (\n  SELECT g.zoneref AS site_code,\n         g.riskeval AS risk_evaluation_status,\n         g.avg_pressratio,\n         g.scan_count,\n         g.scan_count::numeric / SUM(g.scan_count) OVER () AS scan_share,\n         RANK() OVER (ORDER BY g.scan_count::numeric / SUM(g.scan_count) OVER () DESC) AS share_rank\n  FROM grouped AS g\n)\nSELECT site_code, risk_evaluation_status, avg_pressratio, scan_count, scan_share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY scan_share DESC;",
+  "sql": "WITH matched AS (\n  SELECT s.zoneref AS site_code, st.riskeval, s.pressratio\n  FROM scans AS s\n  JOIN sites AS st ON st.zoneregistry = s.zoneref\n), grouped AS (\n  SELECT site_code, riskeval,\n         AVG(pressratio) AS average_compression_ratio,\n         COUNT(*) AS scan_count\n  FROM matched\n  GROUP BY site_code, riskeval\n), ranked AS (\n  SELECT site_code, riskeval, average_compression_ratio, scan_count,\n         1.0 * scan_count / (SELECT COUNT(*) FROM matched) AS share,\n         RANK() OVER (ORDER BY scan_count DESC) AS share_rank\n  FROM grouped\n)\nSELECT site_code, riskeval, average_compression_ratio, scan_count, share\nFROM ranked\nWHERE share_rank <= 10\nORDER BY share DESC;",
   "assumptions": [
    {
-    "assumption": "The scan share is each site's risk-status group's scan count divided by the total number of scans that match a site; NULL risk statuses form their own group.",
+    "assumption": "The share denominator includes all scans matched to a site, including scans whose compression ratio is missing; AVG ignores missing compression ratios as requested.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 9.3
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 47.3
 }

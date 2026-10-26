@@ -3,12 +3,12 @@
  "wording": "open",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH matched AS (\n  SELECT s.instownpct, t.ordertypedist\n  FROM sentimentandfundamentals AS s\n  JOIN transactionrecord AS t\n    ON s.transref = t.transreg\n  WHERE t.ordertypedist IS NOT NULL\n    AND s.instownpct IS NOT NULL\n), overall AS (\n  SELECT AVG(instownpct) AS avg_ownership FROM matched\n), above_average AS (\n  SELECT m.instownpct, m.ordertypedist, o.avg_ownership\n  FROM matched AS m\n  CROSS JOIN overall AS o\n  WHERE m.instownpct > o.avg_ownership\n)\nSELECT AVG(a.instownpct) AS average_ownership,\n       AVG(a.instownpct / type_avg.avg_ownership) AS average_ratio_to_type_average,\n       AVG(a.instownpct - a.avg_ownership) AS average_excess_overall\nFROM above_average AS a\nJOIN (\n  SELECT ordertypedist, AVG(instownpct) AS avg_ownership\n  FROM matched\n  GROUP BY ordertypedist\n) AS type_avg\n  ON type_avg.ordertypedist = a.ordertypedist;"
+  "sql": "WITH matched AS (\n  SELECT s.instownpct, t.ordertypedist\n  FROM sentimentandfundamentals AS s\n  INNER JOIN transactionrecord AS t\n    ON s.transref = t.transreg\n  WHERE s.instownpct IS NOT NULL\n    AND t.ordertypedist IS NOT NULL\n), overall AS (\n  SELECT AVG(instownpct) AS avg_ownership\n  FROM matched\n), mix_averages AS (\n  SELECT ordertypedist, AVG(instownpct) AS avg_mix_ownership\n  FROM matched\n  GROUP BY ordertypedist\n)\nSELECT\n  AVG(m.instownpct) AS avg_ownership,\n  AVG(m.instownpct / NULLIF(x.avg_mix_ownership, 0)) AS avg_ratio_to_mix,\n  AVG(m.instownpct - o.avg_ownership) AS avg_excess_overall\nFROM matched AS m\nJOIN mix_averages AS x ON x.ordertypedist = m.ordertypedist\nCROSS JOIN overall AS o\nWHERE m.instownpct > o.avg_ownership;"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 8.0,
- "chars_out": 882
+ "seconds": 37.5,
+ "chars_out": 777
 }

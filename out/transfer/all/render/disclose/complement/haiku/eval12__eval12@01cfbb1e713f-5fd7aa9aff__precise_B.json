@@ -4,17 +4,8 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_rating AS (\n  SELECT f.rating, COUNT(DISTINCT f.film_id) AS stocked_films\n  FROM film f\n  JOIN inventory i ON i.film_id = f.film_id\n  GROUP BY f.rating\n),\nall_ratings AS (\n  SELECT r.rating, COALESCE(p.stocked_films, 0) AS stocked_films\n  FROM (SELECT DISTINCT rating FROM film) r\n  LEFT JOIN per_rating p ON p.rating = r.rating\n),\navg_count AS (\n  SELECT AVG(stocked_films) AS avg_films FROM all_ratings\n),\nabove AS (\n  SELECT a.rating, a.stocked_films, a.stocked_films - v.avg_films AS excess\n  FROM all_ratings a\n  CROSS JOIN avg_count v\n  WHERE a.stocked_films > v.avg_films\n)\nSELECT SUM(stocked_films) AS total_films, AVG(excess) AS avg_excess FROM above;",
-  "assumptions": [
-   {
-    "assumption": "\"Distinct films with at least one copy in inventory\" is counted per film.rating, using a film_id count of inventory rows joined to film; the average is taken over all rating levels in film (5 levels per the verified data), with a rating that had no stocked films counted as 0.",
-    "unresolved": false
-   },
-   {
-    "assumption": "\"Exceed the across-rating average\" is measured in films: each above-average rating's stocked-film count minus the unweighted mean of the per-rating counts, averaged over the above-average ratings and left unrounded.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH rating_film_counts AS (\n  SELECT f.rating, COUNT(DISTINCT f.film_id) AS film_count\n  FROM inventory i\n  JOIN film f ON f.film_id = i.film_id\n  GROUP BY f.rating\n),\navg_count AS (\n  SELECT AVG(film_count) AS overall_avg\n  FROM rating_film_counts\n)\nSELECT SUM(rfc.film_count) AS total_films_above_avg,\n       AVG(rfc.film_count - ac.overall_avg) AS avg_excess\nFROM rating_film_counts rfc\nCROSS JOIN avg_count ac\nWHERE rfc.film_count > ac.overall_avg",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
@@ -22,5 +13,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 11.0
+ "seconds": 22.6
 }

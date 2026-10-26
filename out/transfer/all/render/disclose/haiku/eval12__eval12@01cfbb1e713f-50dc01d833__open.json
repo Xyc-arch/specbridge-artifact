@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order_avg AS (\n  SELECT \n    COALESCE(ordersmark, 'NO_ORDER_REF') as order_id,\n    AVG(remaincount) as avg_remain\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY COALESCE(ordersmark, 'NO_ORDER_REF')\n),\noverall_avg_val AS (\n  SELECT AVG(remaincount) as overall_avg\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n),\nabove_overall AS (\n  SELECT \n    poa.order_id,\n    poa.avg_remain,\n    poa.avg_remain - oav.overall_avg as excess_over_overall\n  FROM per_order_avg poa\n  CROSS JOIN overall_avg_val oav\n  WHERE poa.avg_remain > oav.overall_avg\n),\ngroup_avg_val AS (\n  SELECT AVG(avg_remain) as group_avg\n  FROM above_overall\n),\nfinal_selection AS (\n  SELECT \n    ao.avg_remain,\n    ao.excess_over_overall,\n    ao.avg_remain - gav.group_avg as excess_over_group\n  FROM above_overall ao\n  CROSS JOIN group_avg_val gav\n  WHERE ao.avg_remain > gav.group_avg\n)\nSELECT \n  AVG(avg_remain) as avg_of_final_averages,\n  AVG(excess_over_overall) as avg_excess_over_overall,\n  AVG(excess_over_group) as avg_excess_over_group\nFROM final_selection",
+  "sql": "WITH order_avgs AS (SELECT ordersmark, AVG(remaincount) as avg_unfilled FROM orderexecutions WHERE remaincount IS NOT NULL GROUP BY ordersmark), overall_avg_val AS (SELECT AVG(remaincount) as overall_avg FROM orderexecutions WHERE remaincount IS NOT NULL), above_overall AS (SELECT oa.ordersmark, oa.avg_unfilled FROM order_avgs oa, overall_avg_val ov WHERE oa.avg_unfilled > ov.overall_avg), group_avg_val AS (SELECT AVG(avg_unfilled) as group_avg FROM above_overall), final_filtered AS (SELECT ao.ordersmark, ao.avg_unfilled FROM above_overall ao, group_avg_val ga WHERE ao.avg_unfilled > ga.group_avg) SELECT AVG(ff.avg_unfilled), AVG(ff.avg_unfilled - ov.overall_avg), AVG(ff.avg_unfilled - ga.group_avg) FROM final_filtered ff CROSS JOIN overall_avg_val ov CROSS JOIN group_avg_val ga",
   "assumptions": [
    {
-    "assumption": "The group's own average (for filtering the second time) refers to the average of the per-order averages of orders above the overall average, not the average of raw remaincount values from those orders' executions.",
+    "assumption": "The group's own average is the unweighted average of per-order averages (the mean of each order's AVG(remaincount)), not the weighted average of all remaincount values across executions in the group.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The group's own average is the simple average of all remaincount values from executions belonging to orders above the overall average (weighted by execution count per order, rather than treating each order's average equally).",
-    "sql": "WITH per_order_avg AS (\n  SELECT \n    COALESCE(ordersmark, 'NO_ORDER_REF') as order_id,\n    AVG(remaincount) as avg_remain\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY COALESCE(ordersmark, 'NO_ORDER_REF')\n),\noverall_avg_val AS (\n  SELECT AVG(remaincount) as overall_avg\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n),\nabove_overall_with_excess AS (\n  SELECT \n    poa.order_id,\n    poa.avg_remain,\n    poa.avg_remain - oav.overall_avg as excess_over_overall\n  FROM per_order_avg poa\n  CROSS JOIN overall_avg_val oav\n  WHERE poa.avg_remain > oav.overall_avg\n),\ngroup_avg_val AS (\n  SELECT AVG(oe.remaincount) as group_avg\n  FROM orderexecutions oe\n  WHERE remaincount IS NOT NULL\n    AND COALESCE(oe.ordersmark, 'NO_ORDER_REF') IN (\n      SELECT order_id FROM above_overall_with_excess\n    )\n),\nfinal_selection AS (\n  SELECT \n    aowe.avg_remain,\n    aowe.excess_over_overall,\n    aowe.avg_remain - gav.group_avg as excess_over_group\n  FROM above_overall_with_excess aowe\n  CROSS JOIN group_avg_val gav\n  WHERE aowe.avg_remain > gav.group_avg\n)\nSELECT \n  AVG(avg_remain) as avg_of_final_averages,\n  AVG(excess_over_overall) as avg_excess_over_overall,\n  AVG(excess_over_group) as avg_excess_over_group\nFROM final_selection"
+    "interpretation": "The group's own average is the weighted average of all remaincount values across all executions in the above-overall group (consistent with how the overall average is computed).",
+    "sql": "WITH order_avgs AS (SELECT ordersmark, AVG(remaincount) as avg_unfilled FROM orderexecutions WHERE remaincount IS NOT NULL GROUP BY ordersmark), overall_avg_val AS (SELECT AVG(remaincount) as overall_avg FROM orderexecutions WHERE remaincount IS NOT NULL), above_overall AS (SELECT oa.ordersmark, oa.avg_unfilled FROM order_avgs oa, overall_avg_val ov WHERE oa.avg_unfilled > ov.overall_avg), group_avg_val AS (SELECT AVG(remaincount) as group_avg FROM orderexecutions oe WHERE oe.remaincount IS NOT NULL AND oe.ordersmark IN (SELECT ordersmark FROM above_overall)), final_filtered AS (SELECT ao.ordersmark, ao.avg_unfilled FROM above_overall ao, group_avg_val ga WHERE ao.avg_unfilled > ga.group_avg) SELECT AVG(ff.avg_unfilled), AVG(ff.avg_unfilled - ov.overall_avg), AVG(ff.avg_unfilled - ga.group_avg) FROM final_filtered ff CROSS JOIN overall_avg_val ov CROSS JOIN group_avg_val ga"
    }
   ]
  },
@@ -25,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The group's own average is the simple average of all remaincount values from executions belonging to orders above the overall average (weighted by execution count per order, rather than treating each order's average equally).",
-   "sql": "WITH per_order_avg AS (\n  SELECT \n    COALESCE(ordersmark, 'NO_ORDER_REF') as order_id,\n    AVG(remaincount) as avg_remain\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY COALESCE(ordersmark, 'NO_ORDER_REF')\n),\noverall_avg_val AS (\n  SELECT AVG(remaincount) as overall_avg\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n),\nabove_overall_with_excess AS (\n  SELECT \n    poa.order_id,\n    poa.avg_remain,\n    poa.avg_remain - oav.overall_avg as excess_over_overall\n  FROM per_order_avg poa\n  CROSS JOIN overall_avg_val oav\n  WHERE poa.avg_remain > oav.overall_avg\n),\ngroup_avg_val AS (\n  SELECT AVG(oe.remaincount) as group_avg\n  FROM orderexecutions oe\n  WHERE remaincount IS NOT NULL\n    AND COALESCE(oe.ordersmark, 'NO_ORDER_REF') IN (\n      SELECT order_id FROM above_overall_with_excess\n    )\n),\nfinal_selection AS (\n  SELECT \n    aowe.avg_remain,\n    aowe.excess_over_overall,\n    aowe.avg_remain - gav.group_avg as excess_over_group\n  FROM above_overall_with_excess aowe\n  CROSS JOIN group_avg_val gav\n  WHERE aowe.avg_remain > gav.group_avg\n)\nSELECT \n  AVG(avg_remain) as avg_of_final_averages,\n  AVG(excess_over_overall) as avg_excess_over_overall,\n  AVG(excess_over_group) as avg_excess_over_group\nFROM final_selection",
+   "interpretation": "The group's own average is the weighted average of all remaincount values across all executions in the above-overall group (consistent with how the overall average is computed).",
+   "sql": "WITH order_avgs AS (SELECT ordersmark, AVG(remaincount) as avg_unfilled FROM orderexecutions WHERE remaincount IS NOT NULL GROUP BY ordersmark), overall_avg_val AS (SELECT AVG(remaincount) as overall_avg FROM orderexecutions WHERE remaincount IS NOT NULL), above_overall AS (SELECT oa.ordersmark, oa.avg_unfilled FROM order_avgs oa, overall_avg_val ov WHERE oa.avg_unfilled > ov.overall_avg), group_avg_val AS (SELECT AVG(remaincount) as group_avg FROM orderexecutions oe WHERE oe.remaincount IS NOT NULL AND oe.ordersmark IN (SELECT ordersmark FROM above_overall)), final_filtered AS (SELECT ao.ordersmark, ao.avg_unfilled FROM above_overall ao, group_avg_val ga WHERE ao.avg_unfilled > ga.group_avg) SELECT AVG(ff.avg_unfilled), AVG(ff.avg_unfilled - ov.overall_avg), AVG(ff.avg_unfilled - ga.group_avg) FROM final_filtered ff CROSS JOIN overall_avg_val ov CROSS JOIN group_avg_val ga",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 77.6,
- "chars_out": 3028
+ "seconds": 96.3,
+ "chars_out": 2244
 }

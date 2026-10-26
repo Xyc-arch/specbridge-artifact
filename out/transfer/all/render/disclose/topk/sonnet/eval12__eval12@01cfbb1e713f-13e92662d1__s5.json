@@ -3,11 +3,11 @@
  "sample": 5,
  "model": "sonnet",
  "response": {
-  "sql": "SELECT t.transreg AS transaction_reference, t.ordertypedist AS order_type_mix, AVG(s.shortintrt) AS avg_short_interest, AVG(s.optvolrt) AS avg_option_volume_ratio, AVG(s.shortintrt) / g.grp_avg AS short_interest_ratio FROM transactionrecord t JOIN sentimentandfundamentals s ON s.transref = t.transreg JOIN (SELECT t2.ordertypedist AS otd, AVG(s2.shortintrt) AS grp_avg FROM transactionrecord t2 JOIN sentimentandfundamentals s2 ON s2.transref = t2.transreg GROUP BY t2.ordertypedist) g ON g.otd = t.ordertypedist GROUP BY t.transreg, t.ordertypedist, g.grp_avg ORDER BY short_interest_ratio IS NULL, short_interest_ratio DESC LIMIT 10"
+  "sql": "WITH t AS (SELECT s.transref AS transreg, tr.ordertypedist AS ordertypedist, AVG(s.shortintrt) AS avg_si, AVG(s.optvolrt) AS avg_ov, SUM(s.shortintrt) AS sum_si, COUNT(s.shortintrt) AS cnt_si FROM sentimentandfundamentals s JOIN transactionrecord tr ON tr.transreg = s.transref GROUP BY s.transref, tr.ordertypedist), g AS (SELECT transreg, ordertypedist, avg_si, avg_ov, SUM(sum_si) OVER (PARTITION BY ordertypedist) * 1.0 / NULLIF(SUM(cnt_si) OVER (PARTITION BY ordertypedist), 0) AS grp_avg FROM t) SELECT transreg AS transaction_reference, ordertypedist AS order_type_mix, avg_si AS avg_short_interest, avg_ov AS avg_option_volume_ratio, avg_si / NULLIF(grp_avg, 0) AS short_interest_ratio FROM g ORDER BY (avg_si / NULLIF(grp_avg, 0)) IS NULL, avg_si / NULLIF(grp_avg, 0) DESC LIMIT 10"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 4.3
+ "seconds": 11.6
 }

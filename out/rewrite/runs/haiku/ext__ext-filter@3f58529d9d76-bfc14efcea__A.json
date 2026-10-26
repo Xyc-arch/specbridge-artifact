@@ -5,34 +5,36 @@
  "description": "Scans whose timestamp equals either boundary value are counted.",
  "a": {
   "request": "Take the scans whose timestamp (`chronotag`, compared as text) is from '2024-06-06 11:53:59.684274' through '2024-11-03 19:51:13.516797', with both endpoints included, and keep only scans that match a site by site code. Group them by scan zone reference (`zoneref`) and site type (`typesite`). For each group, work out the average compression ratio (`pressratio`) and the average of file size divided by scan duration (`gbsize` / `spanmin`), ignoring missing values. Then give me one row with two unrounded values: the average of those per-group compression-ratio averages and the average of the per-group size-per-minute averages.",
-  "sql": "WITH filtered AS (SELECT s.zoneref, si.typesite, s.pressratio, s.gbsize / NULLIF(s.spanmin, 0) AS size_per_min FROM scans s JOIN sites si ON s.zoneref = si.zoneregistry WHERE s.chronotag::text BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797'), grouped AS (SELECT zoneref, typesite, AVG(pressratio) AS avg_press, AVG(size_per_min) AS avg_size_per_min FROM filtered GROUP BY zoneref, typesite) SELECT AVG(avg_press) AS avg_compression_ratio, AVG(avg_size_per_min) AS avg_size_per_minute FROM grouped;",
-  "executes": false,
-  "matches": []
+  "sql": "SELECT AVG(group_pressratio_avg) AS avg_compression_ratio, AVG(group_size_per_min_avg) AS avg_size_per_minute FROM (SELECT scans.zoneref, sites.typesite, AVG(scans.pressratio) AS group_pressratio_avg, AVG(CASE WHEN scans.gbsize IS NOT NULL AND scans.spanmin IS NOT NULL AND scans.spanmin <> 0 THEN scans.gbsize / scans.spanmin ELSE NULL END) AS group_size_per_min_avg FROM scans INNER JOIN sites ON scans.zoneref = sites.zoneregistry WHERE scans.chronotag >= '2024-06-06 11:53:59.684274' AND scans.chronotag <= '2024-11-03 19:51:13.516797' GROUP BY scans.zoneref, sites.typesite) AS grouped_data",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
  },
  "c": {
   "request": "For scans taken between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' (comparing the `chronotag` text), and only those linked to a site by site code, group by zone reference (`zoneref`) and site type (`typesite`). For each group, get the average compression ratio (`pressratio`) and the average of file size divided by scan duration (`gbsize` / `spanmin`), ignoring missing values. Then give me one row with two unrounded values: the average of the per-group compression-ratio averages and the average of the per-group size-per-minute averages. Scans whose timestamp equals either boundary value are counted.",
-  "sql": "WITH grouped AS (SELECT s.zoneref, si.typesite, AVG(s.pressratio) AS avg_pressratio, AVG(s.gbsize / NULLIF(s.spanmin, 0)) AS avg_gb_per_min FROM scans s INNER JOIN sites si ON s.zoneref = si.zoneregistry WHERE s.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY s.zoneref, si.typesite) SELECT AVG(avg_pressratio) AS avg_compression_ratio, AVG(avg_gb_per_min) AS avg_size_per_minute FROM grouped;",
+  "sql": "WITH group_averages AS (SELECT s.zoneref, z.typesite, AVG(s.pressratio) as group_avg_pressratio, AVG(CASE WHEN s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin > 0 THEN s.gbsize / s.spanmin ELSE NULL END) as group_avg_size_per_min FROM scans s INNER JOIN sites z ON s.zoneref = z.zoneregistry WHERE s.chronotag >= '2024-06-06 11:53:59.684274' AND s.chronotag <= '2024-11-03 19:51:13.516797' GROUP BY s.zoneref, z.typesite) SELECT AVG(group_avg_pressratio) as avg_compression_ratio, AVG(group_avg_size_per_min) as avg_size_per_minute FROM group_averages;",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "d": {
-  "request": "For scans whose `chronotag` text is between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' inclusive (both boundaries included), joined to `sites` on `zoneref` = `zoneregistry`, grouped by `zoneref` and `typesite`, return one row with AVG(per-group AVG(`pressratio`)) and AVG(per-group AVG(`gbsize` / `spanmin`)), ignoring NULLs, with no rounding.",
-  "sql": "SELECT AVG(g.avg_pressratio) AS avg_of_avg_pressratio, AVG(g.avg_gb_per_min) AS avg_of_avg_gbsize_per_spanmin FROM (SELECT s.zoneref, si.typesite, AVG(s.pressratio) AS avg_pressratio, AVG(s.gbsize / s.spanmin) AS avg_gb_per_min FROM scans s JOIN sites si ON s.zoneref = si.zoneregistry WHERE s.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY s.zoneref, si.typesite) g;",
+  "request": "Filter scans where chronotag text falls between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' inclusive with non-null zoneref, group by zoneref and typesite, calculate mean pressratio and mean (gbsize/spanmin) per group, then return one row with two unrounded values: the average of the per-group pressratio averages and the average of the per-group (gbsize/spanmin) averages.",
+  "sql": "WITH group_stats AS (SELECT s.zoneref, si.typesite, AVG(s.pressratio) as avg_pressratio, AVG(s.gbsize / s.spanmin) as avg_ratio FROM scans s JOIN sites si ON s.zoneref = si.zoneregistry WHERE s.chronotag >= '2024-06-06 11:53:59.684274' AND s.chronotag <= '2024-11-03 19:51:13.516797' AND s.zoneref IS NOT NULL GROUP BY s.zoneref, si.typesite) SELECT AVG(avg_pressratio) as avg_pressratio, AVG(avg_ratio) as avg_gbsize_spanmin_ratio FROM group_stats;",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "Scans with `chronotag` text from '2024-06-06 11:53:59.684274' through '2024-11-03 19:51:13.516797' inclusive, joined to `sites` on `zoneref = zoneregistry`, grouped by `zoneref` and `typesite`, averaging `pressratio` and `gbsize / spanmin` per group while ignoring nulls, then returning the unrounded averages of those per-group values as one row.",
-  "sql": "WITH grouped AS (SELECT sc.zoneref, si.typesite, AVG(sc.pressratio) AS avg_pressratio, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avg_gb_per_min FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry WHERE sc.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' GROUP BY sc.zoneref, si.typesite) SELECT AVG(avg_pressratio) AS avg_pressratio, AVG(avg_gb_per_min) AS avg_gb_per_min FROM grouped;",
+  "request": "Filter scans where `chronotag` is between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' inclusive, with non-null `zoneref`, then group by `zoneref` and `typesite`, calculating the average `pressratio` and average (`gbsize` / `spanmin`) per group while excluding nulls, and return one row with the unrounded overall average of per-group compression ratios and the unrounded overall average of per-group size-per-minute values.",
+  "sql": "WITH grouped_data AS (SELECT s.zoneref, sites.typesite, AVG(s.pressratio) as avg_pressratio, AVG(s.gbsize / NULLIF(s.spanmin, 0)) as avg_size_per_minute FROM scans s INNER JOIN sites ON s.zoneref = sites.zoneregistry WHERE s.chronotag BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' AND s.zoneref IS NOT NULL GROUP BY s.zoneref, sites.typesite) SELECT AVG(avg_pressratio) as overall_avg_compression_ratio, AVG(avg_size_per_minute) as overall_avg_size_per_minute FROM grouped_data",
   "executes": true,
   "matches": [
    "A"
   ],
-  "raw": "Scans with `chronotag` text from '2024-06-06 11:53:59.684274' through '2024-11-03 19:51:13.516797' inclusive, joined to `sites` on `zoneref = zoneregistry`, grouped by `zoneref` and `typesite`, averaging `pressratio` and `gbsize / spanmin` per group while ignoring nulls, then returning the unrounded averages of those per-group values as one row."
+  "raw": "Filter scans where `chronotag` is between '2024-06-06 11:53:59.684274' and '2024-11-03 19:51:13.516797' inclusive, with non-null `zoneref`, then group by `zoneref` and `typesite`, calculating the average `pressratio` and average (`gbsize` / `spanmin`) per group while excluding nulls, and return one row with the unrounded overall average of per-group compression ratios and the unrounded overall average of per-group size-per-minute values."
  },
  "calls": 6
 }

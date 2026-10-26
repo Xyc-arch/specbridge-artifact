@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH grp AS (SELECT t.telescregistry AS telescope, o.weathprofile AS weathprofile, AVG(s.modindex) AS avg_mod, AVG(s.phaseshiftdeg) AS avg_phase FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation GROUP BY t.telescregistry, o.weathprofile), base AS (SELECT AVG(avg_mod) AS baseline FROM grp), kept AS (SELECT g.weathprofile, g.avg_mod, g.avg_phase, g.avg_mod - b.baseline AS excess FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT weathprofile, AVG(avg_mod) AS avg_modulation_index, AVG(avg_phase) AS avg_phase_shift, AVG(excess) AS avg_excess_over_baseline FROM kept GROUP BY weathprofile;",
+  "sql": "WITH linked AS (SELECT s.telescref AS telescope, o.weathprofile AS weathprofile, s.modindex AS modindex, s.phaseshiftdeg AS phaseshiftdeg FROM signals s JOIN telescopes t ON t.telescregistry = s.telescref JOIN observatories o ON o.observstation = t.observstation), grp AS (SELECT telescope, weathprofile, AVG(modindex) AS avg_mod, AVG(phaseshiftdeg) AS avg_phase FROM linked GROUP BY telescope, weathprofile), base AS (SELECT AVG(avg_mod) AS baseline FROM grp), kept AS (SELECT g.*, b.baseline FROM grp g CROSS JOIN base b WHERE g.avg_mod > b.baseline) SELECT weathprofile, AVG(avg_mod) AS avg_modindex, AVG(avg_phase) AS avg_phaseshift, AVG(avg_mod - baseline) AS avg_excess_over_baseline FROM kept GROUP BY weathprofile",
   "assumptions": [
    {
-    "assumption": "Inner joins from signals to telescopes to observatories drop signals with no matching telescope or observatory.",
+    "assumption": "Signals are linked by inner joins signals->telescopes->observatories, so signals without a matching telescope or observatory are dropped.",
     "unresolved": false
    },
    {
-    "assumption": "The baseline is one global mean of all telescope/weather group averages, with each group counting equally. It is not computed separately for each weather profile.",
+    "assumption": "The baseline is the unweighted mean of all telescope/weather group average modulation indices (computed before filtering). The final 'average amount above baseline' is the mean of (group avg modindex - baseline) over the kept groups in each weather profile.",
     "unresolved": false
    },
    {
-    "assumption": "AVG ignores NULL modulation index and phase shift values. Groups whose average modulation index is NULL cannot exceed the baseline, so they are dropped.",
+    "assumption": "Null modulation index or phase shift values are ignored by AVG. A null weathprofile, if present, forms its own group and output row.",
     "unresolved": false
    }
   ],
@@ -27,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 7.3,
- "chars_out": 1312
+ "seconds": 8.1,
+ "chars_out": 1414
 }

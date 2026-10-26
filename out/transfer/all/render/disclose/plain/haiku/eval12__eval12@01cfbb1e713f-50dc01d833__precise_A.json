@@ -3,12 +3,12 @@
  "wording": "precise_A",
  "model": "haiku",
  "response": {
-  "sql": "WITH order_averages AS (\n  SELECT \n    ordersmark,\n    AVG(remaincount) as avg_remain\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY ordersmark\n),\nfirst_benchmark AS (\n  SELECT AVG(avg_remain) as first_mean\n  FROM order_averages\n),\norders_above_first AS (\n  SELECT \n    oa.ordersmark,\n    oa.avg_remain,\n    oa.avg_remain - fb.first_mean as excess_first\n  FROM order_averages oa\n  CROSS JOIN first_benchmark fb\n  WHERE oa.avg_remain > fb.first_mean\n),\nsecond_benchmark AS (\n  SELECT AVG(avg_remain) as second_mean\n  FROM orders_above_first\n),\norders_above_second AS (\n  SELECT \n    oaf.ordersmark,\n    oaf.avg_remain,\n    oaf.excess_first,\n    oaf.avg_remain - sb.second_mean as excess_second\n  FROM orders_above_first oaf\n  CROSS JOIN second_benchmark sb\n  WHERE oaf.avg_remain > sb.second_mean\n)\nSELECT \n  AVG(avg_remain) as avg_of_remaining,\n  AVG(excess_first) as avg_excess_over_first,\n  AVG(excess_second) as avg_excess_over_second\nFROM orders_above_second"
+  "sql": "WITH order_averages AS (SELECT COALESCE(ordersmark, 'NO_ORDER') as order_ref, AVG(remaincount) as avg_remain FROM orderexecutions WHERE remaincount IS NOT NULL GROUP BY COALESCE(ordersmark, 'NO_ORDER')), first_benchmark AS (SELECT AVG(avg_remain) as bench1 FROM order_averages), filtered_first AS (SELECT oa.order_ref, oa.avg_remain, oa.avg_remain - fb.bench1 as excess1 FROM order_averages oa, first_benchmark fb WHERE oa.avg_remain > fb.bench1), second_benchmark AS (SELECT AVG(avg_remain) as bench2 FROM filtered_first), filtered_second AS (SELECT ff.order_ref, ff.avg_remain, ff.excess1, ff.avg_remain - sb.bench2 as excess2 FROM filtered_first ff, second_benchmark sb WHERE ff.avg_remain > sb.bench2) SELECT AVG(avg_remain) as final_avg, AVG(excess1) as avg_excess_over_first, AVG(excess2) as avg_excess_over_second FROM filtered_second"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 28.4,
- "chars_out": 1047
+ "seconds": 13.6,
+ "chars_out": 868
 }

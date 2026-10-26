@@ -3,10 +3,10 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH matched_records AS (\n  SELECT sc.zoneref, s.insurstat\n  FROM scanconservation sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n),\ntotal_matched AS (\n  SELECT COUNT(*) as total_count FROM matched_records\n),\nconservation_totals AS (\n  SELECT \n    zoneref,\n    insurstat,\n    COUNT(*) as record_count,\n    COUNT(*) * 1.0 / (SELECT total_count FROM total_matched) as fraction\n  FROM matched_records\n  GROUP BY zoneref, insurstat\n),\nranked AS (\n  SELECT \n    *,\n    DENSE_RANK() OVER (ORDER BY fraction DESC NULLS LAST) as dense_rank\n  FROM conservation_totals\n)\nSELECT \n  zoneref,\n  insurstat,\n  record_count,\n  fraction\nFROM ranked\nWHERE dense_rank <= 10\nORDER BY fraction DESC NULLS LAST, insurstat DESC NULLS LAST"
+  "sql": "WITH matched_data AS (SELECT sc.zoneref, s.insurstat, COUNT(*) as record_count FROM scanconservation sc INNER JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY sc.zoneref, s.insurstat), with_fractions AS (SELECT md.zoneref, md.insurstat, md.record_count, CAST(md.record_count AS REAL) / (SELECT COUNT(*) FROM scanconservation sc INNER JOIN sites s ON sc.zoneref = s.zoneregistry) as fraction FROM matched_data md) SELECT zoneref, insurstat, record_count, fraction FROM with_fractions WHERE fraction >= COALESCE((SELECT MIN(fraction) FROM (SELECT DISTINCT fraction FROM with_fractions WHERE insurstat IS NOT NULL ORDER BY fraction DESC LIMIT 10)), 0) OR insurstat IS NULL ORDER BY CASE WHEN insurstat IS NULL THEN 1 ELSE 0 END, fraction DESC"
  },
  "primary_executes": true,
  "primary_matches": [],
- "seconds": 55.7,
- "chars_out": 780
+ "seconds": 33.6,
+ "chars_out": 770
 }

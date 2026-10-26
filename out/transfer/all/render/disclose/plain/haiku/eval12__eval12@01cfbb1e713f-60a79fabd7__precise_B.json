@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH scan_site_match AS (\n  SELECT s.gbsize, s.spanmin, s.zoneref, site.healtheval\n  FROM scans s\n  INNER JOIN sites site ON s.zoneref = site.zoneregistry\n),\nstatus_stats AS (\n  SELECT healtheval,\n    AVG(CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin != 0\n      THEN gbsize / spanmin ELSE NULL END) as avg_rate,\n    COUNT(DISTINCT zoneref) as distinct_sites\n  FROM scan_site_match\n  GROUP BY healtheval\n),\nall_status_avg AS (\n  SELECT AVG(avg_rate) as overall_avg_rate\n  FROM status_stats\n  WHERE avg_rate IS NOT NULL\n),\nfiltered_statuses AS (\n  SELECT ss.avg_rate, ss.distinct_sites, asa.overall_avg_rate\n  FROM status_stats ss\n  CROSS JOIN all_status_avg asa\n  WHERE asa.overall_avg_rate IS NOT NULL AND ss.avg_rate > asa.overall_avg_rate\n)\nSELECT AVG(avg_rate) as avg_rate,\n  AVG(distinct_sites) as avg_distinct_sites,\n  AVG(avg_rate - overall_avg_rate) as avg_excess\nFROM filtered_statuses"
+  "sql": "WITH status_stats AS (\n  SELECT \n    s.healtheval,\n    AVG(scans.gbsize / scans.spanmin) as avg_rate,\n    COUNT(DISTINCT scans.zoneref) as distinct_sites\n  FROM scans\n  INNER JOIN sites s ON scans.zoneref = s.zoneregistry\n  WHERE scans.gbsize IS NOT NULL AND scans.spanmin IS NOT NULL AND scans.spanmin > 0\n  GROUP BY s.healtheval\n),\noverall_avg AS (\n  SELECT AVG(avg_rate) as overall_rate\n  FROM status_stats\n),\nabove_avg AS (\n  SELECT \n    ss.avg_rate,\n    ss.distinct_sites,\n    oa.overall_rate\n  FROM status_stats ss\n  CROSS JOIN overall_avg oa\n  WHERE oa.overall_rate IS NOT NULL AND ss.avg_rate > oa.overall_rate\n)\nSELECT \n  AVG(avg_rate) as average_rate,\n  AVG(distinct_sites) as average_distinct_sites,\n  AVG(avg_rate - overall_rate) as average_excess\nFROM above_avg"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 39.9,
- "chars_out": 962
+ "seconds": 20.2,
+ "chars_out": 828
 }

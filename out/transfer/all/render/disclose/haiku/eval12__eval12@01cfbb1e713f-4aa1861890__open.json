@@ -2,27 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched_orders AS (\n  SELECT \n    u.acctscope,\n    COUNT(DISTINCT o.orderspivot) as order_count\n  FROM riskandmargin rm\n  INNER JOIN orders o ON rm.ordervault = o.recordvault\n  INNER JOIN users u ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n),\ntotals AS (\n  SELECT \n    SUM(order_count) as total_count,\n    COUNT(*) as num_scopes\n  FROM matched_orders\n)\nSELECT \n  mo.acctscope,\n  mo.order_count,\n  mo.order_count * 1.0 / t.total_count as share,\n  mo.order_count * 1.0 / (t.total_count * 1.0 / t.num_scopes) as ratio_to_avg\nFROM matched_orders mo\nCROSS JOIN totals t\nORDER BY mo.acctscope",
+  "sql": "WITH matched_orders AS (SELECT DISTINCT o.recordvault, u.acctscope FROM riskandmargin rm INNER JOIN orders o ON rm.ordervault = o.recordvault INNER JOIN users u ON o.userlink = u.userstamp), scope_counts AS (SELECT acctscope, COUNT(*) as scope_count FROM matched_orders GROUP BY acctscope), stats AS (SELECT SUM(scope_count) as total_count, CAST(SUM(scope_count) AS REAL) / COUNT(*) as avg_count FROM scope_counts) SELECT sc.acctscope as scope, sc.scope_count as count, CAST(sc.scope_count AS REAL) / s.total_count as share, CAST(sc.scope_count AS REAL) / s.avg_count as count_divided_by_avg FROM scope_counts sc CROSS JOIN stats s ORDER BY sc.acctscope;",
   "assumptions": [
    {
-    "assumption": "\"risk/margin-matched orders\" means distinct orders: a single order that appears in multiple risk/margin records is counted once per scope, not once per record.",
-    "unresolved": true
-   },
-   {
-    "assumption": "Only account scopes with at least one matched order appear in results (no padding for empty scopes from the users table).",
+    "assumption": "The request asks for the count of distinct orders (not risk/margin record pairs) that have at least one matching risk/margin record. Using DISTINCT ensures each order is counted once even if multiple risk/margin records reference it.",
     "unresolved": false
-   },
-   {
-    "assumption": "NULL acctscope values, if present, are included as a scope group.",
-    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count all risk/margin records (not distinct orders), so an order with multiple risk/margin entries is counted multiple times.",
-    "sql": "WITH matched_orders AS (\n  SELECT \n    u.acctscope,\n    COUNT(*) as order_count\n  FROM riskandmargin rm\n  INNER JOIN orders o ON rm.ordervault = o.recordvault\n  INNER JOIN users u ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n),\ntotals AS (\n  SELECT \n    SUM(order_count) as total_count,\n    COUNT(*) as num_scopes\n  FROM matched_orders\n)\nSELECT \n  mo.acctscope,\n  mo.order_count,\n  mo.order_count * 1.0 / t.total_count as share,\n  mo.order_count * 1.0 / (t.total_count * 1.0 / t.num_scopes) as ratio_to_avg\nFROM matched_orders mo\nCROSS JOIN totals t\nORDER BY mo.acctscope"
+    "interpretation": "If the request intends to count all (order, risk/margin) pairs as separate items instead of deduplicating orders (e.g., to count the cardinality of the join result), remove DISTINCT from the matched_orders CTE.",
+    "sql": "WITH matched_orders AS (SELECT o.recordvault, u.acctscope FROM riskandmargin rm INNER JOIN orders o ON rm.ordervault = o.recordvault INNER JOIN users u ON o.userlink = u.userstamp), scope_counts AS (SELECT acctscope, COUNT(*) as scope_count FROM matched_orders GROUP BY acctscope), stats AS (SELECT SUM(scope_count) as total_count, CAST(SUM(scope_count) AS REAL) / COUNT(*) as avg_count FROM scope_counts) SELECT sc.acctscope as scope, sc.scope_count as count, CAST(sc.scope_count AS REAL) / s.total_count as share, CAST(sc.scope_count AS REAL) / s.avg_count as count_divided_by_avg FROM scope_counts sc CROSS JOIN stats s ORDER BY sc.acctscope;"
    }
   ]
  },
@@ -33,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count all risk/margin records (not distinct orders), so an order with multiple risk/margin entries is counted multiple times.",
-   "sql": "WITH matched_orders AS (\n  SELECT \n    u.acctscope,\n    COUNT(*) as order_count\n  FROM riskandmargin rm\n  INNER JOIN orders o ON rm.ordervault = o.recordvault\n  INNER JOIN users u ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n),\ntotals AS (\n  SELECT \n    SUM(order_count) as total_count,\n    COUNT(*) as num_scopes\n  FROM matched_orders\n)\nSELECT \n  mo.acctscope,\n  mo.order_count,\n  mo.order_count * 1.0 / t.total_count as share,\n  mo.order_count * 1.0 / (t.total_count * 1.0 / t.num_scopes) as ratio_to_avg\nFROM matched_orders mo\nCROSS JOIN totals t\nORDER BY mo.acctscope",
+   "interpretation": "If the request intends to count all (order, risk/margin) pairs as separate items instead of deduplicating orders (e.g., to count the cardinality of the join result), remove DISTINCT from the matched_orders CTE.",
+   "sql": "WITH matched_orders AS (SELECT o.recordvault, u.acctscope FROM riskandmargin rm INNER JOIN orders o ON rm.ordervault = o.recordvault INNER JOIN users u ON o.userlink = u.userstamp), scope_counts AS (SELECT acctscope, COUNT(*) as scope_count FROM matched_orders GROUP BY acctscope), stats AS (SELECT SUM(scope_count) as total_count, CAST(SUM(scope_count) AS REAL) / COUNT(*) as avg_count FROM scope_counts) SELECT sc.acctscope as scope, sc.scope_count as count, CAST(sc.scope_count AS REAL) / s.total_count as share, CAST(sc.scope_count AS REAL) / s.avg_count as count_divided_by_avg FROM scope_counts sc CROSS JOIN stats s ORDER BY sc.acctscope;",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 34.5,
- "chars_out": 2009
+ "seconds": 58.8,
+ "chars_out": 1936
 }

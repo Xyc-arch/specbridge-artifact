@@ -1,0 +1,40 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "model": "sonnet",
+ "response": {
+  "sql": "WITH t AS (SELECT ra.name, SUM(r.points) AS tp, AVG(CAST(r.laps AS REAL)) AS al FROM results r JOIN races ra ON r.raceId = ra.raceId GROUP BY ra.name), a AS (SELECT AVG(tp) AS m FROM t) SELECT SUM(t.tp) AS total_points, AVG(t.al) AS avg_laps, AVG(t.tp - a.m) AS avg_excess FROM t CROSS JOIN a WHERE t.tp > a.m",
+  "assumptions": [
+   {
+    "assumption": "The 'average laps for the kept race names' is the average of the per-race-name average laps (each kept race name weighted equally), following the per-name aggregation described in the request.",
+    "unresolved": true
+   },
+   {
+    "assumption": "results.laps is stored as TEXT, so it is cast to REAL before averaging. NULL values are ignored by SUM and AVG. Race names with no non-null points have a NULL total and are left out of the average of totals.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Races are grouped by races.name across all years, so one race name combines all of its seasons.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The average laps is taken over all individual result rows belonging to the kept race names, rather than as an average of per-name averages.",
+    "sql": "WITH t AS (SELECT ra.name, SUM(r.points) AS tp FROM results r JOIN races ra ON r.raceId = ra.raceId GROUP BY ra.name), a AS (SELECT AVG(tp) AS m FROM t), k AS (SELECT t.name, t.tp, a.m FROM t CROSS JOIN a WHERE t.tp > a.m) SELECT (SELECT SUM(tp) FROM k) AS total_points, (SELECT AVG(CAST(r.laps AS REAL)) FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name IN (SELECT name FROM k)) AS avg_laps, (SELECT AVG(tp - m) FROM k) AS avg_excess"
+   }
+  ]
+ },
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "The average laps is taken over all individual result rows belonging to the kept race names, rather than as an average of per-name averages.",
+   "sql": "WITH t AS (SELECT ra.name, SUM(r.points) AS tp FROM results r JOIN races ra ON r.raceId = ra.raceId GROUP BY ra.name), a AS (SELECT AVG(tp) AS m FROM t), k AS (SELECT t.name, t.tp, a.m FROM t CROSS JOIN a WHERE t.tp > a.m) SELECT (SELECT SUM(tp) FROM k) AS total_points, (SELECT AVG(CAST(r.laps AS REAL)) FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name IN (SELECT name FROM k)) AS avg_laps, (SELECT AVG(tp - m) FROM k) AS avg_excess",
+   "matches": [
+    "B"
+   ]
+  }
+ ]
+}

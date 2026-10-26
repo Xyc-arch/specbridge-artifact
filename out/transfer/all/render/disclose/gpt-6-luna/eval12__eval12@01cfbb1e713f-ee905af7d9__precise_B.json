@@ -2,16 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH mix_counts AS (\n  SELECT\n    tr.ordertypedist,\n    COUNT(DISTINCT tr.transreg) AS transaction_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tr\n    ON tr.transreg = ab.translink\n  GROUP BY tr.ordertypedist\n), mix_shares AS (\n  SELECT\n    ordertypedist,\n    transaction_count,\n    transaction_count::numeric / SUM(transaction_count) OVER () AS share\n  FROM mix_counts\n), scored AS (\n  SELECT\n    ordertypedist,\n    transaction_count,\n    share,\n    AVG(share) OVER () AS baseline_share\n  FROM mix_shares\n)\nSELECT\n  ordertypedist,\n  transaction_count,\n  share,\n  share - baseline_share AS above_baseline_share\nFROM scored\nWHERE share > baseline_share;",
-  "assumptions": [],
+  "sql": "WITH mix_counts AS (\n  SELECT\n    COALESCE(tr.ordertypedist, '(no mix recorded)') AS order_type_mix,\n    COUNT(DISTINCT tr.transreg) AS transaction_count\n  FROM advancedbehavior AS ab\n  JOIN transactionrecord AS tr\n    ON ab.translink = tr.transreg\n  GROUP BY COALESCE(tr.ordertypedist, '(no mix recorded)')\n), shares AS (\n  SELECT\n    order_type_mix,\n    transaction_count,\n    1.0 * transaction_count / SUM(transaction_count) OVER () AS share\n  FROM mix_counts\n), baseline AS (\n  SELECT AVG(share) AS average_share\n  FROM shares\n)\nSELECT\n  s.order_type_mix,\n  s.transaction_count,\n  s.share,\n  s.share - b.average_share AS above_baseline\nFROM shares AS s\nCROSS JOIN baseline AS b\nWHERE s.share > b.average_share;",
+  "assumptions": [
+   {
+    "assumption": "A missing ordertypedist value is represented by the label '(no mix recorded)'; an existing value equal to that label is grouped with missing values.",
+    "unresolved": true
+   }
+  ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [],
- "seconds": 21.2,
- "chars_out": 744
+ "seconds": 22.8,
+ "chars_out": 967
 }

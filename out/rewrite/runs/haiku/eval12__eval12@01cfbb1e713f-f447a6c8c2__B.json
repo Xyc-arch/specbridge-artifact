@@ -5,35 +5,32 @@
  "description": "Each college's count is its number of distinct players. Those counts are then summarised by state.",
  "a": {
   "request": "For each college in `player_college` that has a matching `college` record (unmatched rows dropped), count its distinct players (each player once, however many years they attended), and note the college's state. Then for each state, with a blank or missing state as its own group, report four values: the state; the average of its colleges' counts; the average of each college's count divided by the average count across all colleges; and the average of each college's share of the total count across all colleges. Don't round anything.",
-  "sql": "WITH college_counts AS (SELECT c.college_id, COALESCE(NULLIF(TRIM(c.state), ''), '') AS state_group, COUNT(DISTINCT pc.player_id) AS player_count FROM player_college pc INNER JOIN college c ON pc.college_id = c.college_id GROUP BY c.college_id, COALESCE(NULLIF(TRIM(c.state), ''), '')), totals AS (SELECT AVG(player_count) AS overall_avg, SUM(player_count) AS total_count FROM college_counts) SELECT cc.state_group AS state, AVG(cc.player_count) AS avg_college_count, AVG(1.0 * cc.player_count / t.overall_avg) AS avg_relative_to_overall, AVG(1.0 * cc.player_count / t.total_count) AS avg_share_of_total FROM college_counts cc CROSS JOIN totals t GROUP BY cc.state_group;",
+  "sql": "WITH college_player_counts AS (SELECT c.college_id, c.state, COUNT(DISTINCT pc.player_id) as player_count FROM player_college pc JOIN college c ON pc.college_id = c.college_id GROUP BY c.college_id, c.state), total_stats AS (SELECT SUM(player_count) as total_count, AVG(player_count) as avg_count FROM college_player_counts), state_stats AS (SELECT cpc.state, AVG(cpc.player_count) as avg_colleges_counts, AVG(cpc.player_count / ts.avg_count) as avg_normalized_counts, AVG(cpc.player_count / CAST(ts.total_count AS NUMERIC)) as avg_shares FROM college_player_counts cpc CROSS JOIN total_stats ts GROUP BY cpc.state) SELECT state, avg_colleges_counts, avg_normalized_counts, avg_shares FROM state_stats ORDER BY state",
   "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": []
  },
  "c": {
   "request": "For each college in `player_college` that matches a `college` record (unmatched rows dropped), find how many players it has, along with its state. Then for each state, with a blank or missing state as its own group, report four values: the state; the average of its colleges' player counts; the average of each college's count relative to the average count across all colleges; and the average of each college's share of the total across all colleges. Don't round anything. Each college's count is its number of distinct players. Those counts are then summarised by state.",
-  "sql": "WITH college_counts AS (SELECT pc.college_id, c.state, COUNT(DISTINCT pc.player_id) AS player_count FROM player_college pc JOIN college c ON c.college_id = pc.college_id GROUP BY pc.college_id, c.state), overall AS (SELECT AVG(player_count) AS avg_count, SUM(player_count) AS total_count FROM college_counts), keyed AS (SELECT COALESCE(NULLIF(TRIM(cc.state), ''), '') AS state_key, cc.player_count FROM college_counts cc) SELECT k.state_key AS state, AVG(k.player_count) AS avg_player_count, AVG(k.player_count * 1.0 / o.avg_count) AS avg_relative_to_overall_avg, AVG(k.player_count * 1.0 / o.total_count) AS avg_share_of_total FROM keyed k CROSS JOIN overall o GROUP BY k.state_key;",
+  "sql": "WITH college_player_counts AS (SELECT c.college_id, COALESCE(c.state, '') as state, COUNT(DISTINCT pc.player_id) as player_count FROM college c INNER JOIN player_college pc ON c.college_id = pc.college_id GROUP BY c.college_id, COALESCE(c.state, '')), global_stats AS (SELECT AVG(player_count) as global_avg_count, SUM(player_count) as total_players FROM college_player_counts) SELECT cpc.state, AVG(cpc.player_count) as avg_college_player_count, AVG(CAST(cpc.player_count AS FLOAT) / gs.global_avg_count) as avg_relative_to_global_avg, AVG(CAST(cpc.player_count AS FLOAT) / gs.total_players) as avg_share_of_total FROM college_player_counts cpc CROSS JOIN global_stats gs GROUP BY cpc.state ORDER BY cpc.state",
   "executes": true,
   "matches": [
    "B"
   ]
  },
  "b": {
-  "request": "For each college in player_college that matches a college record (inner join, unmatched rows dropped), count its distinct players, then group by college state (blank or NULL as its own group) and report per state: the state; the average of its colleges' distinct-player counts; the average of each college's count divided by the average count across all colleges; and the average of each college's share of the total distinct-player count across all colleges, with no rounding",
-  "sql": "WITH college_counts AS (\n  SELECT c.college_id, NULLIF(TRIM(c.state), '') AS state, COUNT(DISTINCT pc.player_id) AS cnt\n  FROM player_college pc\n  INNER JOIN college c ON c.college_id = pc.college_id\n  GROUP BY c.college_id, NULLIF(TRIM(c.state), '')\n),\ntotals AS (\n  SELECT AVG(cnt) AS avg_cnt, SUM(cnt) AS total_cnt FROM college_counts\n)\nSELECT cc.state,\n  AVG(cc.cnt) AS avg_distinct_players,\n  AVG(cc.cnt * 1.0 / t.avg_cnt) AS avg_relative_to_overall,\n  AVG(cc.cnt * 1.0 / t.total_cnt) AS avg_share_of_total\nFROM college_counts cc\nCROSS JOIN totals t\nGROUP BY cc.state;",
+  "request": "For colleges with player_college records matched to college records, count distinct players per college; group by college's state (null/blank separate); for each state group, report: state, mean of colleges' player counts, mean of (college player count / mean of all colleges' counts), and mean of (college player count / sum of all colleges' counts).",
+  "sql": "WITH college_player_counts AS (\n  SELECT \n    c.college_id,\n    c.state,\n    COUNT(DISTINCT pc.player_id) as player_count\n  FROM college c\n  INNER JOIN player_college pc ON c.college_id = pc.college_id\n  GROUP BY c.college_id, c.state\n),\nglobal_stats AS (\n  SELECT \n    AVG(player_count) as global_mean,\n    SUM(player_count) as global_sum\n  FROM college_player_counts\n)\nSELECT \n  cpc.state,\n  AVG(cpc.player_count) as mean_player_count,\n  AVG(cpc.player_count / gs.global_mean) as mean_ratio_to_global_mean,\n  AVG(cpc.player_count / CAST(gs.global_sum AS FLOAT)) as mean_ratio_to_global_sum\nFROM college_player_counts cpc\nCROSS JOIN global_stats gs\nGROUP BY cpc.state\nORDER BY cpc.state",
   "executes": true,
   "matches": [
    "B"
-  ]
+  ],
+  "raw": "For colleges with player_college records matched to college records, count distinct players per college; group by college's state (null/blank separate); for each state group, report: state, mean of colleges' player counts, mean of (college player count / mean of all colleges' counts), and mean of (college player count / sum of all colleges' counts)."
  },
- "calls": 6,
  "d": {
-  "request": "For each college in `player_college` that matches a `college` record (unmatched rows dropped), count its distinct players and record its state. Then, for each state (with a blank or missing state as its own group), report four unrounded values: the state; the average of its colleges' distinct-player counts; the average of each college's count relative to the average count across all colleges; and the average of each college's share of the total across all colleges.",
-  "sql": "WITH college_counts AS (SELECT c.college_id, NULLIF(TRIM(c.state), '') AS state, COUNT(DISTINCT pc.player_id) AS cnt FROM player_college pc INNER JOIN college c ON pc.college_id = c.college_id GROUP BY c.college_id, NULLIF(TRIM(c.state), '')), stats AS (SELECT AVG(cnt) AS avg_cnt, SUM(cnt) AS total_cnt FROM college_counts) SELECT cc.state AS state, AVG(cc.cnt) AS avg_distinct_players, AVG(cc.cnt * 1.0 / s.avg_cnt) AS avg_relative_to_overall_avg, AVG(cc.cnt * 1.0 / s.total_cnt) AS avg_share_of_total FROM college_counts cc CROSS JOIN stats s GROUP BY cc.state;",
+  "request": "For each state (including null/blank as its own group), report the state, the mean number of distinct players per college in that state, the mean of ratios comparing each college's player count to the global mean player count per college, and the mean of ratios comparing each college's player count to the global total distinct players across all colleges.",
+  "sql": "WITH college_player_counts AS (\n  SELECT \n    c.state,\n    c.college_id,\n    COUNT(DISTINCT pc.player_id) as player_count\n  FROM college c\n  LEFT JOIN player_college pc ON c.college_id = pc.college_id\n  GROUP BY c.state, c.college_id\n),\nglobal_mean AS (\n  SELECT \n    AVG(player_count) as mean_players_per_college\n  FROM college_player_counts\n),\nglobal_total AS (\n  SELECT \n    COUNT(DISTINCT pc.player_id) as total_distinct_players\n  FROM player_college pc\n),\nstate_stats AS (\n  SELECT \n    cpc.state,\n    AVG(cpc.player_count) as mean_players_per_college_in_state,\n    AVG(cpc.player_count * 1.0 / gm.mean_players_per_college) as mean_ratio_to_global_mean,\n    AVG(cpc.player_count * 1.0 / gt.total_distinct_players) as mean_ratio_to_global_total\n  FROM college_player_counts cpc\n  CROSS JOIN global_mean gm\n  CROSS JOIN global_total gt\n  GROUP BY cpc.state\n)\nSELECT \n  state,\n  mean_players_per_college_in_state,\n  mean_ratio_to_global_mean,\n  mean_ratio_to_global_total\nFROM state_stats\nORDER BY state",
   "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+  "matches": []
+ },
+ "calls": 6
 }

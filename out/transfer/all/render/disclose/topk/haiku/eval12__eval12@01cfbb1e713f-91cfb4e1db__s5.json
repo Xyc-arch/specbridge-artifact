@@ -3,11 +3,11 @@
  "sample": 5,
  "model": "haiku",
  "response": {
-  "sql": "WITH joined AS (\n  SELECT s.transref, t.trdref, tr.tradekind, s.optvolrt\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord t ON s.transref = t.transreg\n  JOIN trader tr ON t.trdref = tr.tradereg\n),\noverall AS (\n  SELECT AVG(optvolrt) AS overall_avg FROM joined\n),\npairs AS (\n  SELECT j.transref, j.tradekind, AVG(j.optvolrt) AS pair_avg\n  FROM joined j\n  GROUP BY j.transref, j.tradekind\n),\ndev AS (\n  SELECT p.transref, p.tradekind, p.pair_avg, p.pair_avg - o.overall_avg AS deviation\n  FROM pairs p\n  CROSS JOIN overall o\n),\ntyped AS (\n  SELECT d.tradekind, d.pair_avg, d.deviation,\n         AVG(d.deviation) OVER (PARTITION BY d.tradekind) AS type_avg_dev\n  FROM dev d\n  WHERE d.tradekind IS NOT NULL\n),\nkept AS (\n  SELECT t.tradekind, t.pair_avg, t.deviation, t.deviation - t.type_avg_dev AS excess\n  FROM typed t\n  WHERE t.deviation > t.type_avg_dev\n)\nSELECT k.tradekind,\n       AVG(k.pair_avg) AS avg_optvolrt,\n       AVG(k.deviation) AS avg_deviation,\n       AVG(k.excess) AS avg_excess\nFROM kept k\nGROUP BY k.tradekind\nORDER BY k.tradekind;"
+  "sql": "WITH sentiment_trans_trader AS (SELECT sf.optvolrt, tr.transreg, t.tradekind FROM sentimentandfundamentals sf INNER JOIN transactionrecord tr ON sf.transref = tr.transreg INNER JOIN trader t ON tr.trdref = t.tradereg WHERE sf.optvolrt IS NOT NULL AND t.tradekind IS NOT NULL), pair_stats AS (SELECT transreg, tradekind, AVG(optvolrt) as pair_avg_optvolrt FROM sentiment_trans_trader GROUP BY transreg, tradekind), overall_stats AS (SELECT AVG(optvolrt) as overall_avg_optvolrt FROM sentiment_trans_trader), pair_with_deviation AS (SELECT ps.transreg, ps.tradekind, ps.pair_avg_optvolrt, os.overall_avg_optvolrt, ps.pair_avg_optvolrt - os.overall_avg_optvolrt as pair_deviation FROM pair_stats ps CROSS JOIN overall_stats os WHERE os.overall_avg_optvolrt IS NOT NULL), type_avg_dev AS (SELECT tradekind, AVG(pair_deviation) as type_avg_deviation FROM pair_with_deviation GROUP BY tradekind), filtered_pairs AS (SELECT pwd.transreg, pwd.tradekind, pwd.pair_avg_optvolrt, pwd.pair_deviation, tad.type_avg_deviation, pwd.pair_deviation - tad.type_avg_deviation as excess FROM pair_with_deviation pwd INNER JOIN type_avg_dev tad ON pwd.tradekind = tad.tradekind WHERE pwd.pair_deviation > tad.type_avg_deviation) SELECT tradekind, AVG(pair_avg_optvolrt) as avg_option_volume_ratio, AVG(pair_deviation) as avg_deviation, AVG(excess) as avg_excess FROM filtered_pairs GROUP BY tradekind ORDER BY tradekind"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 13.0
+ "seconds": 53.4
 }

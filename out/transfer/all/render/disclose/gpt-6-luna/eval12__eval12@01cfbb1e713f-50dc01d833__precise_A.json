@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(remaincount) AS avg_remaincount\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY ordersmark\n), first_benchmark AS (\n  SELECT AVG(avg_remaincount) AS benchmark\n  FROM per_order\n), first_excess AS (\n  SELECT p.ordersmark, p.avg_remaincount,\n         p.avg_remaincount - b.benchmark AS excess_first\n  FROM per_order p\n  CROSS JOIN first_benchmark b\n  WHERE p.avg_remaincount > b.benchmark\n), second_benchmark AS (\n  SELECT AVG(avg_remaincount) AS benchmark\n  FROM first_excess\n), final_orders AS (\n  SELECT f.avg_remaincount, f.excess_first,\n         f.avg_remaincount - b.benchmark AS excess_second\n  FROM first_excess f\n  CROSS JOIN second_benchmark b\n  WHERE f.avg_remaincount > b.benchmark\n)\nSELECT AVG(avg_remaincount) AS remaining_orders_avg,\n       AVG(excess_first) AS avg_excess_over_first_benchmark,\n       AVG(excess_second) AS avg_excess_over_second_benchmark\nFROM final_orders;",
+  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(remaincount) AS avg_unfilled\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY ordersmark\n), first_benchmark AS (\n  SELECT AVG(avg_unfilled) AS benchmark\n  FROM per_order\n), above_first AS (\n  SELECT p.ordersmark, p.avg_unfilled, p.avg_unfilled - b.benchmark AS excess_first\n  FROM per_order AS p\n  CROSS JOIN first_benchmark AS b\n  WHERE p.avg_unfilled > b.benchmark\n), second_benchmark AS (\n  SELECT AVG(avg_unfilled) AS benchmark\n  FROM above_first\n), above_second AS (\n  SELECT a.avg_unfilled, a.excess_first, a.avg_unfilled - b.benchmark AS excess_second\n  FROM above_first AS a\n  CROSS JOIN second_benchmark AS b\n  WHERE a.avg_unfilled > b.benchmark\n)\nSELECT AVG(avg_unfilled) AS remaining_average,\n       AVG(excess_first) AS average_excess_over_first,\n       AVG(excess_second) AS average_excess_over_second\nFROM above_second;",
   "assumptions": [
    {
-    "assumption": "A NULL ordersmark groups all executions without an order reference together, and executions whose remaincount is NULL are ignored when calculating each order's average.",
+    "assumption": "NULL ordersmark values are grouped together as one order, while NULL remaincount values are ignored by AVG; orders with no non-NULL remaincount are excluded.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 9.1,
- "chars_out": 1225
+ "seconds": 4.9,
+ "chars_out": 1158
 }

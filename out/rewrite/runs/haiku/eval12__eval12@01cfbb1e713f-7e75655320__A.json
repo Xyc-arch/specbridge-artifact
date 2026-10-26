@@ -3,17 +3,15 @@
  "model": "haiku",
  "reading": "A",
  "description": "Members without a major are grouped together as their own group. That group counts toward both the total member count and the average group size.",
- "b": {
-  "request": "Group members by `link_to_major` (with NULL majors as one combined group) and list the top 10 groups, highest first, by group count divided by the average group count across all groups, showing each group's major id, member count, share of total members, and that ratio unrounded",
-  "sql": "WITH grouped AS (SELECT link_to_major AS major_id, COUNT(*) AS member_count FROM member GROUP BY link_to_major), totals AS (SELECT SUM(member_count) AS total_members, AVG(member_count) AS avg_group_count FROM grouped) SELECT g.major_id, g.member_count, 1.0 * g.member_count / t.total_members AS share_of_total, 1.0 * g.member_count / t.avg_group_count AS ratio FROM grouped g CROSS JOIN totals t ORDER BY ratio DESC LIMIT 10;",
+ "d": {
+  "request": "Partition members by major including null major as a distinct group, display major ID, member count, percentage of total, and count divided by average group size, ordered by ratio descending, top 10, no rounding.",
+  "sql": "WITH group_counts AS (SELECT link_to_major as major_id, COUNT(*) as member_count FROM member GROUP BY link_to_major), stats AS (SELECT SUM(member_count) as total_members, COUNT(*) as num_groups, AVG(member_count) as avg_group_size FROM group_counts) SELECT gc.major_id, gc.member_count, (gc.member_count * 100.0 / s.total_members) as percentage_of_total, gc.member_count / s.avg_group_size as count_divided_by_avg FROM group_counts gc CROSS JOIN stats s ORDER BY count_divided_by_avg DESC LIMIT 10",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
  },
  "c": {
   "request": "Group members by their major (`link_to_major`). For each group, show the major id, how many members it has, that count's share of the total, and the count divided by the average group count. List the top 10 by that last ratio, highest first, with no rounding. Members without a major are grouped together as their own group. That group counts toward both the total member count and the average group size.",
-  "sql": "WITH grouped AS (SELECT link_to_major AS major_id, COUNT(*) AS cnt FROM member GROUP BY link_to_major), totals AS (SELECT SUM(cnt) AS total_members, COUNT(*) AS group_count, AVG(cnt) AS avg_count FROM grouped) SELECT g.major_id, g.cnt AS member_count, 1.0 * g.cnt / t.total_members AS share, 1.0 * g.cnt / t.avg_count AS ratio FROM grouped g CROSS JOIN totals t ORDER BY ratio DESC LIMIT 10;",
+  "sql": "WITH member_counts AS (SELECT link_to_major, COUNT(*) as member_count FROM member GROUP BY link_to_major), totals AS (SELECT SUM(member_count) as total_members, COUNT(*) as num_groups FROM member_counts) SELECT mc.link_to_major as major_id, mc.member_count, CAST(mc.member_count AS FLOAT) / CAST(t.total_members AS FLOAT) as share_of_total, CAST(mc.member_count AS FLOAT) / (CAST(t.total_members AS FLOAT) / CAST(t.num_groups AS FLOAT)) as ratio_to_avg FROM member_counts mc CROSS JOIN totals t ORDER BY ratio_to_avg DESC LIMIT 10;",
   "executes": true,
   "matches": [
    "A"
@@ -21,19 +19,18 @@
  },
  "a": {
   "request": "Group the members by their major id (`link_to_major`), treating members with no major as a group of their own. For each group, show the major id, the number of members, that number as a fraction of the total members across all groups, and that number divided by the average member count per group (the average taken over all groups, including the no-major group). Sort by the last ratio from highest to lowest and show only the top 10, without rounding.",
-  "sql": "WITH grouped AS (SELECT NULLIF(TRIM(link_to_major), '') AS major_id, COUNT(*) AS member_count FROM member GROUP BY NULLIF(TRIM(link_to_major), '')), totals AS (SELECT SUM(member_count) AS total_members, COUNT(*) AS group_count FROM grouped) SELECT g.major_id, g.member_count, CAST(g.member_count AS REAL) / t.total_members AS member_fraction, CAST(g.member_count AS REAL) / (CAST(t.total_members AS REAL) / t.group_count) AS ratio_to_avg FROM grouped g CROSS JOIN totals t ORDER BY ratio_to_avg DESC LIMIT 10;",
+  "sql": "WITH member_groups AS (SELECT link_to_major, COUNT(*) as member_count FROM member GROUP BY link_to_major), totals AS (SELECT SUM(member_count) as total_members, AVG(member_count) as avg_member_count FROM member_groups) SELECT mg.link_to_major, mg.member_count, CAST(mg.member_count AS REAL) / t.total_members as fraction_of_total, CAST(mg.member_count AS REAL) / t.avg_member_count as ratio_to_avg FROM member_groups mg CROSS JOIN totals t ORDER BY ratio_to_avg DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Members without a major are grouped together as their own group, and that group counts toward both the total member count and the average group size. For each group of members grouped by `link_to_major`, show the major id, the group's member count, that count's share of the total, and the count divided by the average group count, listing the top 10 by that last ratio, highest first, with no rounding.",
-  "sql": "WITH grp AS (\n  SELECT link_to_major AS major_id, COUNT(*) AS member_count\n  FROM member\n  GROUP BY link_to_major\n),\ntotals AS (\n  SELECT SUM(member_count) AS total_members,\n         CAST(SUM(member_count) AS REAL) / COUNT(*) AS avg_group_size\n  FROM grp\n)\nSELECT g.major_id,\n       g.member_count,\n       CAST(g.member_count AS REAL) / t.total_members AS share,\n       CAST(g.member_count AS REAL) / t.avg_group_size AS ratio\nFROM grp g\nCROSS JOIN totals t\nORDER BY ratio DESC\nLIMIT 10;",
+ "b": {
+  "request": "Group all members by major_id, treating members with NULL major_id as a single group; for each group calculate the major_id, member count, that count's percentage of all members, and that count divided by the average members per group; rank by the last metric in descending order and return the top 10.",
+  "sql": "WITH member_groups AS (SELECT link_to_major as major_id, COUNT(*) as member_count FROM member GROUP BY link_to_major), total_members AS (SELECT COUNT(*) as total FROM member), group_stats AS (SELECT AVG(member_count) as avg_members_per_group FROM member_groups), with_calculations AS (SELECT mg.major_id, mg.member_count, (mg.member_count * 100.0 / tm.total) as percentage, mg.member_count / gs.avg_members_per_group as ratio FROM member_groups mg CROSS JOIN total_members tm CROSS JOIN group_stats gs) SELECT major_id, member_count, percentage, ratio FROM with_calculations ORDER BY ratio DESC LIMIT 10",
   "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+  "matches": [],
+  "raw": "Group all members by major_id, treating members with NULL major_id as a single group; for each group calculate the major_id, member count, that count's percentage of all members, and that count divided by the average members per group; rank by the last metric in descending order and return the top 10."
+ },
+ "calls": 6
 }

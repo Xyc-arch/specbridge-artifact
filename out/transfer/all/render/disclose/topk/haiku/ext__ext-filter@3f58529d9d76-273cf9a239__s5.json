@@ -3,9 +3,11 @@
  "sample": 5,
  "model": "haiku",
  "response": {
-  "sql": "WITH grp AS (SELECT sc.zoneref AS site_code, si.healtheval AS status, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avg_ratio, COUNT(*) AS scan_count FROM scans sc JOIN sites si ON si.zoneregistry = sc.zoneref WHERE sc.chronotag::text BETWEEN '2024-06-06 11:53:59.684274' AND '2024-11-03 19:51:13.516797' AND sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 GROUP BY sc.zoneref, si.healtheval), mean_avg AS (SELECT AVG(avg_ratio) AS m FROM grp) SELECT g.site_code, g.status, g.avg_ratio, g.scan_count, g.avg_ratio - m.m AS beat_by FROM grp g CROSS JOIN mean_avg m WHERE g.avg_ratio > m.m ORDER BY beat_by DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH group_stats AS (\n  SELECT \n    s.zoneref,\n    st.healtheval,\n    AVG(CASE WHEN s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin != 0 \n            THEN s.gbsize / s.spanmin \n            ELSE NULL END) AS avg_ratio,\n    COUNT(*) AS scan_count\n  FROM scans s\n  JOIN sites st ON s.zoneref = st.zoneregistry\n  WHERE s.chronotag >= '2024-06-06 11:53:59.684274' \n    AND s.chronotag <= '2024-11-03 19:51:13.516797'\n  GROUP BY s.zoneref, st.healtheval\n),\nmean_calc AS (\n  SELECT AVG(avg_ratio) AS overall_mean\n  FROM group_stats\n  WHERE avg_ratio IS NOT NULL\n),\nfiltered_groups AS (\n  SELECT \n    gs.zoneref,\n    gs.healtheval,\n    gs.avg_ratio,\n    gs.scan_count,\n    gs.avg_ratio - mc.overall_mean AS difference\n  FROM group_stats gs\n  CROSS JOIN mean_calc mc\n  WHERE mc.overall_mean IS NOT NULL\n    AND gs.avg_ratio IS NOT NULL\n    AND gs.avg_ratio > mc.overall_mean\n)\nSELECT \n  zoneref,\n  healtheval,\n  avg_ratio,\n  scan_count,\n  difference\nFROM filtered_groups\nORDER BY \n  CASE WHEN difference IS NULL THEN 1 ELSE 0 END,\n  difference DESC\nLIMIT 10;"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 8.9
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 36.7
 }

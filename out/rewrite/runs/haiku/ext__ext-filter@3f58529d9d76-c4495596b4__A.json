@@ -3,17 +3,17 @@
  "model": "haiku",
  "reading": "A",
  "description": "Standing orders with an amount of 2802 or more are used in the per-account averages and in the overall average.",
- "c": {
-  "request": "Treating an `amount` of 2802 as the cutoff for a large standing order (the `order` table), link each large order to its account and the account's district (dropping orders with no matching account or district), and compute the average order `amount` for each combination of account (`order.account_id`) and region (`district.A3`). Then take the simple average of all those group averages. Show the 10 groups whose average exceeds that overall figure by the most: give the account id, the region, the group's average amount, and the difference (group average minus overall figure), sorted by that difference from largest to smallest, without rounding. Standing orders with an amount of 2802 or more are used in the per-account averages and in the overall average.",
-  "sql": "WITH large_orders AS (\n  SELECT o.account_id, d.A3 AS region, o.amount\n  FROM `order` o\n  JOIN account a ON a.account_id = o.account_id\n  JOIN district d ON d.district_id = a.district_id\n  WHERE o.amount >= 2802\n),\ngroup_avgs AS (\n  SELECT account_id, region, AVG(amount) AS avg_amount\n  FROM large_orders\n  GROUP BY account_id, region\n),\noverall AS (\n  SELECT AVG(avg_amount) AS overall_avg FROM group_avgs\n)\nSELECT g.account_id, g.region, g.avg_amount, g.avg_amount - o.overall_avg AS difference\nFROM group_avgs g\nCROSS JOIN overall o\nORDER BY difference DESC\nLIMIT 10;",
+ "d": {
+  "request": "Filter orders where amount \u2265 2802, group by (account_id, district.A3), compute average amount per group, calculate the overall average of all group averages, identify the 10 groups with the largest positive difference from the overall average, and display account_id, region, group average amount, and difference sorted by difference in descending order.",
+  "sql": "WITH filtered_orders AS (SELECT o.account_id, d.A3 as region, AVG(o.amount) as group_avg FROM `order` o JOIN account a ON o.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE o.amount >= 2802 GROUP BY o.account_id, d.A3), overall_avg_cte AS (SELECT AVG(group_avg) as overall_avg FROM filtered_orders) SELECT fo.account_id, fo.region, fo.group_avg, (fo.group_avg - oa.overall_avg) as difference FROM filtered_orders fo CROSS JOIN overall_avg_cte oa WHERE (fo.group_avg - oa.overall_avg) > 0 ORDER BY difference DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "d": {
-  "request": "Compute the average `order.amount` per (`order.account_id`, `district.A3`) pair using only orders with `amount >= 2802` that join to an `account` and its `district` (inner joins, dropping unmatched rows); take the unweighted mean of those group averages as the overall figure; return the top 10 groups by (group average \u2212 overall figure), sorted descending, with account id, region, group average, and difference, unrounded.",
-  "sql": "WITH g AS (\n  SELECT o.account_id AS account_id, d.A3 AS region, AVG(o.amount) AS group_avg\n  FROM `order` o\n  JOIN account a ON a.account_id = o.account_id\n  JOIN district d ON d.district_id = a.district_id\n  WHERE o.amount >= 2802\n  GROUP BY o.account_id, d.A3\n),\noverall AS (\n  SELECT AVG(group_avg) AS overall_avg FROM g\n)\nSELECT g.account_id, g.region, g.group_avg, g.group_avg - overall.overall_avg AS diff\nFROM g\nCROSS JOIN overall\nORDER BY diff DESC\nLIMIT 10;",
+ "c": {
+  "request": "Treating an `amount` of 2802 as the cutoff for a large standing order (the `order` table), link each large order to its account and the account's district (dropping orders with no matching account or district), and compute the average order `amount` for each combination of account (`order.account_id`) and region (`district.A3`). Then take the simple average of all those group averages. Show the 10 groups whose average exceeds that overall figure by the most: give the account id, the region, the group's average amount, and the difference (group average minus overall figure), sorted by that difference from largest to smallest, without rounding. Standing orders with an amount of 2802 or more are used in the per-account averages and in the overall average.",
+  "sql": "WITH group_avgs AS (SELECT o.account_id, d.A3 as region, AVG(o.amount) as group_avg FROM `order` o JOIN account a ON o.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE o.amount >= 2802 GROUP BY o.account_id, d.A3), overall_avg AS (SELECT AVG(group_avg) as overall_average FROM group_avgs) SELECT ga.account_id, ga.region, ga.group_avg, ga.group_avg - oa.overall_average as difference FROM group_avgs ga CROSS JOIN overall_avg oa ORDER BY difference DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
@@ -21,20 +21,20 @@
  },
  "a": {
   "request": "Looking only at standing orders (the `order` table) whose `amount` is at least 2802, and linking each order to its account and the account's district (dropping orders with no matching account or district), compute the average order `amount` for each combination of account (`order.account_id`) and region (`district.A3`). Then take the simple average of all those group averages. Show the 10 groups whose average exceeds that overall figure by the most: give the account id, the region, the group's average amount, and the difference (group average minus overall figure), sorted by that difference from largest to smallest, without rounding.",
-  "sql": "WITH grp AS (SELECT o.account_id, d.A3 AS region, AVG(o.amount) AS grp_avg FROM `order` o JOIN account a ON a.account_id = o.account_id JOIN district d ON d.district_id = a.district_id WHERE o.amount >= 2802 GROUP BY o.account_id, d.A3), overall AS (SELECT AVG(grp_avg) AS overall_avg FROM grp) SELECT g.account_id, g.region, g.grp_avg AS avg_amount, g.grp_avg - o.overall_avg AS difference FROM grp g CROSS JOIN overall o ORDER BY difference DESC LIMIT 10;",
+  "sql": "WITH filtered_orders AS (SELECT o.order_id, o.account_id, o.amount, d.A3 FROM `order` o INNER JOIN account a ON o.account_id = a.account_id INNER JOIN district d ON a.district_id = d.district_id WHERE o.amount >= 2802), group_averages AS (SELECT account_id, A3, AVG(amount) as group_avg FROM filtered_orders GROUP BY account_id, A3), overall_average AS (SELECT AVG(group_avg) as overall_avg FROM group_averages) SELECT ga.account_id, ga.A3, ga.group_avg, ga.group_avg - oa.overall_avg as difference FROM group_averages ga CROSS JOIN overall_average oa ORDER BY difference DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "Filter `order` to rows with `amount >= 2802`, join to `account` and `district` (dropping unmatched rows), average `amount` per (`account_id`, `A3`) group, take the simple mean of those group averages as the overall figure, then return the top 10 groups by (group average \u2212 overall figure), descending, unrounded, with account id, region, group average, and difference.",
-  "sql": "WITH filtered AS (\n  SELECT o.account_id, d.A3, o.amount\n  FROM `order` o\n  JOIN account a ON a.account_id = o.account_id\n  JOIN district d ON d.district_id = a.district_id\n  WHERE o.amount >= 2802\n),\ngrp AS (\n  SELECT account_id, A3 AS region, AVG(amount) AS group_avg\n  FROM filtered\n  GROUP BY account_id, A3\n),\noverall AS (\n  SELECT AVG(group_avg) AS overall_avg FROM grp\n)\nSELECT g.account_id, g.region, g.group_avg, g.group_avg - o.overall_avg AS difference\nFROM grp g\nCROSS JOIN overall o\nORDER BY difference DESC\nLIMIT 10;",
+  "request": "Include only orders with amount >= 2802, join to accounts and districts, group by account_id and district.A3, compute average order amount per group, calculate the simple average of all group averages as the overall figure, then display the top 10 groups by (group_average - overall_figure), showing account_id, region, group average, and difference, sorted by difference descending.",
+  "sql": "WITH filtered_orders AS (\n  SELECT o.account_id, o.amount\n  FROM \"order\" o\n  WHERE o.amount >= 2802\n),\ngroup_averages AS (\n  SELECT \n    fo.account_id,\n    d.A3 as region,\n    AVG(fo.amount) as group_average\n  FROM filtered_orders fo\n  JOIN account a ON fo.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n  GROUP BY fo.account_id, d.A3\n),\noverall_average AS (\n  SELECT AVG(group_average) as overall_figure\n  FROM group_averages\n)\nSELECT \n  ga.account_id,\n  ga.region,\n  ga.group_average,\n  ga.group_average - oa.overall_figure as difference\nFROM group_averages ga\nCROSS JOIN overall_average oa\nORDER BY difference DESC\nLIMIT 10;",
   "executes": true,
   "matches": [
    "A"
   ],
-  "raw": "Filter `order` to rows with `amount >= 2802`, join to `account` and `district` (dropping unmatched rows), average `amount` per (`account_id`, `A3`) group, take the simple mean of those group averages as the overall figure, then return the top 10 groups by (group average \u2212 overall figure), descending, unrounded, with account id, region, group average, and difference."
+  "raw": "Include only orders with amount >= 2802, join to accounts and districts, group by account_id and district.A3, compute average order amount per group, calculate the simple average of all group averages as the overall figure, then display the top 10 groups by (group_average - overall_figure), showing account_id, region, group average, and difference, sorted by difference descending."
  },
  "calls": 6
 }

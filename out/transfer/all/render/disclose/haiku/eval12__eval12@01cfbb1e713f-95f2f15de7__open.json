@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-95f2f15de7",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH status_stats AS (\n  SELECT \n    s.healtheval,\n    SUM(sc.scancount) as total_scans,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize ELSE 0 END) as total_gb,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.spanmin ELSE 0 END) as total_span_min\n  FROM scans sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\nwith_gpm AS (\n  SELECT \n    healtheval,\n    total_scans,\n    CASE WHEN total_span_min > 0 THEN total_gb / total_span_min ELSE NULL END as gb_per_minute\n  FROM status_stats\n),\naverage_calc AS (\n  SELECT AVG(gb_per_minute) as avg_value\n  FROM with_gpm\n  WHERE gb_per_minute IS NOT NULL\n)\nSELECT \n  with_gpm.healtheval,\n  with_gpm.total_scans,\n  with_gpm.gb_per_minute,\n  with_gpm.gb_per_minute - average_calc.avg_value as exceeds_average\nFROM with_gpm\nCROSS JOIN average_calc\nWHERE average_calc.avg_value IS NOT NULL\n  AND with_gpm.gb_per_minute IS NOT NULL\n  AND with_gpm.gb_per_minute > average_calc.avg_value\nORDER BY with_gpm.healtheval;",
+  "sql": "WITH scan_site_data AS (\n  SELECT \n    s.healtheval,\n    SUM(sc.scancount) as total_scans,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize END) as total_gb,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.spanmin END) as total_min\n  FROM scans sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\ngb_per_min_calc AS (\n  SELECT \n    healtheval,\n    total_scans,\n    CASE WHEN total_min IS NOT NULL AND total_min > 0 THEN CAST(total_gb AS REAL) / CAST(total_min AS REAL) ELSE NULL END as gb_per_min\n  FROM scan_site_data\n),\navg_calc AS (\n  SELECT AVG(gb_per_min) as avg_gb_per_min\n  FROM gb_per_min_calc\n)\nSELECT \n  g.healtheval,\n  g.total_scans,\n  g.gb_per_min,\n  g.gb_per_min - a.avg_gb_per_min as excess\nFROM gb_per_min_calc g\nCROSS JOIN avg_calc a\nWHERE a.avg_gb_per_min IS NOT NULL AND g.gb_per_min > a.avg_gb_per_min\nORDER BY g.healtheval;",
   "assumptions": [
    {
-    "assumption": "\"Ignoring missing values\" applies only to the GB-per-minute calculation: scans with NULL gbsize or spanmin are excluded from the GB/min denominator, but all scans are included in the total_scans count. Alternatively, incomplete records could be excluded from the entire analysis.",
+    "assumption": "\"Ignoring missing values\" applies only to the GB per minute calculation. Total number of scans (summing scancount) includes all scans in each status group, regardless of whether gbsize or spanmin are present; only scans with both gbsize and spanmin are used to compute GB per minute as sum(gbsize) / sum(spanmin).",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "\"Ignoring missing values\" means we exclude any scans lacking both gbsize and spanmin from the entire analysis (not just the GB/min calculation), so total_scans counts only complete records.",
-    "sql": "WITH status_stats AS (\n  SELECT \n    s.healtheval,\n    SUM(sc.scancount) as total_scans,\n    SUM(sc.gbsize) / SUM(sc.spanmin) as gb_per_minute\n  FROM scans sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n  WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL\n  GROUP BY s.healtheval\n),\naverage_calc AS (\n  SELECT AVG(gb_per_minute) as avg_value\n  FROM status_stats\n)\nSELECT \n  status_stats.healtheval,\n  status_stats.total_scans,\n  status_stats.gb_per_minute,\n  status_stats.gb_per_minute - average_calc.avg_value as exceeds_average\nFROM status_stats\nCROSS JOIN average_calc\nWHERE average_calc.avg_value IS NOT NULL\n  AND status_stats.gb_per_minute > average_calc.avg_value\nORDER BY status_stats.healtheval;"
+    "interpretation": "Both \"total scans\" and \"GB per minute\" should only consider scans with complete gbsize and spanmin data (i.e., \"ignoring missing values\" applies to both metrics). In that case, total_scans sums scancount only for rows with both gbsize and spanmin present.",
+    "sql": "WITH scan_site_data AS (\n  SELECT \n    s.healtheval,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.scancount END) as total_scans,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize END) as total_gb,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.spanmin END) as total_min\n  FROM scans sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\ngb_per_min_calc AS (\n  SELECT \n    healtheval,\n    total_scans,\n    CASE WHEN total_min IS NOT NULL AND total_min > 0 THEN CAST(total_gb AS REAL) / CAST(total_min AS REAL) ELSE NULL END as gb_per_min\n  FROM scan_site_data\n),\navg_calc AS (\n  SELECT AVG(gb_per_min) as avg_gb_per_min\n  FROM gb_per_min_calc\n)\nSELECT \n  g.healtheval,\n  g.total_scans,\n  g.gb_per_min,\n  g.gb_per_min - a.avg_gb_per_min as excess\nFROM gb_per_min_calc g\nCROSS JOIN avg_calc a\nWHERE a.avg_gb_per_min IS NOT NULL AND g.gb_per_min > a.avg_gb_per_min\nORDER BY g.healtheval;"
    }
   ]
  },
@@ -25,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "\"Ignoring missing values\" means we exclude any scans lacking both gbsize and spanmin from the entire analysis (not just the GB/min calculation), so total_scans counts only complete records.",
-   "sql": "WITH status_stats AS (\n  SELECT \n    s.healtheval,\n    SUM(sc.scancount) as total_scans,\n    SUM(sc.gbsize) / SUM(sc.spanmin) as gb_per_minute\n  FROM scans sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n  WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL\n  GROUP BY s.healtheval\n),\naverage_calc AS (\n  SELECT AVG(gb_per_minute) as avg_value\n  FROM status_stats\n)\nSELECT \n  status_stats.healtheval,\n  status_stats.total_scans,\n  status_stats.gb_per_minute,\n  status_stats.gb_per_minute - average_calc.avg_value as exceeds_average\nFROM status_stats\nCROSS JOIN average_calc\nWHERE average_calc.avg_value IS NOT NULL\n  AND status_stats.gb_per_minute > average_calc.avg_value\nORDER BY status_stats.healtheval;",
+   "interpretation": "Both \"total scans\" and \"GB per minute\" should only consider scans with complete gbsize and spanmin data (i.e., \"ignoring missing values\" applies to both metrics). In that case, total_scans sums scancount only for rows with both gbsize and spanmin present.",
+   "sql": "WITH scan_site_data AS (\n  SELECT \n    s.healtheval,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.scancount END) as total_scans,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.gbsize END) as total_gb,\n    SUM(CASE WHEN sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL THEN sc.spanmin END) as total_min\n  FROM scans sc\n  INNER JOIN sites s ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\ngb_per_min_calc AS (\n  SELECT \n    healtheval,\n    total_scans,\n    CASE WHEN total_min IS NOT NULL AND total_min > 0 THEN CAST(total_gb AS REAL) / CAST(total_min AS REAL) ELSE NULL END as gb_per_min\n  FROM scan_site_data\n),\navg_calc AS (\n  SELECT AVG(gb_per_min) as avg_gb_per_min\n  FROM gb_per_min_calc\n)\nSELECT \n  g.healtheval,\n  g.total_scans,\n  g.gb_per_min,\n  g.gb_per_min - a.avg_gb_per_min as excess\nFROM gb_per_min_calc g\nCROSS JOIN avg_calc a\nWHERE a.avg_gb_per_min IS NOT NULL AND g.gb_per_min > a.avg_gb_per_min\nORDER BY g.healtheval;",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 81.9,
- "chars_out": 2479
+ "seconds": 71.7,
+ "chars_out": 2761
 }

@@ -59,7 +59,7 @@ def values():
              conv=V("In # tie and counting sets"), samp=V("in a random draw of #, five SQL-only", 0), samp_draw=V("in a random draw of #, five SQL-only", 2),
              impact=V("Of # such questions", 0), changed=V("Of # such questions", 1), rescore=V("We ask the four models # BIRD"),
              meth=V("sets that lie in a random draw of #", 0), meth_draw=V("sets that lie in a random draw of #", 2),
-             rw=V("The run covers # readings per model", 1), bird_rw=V("comparison on # BIRD development questions"))
+             rw=V("The run covers # interpretations per model", 1), bird_rw=V("comparison on # BIRD development questions"))
     S["main_acc"] = S["final"] - S["filt_acc"]; S["lib_settled"] = S["lib"] - S["lib_open"]
     assert S["main"] + S["filt"] == S["checked"], S
     return S
@@ -114,7 +114,7 @@ def tex(S):
               line(R("sec:specresults"), "plan vs.\\ direct writing, %(plan)s tasks" % s)])),
           box("e2", X[1], y3, W, "Do models report the choice? (%s)" % R("sec:disclosure"), "".join([
               line(F("fig:disclosure", "fig:outcomes", "fig:bytype"), "%(final)s sets $\\times$ 4 models" % s),
-              line(F("fig:decomposition"), "missed readings; also AMBROSIA"),
+              line(F("fig:decomposition"), "missed interpretations; also AMBROSIA"),
               line(F("fig:conventions"), "%(conv)s tie and counting sets" % s),
               line(R("sec:disclosure"), "five samples, %(samp)s sets (draw of %(samp_draw)s)" % s),
               line(R("sec:setup"), "exploration, %(bird_held)s held-out BIRD questions" % s),
@@ -129,7 +129,7 @@ def tex(S):
               line(F("fig:method", "tab:methods"), "AMBROSIA, %(amb_test)s per model, Sonnet and GPT-Sol" % s),
               line(F("tab:methods"), "%(meth)s request sets (draw of %(meth_draw)s)" % s),
               line(F("fig:breakeven"), "AMBROSIA, both models pooled"),
-              line(F("fig:rewrite"), "%(rw)s readings (draw of %(rwpm)s per model) $\\times$ 4 models" % dict(s, rwpm=n(REWRITE_PER_MODEL))),
+              line(F("fig:rewrite"), "%(rw)s interpretations (draw of %(rwpm)s per model) $\\times$ 4 models" % dict(s, rwpm=n(REWRITE_PER_MODEL))),
               line(R("sec:rewrite"), "%(bird_rw)s BIRD questions, Sonnet and GPT-Sol" % s)]))]
     T = [t.replace("\\node[bx] (e", "\\node[ex] (e") for t in T]
     T += [r"% ---- arrows: what is built from what, and what each experiment uses",

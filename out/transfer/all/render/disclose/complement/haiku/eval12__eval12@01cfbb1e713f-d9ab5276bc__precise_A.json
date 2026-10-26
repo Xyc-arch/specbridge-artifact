@@ -2,28 +2,30 @@
  "case": "eval12:eval12@01cfbb1e713f-d9ab5276bc",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_totals AS (\n  SELECT zoneref, SUM(traitcount) AS feature_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n),\nshares AS (\n  SELECT zoneref, feature_count,\n         feature_count::numeric / SUM(feature_count) OVER () AS share\n  FROM site_totals\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.zoneref AS site_code,\n       s.feature_count,\n       s.share,\n       s.share - a.avg_share AS margin_above_avg\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share\nORDER BY margin_above_avg DESC\nLIMIT 10;",
+  "sql": "WITH feature_sums AS (\n  SELECT \n    zoneref,\n    SUM(traitcount) as feature_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n),\ntotal AS (\n  SELECT SUM(feature_count) as grand_total FROM feature_sums\n),\nwith_share AS (\n  SELECT \n    fs.zoneref,\n    fs.feature_count,\n    fs.feature_count * 1.0 / t.grand_total as share\n  FROM feature_sums fs, total t\n),\navg_computed AS (\n  SELECT AVG(share) as avg_share FROM with_share\n)\nSELECT \n  ws.zoneref,\n  ws.feature_count,\n  ws.share,\n  ws.share - a.avg_share as margin_above_average\nFROM with_share ws, avg_computed a\nWHERE ws.share > a.avg_share\nORDER BY margin_above_average DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The site code is scanfeatures.zoneref, and the \"average share across sites\" is the mean of the shares of only the sites that have at least one non-NULL traitcount row. Sites with no feature records are left out of both the totals and the average.",
-    "unresolved": true
+    "assumption": "Share is expressed as a decimal proportion (0 to 1), not as a percentage (0 to 100).",
+    "unresolved": false
    },
    {
-    "assumption": "Rows with a NULL traitcount are excluded before summing, so a site whose rows are all NULL does not appear. The overall feature total is the sum of the per-site totals.",
+    "assumption": "Rows where traitcount is NULL are excluded entirely from analysis rather than treated as zero.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The average is taken across every site in the sites table, so sites with no feature records count as zero. This lowers the average to 1 divided by the number of sites.",
-    "sql": "WITH site_totals AS (\n  SELECT st.zoneregistry AS zoneref,\n         COALESCE(SUM(f.traitcount), 0) AS feature_count\n  FROM sites st\n  LEFT JOIN scanfeatures f\n    ON f.zoneref = st.zoneregistry AND f.traitcount IS NOT NULL\n  GROUP BY st.zoneregistry\n),\nshares AS (\n  SELECT zoneref, feature_count,\n         feature_count::numeric / SUM(feature_count) OVER () AS share\n  FROM site_totals\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.zoneref AS site_code,\n       s.feature_count,\n       s.share,\n       s.share - a.avg_share AS margin_above_avg\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share\nORDER BY margin_above_avg DESC\nLIMIT 10;"
+    "interpretation": "Share is a percentage (0\u2013100) rather than a decimal proportion. The result would scale all share and margin values by 100.",
+    "sql": "WITH feature_sums AS (\n  SELECT \n    zoneref,\n    SUM(traitcount) as feature_count\n  FROM scanfeatures\n  WHERE traitcount IS NOT NULL\n  GROUP BY zoneref\n),\ntotal AS (\n  SELECT SUM(feature_count) as grand_total FROM feature_sums\n),\nwith_share AS (\n  SELECT \n    fs.zoneref,\n    fs.feature_count,\n    fs.feature_count * 100.0 / t.grand_total as share\n  FROM feature_sums fs, total t\n),\navg_computed AS (\n  SELECT AVG(share) as avg_share FROM with_share\n)\nSELECT \n  ws.zoneref,\n  ws.feature_count,\n  ws.share,\n  ws.share - a.avg_share as margin_above_average\nFROM with_share ws, avg_computed a\nWHERE ws.share > a.avg_share\nORDER BY margin_above_average DESC\nLIMIT 10;"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 11.7
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 60.2
 }

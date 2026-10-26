@@ -2,29 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH joined AS (\n  SELECT e.ordersmark, o.timespan, e.fillcount,\n    AVG(e.fillcount) OVER (PARTITION BY o.timespan) AS tif_fill\n  FROM orderexecutions e\n  JOIN orders o ON e.ordersmark = o.recordvault\n),\norder_avg AS (\n  SELECT ordersmark, timespan, MAX(tif_fill) AS tif_fill, AVG(fillcount) AS avg_fill\n  FROM joined\n  GROUP BY ordersmark, timespan\n),\nranked AS (\n  SELECT ordersmark, timespan, avg_fill, tif_fill,\n    avg_fill - tif_fill AS excess,\n    RANK() OVER (PARTITION BY timespan ORDER BY avg_fill DESC NULLS LAST) AS fill_rank\n  FROM order_avg\n)\nSELECT ordersmark, timespan, avg_fill, excess, fill_rank\nFROM ranked\nWHERE avg_fill > tif_fill AND fill_rank <= 3\nORDER BY timespan, fill_rank, ordersmark;",
+  "sql": "WITH order_averages AS (\n  SELECT \n    oe.ordersmark,\n    o.timespan,\n    AVG(oe.fillcount) as average_fill\n  FROM orderexecutions oe\n  INNER JOIN orders o ON oe.ordersmark = o.recordvault\n  WHERE oe.fillcount IS NOT NULL\n  GROUP BY oe.ordersmark, o.timespan\n),\ntimespan_averages AS (\n  SELECT \n    o.timespan,\n    AVG(oe.fillcount) as timespan_avg_fill\n  FROM orderexecutions oe\n  INNER JOIN orders o ON oe.ordersmark = o.recordvault\n  WHERE oe.fillcount IS NOT NULL\n  GROUP BY o.timespan\n),\nfiltered_orders AS (\n  SELECT \n    oa.ordersmark,\n    oa.timespan,\n    oa.average_fill,\n    ta.timespan_avg_fill,\n    oa.average_fill - ta.timespan_avg_fill as exceeds\n  FROM order_averages oa\n  JOIN timespan_averages ta ON oa.timespan = ta.timespan\n  WHERE oa.average_fill > ta.timespan_avg_fill\n),\nranked_orders AS (\n  SELECT \n    fo.ordersmark,\n    fo.timespan,\n    fo.average_fill,\n    fo.exceeds,\n    RANK() OVER (PARTITION BY fo.timespan ORDER BY fo.average_fill DESC) as rank\n  FROM filtered_orders fo\n)\nSELECT \n  ordersmark,\n  timespan,\n  average_fill,\n  exceeds,\n  rank\nFROM ranked_orders\nWHERE rank <= 3\nORDER BY timespan, rank",
   "assumptions": [
    {
-    "assumption": "Each orders.recordvault value identifies exactly one order row, so the join adds no duplicate execution rows.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Time-in-force figure is the plain average of fillcount over all matched execution rows for that timespan, with NULL fillcount values ignored; it is not an average of per-order averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Each order's average fill ignores NULL fillcount values; an order whose executions all have NULL fillcount has no average and is excluded by the strict comparison.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Orders with a NULL timespan form one group together, and their ranks and time-in-force figure are computed within that group.",
+    "assumption": "Orders with NULL timespan values are excluded from results, since they cannot be joined with a timespan-level average in the comparison",
     "unresolved": true
-   },
-   {
-    "assumption": "Ranks are computed over all orders in each time in force, not only those above the average. This does not change the result, because orders at or below the average always rank below those above it, and NULL averages sort last via NULLS LAST.",
-    "unresolved": false
    }
   ],
   "alternatives": []
@@ -34,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 18.3
+ "seconds": 73.1
 }

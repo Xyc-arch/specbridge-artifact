@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-65eee834c9",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT o.dealedge, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.dealedge), a AS (SELECT AVG(n) AS av FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.av) AS avg_excess FROM c CROSS JOIN a WHERE c.n > a.av",
+  "sql": "WITH c AS (SELECT o.dealedge, COUNT(DISTINCT o.recordvault) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), a AS (SELECT AVG(n * 1.0) AS av FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.av) AS avg_excess FROM c, a WHERE c.n > a.av",
   "assumptions": [
    {
-    "assumption": "An order is counted once per side even if several risk/margin records match it (COUNT DISTINCT recordvault).",
+    "assumption": "Each order is counted once per side, even if several risk/margin records match it (COUNT DISTINCT recordvault).",
     "unresolved": true
    },
    {
-    "assumption": "The average is taken across the sides that have at least one matched order, since sides with no matches don't appear. Any NULL dealedge value would count as its own group.",
+    "assumption": "Orders with a NULL dealedge are not a side and are excluded from the average across sides.",
     "unresolved": false
    },
    {
-    "assumption": "avg_excess is the mean of (side count - average count) over the sides above the average, with no rounding.",
+    "assumption": "The average across sides is a simple average of the per-side counts, over sides that have at least one matched order.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count matched risk/margin records (joined rows) per side rather than distinct orders.",
-    "sql": "WITH c AS (SELECT o.dealedge, COUNT(*) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.dealedge), a AS (SELECT AVG(n) AS av FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.av) AS avg_excess FROM c CROSS JOIN a WHERE c.n > a.av"
+    "interpretation": "Count matched risk/margin records (join rows) per side, so an order with several risk/margin records is counted several times.",
+    "sql": "WITH c AS (SELECT o.dealedge, COUNT(*) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), a AS (SELECT AVG(n * 1.0) AS av FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.av) AS avg_excess FROM c, a WHERE c.n > a.av"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count matched risk/margin records (joined rows) per side rather than distinct orders.",
-   "sql": "WITH c AS (SELECT o.dealedge, COUNT(*) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault GROUP BY o.dealedge), a AS (SELECT AVG(n) AS av FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.av) AS avg_excess FROM c CROSS JOIN a WHERE c.n > a.av",
+   "interpretation": "Count matched risk/margin records (join rows) per side, so an order with several risk/margin records is counted several times.",
+   "sql": "WITH c AS (SELECT o.dealedge, COUNT(*) AS n FROM orders o JOIN riskandmargin r ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), a AS (SELECT AVG(n * 1.0) AS av FROM c) SELECT SUM(c.n) AS total_count, AVG(c.n - a.av) AS avg_excess FROM c, a WHERE c.n > a.av",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 7.7,
- "chars_out": 1286
+ "seconds": 9.3,
+ "chars_out": 1229
 }

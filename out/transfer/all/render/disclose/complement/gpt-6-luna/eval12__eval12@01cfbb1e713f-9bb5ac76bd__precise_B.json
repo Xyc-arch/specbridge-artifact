@@ -2,19 +2,21 @@
  "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH linked_signals AS (\n  SELECT s.signalregistry, s.modindex, s.phaseshiftdeg, o.weathprofile\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n), baseline AS (\n  SELECT AVG(modindex) AS avg_modindex\n  FROM linked_signals\n), telescope_weather AS (\n  SELECT telescref, weathprofile,\n         AVG(modindex) AS avg_modindex,\n         AVG(phaseshiftdeg) AS avg_phaseshiftdeg\n  FROM linked_signals AS l\n  JOIN signals AS s ON s.signalregistry = l.signalregistry\n  GROUP BY telescref, weathprofile\n), kept_groups AS (\n  SELECT tw.*\n  FROM telescope_weather AS tw\n  CROSS JOIN baseline AS b\n  WHERE tw.avg_modindex > b.avg_modindex\n)\nSELECT weathprofile,\n       AVG(avg_modindex) AS avg_modindex,\n       AVG(avg_phaseshiftdeg) AS avg_phaseshiftdeg,\n       AVG(avg_modindex - b.avg_modindex) AS avg_modindex_above_baseline\nFROM kept_groups\nCROSS JOIN baseline AS b\nGROUP BY weathprofile;",
+  "sql": "WITH linked AS (\n    SELECT s.signalregistry,\n           s.modindex,\n           s.phaseshiftdeg,\n           t.telescregistry,\n           o.weathprofile\n    FROM signals AS s\n    JOIN telescopes AS t\n      ON t.telescregistry = s.telescref\n    JOIN observatories AS o\n      ON o.observstation = t.observstation\n),\ngroups AS (\n    SELECT telescregistry,\n           weathprofile,\n           AVG(modindex) AS avg_modindex,\n           AVG(phaseshiftdeg) AS avg_phaseshift\n    FROM linked\n    GROUP BY telescregistry, weathprofile\n),\nbaseline AS (\n    SELECT AVG(modindex) AS avg_modindex\n    FROM linked\n),\nkept AS (\n    SELECT g.telescregistry,\n           g.weathprofile,\n           g.avg_modindex,\n           g.avg_phaseshift,\n           g.avg_modindex - b.avg_modindex AS excess_modindex\n    FROM groups AS g\n    CROSS JOIN baseline AS b\n    WHERE g.avg_modindex > b.avg_modindex\n)\nSELECT weathprofile,\n       AVG(avg_modindex) AS avg_kept_group_modindex,\n       AVG(avg_phaseshift) AS avg_kept_group_phaseshift,\n       AVG(excess_modindex) AS avg_modindex_above_baseline\nFROM kept\nGROUP BY weathprofile;",
   "assumptions": [
    {
-    "assumption": "The baseline averages non-NULL modulation_index values across all linked signals; SQL AVG excludes NULL values, and signals with NULL modulation_index do not contribute to the baseline or group modulation averages.",
+    "assumption": "SQLite AVG ignores NULL modulation-index values, so the baseline is averaged over linked signals with a non-NULL modulation index; each such signal contributes equally.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 6.3
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 47.5
 }

@@ -1,0 +1,35 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH equip_avgs AS (SELECT equipref, AVG(humepct) as avg_humidity FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), overall_avg_cte AS (SELECT AVG(avg_humidity) as overall_avg FROM equip_avgs), kept_equip AS (SELECT equipref, avg_humidity FROM equip_avgs WHERE avg_humidity > (SELECT overall_avg FROM overall_avg_cte)), kept_avg_cte AS (SELECT AVG(avg_humidity) as kept_avg FROM kept_equip), results AS (SELECT ke.equipref, ke.avg_humidity, ke.avg_humidity - oa.overall_avg as exceeds_overall, ke.avg_humidity - ka.kept_avg as differs_from_kept, ROW_NUMBER() OVER (ORDER BY ke.avg_humidity - ka.kept_avg DESC NULLS LAST) as rn FROM kept_equip ke CROSS JOIN overall_avg_cte oa CROSS JOIN kept_avg_cte ka WHERE oa.overall_avg IS NOT NULL AND ka.kept_avg IS NOT NULL) SELECT equipref, avg_humidity, exceeds_overall, differs_from_kept FROM results WHERE rn <= 10 OR (rn > 10 AND differs_from_kept = (SELECT differs_from_kept FROM results WHERE rn = 10)) ORDER BY differs_from_kept DESC NULLS LAST",
+  "assumptions": [
+   {
+    "assumption": "NULLS LAST syntax is supported (PostgreSQL, SQLite, etc.; for MySQL/MariaDB, omit 'NULLS LAST' or use conditional logic since the filtering ensures non-NULL differs_from_kept values anyway)",
+    "unresolved": false
+   },
+   {
+    "assumption": "Rows with NULL humepct in scanenvironment are excluded from the average calculations per the phrase 'ignoring missing readings'",
+    "unresolved": false
+   },
+   {
+    "assumption": "If kept_equip contains fewer than 10 rows, all rows are returned (the tie-handling logic returns rn <= 10, which covers all available rows)",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If ties at the 10th position are not desired and only exactly 10 rows should be returned, use LIMIT 10 without the tie-inclusion logic.",
+    "sql": "WITH equip_avgs AS (SELECT equipref, AVG(humepct) as avg_humidity FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), overall_avg_cte AS (SELECT AVG(avg_humidity) as overall_avg FROM equip_avgs), kept_equip AS (SELECT equipref, avg_humidity FROM equip_avgs WHERE avg_humidity > (SELECT overall_avg FROM overall_avg_cte)), kept_avg_cte AS (SELECT AVG(avg_humidity) as kept_avg FROM kept_equip) SELECT ke.equipref, ke.avg_humidity, ke.avg_humidity - oa.overall_avg as exceeds_overall, ke.avg_humidity - ka.kept_avg as differs_from_kept FROM kept_equip ke CROSS JOIN overall_avg_cte oa CROSS JOIN kept_avg_cte ka WHERE oa.overall_avg IS NOT NULL AND ka.kept_avg IS NOT NULL ORDER BY differs_from_kept DESC NULLS LAST LIMIT 10"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 92.4
+}

@@ -4,15 +4,15 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH station_counts AS (SELECT o.observstation, AVG(t.bandusagepct) AS avg_bandusagepct, COUNT(t.telescregistry) AS telescope_count FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation) SELECT observstation, avg_bandusagepct, telescope_count, telescope_count * 1.0 / AVG(telescope_count) OVER () AS telescope_ratio FROM station_counts ORDER BY telescope_ratio DESC LIMIT 10;",
+  "sql": "WITH telescope_stats AS (\n  SELECT \n    observstation,\n    COUNT(*) AS num_telescopes,\n    AVG(bandusagepct) AS avg_bandwidth\n  FROM telescopes\n  GROUP BY observstation\n),\nall_observatories AS (\n  SELECT \n    o.observstation,\n    COALESCE(ts.num_telescopes, 0) AS num_telescopes,\n    ts.avg_bandwidth\n  FROM observatories o\n  LEFT JOIN telescope_stats ts ON o.observstation = ts.observstation\n),\navg_telescope_count AS (\n  SELECT AVG(num_telescopes) AS avg_count\n  FROM all_observatories\n)\nSELECT \n  ao.observstation,\n  ao.avg_bandwidth,\n  ao.num_telescopes,\n  ao.num_telescopes / atc.avg_count AS ratio\nFROM all_observatories ao\nCROSS JOIN avg_telescope_count atc\nORDER BY ratio DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "Telescopes with a NULL bandusagepct are still counted in telescope_count but are excluded from the average bandwidth, because AVG ignores NULLs and the request says to ignore missing values only for the average.",
+    "assumption": "The denominator ('average telescope count across all those stations') includes observatories with zero telescopes, not just those with at least one telescope. This follows directly from the request: 'For every observatory station in observatories, including stations with no telescopes... that number divided by the average telescope count across all those stations.' The phrase 'all those stations' refers back to 'every observatory station... including stations with no telescopes.'",
     "unresolved": false
    },
    {
-    "assumption": "The average telescope count is taken across all observatories, including those with zero telescopes, and the ratio divides by that average. If no station has any telescope, the average is 0 and the division will fail in most databases.",
-    "unresolved": true
+    "assumption": "Observatories with zero telescopes show NULL for average bandwidth (not 0), since there is no data to average. The request specifies 'have no average bandwidth' for such stations.",
+    "unresolved": false
    }
   ],
   "alternatives": []
@@ -22,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 9.5
+ "seconds": 43.6
 }

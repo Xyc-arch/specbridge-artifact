@@ -3,37 +3,34 @@
  "model": "haiku",
  "reading": "B",
  "description": "Each media type's rate is its total Bytes divided by its total Milliseconds; list the media types whose rate is above the unweighted mean of all media types' rates, with the rate and how far above it is.",
- "b": {
-  "request": "Among media types with at least one track, compute each type's rate as SUM(Track.Bytes) / SUM(Track.Milliseconds) over its tracks, and return the name, unrounded rate, and unrounded excess over the unweighted average of all per-type rates, for types whose rate is strictly greater than that average",
-  "sql": "WITH rates AS (SELECT mt.MediaTypeId, mt.Name, CAST(SUM(t.Bytes) AS REAL) / NULLIF(SUM(t.Milliseconds), 0) AS rate FROM MediaType mt JOIN Track t ON t.MediaTypeId = mt.MediaTypeId GROUP BY mt.MediaTypeId, mt.Name), avg_rate AS (SELECT AVG(rate) AS avg_rate FROM rates) SELECT r.Name, r.rate, r.rate - a.avg_rate AS excess FROM rates r CROSS JOIN avg_rate a WHERE r.rate > a.avg_rate;",
+ "c": {
+  "request": "Which media types (by name, counting only tracks that have a media type) have a bytes-per-millisecond rate higher than the simple average of that rate across all media types? For each, show the media type name, its rate, and how much it exceeds that average, unrounded. Each media type's rate is its total Bytes divided by its total Milliseconds; list the media types whose rate is above the unweighted mean of all media types' rates, with the rate and how far above it is.",
+  "sql": "WITH media_type_rates AS (SELECT mt.Name, 1.0 * SUM(t.Bytes) / SUM(t.Milliseconds) as rate FROM MediaType mt INNER JOIN Track t ON mt.MediaTypeId = t.MediaTypeId WHERE t.Bytes IS NOT NULL GROUP BY mt.MediaTypeId, mt.Name), average_rate AS (SELECT AVG(rate) as avg_rate FROM media_type_rates) SELECT mtr.Name, mtr.rate, mtr.rate - ar.avg_rate as exceeds_average FROM media_type_rates mtr, average_rate ar WHERE mtr.rate > ar.avg_rate ORDER BY mtr.Name",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "c": {
-  "request": "Which media types (by name, counting only tracks that have a media type) have a bytes-per-millisecond rate higher than the simple average of that rate across all media types? For each, show the media type name, its rate, and how much it exceeds that average, unrounded. Each media type's rate is its total Bytes divided by its total Milliseconds; list the media types whose rate is above the unweighted mean of all media types' rates, with the rate and how far above it is.",
-  "sql": "WITH rates AS (SELECT mt.MediaTypeId, mt.Name AS MediaTypeName, SUM(t.Bytes) * 1.0 / SUM(t.Milliseconds) AS Rate FROM Track t JOIN MediaType mt ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.MediaTypeId, mt.Name), avg_rate AS (SELECT AVG(Rate) AS AvgRate FROM rates) SELECT r.MediaTypeName, r.Rate, r.Rate - a.AvgRate AS ExceedsBy FROM rates r CROSS JOIN avg_rate a WHERE r.Rate > a.AvgRate ORDER BY ExceedsBy DESC;",
+ "b": {
+  "request": "For each media type, calculate its rate as the sum of all track bytes divided by the sum of all track milliseconds; identify those media types whose rate exceeds the arithmetic mean of all media types' rates, and display the media type name, its rate, and the unrounded difference from the mean.",
+  "sql": "WITH media_type_rates AS (\n  SELECT \n    mt.Name,\n    SUM(CAST(t.Bytes AS DECIMAL(18,2))) / SUM(CAST(t.Milliseconds AS DECIMAL(18,2))) as rate\n  FROM MediaType mt\n  INNER JOIN Track t ON mt.MediaTypeId = t.MediaTypeId\n  GROUP BY mt.MediaTypeId, mt.Name\n),\nmean_rate AS (\n  SELECT AVG(rate) as mean_value FROM media_type_rates\n)\nSELECT \n  mtr.Name,\n  mtr.rate,\n  mtr.rate - mr.mean_value as difference\nFROM media_type_rates mtr\nCROSS JOIN mean_rate mr\nWHERE mtr.rate > mr.mean_value\nORDER BY mtr.Name",
   "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": [],
+  "raw": "For each media type, calculate its rate as the sum of all track bytes divided by the sum of all track milliseconds; identify those media types whose rate exceeds the arithmetic mean of all media types' rates, and display the media type name, its rate, and the unrounded difference from the mean."
  },
  "a": {
   "request": "For each media type (grouped by name, using only tracks that are linked to a media type), compute its byte rate as the media type's total `Bytes` divided by its total `Milliseconds`. Then take the simple average of these rates across all media types. Which media types have a rate above that overall average? For each, give the media type name, its rate, and how far it is above the overall average (rate minus average), without rounding.",
-  "sql": "WITH rates AS (SELECT m.Name AS MediaTypeName, CAST(SUM(t.Bytes) AS REAL) / SUM(t.Milliseconds) AS ByteRate FROM Track t JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId GROUP BY m.Name), avg_rate AS (SELECT AVG(ByteRate) AS AvgRate FROM rates) SELECT r.MediaTypeName, r.ByteRate, r.ByteRate - a.AvgRate AS AboveAverageBy FROM rates r CROSS JOIN avg_rate a WHERE r.ByteRate > a.AvgRate;",
+  "sql": "WITH media_type_rates AS (SELECT m.Name, CAST(SUM(t.Bytes) AS DECIMAL(20,10)) / CAST(SUM(t.Milliseconds) AS DECIMAL(20,10)) as byte_rate FROM MediaType m INNER JOIN Track t ON m.MediaTypeId = t.MediaTypeId GROUP BY m.MediaTypeId, m.Name), average_rate AS (SELECT AVG(byte_rate) as avg_rate FROM media_type_rates) SELECT mtr.Name, mtr.byte_rate, mtr.byte_rate - ar.avg_rate as above_average FROM media_type_rates mtr CROSS JOIN average_rate ar WHERE mtr.byte_rate > ar.avg_rate",
+  "executes": true,
+  "matches": []
+ },
+ "d": {
+  "request": "Media types whose total-bytes-divided-by-total-milliseconds rate exceeds the unweighted arithmetic mean of all such media type rates, with their media type name, rate, and the unrounded excess amount above that average.",
+  "sql": "WITH MediaTypeRates AS (SELECT mt.MediaTypeId, mt.Name, CAST(SUM(t.Bytes) AS FLOAT) / CAST(SUM(t.Milliseconds) AS FLOAT) as Rate FROM MediaType mt JOIN Track t ON mt.MediaTypeId = t.MediaTypeId GROUP BY mt.MediaTypeId, mt.Name) SELECT Name, Rate, Rate - (SELECT AVG(Rate) FROM MediaTypeRates) as Excess FROM MediaTypeRates WHERE Rate > (SELECT AVG(Rate) FROM MediaTypeRates) ORDER BY Name",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Among media types that have at least one track with a media type, which ones have a bytes-per-millisecond rate (total Bytes divided by total Milliseconds) above the unweighted mean of all media types' rates? For each, show the media type name, its rate, and how far it exceeds that mean, unrounded.",
-  "sql": "WITH media_rates AS (SELECT mt.MediaTypeId, mt.Name, CAST(SUM(t.Bytes) AS REAL) / NULLIF(SUM(t.Milliseconds), 0) AS rate FROM MediaType mt JOIN Track t ON t.MediaTypeId = mt.MediaTypeId GROUP BY mt.MediaTypeId, mt.Name), mean_rate AS (SELECT AVG(rate) AS avg_rate FROM media_rates) SELECT mr.Name AS MediaTypeName, mr.rate AS BytesPerMs, mr.rate - m.avg_rate AS ExceedsMeanBy FROM media_rates mr CROSS JOIN mean_rate m WHERE mr.rate > m.avg_rate;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

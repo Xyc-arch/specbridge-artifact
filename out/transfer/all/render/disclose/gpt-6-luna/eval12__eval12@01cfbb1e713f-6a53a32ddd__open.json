@@ -2,23 +2,41 @@
  "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_source AS (\n  SELECT p.fundflux,\n         AVG((s.boxy - s.boxx) / s.boxx) AS avg_y_vs_x_difference,\n         AVG(s.aream2 / s.volm3) AS area_to_volume_ratio\n  FROM projects AS p\n  JOIN scanspatial AS s ON s.arcref = p.arcregistry\n  GROUP BY p.fundflux\n), eligible AS (\n  SELECT fundflux, avg_y_vs_x_difference, area_to_volume_ratio\n  FROM per_source\n  WHERE area_to_volume_ratio IS NOT NULL\n), overall AS (\n  SELECT AVG(area_to_volume_ratio) AS simple_average_ratio\n  FROM eligible\n)\nSELECT e.fundflux,\n       e.avg_y_vs_x_difference,\n       e.area_to_volume_ratio,\n       e.area_to_volume_ratio - o.simple_average_ratio AS above_average_by\nFROM eligible AS e\nCROSS JOIN overall AS o\nWHERE e.area_to_volume_ratio > o.simple_average_ratio;",
+  "sql": "WITH per_funding AS (\n  SELECT\n    p.fundflux AS funding_source,\n    AVG((ss.boxy - ss.boxx) / ss.boxx) AS avg_y_vs_x_difference,\n    SUM(ss.aream2) / SUM(ss.volm3) AS area_to_volume_ratio\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  WHERE p.fundflux IS NOT NULL\n  GROUP BY p.fundflux\n),\nwith_overall AS (\n  SELECT *, AVG(area_to_volume_ratio) OVER () AS simple_average_ratio\n  FROM per_funding\n)\nSELECT\n  funding_source,\n  avg_y_vs_x_difference,\n  area_to_volume_ratio,\n  area_to_volume_ratio - simple_average_ratio AS amount_above_average\nFROM with_overall\nWHERE area_to_volume_ratio > simple_average_ratio;",
   "assumptions": [
    {
-    "assumption": "The area-to-volume ratio for each funding source is the average of each matching record's aream2 / volm3, and the comparison baseline is the unweighted average of those per-source ratios. NULL inputs are ignored by AVG; division by zero yields NULL in PostgreSQL and is ignored.",
+    "assumption": "The area-to-volume ratio for each funding source is the ratio of the sum of non-NULL areas to the sum of non-NULL volumes; SQLite's SUM ignores missing values. The simple average then gives each funding source with a defined ratio equal weight.",
+    "unresolved": true
+   },
+   {
+    "assumption": "The relative difference is averaged only over records where both boxy and boxx are present and boxx is nonzero; funding sources with NULL fundflux are excluded because they are not a named funding source.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "If area-to-volume ratio means the average of each record's aream2 / volm3 ratio, rather than the ratio of summed area to summed volume, use this query.",
+    "sql": "WITH per_funding AS (\n  SELECT\n    p.fundflux AS funding_source,\n    AVG((ss.boxy - ss.boxx) / ss.boxx) AS avg_y_vs_x_difference,\n    AVG(ss.aream2 / ss.volm3) AS area_to_volume_ratio\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  WHERE p.fundflux IS NOT NULL\n  GROUP BY p.fundflux\n),\nwith_overall AS (\n  SELECT *, AVG(area_to_volume_ratio) OVER () AS simple_average_ratio\n  FROM per_funding\n)\nSELECT\n  funding_source,\n  avg_y_vs_x_difference,\n  area_to_volume_ratio,\n  area_to_volume_ratio - simple_average_ratio AS amount_above_average\nFROM with_overall\nWHERE area_to_volume_ratio > simple_average_ratio;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "A"
+  "B"
  ],
- "alternatives": [],
- "seconds": 10.6,
- "chars_out": 1127
+ "alternatives": [
+  {
+   "interpretation": "If area-to-volume ratio means the average of each record's aream2 / volm3 ratio, rather than the ratio of summed area to summed volume, use this query.",
+   "sql": "WITH per_funding AS (\n  SELECT\n    p.fundflux AS funding_source,\n    AVG((ss.boxy - ss.boxx) / ss.boxx) AS avg_y_vs_x_difference,\n    AVG(ss.aream2 / ss.volm3) AS area_to_volume_ratio\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  WHERE p.fundflux IS NOT NULL\n  GROUP BY p.fundflux\n),\nwith_overall AS (\n  SELECT *, AVG(area_to_volume_ratio) OVER () AS simple_average_ratio\n  FROM per_funding\n)\nSELECT\n  funding_source,\n  avg_y_vs_x_difference,\n  area_to_volume_ratio,\n  area_to_volume_ratio - simple_average_ratio AS amount_above_average\nFROM with_overall\nWHERE area_to_volume_ratio > simple_average_ratio;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 46.5,
+ "chars_out": 2063
 }

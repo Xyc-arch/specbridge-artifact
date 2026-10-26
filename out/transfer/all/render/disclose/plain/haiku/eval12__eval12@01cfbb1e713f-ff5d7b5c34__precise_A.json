@@ -3,12 +3,12 @@
  "wording": "precise_A",
  "model": "haiku",
  "response": {
-  "sql": "WITH fee_order_user AS (SELECT f.orderslink, u.acctscope, f.feerate FROM fees f INNER JOIN orders o ON f.orderslink = o.recordvault INNER JOIN users u ON o.userlink = u.userstamp), pair_averages AS (SELECT orderslink, acctscope, AVG(feerate) as avg_feerate FROM fee_order_user GROUP BY orderslink, acctscope), global_mean AS (SELECT AVG(avg_feerate) as mean_feerate FROM pair_averages), filtered_pairs AS (SELECT pa.orderslink, pa.acctscope, pa.avg_feerate, pa.avg_feerate - gm.mean_feerate as excess FROM pair_averages pa CROSS JOIN global_mean gm WHERE pa.avg_feerate > gm.mean_feerate), ranked_pairs AS (SELECT orderslink, acctscope, avg_feerate, excess, RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) as rank FROM filtered_pairs) SELECT orderslink, acctscope, avg_feerate, excess, rank FROM ranked_pairs WHERE rank <= 3 ORDER BY acctscope, rank"
+  "sql": "WITH fee_orders_users AS (\n  SELECT f.orderslink, u.acctscope, f.feerate\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  INNER JOIN users u ON o.userlink = u.userstamp\n),\npair_averages AS (\n  SELECT orderslink, acctscope, AVG(feerate) as avg_feerate\n  FROM fee_orders_users\n  WHERE feerate IS NOT NULL\n  GROUP BY orderslink, acctscope\n),\nmean_of_averages AS (\n  SELECT AVG(avg_feerate) as overall_mean\n  FROM pair_averages\n),\nfiltered_pairs AS (\n  SELECT pa.orderslink, pa.acctscope, pa.avg_feerate, pa.avg_feerate - moa.overall_mean as excess\n  FROM pair_averages pa\n  CROSS JOIN mean_of_averages moa\n  WHERE pa.avg_feerate > moa.overall_mean\n),\nranked_pairs AS (\n  SELECT orderslink, acctscope, avg_feerate, excess, RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) as rank\n  FROM filtered_pairs\n)\nSELECT orderslink, acctscope, avg_feerate, excess, rank\nFROM ranked_pairs\nWHERE rank <= 3\nORDER BY acctscope, rank;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 22.4,
- "chars_out": 886
+ "seconds": 41.6,
+ "chars_out": 997
 }

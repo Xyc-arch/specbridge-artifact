@@ -3,9 +3,11 @@
  "sample": 4,
  "model": "haiku",
  "response": {
-  "sql": "WITH grouped AS (\n  SELECT COALESCE(t.ordertypedist, 'Missing') AS mix,\n         COUNT(*) AS cnt\n  FROM advancedbehavior a\n  JOIN transactionrecord t ON t.transreg = a.translink\n  GROUP BY COALESCE(t.ordertypedist, 'Missing')\n),\nshares AS (\n  SELECT mix,\n         cnt,\n         cnt::numeric / SUM(cnt) OVER () AS share\n  FROM grouped\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share\n  FROM shares\n)\nSELECT s.mix,\n       s.cnt AS count,\n       s.share,\n       s.share - a.avg_share AS above_avg_by\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_share\nORDER BY s.share DESC;"
+  "sql": "WITH behavior_transactions AS (\n  SELECT \n    t.ordertypedist,\n    COUNT(*) as count\n  FROM advancedbehavior ab\n  JOIN transactionrecord t ON ab.translink = t.transreg\n  GROUP BY t.ordertypedist\n),\ntotals AS (\n  SELECT \n    SUM(count) as total_count,\n    COUNT(*) as num_distinct_mixes\n  FROM behavior_transactions\n),\nshares AS (\n  SELECT \n    bt.ordertypedist as mix,\n    bt.count,\n    bt.count * 1.0 / t.total_count as share,\n    1.0 / t.num_distinct_mixes as avg_share\n  FROM behavior_transactions bt\n  CROSS JOIN totals t\n)\nSELECT \n  mix,\n  count,\n  share,\n  share - avg_share as above_average\nFROM shares\nWHERE share > avg_share\nORDER BY share DESC;"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 6.1
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 13.6
 }

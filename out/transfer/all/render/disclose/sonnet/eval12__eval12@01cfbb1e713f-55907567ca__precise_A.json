@@ -2,23 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-55907567ca",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT observstation, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_telescopes, AVG(share) AS avg_share_of_above_avg, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share",
+  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_telescopes, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share",
   "assumptions": [
    {
-    "assumption": "The average share is taken across observatories that appear in the telescopes table (those with at least one telescope), so it equals 1 divided by the number of such observatories. Observatories with no telescopes are excluded.",
-    "unresolved": true
+    "assumption": "Observatories are those appearing in the telescopes table (observatories with zero telescopes are not included in the average share); the average share is the mean of per-observatory shares across observatories with at least one telescope.",
+    "unresolved": false
    },
    {
-    "assumption": "'Average share' for the above-average group is the plain mean of those observatories' shares, and the excess is each share minus the overall average share.",
+    "assumption": "Each row in telescopes is one telescope (counted with COUNT(*)), and shares are computed as real numbers without rounding.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The average share is computed across all rows of the observatories table, including observatories with zero telescopes, so the average is 1 divided by the number of observatories.",
-    "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS cnt FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT observstation, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_telescopes, AVG(share) AS avg_share_of_above_avg, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share"
+    "interpretation": "Include observatories from the observatories table that have no telescopes (count 0) when computing the average share and the set of observatories.",
+    "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS cnt FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_telescopes, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share"
    }
   ]
  },
@@ -29,12 +29,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The average share is computed across all rows of the observatories table, including observatories with zero telescopes, so the average is 1 divided by the number of observatories.",
-   "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS cnt FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM c), a AS (SELECT observstation, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_telescopes, AVG(share) AS avg_share_of_above_avg, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share",
+   "interpretation": "Include observatories from the observatories table that have no telescopes (count 0) when computing the average share and the set of observatories.",
+   "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS cnt FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.cnt) AS total_telescopes, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s CROSS JOIN a WHERE s.share > a.avg_share",
    "executes": true,
    "matches": []
   }
  ],
- "seconds": 8.1,
- "chars_out": 1606
+ "seconds": 6.6,
+ "chars_out": 1540
 }

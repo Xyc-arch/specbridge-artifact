@@ -3,11 +3,11 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "WITH tallies AS (\n  SELECT COALESCE(NULLIF(TRIM(p.throws), ''), 'Missing') AS hand,\n         COUNT(*) AS tally\n  FROM manager_award m\n  JOIN player p ON p.player_id = m.player_id\n  GROUP BY 1\n),\nshares AS (\n  SELECT hand, tally, tally * 1.0 / SUM(tally) OVER () AS share\n  FROM tallies\n),\navg_share AS (\n  SELECT AVG(share) AS avg_s FROM shares\n),\nabove AS (\n  SELECT s.hand, s.tally, s.share\n  FROM shares s, avg_share a\n  WHERE s.share > a.avg_s\n)\nSELECT SUM(above.tally) AS combined_tally,\n       AVG(above.share) AS avg_share,\n       AVG(above.share - a.avg_s) AS avg_excess_over_average\nFROM above, avg_share a;"
+  "sql": "WITH award_counts AS (\n  SELECT \n    COALESCE(p.throws, 'missing') as throws,\n    COUNT(*) as tally\n  FROM manager_award ma\n  JOIN player p ON ma.player_id = p.player_id\n  GROUP BY COALESCE(p.throws, 'missing')\n),\ntotal_awards AS (\n  SELECT SUM(tally) as total FROM award_counts\n),\nshares AS (\n  SELECT \n    ac.throws,\n    ac.tally,\n    ac.tally * 1.0 / t.total as share\n  FROM award_counts ac\n  CROSS JOIN total_awards t\n),\navg_share_val AS (\n  SELECT AVG(share) as avg_share FROM shares\n),\nabove_avg AS (\n  SELECT \n    s.throws,\n    s.tally,\n    s.share,\n    asv.avg_share\n  FROM shares s\n  CROSS JOIN avg_share_val asv\n  WHERE s.share > asv.avg_share\n)\nSELECT \n  SUM(tally) as combined_tally,\n  AVG(share) as average_share,\n  AVG(share - avg_share) as above_average\nFROM above_avg"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 7.0
+ "seconds": 35.4
 }

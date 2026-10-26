@@ -5,33 +5,34 @@
  "description": "Each invoice's cost gap is the mean of the per-line ratios (product cost \u2212 total cost) \u00f7 total cost.",
  "a": {
   "request": "For each invoice number in the invoice line items, compute the average `product_quantity` and the average over its lines of (`derived_product_cost` \u2212 `derived_total_cost`) \u00f7 `derived_total_cost`. Keep only invoices whose average quantity is above the average of all the invoices' average quantities, and list the invoice number, its average quantity, that cost ratio, and how far its average quantity is above that overall average. Sort by that difference from largest to smallest (missing last), show the top 10, and don't round. Ignore missing values in averages.",
-  "sql": "WITH line_metrics AS (\n  SELECT\n    invoice_number,\n    CAST(NULLIF(TRIM(product_quantity), '') AS REAL) AS qty,\n    (derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0) AS cost_ratio\n  FROM Invoice_Line_Items\n),\ninvoice_metrics AS (\n  SELECT\n    invoice_number,\n    AVG(qty) AS avg_quantity,\n    AVG(cost_ratio) AS avg_cost_ratio\n  FROM line_metrics\n  GROUP BY invoice_number\n),\noverall AS (\n  SELECT AVG(avg_quantity) AS overall_avg_quantity\n  FROM invoice_metrics\n)\nSELECT\n  im.invoice_number,\n  im.avg_quantity,\n  im.avg_cost_ratio,\n  im.avg_quantity - o.overall_avg_quantity AS quantity_difference\nFROM invoice_metrics im\nCROSS JOIN overall o\nWHERE im.avg_quantity > o.overall_avg_quantity\nORDER BY quantity_difference IS NULL, quantity_difference DESC\nLIMIT 10;",
+  "sql": "WITH invoice_stats AS (SELECT `invoice_number`, AVG(CAST(`product_quantity` AS DECIMAL(19,4))) as avg_qty, AVG(CASE WHEN `derived_total_cost` IS NOT NULL AND `derived_total_cost` != 0 THEN (`derived_product_cost` - `derived_total_cost`) / `derived_total_cost` ELSE NULL END) as avg_cost_ratio FROM `Invoice_Line_Items` GROUP BY `invoice_number`), overall_avg AS (SELECT AVG(avg_qty) as overall_avg_qty FROM invoice_stats) SELECT i.`invoice_number`, i.avg_qty, i.avg_cost_ratio, (i.avg_qty - o.overall_avg_qty) as qty_difference FROM invoice_stats i CROSS JOIN overall_avg o WHERE i.avg_qty > o.overall_avg_qty ORDER BY qty_difference DESC NULLS LAST LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "For each invoice_number in Invoice_Line_Items, compute the average of the numeric product_quantity values and the mean of the per-line ratios (derived_product_cost \u2212 derived_total_cost) \u00f7 derived_total_cost as the gap, keep invoices whose average quantity exceeds the mean of all invoices' average quantities, return invoice_number, average quantity, gap, and the difference from the overall mean, sort by that difference descending with NULLs last, take the top 10, do not round, and ignore NULL values",
-  "sql": "WITH qty AS (SELECT invoice_number, AVG(CAST(product_quantity AS REAL)) AS avg_quantity FROM Invoice_Line_Items WHERE product_quantity IS NOT NULL AND product_quantity <> '' AND product_quantity NOT GLOB '*[^0-9.]*' GROUP BY invoice_number), overall AS (SELECT AVG(avg_quantity) AS mean_avg_quantity FROM qty), gaps AS (SELECT invoice_number, AVG((derived_product_cost - derived_total_cost) * 1.0 / derived_total_cost) AS gap FROM Invoice_Line_Items WHERE derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL AND derived_total_cost <> 0 GROUP BY invoice_number) SELECT q.invoice_number, q.avg_quantity, g.gap, q.avg_quantity - o.mean_avg_quantity AS difference FROM qty q CROSS JOIN overall o LEFT JOIN gaps g ON g.invoice_number = q.invoice_number WHERE q.avg_quantity > o.mean_avg_quantity ORDER BY difference DESC NULLS LAST LIMIT 10;",
+  "request": "For each invoice, calculate the average product_quantity and the mean of the per-line-item ratios [(derived_product_cost \u2212 derived_total_cost) \u00f7 derived_total_cost], filter to invoices where average quantity exceeds the overall mean of all invoices' average quantities, display invoice number, average quantity, mean of ratios, and quantity difference from overall average, sorted descending by quantity difference, top 10 only.",
+  "sql": "WITH invoice_stats AS (SELECT invoice_number, AVG(CAST(product_quantity AS DECIMAL(19,4))) as avg_quantity, AVG((derived_product_cost - derived_total_cost) / NULLIF(derived_total_cost, 0)) as mean_ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall_mean AS (SELECT AVG(avg_quantity) as overall_avg_qty FROM invoice_stats) SELECT i.invoice_number, i.avg_quantity, i.mean_ratio, (i.avg_quantity - o.overall_avg_qty) as quantity_difference FROM invoice_stats i CROSS JOIN overall_mean o WHERE i.avg_quantity > o.overall_avg_qty ORDER BY quantity_difference DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
-  ]
+  ],
+  "raw": "For each invoice, calculate the average product_quantity and the mean of the per-line-item ratios [(derived_product_cost \u2212 derived_total_cost) \u00f7 derived_total_cost], filter to invoices where average quantity exceeds the overall mean of all invoices' average quantities, display invoice number, average quantity, mean of ratios, and quantity difference from overall average, sorted descending by quantity difference, top 10 only."
+ },
+ "d": {
+  "request": "For each invoice, calculate the average product_quantity across its line items and the mean of the per-line-item cost gap ratios ((derived_product_cost \u2212 derived_total_cost) \u00f7 derived_total_cost), filter to invoices with average quantity above the overall average quantity, and display invoice number, average quantity, mean cost gap ratio, and quantity difference from overall average, sorted descending by quantity difference, top 10.",
+  "sql": "WITH invoice_stats AS (\n  SELECT \n    invoice_number,\n    AVG(CAST(product_quantity AS DECIMAL(19,4))) AS avg_quantity,\n    AVG((derived_product_cost - derived_total_cost) / NULLIF(derived_total_cost, 0)) AS mean_cost_gap_ratio\n  FROM Invoice_Line_Items\n  GROUP BY invoice_number\n),\noverall_avg AS (\n  SELECT AVG(CAST(product_quantity AS DECIMAL(19,4))) AS overall_avg_qty\n  FROM Invoice_Line_Items\n)\nSELECT \n  invoice_stats.invoice_number,\n  invoice_stats.avg_quantity,\n  invoice_stats.mean_cost_gap_ratio,\n  (invoice_stats.avg_quantity - overall_avg.overall_avg_qty) AS qty_difference\nFROM invoice_stats\nCROSS JOIN overall_avg\nWHERE invoice_stats.avg_quantity > overall_avg.overall_avg_qty\nORDER BY qty_difference DESC\nLIMIT 10",
+  "executes": true,
+  "matches": []
  },
  "c": {
   "request": "For each invoice in the invoice line items, find its average `product_quantity` and its relative gap between product cost and total cost, i.e. (`derived_product_cost` \u2212 `derived_total_cost`) \u00f7 `derived_total_cost`. Keep only invoices whose average quantity is above the average of all the invoices' average quantities, and list the invoice number, its average quantity, that relative gap, and how far its average quantity is above that overall average. Sort by that difference from largest to smallest (missing last), show the top 10, and don't round. Ignore missing values in averages. Each invoice's cost gap is the mean of the per-line ratios (product cost \u2212 total cost) \u00f7 total cost.",
-  "sql": "WITH line_q AS (SELECT invoice_number, CAST(product_quantity AS REAL) AS qty, (derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0) AS ratio FROM Invoice_Line_Items), inv AS (SELECT invoice_number, AVG(qty) AS avg_qty, AVG(ratio) AS cost_gap FROM line_q GROUP BY invoice_number), overall AS (SELECT AVG(avg_qty) AS overall_avg FROM inv) SELECT inv.invoice_number, inv.avg_qty AS average_quantity, inv.cost_gap AS relative_gap, inv.avg_qty - overall.overall_avg AS quantity_difference FROM inv CROSS JOIN overall WHERE inv.avg_qty > overall.overall_avg ORDER BY quantity_difference DESC NULLS LAST LIMIT 10",
+  "sql": "WITH invoice_stats AS (SELECT invoice_number, AVG(CAST(product_quantity AS DECIMAL(19,4))) as avg_quantity, AVG(CASE WHEN derived_total_cost IS NOT NULL AND derived_total_cost != 0 AND derived_product_cost IS NOT NULL THEN (derived_product_cost - derived_total_cost) / derived_total_cost ELSE NULL END) as avg_gap FROM Invoice_Line_Items GROUP BY invoice_number), overall_avg AS (SELECT AVG(avg_quantity) as overall_avg_qty FROM invoice_stats WHERE avg_quantity IS NOT NULL) SELECT i.invoice_number, i.avg_quantity, i.avg_gap, i.avg_quantity - o.overall_avg_qty as qty_above_average FROM invoice_stats i CROSS JOIN overall_avg o WHERE i.avg_quantity > o.overall_avg_qty ORDER BY qty_above_average DESC NULLS LAST LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Each invoice's cost gap is the mean of the per-line ratios, where each ratio is (product cost \u2212 total cost) \u00f7 total cost.",
-  "sql": "SELECT invoice_number, AVG((derived_product_cost - derived_total_cost) * 1.0 / NULLIF(derived_total_cost, 0)) AS cost_gap FROM Invoice_Line_Items GROUP BY invoice_number;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

@@ -2,33 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH scopes AS (\n  SELECT DISTINCT acctscope\n  FROM users\n),\nmatched_orders AS (\n  SELECT DISTINCT u.acctscope, o.recordvault\n  FROM riskandmargin AS r\n  JOIN orders AS o ON o.recordvault = r.ordervault\n  JOIN users AS u ON u.userstamp = o.userlink\n),\ncounts AS (\n  SELECT s.acctscope, COUNT(m.recordvault) AS order_count\n  FROM scopes AS s\n  LEFT JOIN matched_orders AS m ON m.acctscope IS NOT DISTINCT FROM s.acctscope\n  GROUP BY s.acctscope\n)\nSELECT acctscope,\n       order_count,\n       order_count::numeric / NULLIF(SUM(order_count) OVER (), 0) AS share_of_total,\n       order_count::numeric / NULLIF(AVG(order_count) OVER (), 0) AS divided_by_average\nFROM counts\nORDER BY acctscope;",
+  "sql": "WITH scope_counts AS (\n  SELECT u.acctscope, COUNT(*) AS order_count\n  FROM riskandmargin AS r\n  JOIN orders AS o\n    ON r.ordervault = o.recordvault\n  JOIN users AS u\n    ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n)\nSELECT\n  acctscope,\n  order_count,\n  CAST(order_count AS REAL) / SUM(order_count) OVER () AS share_of_total,\n  CAST(order_count AS REAL) / AVG(order_count) OVER () AS count_over_average_scope_count\nFROM scope_counts;",
   "assumptions": [
    {
-    "assumption": "Counts distinct orders even if an order has multiple matching risk/margin records; includes every account scope present in users, including scopes with zero matches. The average and total use those scopes.",
+    "assumption": "Each matching risk/margin record contributes one matched order, so an order with multiple matching risk/margin records is counted once per record. The average is across scopes present among matched records.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "If each matching risk/margin record is the counting unit, rather than each distinct order, count matching rows per scope.",
-    "sql": "WITH scopes AS (\n  SELECT DISTINCT acctscope FROM users\n),\ncounts AS (\n  SELECT s.acctscope, COUNT(r.riskandmarginpivot) AS match_count\n  FROM scopes AS s\n  LEFT JOIN users AS u ON u.acctscope IS NOT DISTINCT FROM s.acctscope\n  LEFT JOIN orders AS o ON o.userlink = u.userstamp\n  LEFT JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n  GROUP BY s.acctscope\n)\nSELECT acctscope,\n       match_count,\n       match_count::numeric / NULLIF(SUM(match_count) OVER (), 0) AS share_of_total,\n       match_count::numeric / NULLIF(AVG(match_count) OVER (), 0) AS divided_by_average\nFROM counts\nORDER BY acctscope;"
+    "interpretation": "Count distinct orders within each scope, so multiple matching risk/margin records for the same order count once.",
+    "sql": "WITH scope_counts AS (\n  SELECT u.acctscope, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM riskandmargin AS r\n  JOIN orders AS o\n    ON r.ordervault = o.recordvault\n  JOIN users AS u\n    ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n)\nSELECT\n  acctscope,\n  order_count,\n  CAST(order_count AS REAL) / SUM(order_count) OVER () AS share_of_total,\n  CAST(order_count AS REAL) / AVG(order_count) OVER () AS count_over_average_scope_count\nFROM scope_counts;"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [
   {
-   "interpretation": "If each matching risk/margin record is the counting unit, rather than each distinct order, count matching rows per scope.",
-   "sql": "WITH scopes AS (\n  SELECT DISTINCT acctscope FROM users\n),\ncounts AS (\n  SELECT s.acctscope, COUNT(r.riskandmarginpivot) AS match_count\n  FROM scopes AS s\n  LEFT JOIN users AS u ON u.acctscope IS NOT DISTINCT FROM s.acctscope\n  LEFT JOIN orders AS o ON o.userlink = u.userstamp\n  LEFT JOIN riskandmargin AS r ON r.ordervault = o.recordvault\n  GROUP BY s.acctscope\n)\nSELECT acctscope,\n       match_count,\n       match_count::numeric / NULLIF(SUM(match_count) OVER (), 0) AS share_of_total,\n       match_count::numeric / NULLIF(AVG(match_count) OVER (), 0) AS divided_by_average\nFROM counts\nORDER BY acctscope;",
-   "executes": false,
-   "matches": []
+   "interpretation": "Count distinct orders within each scope, so multiple matching risk/margin records for the same order count once.",
+   "sql": "WITH scope_counts AS (\n  SELECT u.acctscope, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM riskandmargin AS r\n  JOIN orders AS o\n    ON r.ordervault = o.recordvault\n  JOIN users AS u\n    ON o.userlink = u.userstamp\n  GROUP BY u.acctscope\n)\nSELECT\n  acctscope,\n  order_count,\n  CAST(order_count AS REAL) / SUM(order_count) OVER () AS share_of_total,\n  CAST(order_count AS REAL) / AVG(order_count) OVER () AS count_over_average_scope_count\nFROM scope_counts;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
   }
  ],
- "seconds": 28.9,
- "chars_out": 1769
+ "seconds": 5.7,
+ "chars_out": 1359
 }

@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH scan_metrics AS (\n  SELECT \n    crewref,\n    gbsize / spanmin as gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin != 0\n),\noperator_stats AS (\n  SELECT \n    crewref,\n    COUNT(*) as num_scans,\n    AVG(gb_per_min) as avg_gb_per_min\n  FROM scan_metrics\n  GROUP BY crewref\n),\noverall_avg AS (\n  SELECT AVG(avg_gb_per_min) as overall_avg\n  FROM operator_stats\n),\nfiltered_operators AS (\n  SELECT \n    os.num_scans,\n    os.avg_gb_per_min,\n    oa.overall_avg\n  FROM operator_stats os\n  CROSS JOIN overall_avg oa\n  WHERE os.avg_gb_per_min > oa.overall_avg\n)\nSELECT \n  AVG(num_scans) as avg_num_scans,\n  AVG(avg_gb_per_min) as avg_gb_per_min,\n  AVG(avg_gb_per_min - overall_avg) as avg_margin_above\nFROM filtered_operators;"
+  "sql": "WITH scan_metrics AS (SELECT crewref, CASE WHEN spanmin IS NOT NULL AND spanmin > 0 AND gbsize IS NOT NULL THEN gbsize / CAST(spanmin AS REAL) ELSE NULL END as gb_per_min FROM scans), operator_stats AS (SELECT crewref, COUNT(*) as scan_count, AVG(gb_per_min) as avg_gb_per_min FROM scan_metrics GROUP BY crewref), all_operator_avg AS (SELECT AVG(avg_gb_per_min) as overall_avg FROM operator_stats), filtered_operators AS (SELECT os.scan_count, os.avg_gb_per_min, aoa.overall_avg FROM operator_stats os CROSS JOIN all_operator_avg aoa WHERE os.avg_gb_per_min > aoa.overall_avg) SELECT AVG(CAST(scan_count AS REAL)) as avg_scan_count, AVG(avg_gb_per_min) as avg_gb_per_min, AVG(avg_gb_per_min - overall_avg) as avg_margin_above FROM filtered_operators"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 42.1,
- "chars_out": 812
+ "seconds": 57.4,
+ "chars_out": 776
 }

@@ -4,39 +4,43 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH item_stats AS (\n  SELECT oi.order_item_id,\n         AVG(ili.derived_product_cost * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio,\n         COUNT(ili.order_item_id) AS line_item_count\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT AVG(avg_ratio) AS overall_avg_ratio,\n       AVG(line_item_count) AS avg_line_items_per_order_item\nFROM item_stats;",
+  "sql": "WITH per_item_stats AS (\n  SELECT \n    oi.order_item_id,\n    AVG(CASE \n      WHEN ili.derived_product_cost IS NOT NULL \n        AND ili.derived_total_cost IS NOT NULL \n        AND ili.derived_total_cost != 0\n      THEN ili.derived_product_cost / ili.derived_total_cost\n    END) as avg_ratio,\n    COUNT(ili.order_item_id) as line_item_count\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT \n  AVG(avg_ratio) as overall_average_ratio,\n  AVG(line_item_count) as average_line_items_per_order_item\nFROM per_item_stats\nWHERE avg_ratio IS NOT NULL;",
   "assumptions": [
    {
-    "assumption": "The averages run over every order item, including those with no invoice line items. Those items get a count of 0 and a NULL ratio, so they are excluded from the ratio average but counted in the line-item average.",
+    "assumption": "Division by zero is prevented: rows where derived_total_cost is NULL or 0 are excluded from ratio calculation",
     "unresolved": false
    },
    {
-    "assumption": "A ratio is treated as missing when derived_total_cost is NULL or 0, since NULLIF turns a zero denominator into NULL.",
-    "unresolved": false
+    "assumption": "Order items with no valid ratios (no invoice line items, or all items missing cost data) are excluded from both final aggregations",
+    "unresolved": true
+   },
+   {
+    "assumption": "The line_item_count per order item includes all invoice line items, not just those with valid cost data",
+    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Average the line-item count only over order items that have at least one invoice line item, excluding order items with zero line items from the count average.",
-    "sql": "WITH item_stats AS (\n  SELECT oi.order_item_id,\n         AVG(ili.derived_product_cost * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio,\n         COUNT(ili.order_item_id) AS line_item_count\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT AVG(avg_ratio) AS overall_avg_ratio,\n       AVG(NULLIF(line_item_count, 0)) AS avg_line_items_per_order_item\nFROM item_stats;"
+    "interpretation": "The average line items per order item should include all order items, even those with no valid ratios, while the ratio average excludes those without valid ratios",
+    "sql": "WITH per_item_stats AS (\n  SELECT \n    oi.order_item_id,\n    AVG(CASE \n      WHEN ili.derived_product_cost IS NOT NULL \n        AND ili.derived_total_cost IS NOT NULL \n        AND ili.derived_total_cost != 0\n      THEN ili.derived_product_cost / ili.derived_total_cost\n    END) as avg_ratio,\n    COUNT(ili.order_item_id) as line_item_count\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT \n  AVG(CASE WHEN avg_ratio IS NOT NULL THEN avg_ratio END) as overall_average_ratio,\n  AVG(line_item_count) as average_line_items_per_order_item\nFROM per_item_stats;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
  "alternatives": [
   {
-   "interpretation": "Average the line-item count only over order items that have at least one invoice line item, excluding order items with zero line items from the count average.",
-   "sql": "WITH item_stats AS (\n  SELECT oi.order_item_id,\n         AVG(ili.derived_product_cost * 1.0 / NULLIF(ili.derived_total_cost, 0)) AS avg_ratio,\n         COUNT(ili.order_item_id) AS line_item_count\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT AVG(avg_ratio) AS overall_avg_ratio,\n       AVG(NULLIF(line_item_count, 0)) AS avg_line_items_per_order_item\nFROM item_stats;",
+   "interpretation": "The average line items per order item should include all order items, even those with no valid ratios, while the ratio average excludes those without valid ratios",
+   "sql": "WITH per_item_stats AS (\n  SELECT \n    oi.order_item_id,\n    AVG(CASE \n      WHEN ili.derived_product_cost IS NOT NULL \n        AND ili.derived_total_cost IS NOT NULL \n        AND ili.derived_total_cost != 0\n      THEN ili.derived_product_cost / ili.derived_total_cost\n    END) as avg_ratio,\n    COUNT(ili.order_item_id) as line_item_count\n  FROM Order_Items oi\n  LEFT JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id\n  GROUP BY oi.order_item_id\n)\nSELECT \n  AVG(CASE WHEN avg_ratio IS NOT NULL THEN avg_ratio END) as overall_average_ratio,\n  AVG(line_item_count) as average_line_items_per_order_item\nFROM per_item_stats;",
    "executes": true,
    "matches": [
-    "A"
+    "B"
    ]
   }
  ],
- "seconds": 10.0,
- "chars_out": 1580
+ "seconds": 65.2,
+ "chars_out": 2122
 }

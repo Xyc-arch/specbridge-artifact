@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-9e5dda7b4a",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH j AS (SELECT u.acctscope, f.feerate - f.rebrate AS net FROM fees f JOIN orders o ON o.recordvault = f.orderslink JOIN users u ON u.userstamp = o.userlink), s AS (SELECT acctscope, AVG(net) AS avg_net_rate, COUNT(*) AS fee_record_count FROM j GROUP BY acctscope) SELECT acctscope, avg_net_rate, fee_record_count, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_mean_of_scope_averages FROM s",
+  "sql": "WITH j AS (SELECT u.acctscope AS acctscope, f.feerate - f.rebrate AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp), s AS (SELECT acctscope, AVG(net_rate) AS avg_net_rate, COUNT(*) AS fee_record_count FROM j GROUP BY acctscope) SELECT acctscope, avg_net_rate, fee_record_count, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_avg_of_scope_avgs FROM s",
   "assumptions": [
    {
-    "assumption": "Inner joins drop fees with no matching order, and orders with no matching user.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The net rate is feerate minus rebrate. Records where either is NULL have a NULL net rate, so they are left out of the average. They are still counted in the number of fee records, which is every matched record.",
+    "assumption": "The fee record count includes every fee record matched to an order and user, even those whose net rate is missing (feerate or rebrate NULL); only the average skips those records.",
     "unresolved": true
    },
    {
-    "assumption": "The comparison value is the unweighted mean of the per-scope averages, taken across the scopes that have a non-null average. The difference is scope average minus that mean.",
+    "assumption": "The net rate is NULL if either feerate or rebrate is NULL, so such records are left out of the average rather than treating a missing rebate as 0.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Inner joins drop fee records with no matching order or user. The 'plain average of per-scope averages' is the unweighted mean across scopes that have a non-NULL average.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The number of fee records counts only records with a non-null net rate, i.e. the records actually used in the average.",
-    "sql": "WITH j AS (SELECT u.acctscope, f.feerate - f.rebrate AS net FROM fees f JOIN orders o ON o.recordvault = f.orderslink JOIN users u ON u.userstamp = o.userlink), s AS (SELECT acctscope, AVG(net) AS avg_net_rate, COUNT(net) AS fee_record_count FROM j GROUP BY acctscope) SELECT acctscope, avg_net_rate, fee_record_count, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_mean_of_scope_averages FROM s"
+    "interpretation": "Count only fee records that have a computable net rate (both feerate and rebrate non-NULL), so the count matches the records used in the average.",
+    "sql": "WITH j AS (SELECT u.acctscope AS acctscope, f.feerate - f.rebrate AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp), s AS (SELECT acctscope, AVG(net_rate) AS avg_net_rate, COUNT(net_rate) AS fee_record_count FROM j GROUP BY acctscope) SELECT acctscope, avg_net_rate, fee_record_count, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_avg_of_scope_avgs FROM s"
    }
   ]
  },
@@ -31,5 +31,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 8.9
+ "seconds": 10.8
 }

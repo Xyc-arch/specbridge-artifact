@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH telescope_counts AS (\n  SELECT \n    observstation,\n    COUNT(*) as telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\ntotal_telescopes AS (\n  SELECT SUM(telescope_count) as total\n  FROM telescope_counts\n),\nshares AS (\n  SELECT \n    tc.observstation,\n    tc.telescope_count,\n    CAST(tc.telescope_count AS FLOAT) / CAST(tt.total AS FLOAT) as share\n  FROM telescope_counts tc\n  CROSS JOIN total_telescopes tt\n),\navg_share AS (\n  SELECT AVG(share) as avg_val FROM shares\n),\ndifferences AS (\n  SELECT \n    s.observstation,\n    s.telescope_count,\n    s.share,\n    s.share - a.avg_val as difference\n  FROM shares s\n  CROSS JOIN avg_share a\n)\nSELECT \n  observstation,\n  telescope_count,\n  share,\n  difference\nFROM (\n  SELECT \n    observstation,\n    telescope_count,\n    share,\n    difference,\n    ROW_NUMBER() OVER (ORDER BY difference DESC) as rn\n  FROM differences\n) ranked\nWHERE rn <= 10\n  OR difference = (\n    SELECT difference \n    FROM (\n      SELECT \n        difference,\n        ROW_NUMBER() OVER (ORDER BY difference DESC) as rn\n      FROM differences\n    ) sub\n    WHERE rn = 10\n  )\nORDER BY difference DESC"
+  "sql": "WITH tc AS (\n  SELECT \n    observstation,\n    COUNT(*) as cnt\n  FROM telescopes\n  GROUP BY observstation\n),\nshares AS (\n  SELECT \n    observstation,\n    cnt,\n    CAST(cnt AS FLOAT) / SUM(cnt) OVER () as share\n  FROM tc\n),\nwith_avg AS (\n  SELECT \n    observstation,\n    cnt,\n    share,\n    share - AVG(share) OVER () as diff\n  FROM shares\n),\nranked AS (\n  SELECT \n    observstation,\n    cnt,\n    share,\n    diff,\n    ROW_NUMBER() OVER (ORDER BY diff DESC) as rn\n  FROM with_avg\n),\ntenth AS (\n  SELECT diff FROM ranked WHERE rn = 10 LIMIT 1\n)\nSELECT \n  observstation,\n  cnt as telescope_count,\n  share,\n  diff as difference\nFROM ranked\nWHERE rn < 10 OR diff IN (SELECT * FROM tenth)\nORDER BY diff DESC, observstation"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 36.7,
- "chars_out": 1209
+ "seconds": 57.3,
+ "chars_out": 782
 }

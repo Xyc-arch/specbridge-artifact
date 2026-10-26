@@ -2,31 +2,31 @@
  "case": "eval12:eval12@01cfbb1e713f-30b46b4254",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT s.riskeval, SUM(sc.gbsize) * 1.0 / NULLIF(SUM(sc.spanmin), 0) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL GROUP BY s.riskeval), b AS (SELECT AVG(rate) AS bm FROM g WHERE rate IS NOT NULL) SELECT AVG(g.rate) AS avg_rate, AVG(g.rate - b.bm) AS avg_margin_above_benchmark FROM g CROSS JOIN b WHERE g.rate > b.bm",
+  "sql": "WITH g AS (SELECT CASE WHEN s.riskeval IS NULL OR TRIM(s.riskeval) = '' THEN NULL ELSE s.riskeval END AS rk, SUM(sc.gbsize) * 1.0 / SUM(sc.spanmin) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin > 0 GROUP BY rk), b AS (SELECT AVG(rate) AS bench FROM g) SELECT AVG(g.rate) AS avg_rate_above_benchmark, AVG(g.rate - b.bench) AS avg_margin_above_benchmark FROM g, b WHERE g.rate > b.bench",
   "assumptions": [
    {
-    "assumption": "A group's rate is total gbsize divided by total spanmin (a pooled ratio), not an average of per-scan ratios.",
+    "assumption": "A group's rate is total gbsize divided by total spanmin (ratio of sums) for the scans in that group.",
     "unresolved": true
    },
    {
-    "assumption": "Scans that match a site means an inner join of scans.zoneref to sites.zoneregistry. A NULL riskeval is its own group.",
+    "assumption": "Scans with NULL gbsize, or NULL or zero spanmin, are excluded because no rate can be computed for them.",
     "unresolved": false
    },
    {
-    "assumption": "Scans with a NULL gbsize or spanmin are excluded. Groups whose total duration is 0 have no rate and are left out of the benchmark.",
+    "assumption": "Scans whose site has a NULL or blank riskeval form a single 'no status' group. Scans with no matching site are excluded by the inner join.",
     "unresolved": false
    },
    {
-    "assumption": "The benchmark is the plain average of the group rates, with each group counted once. Only groups strictly above it are kept. If none qualify, the result row has NULLs.",
+    "assumption": "If no group is above the benchmark, the query returns one row of NULLs.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Each group's rate is the average of the per-scan gbsize/spanmin ratios, not a pooled ratio.",
-    "sql": "WITH g AS (SELECT s.riskeval, AVG(sc.gbsize * 1.0 / sc.spanmin) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 GROUP BY s.riskeval), b AS (SELECT AVG(rate) AS bm FROM g) SELECT AVG(g.rate) AS avg_rate, AVG(g.rate - b.bm) AS avg_margin_above_benchmark FROM g CROSS JOIN b WHERE g.rate > b.bm"
+    "interpretation": "A group's rate is the average of the per-scan gbsize/spanmin ratios, rather than the ratio of sums.",
+    "sql": "WITH g AS (SELECT CASE WHEN s.riskeval IS NULL OR TRIM(s.riskeval) = '' THEN NULL ELSE s.riskeval END AS rk, AVG(sc.gbsize * 1.0 / sc.spanmin) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin > 0 GROUP BY rk), b AS (SELECT AVG(rate) AS bench FROM g) SELECT AVG(g.rate) AS avg_rate_above_benchmark, AVG(g.rate - b.bench) AS avg_margin_above_benchmark FROM g, b WHERE g.rate > b.bench"
    }
   ]
  },
@@ -37,14 +37,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Each group's rate is the average of the per-scan gbsize/spanmin ratios, not a pooled ratio.",
-   "sql": "WITH g AS (SELECT s.riskeval, AVG(sc.gbsize * 1.0 / sc.spanmin) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 GROUP BY s.riskeval), b AS (SELECT AVG(rate) AS bm FROM g) SELECT AVG(g.rate) AS avg_rate, AVG(g.rate - b.bm) AS avg_margin_above_benchmark FROM g CROSS JOIN b WHERE g.rate > b.bm",
+   "interpretation": "A group's rate is the average of the per-scan gbsize/spanmin ratios, rather than the ratio of sums.",
+   "sql": "WITH g AS (SELECT CASE WHEN s.riskeval IS NULL OR TRIM(s.riskeval) = '' THEN NULL ELSE s.riskeval END AS rk, AVG(sc.gbsize * 1.0 / sc.spanmin) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin > 0 GROUP BY rk), b AS (SELECT AVG(rate) AS bench FROM g) SELECT AVG(g.rate) AS avg_rate_above_benchmark, AVG(g.rate - b.bench) AS avg_margin_above_benchmark FROM g, b WHERE g.rate > b.bench",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 10.8,
- "chars_out": 1710
+ "seconds": 10.6,
+ "chars_out": 1746
 }

@@ -2,37 +2,23 @@
  "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH fee_order_nets AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate >= 0.0009\n), group_averages AS (\n  SELECT\n    orderslink,\n    side,\n    AVG(net_fee_rate) AS group_avg_net_fee_rate,\n    COUNT(net_fee_rate) AS record_count\n  FROM fee_order_nets\n  GROUP BY orderslink, side\n), compared AS (\n  SELECT\n    orderslink,\n    side,\n    group_avg_net_fee_rate,\n    record_count,\n    AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg\n  FROM group_averages\n)\nSELECT\n  orderslink,\n  side,\n  group_avg_net_fee_rate,\n  record_count,\n  group_avg_net_fee_rate - side_avg AS difference_from_side_average\nFROM compared\nWHERE group_avg_net_fee_rate > side_avg\nORDER BY difference_from_side_average DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH matched AS (\n  SELECT f.orderslink, o.dealedge AS side, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n), group_avgs AS (\n  SELECT orderslink, side,\n         AVG(net_fee_rate) AS avg_net_fee_rate,\n         COUNT(net_fee_rate) AS record_count\n  FROM matched\n  GROUP BY orderslink, side\n), side_avgs AS (\n  SELECT side, AVG(avg_net_fee_rate) AS side_avg_net_fee_rate\n  FROM group_avgs\n  GROUP BY side\n)\nSELECT g.orderslink, g.side, g.avg_net_fee_rate, g.record_count,\n       g.avg_net_fee_rate - s.side_avg_net_fee_rate AS difference\nFROM group_avgs AS g\nJOIN side_avgs AS s ON g.side = s.side\nWHERE g.avg_net_fee_rate > s.side_avg_net_fee_rate\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "\u201cUsing only high-rate fee records, with 0.0009 ... as the cutoff\u201d means feerate is at least 0.0009.",
-    "unresolved": true
+    "assumption": "\u201cHigh-rate\u201d means fee records with feerate strictly greater than 0.0009; net-rate averages and record counts include only rows where both feerate and rebrate are present, since SQLite AVG ignores NULL net rates.",
+    "unresolved": false
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "If the cutoff is exclusive, high-rate means feerate strictly greater than 0.0009.",
-    "sql": "WITH fee_order_nets AS (\n  SELECT f.orderslink, o.dealedge AS side, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n), group_averages AS (\n  SELECT orderslink, side, AVG(net_fee_rate) AS group_avg_net_fee_rate,\n         COUNT(net_fee_rate) AS record_count\n  FROM fee_order_nets\n  GROUP BY orderslink, side\n), compared AS (\n  SELECT orderslink, side, group_avg_net_fee_rate, record_count,\n         AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg\n  FROM group_averages\n)\nSELECT orderslink, side, group_avg_net_fee_rate, record_count,\n       group_avg_net_fee_rate - side_avg AS difference_from_side_average\nFROM compared\nWHERE group_avg_net_fee_rate > side_avg\nORDER BY difference_from_side_average DESC NULLS LAST\nLIMIT 10;"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "A"
+  "B"
  ],
- "alternatives": [
-  {
-   "interpretation": "If the cutoff is exclusive, high-rate means feerate strictly greater than 0.0009.",
-   "sql": "WITH fee_order_nets AS (\n  SELECT f.orderslink, o.dealedge AS side, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n), group_averages AS (\n  SELECT orderslink, side, AVG(net_fee_rate) AS group_avg_net_fee_rate,\n         COUNT(net_fee_rate) AS record_count\n  FROM fee_order_nets\n  GROUP BY orderslink, side\n), compared AS (\n  SELECT orderslink, side, group_avg_net_fee_rate, record_count,\n         AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg\n  FROM group_averages\n)\nSELECT orderslink, side, group_avg_net_fee_rate, record_count,\n       group_avg_net_fee_rate - side_avg AS difference_from_side_average\nFROM compared\nWHERE group_avg_net_fee_rate > side_avg\nORDER BY difference_from_side_average DESC NULLS LAST\nLIMIT 10;",
-   "executes": true,
-   "matches": [
-    "B"
-   ]
-  }
- ],
+ "alternatives": [],
  "seconds": 20.4,
- "chars_out": 2031
+ "chars_out": 1093
 }

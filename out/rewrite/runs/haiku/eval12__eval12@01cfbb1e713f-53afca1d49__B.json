@@ -5,7 +5,7 @@
  "description": "Rank districts by their share of accounts and return every district whose share reaches the 10th-highest share, including all ties at the cut.",
  "a": {
   "request": "For each branch district (`account.district_id`), count its accounts and compute that count as a share of all accounts. Show the district id, the account count and the share, without rounding, sorted by share from highest to lowest, and return every district whose share is at least the 10th-highest share: if several districts tie for 10th place, include all of them, even if that gives more than 10 rows.",
-  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS account_count FROM account GROUP BY district_id), totals AS (SELECT SUM(account_count) AS total FROM counts), shares AS (SELECT c.district_id, c.account_count, CAST(c.account_count AS REAL) / t.total AS share FROM counts c CROSS JOIN totals t), threshold AS (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) SELECT s.district_id, s.account_count, s.share FROM shares s WHERE s.share >= COALESCE((SELECT share FROM threshold), 0) ORDER BY s.share DESC",
+  "sql": "WITH district_counts AS (\n  SELECT district_id, COUNT(*) AS account_count\n  FROM account\n  GROUP BY district_id\n),\ntotal_accounts AS (\n  SELECT COUNT(*) AS total\n  FROM account\n),\nshares AS (\n  SELECT \n    dc.district_id,\n    dc.account_count,\n    dc.account_count / CAST(ta.total AS FLOAT) AS share\n  FROM district_counts dc, total_accounts ta\n),\ntop10 AS (\n  SELECT *\n  FROM shares\n  ORDER BY share DESC, district_id\n  LIMIT 10\n)\nSELECT district_id, account_count, share\nFROM shares\nWHERE share >= (SELECT MIN(share) FROM top10)\nORDER BY share DESC;",
   "executes": true,
   "matches": [
    "B"
@@ -13,27 +13,26 @@
  },
  "c": {
   "request": "What are the top 10 branch districts (`account.district_id`) by share of all accounts? For each, show the district id, its number of accounts and its share of all accounts, without rounding, listed from the highest share down. Rank districts by their share of accounts and return every district whose share reaches the 10th-highest share, including all ties at the cut.",
-  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS n FROM account GROUP BY district_id), total AS (SELECT SUM(n) AS t FROM counts), ranked AS (SELECT c.district_id, c.n, CAST(c.n AS REAL) / t.t AS share, RANK() OVER (ORDER BY CAST(c.n AS REAL) / t.t DESC) AS rnk FROM counts c CROSS JOIN total t) SELECT district_id, n AS num_accounts, share FROM ranked WHERE rnk <= 10 ORDER BY share DESC;",
+  "sql": "WITH district_counts AS (SELECT district_id, COUNT(*) as account_count FROM account GROUP BY district_id), total_accounts AS (SELECT COUNT(*) as total FROM account), shares AS (SELECT dc.district_id, dc.account_count, CAST(dc.account_count AS REAL) / ta.total as share FROM district_counts dc CROSS JOIN total_accounts ta), ranked AS (SELECT *, DENSE_RANK() OVER (ORDER BY share DESC) as drank FROM shares) SELECT district_id, account_count, share FROM ranked WHERE drank <= 10 ORDER BY share DESC",
   "executes": true,
   "matches": [
    "B"
   ]
  },
  "b": {
-  "request": "Return every branch district whose share of all accounts (COUNT of accounts per account.district_id \u00f7 total account count, unrounded) is greater than or equal to the 10th-highest district share, ordered by share descending, showing district_id, account count, and share, including all districts tied at the 10th position",
-  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS account_count FROM account GROUP BY district_id), total AS (SELECT SUM(account_count) AS total_count FROM counts), shares AS (SELECT c.district_id, c.account_count, CAST(c.account_count AS REAL) / t.total_count AS share FROM counts c CROSS JOIN total t), threshold AS (SELECT share AS tenth_share FROM (SELECT DISTINCT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9)) SELECT s.district_id, s.account_count, s.share FROM shares s CROSS JOIN threshold th WHERE s.share >= th.tenth_share ORDER BY s.share DESC;",
+  "request": "Return all districts ranked by their share of accounts (descending) where the share is equal to or greater than the 10th-highest share value, including all districts tied at the 10th position.",
+  "sql": "WITH district_account_counts AS (\n  SELECT \n    district_id,\n    COUNT(*) as account_count\n  FROM account\n  GROUP BY district_id\n),\ndistrict_shares AS (\n  SELECT \n    dac.district_id,\n    CAST(dac.account_count AS FLOAT) / (SELECT COUNT(*) FROM account) as share\n  FROM district_account_counts dac\n),\nshare_ranks AS (\n  SELECT \n    share,\n    ROW_NUMBER() OVER (ORDER BY share DESC) as share_rank\n  FROM (SELECT DISTINCT share FROM district_shares)\n)\nSELECT \n  ds.district_id,\n  ds.share\nFROM district_shares ds\nWHERE ds.share >= (\n  SELECT share FROM share_ranks WHERE share_rank = 10\n)\nORDER BY ds.share DESC",
+  "executes": true,
+  "matches": [],
+  "raw": "Return all districts ranked by their share of accounts (descending) where the share is equal to or greater than the 10th-highest share value, including all districts tied at the 10th position."
+ },
+ "d": {
+  "request": "Rank districts by descending share of total accounts and return all districts with a share equal to or greater than the 10th-highest distinct share value, showing district_id, account count, and exact share for each.",
+  "sql": "WITH district_counts AS (\n  SELECT \n    district_id, \n    COUNT(*) as account_count\n  FROM account\n  GROUP BY district_id\n),\ntotal_count AS (\n  SELECT COUNT(*) as total FROM account\n),\ndistrict_shares AS (\n  SELECT \n    d.district_id,\n    d.account_count,\n    CAST(d.account_count AS REAL) / t.total as share\n  FROM district_counts d, total_count t\n),\nranked_distinct_shares AS (\n  SELECT \n    share,\n    ROW_NUMBER() OVER (ORDER BY share DESC) as rn\n  FROM (SELECT DISTINCT share FROM district_shares)\n)\nSELECT \n  ds.district_id,\n  ds.account_count,\n  ds.share\nFROM district_shares ds\nWHERE ds.share >= (\n  SELECT MIN(share) FROM ranked_distinct_shares \n  WHERE rn <= 10\n)\nORDER BY ds.share DESC",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Among branch districts (`account.district_id`), rank each district by its share of all accounts and return every district whose share is at least the 10th-highest share, including all ties at the cut. For each, show the district id, its number of accounts, and its share of all accounts, unrounded, listed from the highest share down.",
-  "sql": "WITH district_counts AS (SELECT district_id, COUNT(*) AS num_accounts FROM account GROUP BY district_id), shares AS (SELECT district_id, num_accounts, num_accounts * 1.0 / (SELECT COUNT(*) FROM account) AS share FROM district_counts) SELECT district_id, num_accounts, share FROM shares WHERE share >= (SELECT share FROM shares ORDER BY share DESC LIMIT 1 OFFSET 9) ORDER BY share DESC;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

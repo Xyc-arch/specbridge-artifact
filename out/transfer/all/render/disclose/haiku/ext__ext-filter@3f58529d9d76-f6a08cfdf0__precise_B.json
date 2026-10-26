@@ -4,21 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "SELECT AVG(avg_bytes_per_ms) AS avg_of_avg_bytes_per_ms, AVG(track_count) AS avg_of_track_counts FROM (SELECT MediaTypeId, AVG(Bytes * 1.0 / Milliseconds) AS avg_bytes_per_ms, COUNT(*) AS track_count FROM Track WHERE Bytes > 10323804 GROUP BY MediaTypeId) AS per_media_type;",
+  "sql": "SELECT AVG(avg_bytes_per_ms), AVG(track_count) FROM (SELECT MediaTypeId, AVG(CAST(Bytes AS FLOAT) / Milliseconds) as avg_bytes_per_ms, COUNT(*) as track_count FROM Track WHERE Bytes > 10323804 GROUP BY MediaTypeId) AS media_stats",
   "assumptions": [
    {
-    "assumption": "Tracks with Milliseconds = 0 are still counted in track_count. Their bytes-per-millisecond value is NULL (SQLite returns NULL for division by zero), so AVG skips them, but they still count as tracks.",
+    "assumption": "Milliseconds is always positive (greater than zero) to avoid division by zero.",
     "unresolved": true
-   },
-   {
-    "assumption": "Bytes > 10323804 excludes NULL Bytes, and Bytes * 1.0 avoids integer division. Milliseconds is NOT NULL in the schema, so no further null handling is needed.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count only tracks that have a computable bytes-per-millisecond value (Milliseconds > 0), so track_count matches the tracks that feed the average.",
-    "sql": "SELECT AVG(avg_bytes_per_ms) AS avg_of_avg_bytes_per_ms, AVG(track_count) AS avg_of_track_counts FROM (SELECT MediaTypeId, AVG(Bytes * 1.0 / Milliseconds) AS avg_bytes_per_ms, COUNT(Bytes * 1.0 / Milliseconds) AS track_count FROM Track WHERE Bytes > 10323804 AND Milliseconds > 0 GROUP BY MediaTypeId) AS per_media_type;"
+    "interpretation": "Compute the average rate as (total Bytes) \u00f7 (total Milliseconds) per media type, rather than the average of per-track ratios. Both are valid measures of 'average bytes per millisecond'.",
+    "sql": "SELECT AVG(avg_bytes_per_ms), AVG(track_count) FROM (SELECT MediaTypeId, CAST(SUM(Bytes) AS FLOAT) / SUM(Milliseconds) as avg_bytes_per_ms, COUNT(*) as track_count FROM Track WHERE Bytes > 10323804 GROUP BY MediaTypeId) AS media_stats"
    }
   ]
  },
@@ -29,14 +25,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count only tracks that have a computable bytes-per-millisecond value (Milliseconds > 0), so track_count matches the tracks that feed the average.",
-   "sql": "SELECT AVG(avg_bytes_per_ms) AS avg_of_avg_bytes_per_ms, AVG(track_count) AS avg_of_track_counts FROM (SELECT MediaTypeId, AVG(Bytes * 1.0 / Milliseconds) AS avg_bytes_per_ms, COUNT(Bytes * 1.0 / Milliseconds) AS track_count FROM Track WHERE Bytes > 10323804 AND Milliseconds > 0 GROUP BY MediaTypeId) AS per_media_type;",
+   "interpretation": "Compute the average rate as (total Bytes) \u00f7 (total Milliseconds) per media type, rather than the average of per-track ratios. Both are valid measures of 'average bytes per millisecond'.",
+   "sql": "SELECT AVG(avg_bytes_per_ms), AVG(track_count) FROM (SELECT MediaTypeId, CAST(SUM(Bytes) AS FLOAT) / SUM(Milliseconds) as avg_bytes_per_ms, COUNT(*) as track_count FROM Track WHERE Bytes > 10323804 GROUP BY MediaTypeId) AS media_stats",
    "executes": true,
-   "matches": [
-    "B"
-   ]
+   "matches": []
   }
  ],
- "seconds": 9.5,
- "chars_out": 1257
+ "seconds": 65.7,
+ "chars_out": 919
 }

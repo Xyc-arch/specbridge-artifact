@@ -2,27 +2,41 @@
  "case": "eval12:eval12@01cfbb1e713f-e6f24d2438",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "SELECT t.tradekind, COUNT(*) AS record_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM advancedbehavior a JOIN transactionrecord tr ON tr.transreg = a.translink JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind",
+  "sql": "WITH t AS (SELECT tr.tradekind AS trader_type, COUNT(*) AS record_count FROM advancedbehavior ab JOIN transactionrecord x ON x.transreg = ab.translink JOIN trader tr ON tr.tradereg = x.trdref GROUP BY tr.tradekind) SELECT trader_type, record_count, record_count * 1.0 / SUM(record_count) OVER () AS share FROM t",
   "assumptions": [
    {
-    "assumption": "A record is one advancedbehavior row. Only rows whose linked transaction record and trader both exist are counted (inner joins).",
+    "assumption": "Each advancedbehavior row counts as one analysed trade record; rows are included only if the linked transaction and trader both exist (inner joins), and the overall total is the sum over those matched rows.",
     "unresolved": false
    },
    {
-    "assumption": "The share's denominator is the total of those joined rows across all trader types, so the shares sum to 1. Any rows with a NULL trader type form their own group and stay in the denominator.",
-    "unresolved": false
+    "assumption": "Traders with a NULL tradekind would form their own group (NULL) and are kept in the total.",
+    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Count distinct transactions (transactionrecord rows) rather than advancedbehavior rows, in case several behaviour records link to the same transaction.",
+    "sql": "WITH t AS (SELECT tr.tradekind AS trader_type, COUNT(DISTINCT x.transreg) AS record_count FROM advancedbehavior ab JOIN transactionrecord x ON x.transreg = ab.translink JOIN trader tr ON tr.tradereg = x.trdref GROUP BY tr.tradekind) SELECT trader_type, record_count, record_count * 1.0 / SUM(record_count) OVER () AS share FROM t"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [],
- "seconds": 6.2,
- "chars_out": 712
+ "alternatives": [
+  {
+   "interpretation": "Count distinct transactions (transactionrecord rows) rather than advancedbehavior rows, in case several behaviour records link to the same transaction.",
+   "sql": "WITH t AS (SELECT tr.tradekind AS trader_type, COUNT(DISTINCT x.transreg) AS record_count FROM advancedbehavior ab JOIN transactionrecord x ON x.transreg = ab.translink JOIN trader tr ON tr.tradereg = x.trdref GROUP BY tr.tradekind) SELECT trader_type, record_count, record_count * 1.0 / SUM(record_count) OVER () AS share FROM t",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 9.2,
+ "chars_out": 1234
 }

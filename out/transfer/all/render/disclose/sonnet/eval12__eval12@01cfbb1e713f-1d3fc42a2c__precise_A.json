@@ -2,20 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-1d3fc42a2c",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH proj AS (\n  SELECT p.arcregistry AS project_id, p.fundflux AS funding_source,\n         AVG(s.boxx * 1.0 / NULLIF(s.boxz, 0)) AS ratio\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  GROUP BY p.arcregistry, p.fundflux\n), withavg AS (\n  SELECT project_id, funding_source, ratio,\n         AVG(ratio) OVER (PARTITION BY funding_source) AS source_avg\n  FROM proj\n)\nSELECT project_id, funding_source, ratio, ratio - source_avg AS excess\nFROM withavg\nORDER BY excess DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH pr AS (SELECT p.arcregistry AS project_id, p.fundflux AS funding_source, AVG(s.boxx * 1.0 / s.boxz) AS ratio FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.arcregistry, p.fundflux), x AS (SELECT project_id, funding_source, ratio, ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS excess FROM pr) SELECT project_id, funding_source, ratio, excess FROM x ORDER BY (excess IS NULL), excess DESC LIMIT 10",
   "assumptions": [
    {
-    "assumption": "A spatial record with boxz = 0 has a missing (NULL) ratio, to avoid division by zero, and is ignored in the per-project average.",
+    "assumption": "A spatial record with boxz = 0 has a missing (NULL) ratio, since SQLite returns NULL for division by zero. Such records are ignored in the project average, and projects with no valid ratio get NULL excess and sort last.",
     "unresolved": false
    },
    {
-    "assumption": "Projects with no valid ratio are still included, with NULL ratio and excess, so they sort last. A NULL fundflux is treated as its own group.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The funding-source average is taken over the projects' ratios, skipping projects whose ratio is NULL.",
+    "assumption": "The top 10 are chosen purely by excess, descending, without filtering to excess > 0. Projects with a NULL funding source are treated as one group.",
     "unresolved": false
    }
   ],
@@ -27,6 +23,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 7.0,
- "chars_out": 1101
+ "seconds": 9.4,
+ "chars_out": 965
 }

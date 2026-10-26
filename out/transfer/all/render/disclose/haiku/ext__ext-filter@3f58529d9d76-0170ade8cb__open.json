@@ -4,25 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH long_films AS (\n  SELECT rating, rental_rate, rental_duration\n  FROM film\n  WHERE rental_duration >= 5\n),\nper_rating AS (\n  SELECT rating,\n         AVG(rental_rate / NULLIF(rental_duration, 0)) AS avg_rate_per_day,\n         COUNT(*) AS films\n  FROM long_films\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_day) AS bench\n  FROM per_rating\n)\nSELECT p.rating,\n       p.avg_rate_per_day,\n       p.films,\n       p.avg_rate_per_day / b.bench AS ratio_to_benchmark\nFROM per_rating p\nCROSS JOIN benchmark b\nWHERE b.bench IS NOT NULL",
+  "sql": "WITH long_rental_films AS (\n  SELECT \n    rating,\n    rental_rate,\n    rental_duration\n  FROM film\n  WHERE rental_duration >= 5\n),\nper_rating_avg AS (\n  SELECT \n    rating,\n    AVG(rental_rate / rental_duration) AS avg_rate_per_duration,\n    COUNT(*) AS film_count\n  FROM long_rental_films\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_duration) AS benchmark_value\n  FROM per_rating_avg\n)\nSELECT \n  pra.rating,\n  pra.avg_rate_per_duration,\n  pra.film_count,\n  pra.avg_rate_per_duration / b.benchmark_value AS ratio_to_benchmark\nFROM per_rating_avg pra\nCROSS JOIN benchmark b\nWHERE b.benchmark_value IS NOT NULL;",
   "assumptions": [
    {
-    "assumption": "\"Treating 5 days as the cutoff\" is read as inclusive: a film is long-rental when rental_duration >= 5 (so 5, 6 and 7 days). The request does not say whether 5 itself counts.",
+    "assumption": "Treating 5 days as the cutoff for a long rental period means rental_duration >= 5 (includes 5 days and above).",
     "unresolved": true
-   },
-   {
-    "assumption": "Per-film value is rental_rate / rental_duration, averaged within each rating over the long-rental films. Rows with a zero duration would yield NULL and be ignored; none exist because the data runs from 3 to 7 days.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The benchmark is the unweighted AVG of the per-rating averages over the long-rental subset. Its ratio column is NULL if the benchmark is NULL, and the WHERE clause then returns no rows.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "\"Long\" means strictly longer than 5 days, so only rental_duration of 6 or 7 counts.",
-    "sql": "WITH long_films AS (\n  SELECT rating, rental_rate, rental_duration\n  FROM film\n  WHERE rental_duration > 5\n),\nper_rating AS (\n  SELECT rating,\n         AVG(rental_rate / NULLIF(rental_duration, 0)) AS avg_rate_per_day,\n         COUNT(*) AS films\n  FROM long_films\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_day) AS bench\n  FROM per_rating\n)\nSELECT p.rating,\n       p.avg_rate_per_day,\n       p.films,\n       p.avg_rate_per_day / b.bench AS ratio_to_benchmark\nFROM per_rating p\nCROSS JOIN benchmark b\nWHERE b.bench IS NOT NULL"
+    "interpretation": "The cutoff could be an exclusive lower bound: rental_duration > 5 (includes only 6 and 7 days, excludes 5 days).",
+    "sql": "WITH long_rental_films AS (\n  SELECT \n    rating,\n    rental_rate,\n    rental_duration\n  FROM film\n  WHERE rental_duration > 5\n),\nper_rating_avg AS (\n  SELECT \n    rating,\n    AVG(rental_rate / rental_duration) AS avg_rate_per_duration,\n    COUNT(*) AS film_count\n  FROM long_rental_films\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_duration) AS benchmark_value\n  FROM per_rating_avg\n)\nSELECT \n  pra.rating,\n  pra.avg_rate_per_duration,\n  pra.film_count,\n  pra.avg_rate_per_duration / b.benchmark_value AS ratio_to_benchmark\nFROM per_rating_avg pra\nCROSS JOIN benchmark b\nWHERE b.benchmark_value IS NOT NULL;"
    }
   ]
  },
@@ -33,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "\"Long\" means strictly longer than 5 days, so only rental_duration of 6 or 7 counts.",
-   "sql": "WITH long_films AS (\n  SELECT rating, rental_rate, rental_duration\n  FROM film\n  WHERE rental_duration > 5\n),\nper_rating AS (\n  SELECT rating,\n         AVG(rental_rate / NULLIF(rental_duration, 0)) AS avg_rate_per_day,\n         COUNT(*) AS films\n  FROM long_films\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_day) AS bench\n  FROM per_rating\n)\nSELECT p.rating,\n       p.avg_rate_per_day,\n       p.films,\n       p.avg_rate_per_day / b.bench AS ratio_to_benchmark\nFROM per_rating p\nCROSS JOIN benchmark b\nWHERE b.bench IS NOT NULL",
+   "interpretation": "The cutoff could be an exclusive lower bound: rental_duration > 5 (includes only 6 and 7 days, excludes 5 days).",
+   "sql": "WITH long_rental_films AS (\n  SELECT \n    rating,\n    rental_rate,\n    rental_duration\n  FROM film\n  WHERE rental_duration > 5\n),\nper_rating_avg AS (\n  SELECT \n    rating,\n    AVG(rental_rate / rental_duration) AS avg_rate_per_duration,\n    COUNT(*) AS film_count\n  FROM long_rental_films\n  GROUP BY rating\n),\nbenchmark AS (\n  SELECT AVG(avg_rate_per_duration) AS benchmark_value\n  FROM per_rating_avg\n)\nSELECT \n  pra.rating,\n  pra.avg_rate_per_duration,\n  pra.film_count,\n  pra.avg_rate_per_duration / b.benchmark_value AS ratio_to_benchmark\nFROM per_rating_avg pra\nCROSS JOIN benchmark b\nWHERE b.benchmark_value IS NOT NULL;",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 18.9,
- "chars_out": 1995
+ "seconds": 55.4,
+ "chars_out": 1722
 }

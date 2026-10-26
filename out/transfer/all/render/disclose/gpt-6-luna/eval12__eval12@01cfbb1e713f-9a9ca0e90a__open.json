@@ -2,13 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-9a9ca0e90a",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) AS avg_rebtotal,\n    AVG(feerate - rebrate) AS avg_net_fee_rate\n  FROM fees\n  GROUP BY orderslink\n), overall AS (\n  SELECT AVG(feerate - rebrate) AS overall_avg_net_fee_rate\n  FROM fees\n)\nSELECT\n  AVG(p.avg_rebtotal) AS mean_avg_total_rebate,\n  AVG(p.avg_net_fee_rate) AS mean_avg_net_fee_rate,\n  AVG(p.avg_net_fee_rate - o.overall_avg_net_fee_rate) AS mean_excess_net_fee_rate\nFROM per_order AS p\nCROSS JOIN overall AS o\nWHERE p.avg_net_fee_rate > o.overall_avg_net_fee_rate;",
+  "sql": "WITH fee_rates AS (\n  SELECT\n    orderslink,\n    rebtotal,\n    CASE\n      WHEN feerate IS NOT NULL AND rebrate IS NOT NULL THEN feerate - rebrate\n    END AS net_fee_rate\n  FROM fees\n),\nper_order AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) AS avg_rebate,\n    AVG(net_fee_rate) AS avg_net_fee_rate\n  FROM fee_rates\n  GROUP BY orderslink\n),\noverall AS (\n  SELECT AVG(net_fee_rate) AS overall_avg_net_fee_rate\n  FROM fee_rates\n),\nabove AS (\n  SELECT p.avg_rebate, p.avg_net_fee_rate, o.overall_avg_net_fee_rate\n  FROM per_order AS p\n  CROSS JOIN overall AS o\n  WHERE p.avg_net_fee_rate > o.overall_avg_net_fee_rate\n)\nSELECT\n  AVG(avg_rebate) AS mean_of_order_average_rebates,\n  AVG(avg_net_fee_rate) AS mean_of_order_average_net_fee_rates,\n  AVG(avg_net_fee_rate - overall_avg_net_fee_rate) AS mean_excess_net_fee_rate\nFROM above;",
   "assumptions": [
    {
-    "assumption": "The overall average net fee rate is the average of all non-NULL row-level (feerate - rebrate) values in fees; the NULL orderslink group is included when calculating per-order averages and when selecting qualifying groups.",
-    "unresolved": false
+    "assumption": "A net fee rate is defined only when both feerate and rebrate are present; SQL AVG skips missing values, and orderslink NULL values form one group as requested. The overall average weights each fee record equally, while the final means weight each qualifying order group equally.",
+    "unresolved": true
    }
   ],
   "alternatives": []
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.4,
- "chars_out": 858
+ "seconds": 22.6,
+ "chars_out": 1219
 }

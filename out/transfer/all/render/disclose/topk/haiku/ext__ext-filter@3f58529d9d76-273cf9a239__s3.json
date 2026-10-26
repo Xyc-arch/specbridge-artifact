@@ -3,9 +3,11 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "WITH grp AS (\n  SELECT s.zoneregistry AS site_code,\n         s.healtheval AS health_status,\n         AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avg_gb_per_min,\n         COUNT(*) AS scan_count\n  FROM scans sc\n  JOIN sites s ON s.zoneregistry = sc.zoneref\n  WHERE sc.chronotag::text >= '2024-06-06 11:53:59.684274'\n    AND sc.chronotag::text <= '2024-11-03 19:51:13.516797'\n  GROUP BY s.zoneregistry, s.healtheval\n),\nstats AS (\n  SELECT AVG(avg_gb_per_min) AS mean_avg FROM grp\n)\nSELECT g.site_code,\n       g.health_status,\n       g.avg_gb_per_min,\n       g.scan_count,\n       g.avg_gb_per_min - st.mean_avg AS beat_by\nFROM grp g\nCROSS JOIN stats st\nWHERE g.avg_gb_per_min > st.mean_avg\nORDER BY beat_by DESC NULLS LAST\nLIMIT 10;"
+  "sql": "WITH scan_data AS (\n  SELECT \n    s.zoneref,\n    si.healtheval,\n    CASE \n      WHEN s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin > 0\n      THEN s.gbsize / s.spanmin\n      ELSE NULL\n    END AS ratio\n  FROM scans s\n  LEFT JOIN sites si ON s.zoneref = si.zoneregistry\n  WHERE s.chronotag >= '2024-06-06 11:53:59.684274'\n    AND s.chronotag <= '2024-11-03 19:51:13.516797'\n    AND s.zoneref IS NOT NULL\n),\ngroup_stats AS (\n  SELECT \n    zoneref,\n    healtheval,\n    AVG(ratio) AS avg_ratio,\n    COUNT(*) AS scan_count\n  FROM scan_data\n  WHERE ratio IS NOT NULL\n  GROUP BY zoneref, healtheval\n),\ngroup_means AS (\n  SELECT AVG(avg_ratio) AS overall_mean\n  FROM group_stats\n)\nSELECT \n  gs.zoneref,\n  gs.healtheval,\n  gs.avg_ratio,\n  gs.scan_count,\n  gs.avg_ratio - gm.overall_mean AS beat_amount\nFROM group_stats gs\nCROSS JOIN group_means gm\nWHERE gm.overall_mean IS NOT NULL\n  AND gs.avg_ratio > gm.overall_mean\nORDER BY beat_amount DESC NULLS LAST\nLIMIT 10;"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 10.0
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 18.4
 }

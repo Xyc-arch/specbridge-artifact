@@ -4,36 +4,12 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH item_counts AS (\n  SELECT oi.product_id,\n         AVG(CAST(NULLIF(TRIM(oi.product_quantity), '') AS REAL)) AS avg_qty,\n         COUNT(*) AS item_count\n  FROM Order_Items oi\n  GROUP BY oi.product_id\n),\nproduct_stats AS (\n  SELECT ic.product_id,\n         pc.product_type_description,\n         ic.avg_qty,\n         ic.item_count,\n         CAST(ic.item_count AS REAL) / SUM(ic.item_count) OVER () AS share\n  FROM item_counts ic\n  JOIN Products p ON p.product_id = ic.product_id\n  JOIN Product_Categories pc ON pc.production_type_code = p.production_type_code\n),\ntype_stats AS (\n  SELECT product_type_description,\n         AVG(avg_qty) AS type_avg_qty,\n         AVG(item_count) AS type_avg_count,\n         AVG(share) AS type_avg_share\n  FROM product_stats\n  GROUP BY product_type_description\n)\nSELECT AVG(type_avg_qty) AS avg_quantity,\n       AVG(type_avg_count) AS avg_order_item_count,\n       AVG(type_avg_share) AS avg_share\nFROM type_stats;",
-  "assumptions": [
-   {
-    "assumption": "product_quantity is stored as numeric text; it is cast to REAL, empty or whitespace-only values are treated as missing (NULL) and skipped by AVG, and any non-numeric text is parsed by SQLite's leading-number cast.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The share denominator is the sum of order-item counts over all included products, which equals the total number of Order_Items rows since every order item's product exists in Products.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A product whose order items all have missing quantities contributes NULL to the quantity average and is skipped in its type's average, not counted as zero.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Products with a NULL product_type_description form their own group in the per-type step, since GROUP BY treats NULL as a single group.",
-    "unresolved": true
-   }
-  ],
-  "alternatives": [
-   {
-    "interpretation": "Treat products with no product type description as missing and exclude them from the per-type averages, so only real product type descriptions are averaged in the final result. Shares still use all included products as the denominator.",
-    "sql": "WITH item_counts AS (\n  SELECT oi.product_id,\n         AVG(CAST(NULLIF(TRIM(oi.product_quantity), '') AS REAL)) AS avg_qty,\n         COUNT(*) AS item_count\n  FROM Order_Items oi\n  GROUP BY oi.product_id\n),\nproduct_stats AS (\n  SELECT ic.product_id,\n         pc.product_type_description,\n         ic.avg_qty,\n         ic.item_count,\n         CAST(ic.item_count AS REAL) / SUM(ic.item_count) OVER () AS share\n  FROM item_counts ic\n  JOIN Products p ON p.product_id = ic.product_id\n  JOIN Product_Categories pc ON pc.production_type_code = p.production_type_code\n),\ntype_stats AS (\n  SELECT product_type_description,\n         AVG(avg_qty) AS type_avg_qty,\n         AVG(item_count) AS type_avg_count,\n         AVG(share) AS type_avg_share\n  FROM product_stats\n  WHERE product_type_description IS NOT NULL\n  GROUP BY product_type_description\n)\nSELECT AVG(type_avg_qty) AS avg_quantity,\n       AVG(type_avg_count) AS avg_order_item_count,\n       AVG(type_avg_share) AS avg_share\nFROM type_stats;"
-   }
-  ]
+  "sql": "WITH product_metrics AS (\n  SELECT \n    p.product_id,\n    pc.product_type_description,\n    AVG(CAST(oi.product_quantity AS DECIMAL(19,4))) as avg_quantity,\n    COUNT(*) as order_item_count\n  FROM Products p\n  JOIN Product_Categories pc ON p.production_type_code = pc.production_type_code\n  JOIN Order_Items oi ON p.product_id = oi.product_id\n  GROUP BY p.product_id, pc.product_type_description\n),\ntotal_count AS (\n  SELECT COUNT(*) as total FROM Order_Items\n),\nproduct_metrics_with_share AS (\n  SELECT \n    pm.*,\n    CAST(pm.order_item_count AS DECIMAL(19,4)) / tc.total as share_of_items\n  FROM product_metrics pm\n  CROSS JOIN total_count tc\n),\nproduct_type_metrics AS (\n  SELECT \n    product_type_description,\n    AVG(avg_quantity) as avg_quantity_per_type,\n    AVG(order_item_count) as avg_count_per_type,\n    AVG(share_of_items) as avg_share_per_type\n  FROM product_metrics_with_share\n  GROUP BY product_type_description\n)\nSELECT \n  AVG(avg_quantity_per_type) as overall_avg_quantity,\n  AVG(avg_count_per_type) as overall_avg_count,\n  AVG(avg_share_per_type) as overall_avg_share\nFROM product_type_metrics;",
+  "assumptions": [],
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 13.3
+ "primary_matches": [],
+ "seconds": 89.4
 }

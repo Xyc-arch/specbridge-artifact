@@ -2,18 +2,41 @@
  "case": "eval12:eval12@01cfbb1e713f-65eee834c9",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched_orders AS (\n  SELECT o.dealedge, COUNT(*) as side_count\n  FROM orders o\n  INNER JOIN riskandmargin r ON o.recordvault = r.ordervault\n  GROUP BY o.dealedge\n),\navg_count AS (\n  SELECT AVG(side_count) as avg_side_count\n  FROM matched_orders\n)\nSELECT \n  SUM(mo.side_count) as total_counts,\n  AVG(mo.side_count - ac.avg_side_count) as avg_excess\nFROM matched_orders mo\nCROSS JOIN avg_count ac\nWHERE mo.side_count > ac.avg_side_count",
-  "assumptions": [],
-  "alternatives": []
+  "sql": "WITH side_counts AS (\n  SELECT \n    o.dealedge,\n    COUNT(*) as side_count\n  FROM orders o\n  INNER JOIN riskandmargin r ON r.ordervault = o.recordvault\n  GROUP BY o.dealedge\n),\navg_count_cte AS (\n  SELECT AVG(side_count) as avg_count FROM side_counts\n),\nabove_avg AS (\n  SELECT \n    side_count,\n    side_count - (SELECT avg_count FROM avg_count_cte) as excess\n  FROM side_counts\n  WHERE side_count > (SELECT avg_count FROM avg_count_cte)\n)\nSELECT \n  SUM(side_count) as total_count,\n  SUM(excess) / COUNT(*) as avg_excess\nFROM above_avg;",
+  "assumptions": [
+   {
+    "assumption": "Counting riskandmargin join rows (not distinct orders). If multiple risk/margin records reference the same order, each is counted separately in the side totals.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Dealedge values define the 'sides'. If no side exceeds the average count, the result set is empty.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "Count distinct orders per side instead of risk/margin join rows. Each order is counted once per side, even if multiple risk records match it.",
+    "sql": "WITH side_counts AS (\n  SELECT \n    o.dealedge,\n    COUNT(DISTINCT o.recordvault) as side_count\n  FROM orders o\n  INNER JOIN riskandmargin r ON r.ordervault = o.recordvault\n  GROUP BY o.dealedge\n),\navg_count_cte AS (\n  SELECT AVG(side_count) as avg_count FROM side_counts\n),\nabove_avg AS (\n  SELECT \n    side_count,\n    side_count - (SELECT avg_count FROM avg_count_cte) as excess\n  FROM side_counts\n  WHERE side_count > (SELECT avg_count FROM avg_count_cte)\n)\nSELECT \n  SUM(side_count) as total_count,\n  SUM(excess) / COUNT(*) as avg_excess\nFROM above_avg;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [],
- "seconds": 31.7,
- "chars_out": 525
+ "alternatives": [
+  {
+   "interpretation": "Count distinct orders per side instead of risk/margin join rows. Each order is counted once per side, even if multiple risk records match it.",
+   "sql": "WITH side_counts AS (\n  SELECT \n    o.dealedge,\n    COUNT(DISTINCT o.recordvault) as side_count\n  FROM orders o\n  INNER JOIN riskandmargin r ON r.ordervault = o.recordvault\n  GROUP BY o.dealedge\n),\navg_count_cte AS (\n  SELECT AVG(side_count) as avg_count FROM side_counts\n),\nabove_avg AS (\n  SELECT \n    side_count,\n    side_count - (SELECT avg_count FROM avg_count_cte) as excess\n  FROM side_counts\n  WHERE side_count > (SELECT avg_count FROM avg_count_cte)\n)\nSELECT \n  SUM(side_count) as total_count,\n  SUM(excess) / COUNT(*) as avg_excess\nFROM above_avg;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 26.2,
+ "chars_out": 1790
 }

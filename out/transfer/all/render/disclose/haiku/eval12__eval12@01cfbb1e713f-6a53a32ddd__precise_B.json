@@ -2,23 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH project_funding AS (\n  SELECT\n    p.fundflux,\n    sp.domainregistry,\n    sp.aream2,\n    sp.volm3,\n    sp.boxx,\n    sp.boxy\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  WHERE sp.aream2 IS NOT NULL\n    AND sp.volm3 IS NOT NULL\n    AND sp.boxx IS NOT NULL\n    AND sp.boxy IS NOT NULL\n),\nfunding_metrics AS (\n  SELECT\n    fundflux,\n    AVG((boxy - boxx) / NULLIF(boxx, 0)) AS avg_y_vs_x_diff,\n    SUM(aream2) / NULLIF(SUM(volm3), 0) AS area_to_volume_ratio\n  FROM project_funding\n  GROUP BY fundflux\n),\ncross_source_avg AS (\n  SELECT AVG(area_to_volume_ratio) AS avg_ratio\n  FROM funding_metrics\n)\nSELECT\n  fm.fundflux,\n  fm.avg_y_vs_x_diff,\n  fm.area_to_volume_ratio,\n  fm.area_to_volume_ratio - csa.avg_ratio AS above_average\nFROM funding_metrics fm\nCROSS JOIN cross_source_avg csa\nWHERE fm.area_to_volume_ratio > csa.avg_ratio\nORDER BY fm.area_to_volume_ratio DESC;",
+  "sql": "WITH spatial_with_funding AS (\n  SELECT \n    s.aream2,\n    s.volm3,\n    s.boxx,\n    s.boxy,\n    p.fundflux\n  FROM scanspatial s\n  JOIN projects p ON s.arcref = p.arcregistry\n),\nper_funding_calcs AS (\n  SELECT \n    fundflux,\n    AVG(CASE \n      WHEN boxx IS NOT NULL AND boxx != 0 AND boxy IS NOT NULL\n      THEN (boxy - boxx) / CAST(boxx AS REAL)\n      ELSE NULL\n    END) as avg_y_vs_x,\n    SUM(CASE WHEN aream2 IS NOT NULL THEN aream2 ELSE 0 END) as total_area,\n    SUM(CASE WHEN volm3 IS NOT NULL THEN volm3 ELSE 0 END) as total_vol\n  FROM spatial_with_funding\n  GROUP BY fundflux\n),\nwith_ratios AS (\n  SELECT \n    fundflux,\n    avg_y_vs_x,\n    CASE \n      WHEN total_vol > 0 THEN total_area / CAST(total_vol AS REAL)\n      ELSE NULL\n    END as area_vol_ratio\n  FROM per_funding_calcs\n),\ncross_source_avg AS (\n  SELECT AVG(area_vol_ratio) as avg_ratio\n  FROM with_ratios\n  WHERE area_vol_ratio IS NOT NULL\n)\nSELECT \n  wr.fundflux,\n  wr.avg_y_vs_x,\n  wr.area_vol_ratio,\n  wr.area_vol_ratio - csa.avg_ratio as above_average\nFROM with_ratios wr, cross_source_avg csa\nWHERE wr.area_vol_ratio IS NOT NULL\n  AND wr.area_vol_ratio > csa.avg_ratio\nORDER BY wr.fundflux;",
   "assumptions": [
    {
-    "assumption": "\"Ignore missing values\" refers to NULL values in required fields (aream2, volm3, boxx, boxy); records with any NULL in these fields are excluded.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Division by zero (boxx = 0 or volm3 = 0) is handled via NULLIF, treating the result as NULL, which aggregation functions skip.",
+    "assumption": "When summing aream2 and volm3 across records for the ratio, null values are excluded from their respective sums independently (e.g., a record with aream2=5 and volm3=NULL contributes 5 to total_area but nothing to total_vol).",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Instead of NULLIF for division-by-zero handling, explicitly exclude records where boxx \u2264 0 or volm3 \u2264 0 via WHERE clause.",
-    "sql": "WITH project_funding AS (\n  SELECT\n    p.fundflux,\n    sp.domainregistry,\n    sp.aream2,\n    sp.volm3,\n    sp.boxx,\n    sp.boxy\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  WHERE sp.aream2 IS NOT NULL\n    AND sp.volm3 IS NOT NULL\n    AND sp.boxx IS NOT NULL\n    AND sp.boxy IS NOT NULL\n    AND sp.boxx > 0\n    AND sp.volm3 > 0\n),\nfunding_metrics AS (\n  SELECT\n    fundflux,\n    AVG((boxy - boxx) / boxx) AS avg_y_vs_x_diff,\n    SUM(aream2) / SUM(volm3) AS area_to_volume_ratio\n  FROM project_funding\n  GROUP BY fundflux\n),\ncross_source_avg AS (\n  SELECT AVG(area_to_volume_ratio) AS avg_ratio\n  FROM funding_metrics\n)\nSELECT\n  fm.fundflux,\n  fm.avg_y_vs_x_diff,\n  fm.area_to_volume_ratio,\n  fm.area_to_volume_ratio - csa.avg_ratio AS above_average\nFROM funding_metrics fm\nCROSS JOIN cross_source_avg csa\nWHERE fm.area_to_volume_ratio > csa.avg_ratio\nORDER BY fm.area_to_volume_ratio DESC;"
+    "interpretation": "For the area-to-volume ratio, only include records where both aream2 and volm3 are non-null, rather than summing the non-null values independently.",
+    "sql": "WITH spatial_with_funding AS (\n  SELECT \n    s.aream2,\n    s.volm3,\n    s.boxx,\n    s.boxy,\n    p.fundflux\n  FROM scanspatial s\n  JOIN projects p ON s.arcref = p.arcregistry\n),\nper_funding_calcs AS (\n  SELECT \n    fundflux,\n    AVG(CASE \n      WHEN boxx IS NOT NULL AND boxx != 0 AND boxy IS NOT NULL\n      THEN (boxy - boxx) / CAST(boxx AS REAL)\n      ELSE NULL\n    END) as avg_y_vs_x,\n    SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN aream2 ELSE 0 END) as total_area,\n    SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN volm3 ELSE 0 END) as total_vol\n  FROM spatial_with_funding\n  GROUP BY fundflux\n),\nwith_ratios AS (\n  SELECT \n    fundflux,\n    avg_y_vs_x,\n    CASE \n      WHEN total_vol > 0 THEN total_area / CAST(total_vol AS REAL)\n      ELSE NULL\n    END as area_vol_ratio\n  FROM per_funding_calcs\n),\ncross_source_avg AS (\n  SELECT AVG(area_vol_ratio) as avg_ratio\n  FROM with_ratios\n  WHERE area_vol_ratio IS NOT NULL\n)\nSELECT \n  wr.fundflux,\n  wr.avg_y_vs_x,\n  wr.area_vol_ratio,\n  wr.area_vol_ratio - csa.avg_ratio as above_average\nFROM with_ratios wr, cross_source_avg csa\nWHERE wr.area_vol_ratio IS NOT NULL\n  AND wr.area_vol_ratio > csa.avg_ratio\nORDER BY wr.fundflux;"
    }
   ]
  },
@@ -29,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Instead of NULLIF for division-by-zero handling, explicitly exclude records where boxx \u2264 0 or volm3 \u2264 0 via WHERE clause.",
-   "sql": "WITH project_funding AS (\n  SELECT\n    p.fundflux,\n    sp.domainregistry,\n    sp.aream2,\n    sp.volm3,\n    sp.boxx,\n    sp.boxy\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  WHERE sp.aream2 IS NOT NULL\n    AND sp.volm3 IS NOT NULL\n    AND sp.boxx IS NOT NULL\n    AND sp.boxy IS NOT NULL\n    AND sp.boxx > 0\n    AND sp.volm3 > 0\n),\nfunding_metrics AS (\n  SELECT\n    fundflux,\n    AVG((boxy - boxx) / boxx) AS avg_y_vs_x_diff,\n    SUM(aream2) / SUM(volm3) AS area_to_volume_ratio\n  FROM project_funding\n  GROUP BY fundflux\n),\ncross_source_avg AS (\n  SELECT AVG(area_to_volume_ratio) AS avg_ratio\n  FROM funding_metrics\n)\nSELECT\n  fm.fundflux,\n  fm.avg_y_vs_x_diff,\n  fm.area_to_volume_ratio,\n  fm.area_to_volume_ratio - csa.avg_ratio AS above_average\nFROM funding_metrics fm\nCROSS JOIN cross_source_avg csa\nWHERE fm.area_to_volume_ratio > csa.avg_ratio\nORDER BY fm.area_to_volume_ratio DESC;",
+   "interpretation": "For the area-to-volume ratio, only include records where both aream2 and volm3 are non-null, rather than summing the non-null values independently.",
+   "sql": "WITH spatial_with_funding AS (\n  SELECT \n    s.aream2,\n    s.volm3,\n    s.boxx,\n    s.boxy,\n    p.fundflux\n  FROM scanspatial s\n  JOIN projects p ON s.arcref = p.arcregistry\n),\nper_funding_calcs AS (\n  SELECT \n    fundflux,\n    AVG(CASE \n      WHEN boxx IS NOT NULL AND boxx != 0 AND boxy IS NOT NULL\n      THEN (boxy - boxx) / CAST(boxx AS REAL)\n      ELSE NULL\n    END) as avg_y_vs_x,\n    SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN aream2 ELSE 0 END) as total_area,\n    SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN volm3 ELSE 0 END) as total_vol\n  FROM spatial_with_funding\n  GROUP BY fundflux\n),\nwith_ratios AS (\n  SELECT \n    fundflux,\n    avg_y_vs_x,\n    CASE \n      WHEN total_vol > 0 THEN total_area / CAST(total_vol AS REAL)\n      ELSE NULL\n    END as area_vol_ratio\n  FROM per_funding_calcs\n),\ncross_source_avg AS (\n  SELECT AVG(area_vol_ratio) as avg_ratio\n  FROM with_ratios\n  WHERE area_vol_ratio IS NOT NULL\n)\nSELECT \n  wr.fundflux,\n  wr.avg_y_vs_x,\n  wr.area_vol_ratio,\n  wr.area_vol_ratio - csa.avg_ratio as above_average\nFROM with_ratios wr, cross_source_avg csa\nWHERE wr.area_vol_ratio IS NOT NULL\n  AND wr.area_vol_ratio > csa.avg_ratio\nORDER BY wr.fundflux;",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 119.8,
- "chars_out": 2531
+ "seconds": 88.9,
+ "chars_out": 3028
 }

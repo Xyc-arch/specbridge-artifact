@@ -2,39 +2,43 @@
  "case": "eval12:eval12@01cfbb1e713f-1c7e18597b",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / SUM(telescope_count) OVER () AS share FROM c), g AS (SELECT observstation, telescope_count, share, share - AVG(share) OVER () AS share_minus_avg FROM s) SELECT observstation, telescope_count, share, share_minus_avg FROM g WHERE share_minus_avg > 0 ORDER BY share_minus_avg DESC LIMIT 10",
+  "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS telescope_count FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / (SELECT COUNT(*) FROM telescopes) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.observstation, s.telescope_count, s.share, s.share - a.avg_share AS share_minus_avg FROM s CROSS JOIN a WHERE s.share > a.avg_share ORDER BY share_minus_avg DESC LIMIT 10;",
   "assumptions": [
    {
-    "assumption": "Observatories are the stations that appear in telescopes, so stations with no telescopes are not counted. This affects the average share, because the average is taken over those stations.",
+    "assumption": "Every row in observatories counts as an observatory station, including any with zero telescopes (LEFT JOIN). The average share is therefore taken over all observatories, which equals 1 / number of observatories.",
     "unresolved": true
    },
    {
-    "assumption": "Ties at the top-10 cutoff are broken arbitrarily. Share and the gap are not rounded.",
+    "assumption": "Total telescopes is the row count of telescopes, and share = telescope count / that total.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The average share is the unweighted mean of the per-observatory shares. The output is not rounded.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Every station in the observatories table counts as an observatory, including stations with zero telescopes. The average share is then 1 divided by the number of all stations.",
-    "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS telescope_count FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / SUM(telescope_count) OVER () AS share FROM c), g AS (SELECT observstation, telescope_count, share, share - AVG(share) OVER () AS share_minus_avg FROM s) SELECT observstation, telescope_count, share, share_minus_avg FROM g WHERE share_minus_avg > 0 ORDER BY share_minus_avg DESC LIMIT 10"
+    "interpretation": "Only observatories that actually have at least one telescope are considered, so the average share is taken over stations appearing in telescopes. This is 1 / number of such stations.",
+    "sql": "WITH c AS (SELECT observstation, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / (SELECT COUNT(*) FROM telescopes) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.observstation, s.telescope_count, s.share, s.share - a.avg_share AS share_minus_avg FROM s CROSS JOIN a WHERE s.share > a.avg_share ORDER BY share_minus_avg DESC LIMIT 10;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
+ "primary_matches": [],
  "alternatives": [
   {
-   "interpretation": "Every station in the observatories table counts as an observatory, including stations with zero telescopes. The average share is then 1 divided by the number of all stations.",
-   "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS telescope_count FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / SUM(telescope_count) OVER () AS share FROM c), g AS (SELECT observstation, telescope_count, share, share - AVG(share) OVER () AS share_minus_avg FROM s) SELECT observstation, telescope_count, share, share_minus_avg FROM g WHERE share_minus_avg > 0 ORDER BY share_minus_avg DESC LIMIT 10",
+   "interpretation": "Only observatories that actually have at least one telescope are considered, so the average share is taken over stations appearing in telescopes. This is 1 / number of such stations.",
+   "sql": "WITH c AS (SELECT observstation, COUNT(*) AS telescope_count FROM telescopes GROUP BY observstation), s AS (SELECT observstation, telescope_count, telescope_count * 1.0 / (SELECT COUNT(*) FROM telescopes) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.observstation, s.telescope_count, s.share, s.share - a.avg_share AS share_minus_avg FROM s CROSS JOIN a WHERE s.share > a.avg_share ORDER BY share_minus_avg DESC LIMIT 10;",
    "executes": true,
-   "matches": []
+   "matches": [
+    "A"
+   ]
   }
  ],
- "seconds": 9.4,
- "chars_out": 1623
+ "seconds": 11.6,
+ "chars_out": 1826
 }

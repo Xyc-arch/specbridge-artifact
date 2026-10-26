@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT o.timespan, AVG(f.rebrate / NULLIF(f.feerate, 0)) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), k AS (SELECT timespan, avg_ratio, cnt, AVG(cnt) OVER () AS avg_cnt FROM g) SELECT AVG(avg_ratio) AS avg_of_avg_ratios, SUM(cnt) AS total_fee_records, AVG(cnt - avg_cnt) AS avg_excess_over_mean_count FROM k WHERE cnt > avg_cnt",
+  "sql": "WITH g AS (SELECT o.timespan AS timespan, AVG(f.rebrate * 1.0 / f.feerate) AS avg_ratio, COUNT(*) AS cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault GROUP BY o.timespan), a AS (SELECT AVG(cnt) AS avg_cnt FROM g) SELECT AVG(g.avg_ratio) AS avg_of_avg_ratios, SUM(g.cnt) AS total_fee_records, AVG(g.cnt - a.avg_cnt) AS avg_excess_over_mean_count FROM g CROSS JOIN a WHERE g.cnt > a.avg_cnt",
   "assumptions": [
    {
-    "assumption": "The ratio is computed per fee record as rebrate / feerate. A feerate of 0 gives a NULL ratio (via NULLIF), so it is ignored in the average like other missing values. The fee record still counts toward the group's count.",
+    "assumption": "Each group's fee-record count is the number of joined fee rows (COUNT(*)), which equals the number of fees with a matching order since recordvault is treated as unique per order.",
     "unresolved": false
    },
    {
-    "assumption": "Fee-record count is COUNT(*) of joined rows, including rows whose ratio is NULL. The cross-group average count is the unweighted mean of the per-group counts.",
+    "assumption": "The ratio rebrate/feerate is computed per fee row. In SQLite a zero feerate gives NULL on division, so those rows are ignored in the average, the same as rows with a missing rebrate or feerate. They still count toward the fee-record count.",
     "unresolved": false
    },
    {
-    "assumption": "Any fees whose order has a NULL timespan form their own group, which is included in the cross-group average. It is also eligible to be kept.",
+    "assumption": "Orders with a NULL timespan, if any, form their own group and count toward the cross-group average like any other group.",
     "unresolved": false
    }
   ],
@@ -27,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 8.9,
- "chars_out": 1075
+ "seconds": 8.0,
+ "chars_out": 1093
 }

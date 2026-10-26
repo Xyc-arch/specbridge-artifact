@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-30b46b4254",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT st.riskeval AS grp, AVG(sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0)) AS rate FROM scans sc JOIN sites st ON st.zoneregistry = sc.zoneref WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin <> 0 GROUP BY st.riskeval), b AS (SELECT AVG(rate) AS bench FROM g) SELECT AVG(g.rate) AS avg_rate_above_benchmark, AVG(g.rate - b.bench) AS avg_excess_over_benchmark FROM g CROSS JOIN b WHERE g.rate > b.bench",
+  "sql": "WITH g AS (SELECT s.riskeval AS riskeval, AVG(sc.gbsize / sc.spanmin) AS rate FROM scans sc JOIN sites s ON s.zoneregistry = sc.zoneref WHERE sc.gbsize / sc.spanmin IS NOT NULL GROUP BY s.riskeval), b AS (SELECT AVG(rate) AS bm FROM g) SELECT AVG(g.rate) AS avg_rate_above_benchmark, AVG(g.rate - b.bm) AS avg_excess_over_benchmark FROM g, b WHERE g.rate > b.bm",
   "assumptions": [
    {
-    "assumption": "A site with a NULL riskeval forms its own group (GROUP BY puts NULLs together). Empty-string or other values are treated as ordinary statuses.",
+    "assumption": "A site with no recorded risk evaluation status means riskeval IS NULL. GROUP BY puts all NULLs in one group, so they form their own group. Empty strings, if any, would be a separate group.",
     "unresolved": false
    },
    {
-    "assumption": "A scan's ratio counts as missing when gbsize or spanmin is NULL, or when spanmin is 0 (division undefined). Such scans are excluded. A group left with no valid ratios has no rate and doesn't count toward the benchmark.",
+    "assumption": "A scan with spanmin = 0 gives a NULL ratio in SQLite, so it is ignored like any other missing ratio. A group with no valid ratios has no rate, so it is left out of the benchmark and the result.",
     "unresolved": false
    },
    {
-    "assumption": "If no group is strictly above the benchmark (for example, with one group or none), the query returns one row with NULL values.",
+    "assumption": "If no group is above the benchmark, the query returns one row with NULLs in both columns.",
     "unresolved": false
    }
   ],
@@ -26,5 +26,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 7.7
+ "seconds": 9.0
 }

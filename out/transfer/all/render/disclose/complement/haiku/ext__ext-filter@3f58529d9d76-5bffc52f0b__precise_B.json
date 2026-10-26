@@ -4,27 +4,15 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH filtered AS (\n  SELECT sf.zoneref, s.entrystat, sf.traitcount\n  FROM scanfeatures sf\n  JOIN sites s ON sf.zoneref = s.zoneregistry\n  WHERE sf.traitcount > 489\n)\nSELECT zoneref AS site_code,\n       entrystat AS access_status,\n       AVG(traitcount) AS avg_traitcount,\n       COUNT(*) AS record_count,\n       COUNT(*) * 1.0 / (SELECT COUNT(*) FROM filtered) AS record_fraction\nFROM filtered\nGROUP BY zoneref, entrystat\nORDER BY record_fraction DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH filtered AS (\n  SELECT\n    sf.zoneref,\n    s.entrystat,\n    sf.traitcount\n  FROM scanfeatures sf\n  INNER JOIN sites s ON sf.zoneref = s.zoneregistry\n  WHERE sf.traitcount > 489\n),\ngrouped AS (\n  SELECT\n    zoneref,\n    entrystat,\n    AVG(traitcount) as avg_traitcount,\n    COUNT(*) as record_count\n  FROM filtered\n  GROUP BY zoneref, entrystat\n),\ntotal_count AS (\n  SELECT SUM(record_count) as total FROM grouped\n)\nSELECT\n  g.zoneref,\n  g.entrystat,\n  g.avg_traitcount,\n  g.record_count,\n  CAST(g.record_count AS FLOAT) / t.total as fraction\nFROM grouped g\nCROSS JOIN total_count t\nWHERE t.total IS NOT NULL AND t.total > 0\nORDER BY fraction DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The inner JOIN drops scanfeatures rows with no matching sites row, and the traitcount > 489 filter is applied before grouping and before computing the total record count.",
+    "assumption": "The phrase 'ignoring missing values' refers to standard SQL AVG() behavior, which automatically excludes NULL traitcount values from the calculation. Since the WHERE filter traitcount > 489 would exclude NULLs anyway, this interpretation is natural.",
     "unresolved": false
    },
    {
-    "assumption": "A NULL sites.entrystat is kept as its own access-status group, since GROUP BY treats NULL as a group.",
+    "assumption": "'Total record count across all groups' means the sum of COUNT(*) across all zoneref/entrystat groups after the traitcount > 489 filter. The 'no rows if there is no total' clause is interpreted as returning an empty result set if total is NULL or \u2264 0 (i.e., no matching records exist).",
     "unresolved": false
-   },
-   {
-    "assumption": "AVG ignores NULL traitcount values; the filter already excludes NULLs, so the average and the record count cover the same rows.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The total record count is the number of filtered, joined rows across all groups, and the fraction is computed as a non-integer division (COUNT(*) * 1.0) with no rounding.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The SQL uses standard syntax with NULLS LAST, which requires PostgreSQL or SQLite 3.30+. The dialect is not stated in the request, and the query has not been executed.",
-    "unresolved": true
    }
   ],
   "alternatives": []
@@ -34,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 11.5
+ "seconds": 45.7
 }

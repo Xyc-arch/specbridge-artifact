@@ -2,16 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-284b059491",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH tot AS (SELECT SUM(articount) AS total FROM scanfeatures), unit AS (SELECT zoneref, SUM(articount) AS artifact_count FROM scanfeatures GROUP BY zoneref), sh AS (SELECT u.zoneref, u.artifact_count, (1.0 * u.artifact_count) / NULLIF(t.total, 0) AS share FROM unit u CROSS JOIN tot t), withavg AS (SELECT zoneref, artifact_count, share, AVG(share) OVER () AS avg_share FROM sh) SELECT zoneref AS site_code, artifact_count, share, share - avg_share AS share_minus_avg FROM withavg WHERE avg_share IS NOT NULL ORDER BY (share - avg_share) IS NULL, share - avg_share DESC LIMIT 10",
+  "sql": "WITH u AS (SELECT zoneref, SUM(articount) AS cnt FROM scanfeatures GROUP BY zoneref), t AS (SELECT SUM(articount) AS total FROM scanfeatures), s AS (SELECT u.zoneref, u.cnt, CAST(u.cnt AS REAL) / t.total AS share FROM u CROSS JOIN t WHERE t.total IS NOT NULL), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.zoneref AS site_code, s.cnt AS artifact_count, s.share AS share, s.share - a.avg_share AS share_minus_avg FROM s CROSS JOIN a WHERE a.avg_share IS NOT NULL ORDER BY (s.share - a.avg_share) IS NULL, s.share - a.avg_share DESC, s.zoneref LIMIT 10",
   "assumptions": [
    {
-    "assumption": "A site whose articount values are all NULL has a NULL site count (SUM of no values), so its share and difference are NULL and it sorts last; it stays in the share average only as ignored (NULL).",
+    "assumption": "A site whose artifact counts are all missing is still kept as a unit with a NULL count and NULL share. It is excluded from the average and sorted last.",
     "unresolved": false
    },
    {
-    "assumption": "If the overall artifact total is 0, shares are treated as missing (division by zero avoided via NULLIF), so no rows are returned.",
+    "assumption": "If the overall total is 0, the shares are NULL (SQLite division by zero), so the average is NULL and no rows are returned.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Ties in the difference are broken by site code, which the request does not specify.",
     "unresolved": false
    }
   ],
@@ -22,5 +26,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 9.0
+ "seconds": 9.7
 }

@@ -4,27 +4,11 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH patient_avg AS (SELECT ID, AVG(HGB) AS avg_hgb FROM Laboratory WHERE HGB IS NOT NULL GROUP BY ID), overall AS (SELECT AVG(avg_hgb) AS overall_avg FROM patient_avg), kept AS (SELECT p.ID, p.avg_hgb FROM patient_avg p CROSS JOIN overall o WHERE p.avg_hgb > o.overall_avg), kept_mean AS (SELECT AVG(avg_hgb) AS kept_avg FROM kept) SELECT k.ID AS ID, k.avg_hgb AS avg_hgb, k.avg_hgb - o.overall_avg AS above_overall_avg, k.avg_hgb - km.kept_avg AS diff_from_kept_mean FROM kept k CROSS JOIN overall o CROSS JOIN kept_mean km ORDER BY diff_from_kept_mean DESC LIMIT 10;",
+  "sql": "WITH patient_avgs AS (\n  SELECT ID, AVG(HGB) as patient_avg_hgb\n  FROM Laboratory\n  WHERE HGB IS NOT NULL\n  GROUP BY ID\n),\noverall_avg_calc AS (\n  SELECT AVG(patient_avg_hgb) as overall_avg\n  FROM patient_avgs\n),\nkept_patients AS (\n  SELECT pa.ID, pa.patient_avg_hgb\n  FROM patient_avgs pa, overall_avg_calc oa\n  WHERE pa.patient_avg_hgb > oa.overall_avg\n),\nkept_patients_mean AS (\n  SELECT AVG(patient_avg_hgb) as kept_avg\n  FROM kept_patients\n)\nSELECT \n  kp.ID,\n  kp.patient_avg_hgb,\n  kp.patient_avg_hgb - oa.overall_avg,\n  kp.patient_avg_hgb - kpm.kept_avg\nFROM kept_patients kp, overall_avg_calc oa, kept_patients_mean kpm\nORDER BY kp.patient_avg_hgb - kpm.kept_avg DESC\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "The SQL targets SQLite, since the schema uses SQLite-style backtick-quoted identifiers and the CROSS JOIN/AVG/LIMIT syntax is standard there.",
+    "assumption": "Patients with no HGB records are excluded entirely (they do not contribute to the per-patient average step, and thus do not affect the overall average).",
     "unresolved": false
-   },
-   {
-    "assumption": "Patients with no non-null HGB value have no per-patient average, so they are excluded from the overall average and from the kept set.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A patient is kept only if their average is strictly greater than the overall average (no tie inclusion).",
-    "unresolved": false
-   },
-   {
-    "assumption": "Lab records are not filtered by date; all Laboratory rows for a patient are averaged.",
-    "unresolved": false
-   },
-   {
-    "assumption": "If several kept patients tie on the sort value at position 10, LIMIT 10 breaks the tie arbitrarily; no secondary sort key was specified.",
-    "unresolved": true
    }
   ],
   "alternatives": []
@@ -34,5 +18,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 10.7
+ "seconds": 23.9
 }

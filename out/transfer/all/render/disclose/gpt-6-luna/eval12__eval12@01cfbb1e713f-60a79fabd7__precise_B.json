@@ -2,16 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_status AS (\n  SELECT s.questregistry, s.zoneref, t.healtheval,\n         s.gbsize / NULLIF(s.spanmin, 0) AS rate\n  FROM scans AS s\n  JOIN sites AS t ON s.zoneref = t.zoneregistry\n), status_stats AS (\n  SELECT healtheval,\n         AVG(rate) AS avg_rate,\n         COUNT(DISTINCT zoneref) AS distinct_sites\n  FROM site_status\n  GROUP BY healtheval\n), above_average AS (\n  SELECT *, AVG(avg_rate) OVER () AS all_status_avg\n  FROM status_stats\n), selected AS (\n  SELECT *\n  FROM above_average\n  WHERE all_status_avg IS NOT NULL AND avg_rate > all_status_avg\n)\nSELECT AVG(avg_rate) AS avg_rate_of_statuses,\n       AVG(distinct_sites) AS avg_distinct_sites,\n       AVG(avg_rate - all_status_avg) AS avg_excess_over_all_status_avg\nFROM selected;",
+  "sql": "WITH status_rates AS (\n  SELECT\n    s.healtheval,\n    AVG(1.0 * sc.gbsize / sc.spanmin) AS avg_rate,\n    COUNT(DISTINCT sc.zoneref) AS distinct_sites\n  FROM scans AS sc\n  JOIN sites AS s ON sc.zoneref = s.zoneregistry\n  WHERE sc.gbsize IS NOT NULL\n    AND sc.spanmin IS NOT NULL\n    AND sc.spanmin <> 0\n  GROUP BY s.healtheval\n),\nall_status_avg AS (\n  SELECT AVG(avg_rate) AS avg_rate\n  FROM status_rates\n),\nabove_average AS (\n  SELECT sr.avg_rate, sr.distinct_sites, aa.avg_rate AS all_avg_rate\n  FROM status_rates AS sr\n  CROSS JOIN all_status_avg AS aa\n  WHERE aa.avg_rate IS NOT NULL\n    AND sr.avg_rate > aa.avg_rate\n)\nSELECT\n  AVG(avg_rate) AS average_rate,\n  AVG(distinct_sites) AS average_distinct_sites,\n  AVG(avg_rate - all_avg_rate) AS average_excess_rate\nFROM above_average;",
   "assumptions": [
    {
-    "assumption": "A status's rate is the average of individual scan file-size-per-minute rates for scans with nonmissing size and duration; zero durations are excluded as undefined.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The all-status average is the unweighted average of the per-status rates, including statuses whose rate is missing; SQL AVG ignores missing rates.",
+    "assumption": "Statuses with no non-missing file-size-per-minute observations are excluded from the status averages and from the all-status average; zero-duration scans are excluded because the rate is undefined.",
     "unresolved": false
    }
   ],
@@ -23,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.2,
- "chars_out": 1195
+ "seconds": 13.4,
+ "chars_out": 1091
 }

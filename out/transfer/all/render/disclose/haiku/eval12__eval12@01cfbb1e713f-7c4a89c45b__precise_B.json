@@ -2,20 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-7c4a89c45b",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH baseline_calc AS (\n  SELECT AVG(modindex) AS baseline_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\ngroup_averages AS (\n  SELECT \n    COALESCE(rfistat, 'no status') AS status,\n    AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY COALESCE(rfistat, 'no status')\n),\nwith_baseline_comparison AS (\n  SELECT \n    ga.status,\n    ga.avg_modindex,\n    bc.baseline_avg\n  FROM group_averages ga\n  CROSS JOIN baseline_calc bc\n  WHERE ga.avg_modindex > bc.baseline_avg\n),\nmean_of_kept_averages AS (\n  SELECT AVG(avg_modindex) AS mean_kept\n  FROM with_baseline_comparison\n)\nSELECT \n  wbc.status,\n  wbc.avg_modindex AS average_modulation_index,\n  wbc.avg_modindex - wbc.baseline_avg AS above_baseline,\n  wbc.avg_modindex - mka.mean_kept AS differs_from_mean_of_kept\nFROM with_baseline_comparison wbc\nCROSS JOIN mean_of_kept_averages mka\nORDER BY wbc.status;",
+  "sql": "WITH baseline AS (\n  SELECT AVG(modindex) as baseline_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nstatus_groups AS (\n  SELECT \n    rfistat,\n    AVG(modindex) as status_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nabove_baseline AS (\n  SELECT \n    COALESCE(sg.rfistat, 'No Status') as status,\n    sg.status_avg,\n    sg.status_avg - b.baseline_avg as above_baseline\n  FROM status_groups sg, baseline b\n  WHERE sg.status_avg > b.baseline_avg\n),\nkept_mean AS (\n  SELECT AVG(status_avg) as mean_kept_avg\n  FROM above_baseline\n)\nSELECT \n  ab.status,\n  ab.status_avg,\n  ab.above_baseline,\n  ab.status_avg - km.mean_kept_avg as diff_from_mean_kept\nFROM above_baseline ab, kept_mean km\nORDER BY ab.status;",
   "assumptions": [
    {
-    "assumption": "Signals with NULL rfistat are grouped as a single 'no status' category, treated identically to named RFI statuses for selection and metrics",
-    "unresolved": false
-   },
-   {
-    "assumption": "The baseline average includes all signals with non-NULL modindex values regardless of their RFI status",
-    "unresolved": false
-   },
-   {
-    "assumption": "A status qualifies as 'above baseline' using strict inequality (> not >=)",
+    "assumption": "NULL rfistat values are grouped as 'No Status' (their own group). The baseline is calculated from all signals with non-NULL modindex, regardless of rfistat. Group averages include only signals with non-NULL modindex. Filtering for 'above baseline' happens after these calculations.",
     "unresolved": false
    }
   ],
@@ -27,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 89.6,
- "chars_out": 1496
+ "seconds": 36.4,
+ "chars_out": 1175
 }

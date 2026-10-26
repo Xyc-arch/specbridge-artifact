@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-9e5dda7b4a",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_scope AS (SELECT u.acctscope AS acctscope, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate, COUNT(f.feerate - f.rebrate) AS fee_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, avg_net_fee_rate, fee_count, avg_net_fee_rate - AVG(avg_net_fee_rate) OVER () AS deviation_from_mean_of_scope_averages FROM per_scope",
+  "sql": "WITH per_scope AS (SELECT u.acctscope AS scope, AVG(f.feerate - f.rebrate) AS avg_net_fee_rate, COUNT(f.feerate - f.rebrate) AS n_fees FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT scope, avg_net_fee_rate, n_fees, avg_net_fee_rate - (SELECT AVG(avg_net_fee_rate) FROM per_scope) AS diff_from_mean_of_scope_avgs FROM per_scope ORDER BY scope",
   "assumptions": [
    {
-    "assumption": "Inner joins drop unmatched fees, orders and users, as the request states. Each scope's average is over its fee rows. The deviation is measured from the unweighted mean of the scope averages, not the row-weighted overall average.",
+    "assumption": "Inner joins drop unmatched fees, orders and users. Each recordvault and userstamp is assumed unique, so the joins don't duplicate fee rows.",
     "unresolved": false
    },
    {
-    "assumption": "Fee rows where feerate or rebrate is NULL give a NULL net rate. They are left out of both the average and the count. The count is the number of rows actually averaged.",
+    "assumption": "The net rate is feerate - rebrate. Fee rows where either value is NULL give a NULL net rate, so they are left out of both the average and the count.",
     "unresolved": true
    },
    {
-    "assumption": "Scopes are taken from users.acctscope. A scope with no matched fees does not appear.",
+    "assumption": "The 'simple mean of the scope averages' is the unweighted mean of the per-scope averages, not the overall fee-level average. The deviation is the scope average minus that mean. No rounding is applied.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "A NULL maker rebate rate means no rebate, so it counts as 0. Fee rows with a non-NULL fee rate but a NULL rebate rate stay in the average and the count.",
-    "sql": "WITH per_scope AS (SELECT u.acctscope AS acctscope, AVG(f.feerate - COALESCE(f.rebrate, 0)) AS avg_net_fee_rate, COUNT(f.feerate) AS fee_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, avg_net_fee_rate, fee_count, avg_net_fee_rate - AVG(avg_net_fee_rate) OVER () AS deviation_from_mean_of_scope_averages FROM per_scope"
+    "interpretation": "Treat a NULL rebate rate as 0, so every fee row with a fee rate counts toward the average and the count.",
+    "sql": "WITH per_scope AS (SELECT u.acctscope AS scope, AVG(f.feerate - COALESCE(f.rebrate,0)) AS avg_net_fee_rate, COUNT(f.feerate) AS n_fees FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT scope, avg_net_fee_rate, n_fees, avg_net_fee_rate - (SELECT AVG(avg_net_fee_rate) FROM per_scope) AS diff_from_mean_of_scope_avgs FROM per_scope ORDER BY scope"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "A NULL maker rebate rate means no rebate, so it counts as 0. Fee rows with a non-NULL fee rate but a NULL rebate rate stay in the average and the count.",
-   "sql": "WITH per_scope AS (SELECT u.acctscope AS acctscope, AVG(f.feerate - COALESCE(f.rebrate, 0)) AS avg_net_fee_rate, COUNT(f.feerate) AS fee_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, avg_net_fee_rate, fee_count, avg_net_fee_rate - AVG(avg_net_fee_rate) OVER () AS deviation_from_mean_of_scope_averages FROM per_scope",
+   "interpretation": "Treat a NULL rebate rate as 0, so every fee row with a fee rate counts toward the average and the count.",
+   "sql": "WITH per_scope AS (SELECT u.acctscope AS scope, AVG(f.feerate - COALESCE(f.rebrate,0)) AS avg_net_fee_rate, COUNT(f.feerate) AS n_fees FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT scope, avg_net_fee_rate, n_fees, avg_net_fee_rate - (SELECT AVG(avg_net_fee_rate) FROM per_scope) AS diff_from_mean_of_scope_avgs FROM per_scope ORDER BY scope",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 8.4,
- "chars_out": 1644
+ "seconds": 9.3,
+ "chars_out": 1619
 }

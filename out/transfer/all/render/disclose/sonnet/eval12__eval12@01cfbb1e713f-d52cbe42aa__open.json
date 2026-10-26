@@ -2,16 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-d52cbe42aa",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT ordersmark, COUNT(*) AS exec_count FROM orderexecutions GROUP BY ordersmark), s AS (SELECT ordersmark, exec_count, exec_count * 1.0 / SUM(exec_count) OVER () AS share FROM g) SELECT ordersmark, exec_count, share, share - AVG(share) OVER () AS share_minus_avg FROM s ORDER BY share_minus_avg DESC NULLS LAST LIMIT 10",
+  "sql": "WITH g AS (SELECT ordersmark AS order_reference, COUNT(*) AS execution_count FROM orderexecutions GROUP BY ordersmark), s AS (SELECT order_reference, execution_count, execution_count * 1.0 / (SELECT SUM(execution_count) FROM g) AS share FROM g), a AS (SELECT s.*, AVG(share) OVER () AS avg_share FROM s) SELECT order_reference, execution_count, share, share - avg_share AS share_minus_avg FROM a ORDER BY share_minus_avg DESC NULLS LAST, order_reference LIMIT 10",
   "assumptions": [
    {
-    "assumption": "Executions with a NULL ordersmark form one group, and that group counts as one order reference in the average share. The average share is therefore 1 divided by the number of groups.",
+    "assumption": "Executions with a NULL ordersmark form one group (SQLite GROUP BY puts NULLs together), and that group counts as one order reference in the average. The average share is therefore the mean of the group shares over all groups, including the NULL group, which equals 1/number of groups.",
     "unresolved": false
    },
    {
-    "assumption": "Share is the group's execution count divided by the total number of execution records, including those with a NULL reference. Ties at the 10th place are cut arbitrarily by LIMIT.",
+    "assumption": "Only NULL counts as lacking a reference. Empty strings are treated as ordinary reference values.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Ties in the difference are broken by order reference, ascending. The request does not specify a tie-break.",
     "unresolved": false
    }
   ],
@@ -23,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 5.8,
- "chars_out": 823
+ "seconds": 8.9,
+ "chars_out": 1103
 }

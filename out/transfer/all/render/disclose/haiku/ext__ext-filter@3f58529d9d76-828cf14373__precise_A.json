@@ -4,29 +4,21 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH team_stats AS (SELECT team_id, AVG(w * 1.0 / NULLIF(g, 0)) AS avg_win_rate, COUNT(*) AS record_count FROM manager_half GROUP BY team_id), overall AS (SELECT AVG(avg_win_rate) AS mean_team_avg FROM team_stats) SELECT t.team_id, t.avg_win_rate, t.record_count, t.avg_win_rate - o.mean_team_avg AS diff_from_mean FROM team_stats t CROSS JOIN overall o WHERE o.mean_team_avg IS NOT NULL ORDER BY diff_from_mean DESC NULLS LAST LIMIT 10",
+  "sql": "WITH team_stats AS (SELECT team_id, AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 THEN CAST(w AS FLOAT) / CAST(g AS FLOAT) ELSE NULL END) as avg_win_rate, COUNT(*) as record_count FROM manager_half GROUP BY team_id), mean_avg_win_rate AS (SELECT AVG(avg_win_rate) as overall_mean FROM team_stats WHERE avg_win_rate IS NOT NULL) SELECT ts.team_id, ts.avg_win_rate, ts.record_count, ts.avg_win_rate - mar.overall_mean as diff_from_mean FROM team_stats ts CROSS JOIN mean_avg_win_rate mar WHERE mar.overall_mean IS NOT NULL ORDER BY CASE WHEN ts.avg_win_rate - mar.overall_mean IS NULL THEN 1 ELSE 0 END, ts.avg_win_rate - mar.overall_mean DESC LIMIT 10",
   "assumptions": [
    {
-    "assumption": "Each record's win rate is w / g computed as a decimal; g = 0 or NULL yields NULL via NULLIF and is ignored by AVG, so it is treated as missing.",
-    "unresolved": false
-   },
-   {
-    "assumption": "record_count counts all manager_half rows for the team, including rows whose win rate is missing.",
+    "assumption": "record_count includes all manager_half records for the team, not just those with valid (non-NULL, non-zero g) win/game values used in the average",
     "unresolved": true
    },
    {
-    "assumption": "The mean of team averages is taken over teams whose average is non-null, and if that mean is NULL the query returns no rows, which is how 'provided that mean exists' is handled.",
-    "unresolved": false
-   },
-   {
-    "assumption": "team_id is grouped as-is from manager_half, with no mapping of team_id values across franchises or years.",
+    "assumption": "Records where g=0 are excluded from the average win rate (division by zero is undefined)",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "record_count counts only the records that have a usable win rate (w and g both present and g not zero), so it matches the set of records that feed the average.",
-    "sql": "WITH team_stats AS (SELECT team_id, AVG(w * 1.0 / NULLIF(g, 0)) AS avg_win_rate, COUNT(w * 1.0 / NULLIF(g, 0)) AS record_count FROM manager_half GROUP BY team_id), overall AS (SELECT AVG(avg_win_rate) AS mean_team_avg FROM team_stats) SELECT t.team_id, t.avg_win_rate, t.record_count, t.avg_win_rate - o.mean_team_avg AS diff_from_mean FROM team_stats t CROSS JOIN overall o WHERE o.mean_team_avg IS NOT NULL ORDER BY diff_from_mean DESC NULLS LAST LIMIT 10"
+    "interpretation": "record_count should count only the records actually used in the average win rate calculation (those with non-NULL w, g and g > 0)",
+    "sql": "WITH team_stats AS (SELECT team_id, AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 THEN CAST(w AS FLOAT) / CAST(g AS FLOAT) ELSE NULL END) as avg_win_rate, SUM(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 THEN 1 ELSE 0 END) as record_count FROM manager_half GROUP BY team_id), mean_avg_win_rate AS (SELECT AVG(avg_win_rate) as overall_mean FROM team_stats WHERE avg_win_rate IS NOT NULL) SELECT ts.team_id, ts.avg_win_rate, ts.record_count, ts.avg_win_rate - mar.overall_mean as diff_from_mean FROM team_stats ts CROSS JOIN mean_avg_win_rate mar WHERE mar.overall_mean IS NOT NULL ORDER BY CASE WHEN ts.avg_win_rate - mar.overall_mean IS NULL THEN 1 ELSE 0 END, ts.avg_win_rate - mar.overall_mean DESC LIMIT 10"
    }
   ]
  },
@@ -37,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "record_count counts only the records that have a usable win rate (w and g both present and g not zero), so it matches the set of records that feed the average.",
-   "sql": "WITH team_stats AS (SELECT team_id, AVG(w * 1.0 / NULLIF(g, 0)) AS avg_win_rate, COUNT(w * 1.0 / NULLIF(g, 0)) AS record_count FROM manager_half GROUP BY team_id), overall AS (SELECT AVG(avg_win_rate) AS mean_team_avg FROM team_stats) SELECT t.team_id, t.avg_win_rate, t.record_count, t.avg_win_rate - o.mean_team_avg AS diff_from_mean FROM team_stats t CROSS JOIN overall o WHERE o.mean_team_avg IS NOT NULL ORDER BY diff_from_mean DESC NULLS LAST LIMIT 10",
+   "interpretation": "record_count should count only the records actually used in the average win rate calculation (those with non-NULL w, g and g > 0)",
+   "sql": "WITH team_stats AS (SELECT team_id, AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 THEN CAST(w AS FLOAT) / CAST(g AS FLOAT) ELSE NULL END) as avg_win_rate, SUM(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 THEN 1 ELSE 0 END) as record_count FROM manager_half GROUP BY team_id), mean_avg_win_rate AS (SELECT AVG(avg_win_rate) as overall_mean FROM team_stats WHERE avg_win_rate IS NOT NULL) SELECT ts.team_id, ts.avg_win_rate, ts.record_count, ts.avg_win_rate - mar.overall_mean as diff_from_mean FROM team_stats ts CROSS JOIN mean_avg_win_rate mar WHERE mar.overall_mean IS NOT NULL ORDER BY CASE WHEN ts.avg_win_rate - mar.overall_mean IS NULL THEN 1 ELSE 0 END, ts.avg_win_rate - mar.overall_mean DESC LIMIT 10",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 12.9,
- "chars_out": 1818
+ "seconds": 56.9,
+ "chars_out": 2004
 }

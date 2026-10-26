@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-afa4a85bda",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT p.fundflux AS source, COUNT(*) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), t AS (SELECT c.*, SUM(cnt) OVER () AS total, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT source, cnt AS count, cnt * 1.0 / total AS share_of_total, cnt - avg_cnt AS above_average_by FROM t WHERE cnt > avg_cnt ORDER BY cnt DESC",
+  "sql": "WITH c AS (SELECT p.fundflux AS funding_source, COUNT(*) AS spatial_count FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), t AS (SELECT SUM(spatial_count) AS total, AVG(spatial_count) AS avg_count FROM c) SELECT c.funding_source, c.spatial_count, c.spatial_count * 1.0 / t.total AS share_of_total, c.spatial_count - t.avg_count AS above_average FROM c CROSS JOIN t WHERE c.spatial_count > t.avg_count ORDER BY c.spatial_count DESC;",
   "assumptions": [
    {
-    "assumption": "Coverage is measured as the number of scanspatial records per funding source, joined to projects by arcref = arcregistry with an inner join. Spatial rows whose project is missing are dropped.",
+    "assumption": "Coverage is measured as the number of scanspatial records per funding source, joined to projects via arcref = arcregistry (inner join drops records with no matching project).",
     "unresolved": false
    },
    {
-    "assumption": "Projects with a NULL fundflux are excluded because they do not belong to a funding source. This also keeps them out of the average and the total.",
+    "assumption": "Projects with a NULL fundflux are not treated as a funding source, so they are excluded from the per-source counts, the total, and the average.",
     "unresolved": true
    },
    {
-    "assumption": "The average is the mean of the per-source counts. Share is count divided by the sum of all counts, as a fraction from 0 to 1 with no rounding.",
+    "assumption": "Share is the source's count divided by the sum of counts across all sources (a fraction between 0 and 1, unrounded); the average is the mean of per-source counts.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Coverage is the number of distinct projects with spatial data per funding source, not the number of spatial records.",
-    "sql": "WITH c AS (SELECT p.fundflux AS source, COUNT(DISTINCT p.arcregistry) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), t AS (SELECT c.*, SUM(cnt) OVER () AS total, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT source, cnt AS count, cnt * 1.0 / total AS share_of_total, cnt - avg_cnt AS above_average_by FROM t WHERE cnt > avg_cnt ORDER BY cnt DESC"
+    "interpretation": "Treat projects with NULL fundflux as their own group (an 'unknown' source) that counts toward the total and average.",
+    "sql": "WITH c AS (SELECT p.fundflux AS funding_source, COUNT(*) AS spatial_count FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), t AS (SELECT SUM(spatial_count) AS total, AVG(spatial_count) AS avg_count FROM c) SELECT c.funding_source, c.spatial_count, c.spatial_count * 1.0 / t.total AS share_of_total, c.spatial_count - t.avg_count AS above_average FROM c CROSS JOIN t WHERE c.spatial_count > t.avg_count ORDER BY c.spatial_count DESC;"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Coverage is the number of distinct projects with spatial data per funding source, not the number of spatial records.",
-   "sql": "WITH c AS (SELECT p.fundflux AS source, COUNT(DISTINCT p.arcregistry) AS cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), t AS (SELECT c.*, SUM(cnt) OVER () AS total, AVG(cnt * 1.0) OVER () AS avg_cnt FROM c) SELECT source, cnt AS count, cnt * 1.0 / total AS share_of_total, cnt - avg_cnt AS above_average_by FROM t WHERE cnt > avg_cnt ORDER BY cnt DESC",
+   "interpretation": "Treat projects with NULL fundflux as their own group (an 'unknown' source) that counts toward the total and average.",
+   "sql": "WITH c AS (SELECT p.fundflux AS funding_source, COUNT(*) AS spatial_count FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), t AS (SELECT SUM(spatial_count) AS total, AVG(spatial_count) AS avg_count FROM c) SELECT c.funding_source, c.spatial_count, c.spatial_count * 1.0 / t.total AS share_of_total, c.spatial_count - t.avg_count AS above_average FROM c CROSS JOIN t WHERE c.spatial_count > t.avg_count ORDER BY c.spatial_count DESC;",
    "executes": true,
    "matches": [
-    "B"
+    "A"
    ]
   }
  ],
- "seconds": 8.8,
- "chars_out": 1664
+ "seconds": 12.0,
+ "chars_out": 1777
 }

@@ -174,7 +174,7 @@ def causes():
 def disclosure():
     f = d("fig5_tab4_disclosure")["models"]
     mets = [("precise_correct", "specific request:\nanswer right"), ("open_admissible", "open request:\nanswer is A or B"), ("recognises", "names the\nopen choice"),
-            ("states_faithful", "states its reading\ncorrectly"), ("covers_both", "returns both\nA and B")]
+            ("states_faithful", "states its interpretation\ncorrectly"), ("covers_both", "returns both\nA and B")]
     fig, ax = plt.subplots(figsize=(W, 2.54)); y = np.arange(len(mets))[::-1]; off = {m: (1.5 - i) * 0.15 for i, m in enumerate(M)}
     for (k, _l), yy in zip(mets, y):
         for m in M:
@@ -204,7 +204,7 @@ PAIRS = [("BIRD dev", "BIRD train", "BIRD dev vs BIRD train", "#332288", "o"), (
 
 def defaults(min_n=10):
     """The convention is the authors': for the two decisions with a clear split, the share of silent questions whose reference takes the
-    usual reading, for BIRD and Spider's own authors (train and dev) and for the imported Spider group that reverses it."""
+    usual interpretation, for BIRD and Spider's own authors (train and dev) and for the imported Spider group that reverses it."""
     f = d("fig6_inclination"); G = f["groups"]
     FAM = {"BIRD": BLUE_M, "Spider, own authors": BLUE_L, "Spider, imported from older datasets": RED_L}
     panels = [("ties_and_selection", "Ties at an extreme:\n% returning one row", "imported: geo, restaurants", "Geo, Restaurants"),
@@ -274,7 +274,7 @@ def method():
 
 # ---------------------------------------------------------------- missed readings the model computes when asked
 def decomposition():
-    """Per solver: of the readings missing from the open answer, the share the same solver computes when asked for that reading alone.
+    """Per solver: of the interpretations missing from the open answer, the share the same solver computes when asked for that interpretation alone.
     Request sets (three settings for the specific requests) and AMBROSIA's own items (dev + confirmation samples, one call)."""
     F = d("fig5_tab4_disclosure")["models"]
     A = [json.load(open("out/ambrosia/%s.json" % f))["models"] for f in ("decomposition", "decomposition_conf")]
@@ -287,7 +287,7 @@ def decomposition():
             k, n = get(m); v = pct(k, n)
             ax.errorbar(v, yy + o, xerr=err(wilson(k, n), v), fmt=mk, ms=3.4, color=COL[m], mfc=COL[m] if filled else "none", mec=COL[m], mew=0.8, lw=0.7, capsize=1.0)
     ax.set_yticks(y); ax.set_yticklabels([LABEL[m] for m in M]); ax.set_xlim(0, 100); ax.set_ylim(-0.5, len(M) - 0.5)
-    ax.axvline(50, color="#BBBBBB", lw=0.5, ls=":"); ax.set_xlabel("missed readings the model computes when asked (%)")
+    ax.axvline(50, color="#BBBBBB", lw=0.5, ls=":"); ax.set_xlabel("missed interpretations the model computes when asked (%)")
     h = [Line2D([], [], marker=mk, ls="", color="black", mfc="black" if f else "none", mec="black", ms=3.4, label=l) for l, _g, mk, f in S]
     ax.legend(handles=h, loc="upper center", bbox_to_anchor=(0.45, -0.32), ncol=1, fontsize=6.5, handletextpad=0.3)
     save(fig, "decomposition")
@@ -295,7 +295,7 @@ def decomposition():
 
 # ---------------------------------------------------------------- editing vs rewriting a request (specbridge.comm.transfer.rewrite)
 def rewrite():
-    """Left: accuracy per reading under four request texts, per solver and pooled. Right: what the rewrite lost (readings right
+    """Left: accuracy per interpretation under four request texts, per solver and pooled. Right: what the rewrite lost (interpretations right
     from the original specific request and wrong from the rewrite)."""
     import glob, collections
     R = []
@@ -315,7 +315,7 @@ def rewrite():
             rs = [r for m, r, _k in R if name == "pooled" or m == name]; k = sum(r[v] for r in rs); n = len(rs); val = pct(k, n)
             ax.errorbar(val, yy + o, xerr=err(wilson(k, n), val) if name == "pooled" else None, fmt=mk, ms=3.2, color=col, mfc=col if fill else "none", mec=col, mew=0.8, lw=0.7, capsize=1.0)
     ax.axhline(0.5, color="#BBBBBB", lw=0.5, ls=":")
-    ax.set_yticks(y); ax.set_yticklabels([LABEL.get(r, "Pooled") for r in rows]); ax.set_xlim(55, 100); ax.set_xlabel("readings computed right (%)")
+    ax.set_yticks(y); ax.set_yticklabels([LABEL.get(r, "Pooled") for r in rows]); ax.set_xlim(55, 100); ax.set_xlabel("interpretations computed right (%)")
     lost = collections.Counter((J.get(k) or {}).get("lost", "other") for _m, r, k in R if r["a"] and not r["b"])
     order = [c for c, _n in lost.most_common()]; tot = sum(lost.values())
     bx.barh(np.arange(len(order))[::-1], [pct(lost[c], tot) for c in order], color=GRAY_L, height=0.62, **EDGE)
@@ -330,7 +330,7 @@ IMPACT_ROWS = [("boundary", "bound inclusive"), ("count_unit", "rows vs entities
 
 
 def impact():
-    """How far the unstated reading moves the answer on BIRD dev: per choice type, the library edit applied to the reference SQL of
+    """How far the unstated interpretation moves the answer on BIRD dev: per choice type, the library edit applied to the reference SQL of
     silent questions. Stacked share of all such questions whose answer changes, split by how far a single value moves."""
     K = d("fig_impact")["BIRD dev"]["kinds"]
     segs = [("single value moves > 50%", BLUE, lambda r: r["gt50"]), ("moves 10–50%", BLUE_M, lambda r: r["gt10"] - r["gt50"]),
@@ -353,8 +353,9 @@ def impact():
 def outcomes():
     """Every open request of the accepted sets, by what the response did (single call with explanation)."""
     A = d("accepted")["scopes"]["accepted"]["models"]
-    seg = [("both", "both readings returned", BLUE_M), ("named_one", "choice named, one reading", BLUE_L),
-           ("silent_computable", "silent, both computable", RED_L), ("not_computable", "a reading not computed", GRAY_L)]
+    seg = [("both", "both interpretations returned", BLUE_M), ("named_one", "choice named, one interpretation", BLUE_L),
+           ("silent_computable", "silent, both computable", RED_L), ("not_computable", "a specific request computed wrong", GRAY_L),
+           ("no_run", "a specific answer does not run", GRAY_XL)]
     fig, ax = plt.subplots(figsize=(W, 1.45)); ys = list(range(len(M)))[::-1]
     for m, y in zip(M, ys):
         o = A[m]["outcomes"]; n = sum(o.values()); left = 0
@@ -370,10 +371,10 @@ def outcomes():
 
 
 def conventions():
-    """Main answer to the open request on the 61 accepted tie and counting sets: the reading BIRD and Spider references take by
-    convention, the other reading, or neither (single call with explanation)."""
+    """Main answer to the open request on the 61 accepted tie and counting sets: the interpretation BIRD and Spider references take by
+    convention, the other interpretation, or neither (single call with explanation)."""
     A = d("conventions")["models"]
-    seg = [("conventional", "benchmark convention", BLUE_M), ("other", "other reading", RED_L), ("neither", "neither reading", GRAY_L)]
+    seg = [("conventional", "benchmark convention", BLUE_M), ("other", "other interpretation", RED_L), ("neither", "neither interpretation", GRAY_L)]
     fig, ax = plt.subplots(figsize=(W, 1.35)); ys = list(range(len(M)))[::-1]
     for m, y in zip(M, ys):
         o = A[m]; n = sum(o.get(k, 0) for k, _l, _c in seg); left = 0
@@ -390,7 +391,7 @@ def conventions():
 
 # ---------------------------------------------------------------- both readings returned, by choice type
 def bytype():
-    """Per choice type (at least five accepted sets): open requests answered with both readings, among the sets in which the same
+    """Per choice type (at least five accepted sets): open requests answered with both interpretations, among the sets in which the same
     model answers both specific requests right (fig5 by_group/type, the same counts as the former rows of Table 1)."""
     f = d("fig5_tab4_disclosure")["models"]
     T = [("value_representation", "strict or inclusive cutoff"), ("aggregation_level", "aggregation level"), ("missing_values", "missing values"),
@@ -408,7 +409,7 @@ def bytype():
             g = f[m]["by_group"]["source"][t]; v = pct(g["k"], g["n"])
             bx.errorbar(v, yy + off[m], xerr=err(wilson(g["k"], g["n"]), v), fmt="o", ms=3.2, color=COL[m], lw=0.7, capsize=1.0)
     bx.set_yticks(y2); bx.set_yticklabels(["%s (%d)" % (t, f[M[0]]["by_group"]["source"][t]["sets"]) for t in SRC]); bx.set_xlim(0, 100); bx.set_ylim(-0.5, len(SRC) - 0.5)
-    bx.set_title("by source of the database", fontsize=7, pad=2, loc="left"); bx.set_xlabel("open requests with both readings returned (%)")
+    bx.set_title("by source of the database", fontsize=7, pad=2, loc="left"); bx.set_xlabel("both interpretations returned (%)")
     h = [Line2D([], [], marker="o", ls="", color=COL[m], ms=3.2, label=LABEL[m]) for m in M]
     bx.legend(handles=h, loc="upper center", bbox_to_anchor=(0.4, -0.45), ncol=4, fontsize=6.5, handletextpad=0.2)
     fig.tight_layout(h_pad=0.6); save(fig, "bytype")
@@ -416,9 +417,9 @@ def bytype():
 
 # ---------------------------------------------------------------- choice types at a glance (full page width)
 def choices():
-    """Figure* of the choice types: each row gives the choice, one open phrase with its two readings (A blue, B orange, the
+    """Figure* of the choice types: each row gives the choice, one open phrase with its two interpretations (A blue, B orange, the
     diagram colors), and three bar panels: choices found in benchmark failures (open / settled), the share of silent BIRD and
-    Spider references that take the rarer reading, and the accepted request sets. Same counts as supplement Table librarydetail."""
+    Spider references that take the rarer interpretation, and the accepted request sets. Same counts as supplement Table librarydetail."""
     from specbridge.report import numbers as N
     LIB, REF, VS = N.LIB(), N.REF(), N.P("tab2_library")["value_split"]
     MAJ = ("aggregation_level", "ties_and_selection", "counting_unit", "missing_values", "referent_column")
@@ -443,7 +444,7 @@ def choices():
     T = fig.add_axes([0, 0, 1, 1]); T.axis("off"); T.set_xlim(0, 1); T.set_ylim(0, 1)
     hdr = dict(fontsize=7.5, fontweight="bold", va="bottom")
     T.text(0.005, top + 0.01, "Choice type", **hdr); T.text(0.165, top + 0.01, "Example open phrase", **hdr)
-    T.text(0.36, top + 0.01, "One reading", **hdr); T.text(0.485, top + 0.01, "Other reading", **hdr)
+    T.text(0.36, top + 0.01, "One\ninterpretation", linespacing=1.0, **hdr); T.text(0.485, top + 0.01, "Other\ninterpretation", linespacing=1.0, **hdr)
     for i, (name, q, ph, a, b, *_r) in enumerate(R):
         y = ys[i]
         T.plot([0, 0.6], [y - rowh / 2] * 2, color="#BBBBBB", lw=0.4)
@@ -456,7 +457,7 @@ def choices():
     def panel(x0, w, title):
         ax = fig.add_axes([x0, y0, w, y1 - y0]); ax.set_ylim(top - n * rowh, top); ax.set_yticks([]); ax.patch.set_alpha(0)
         T.text(x0, top + 0.01, title, fontsize=7.5, fontweight="bold", va="bottom", linespacing=1.0); ax.tick_params(axis="x", labelsize=6.5); return ax
-    a1 = panel(0.615, 0.115, "Found in failures\nopen + settled"); a2 = panel(0.765, 0.12, "References taking\nthe rarer reading"); a3 = panel(0.92, 0.07, "Request\nsets")
+    a1 = panel(0.615, 0.115, "Found in failures\nopen + settled"); a2 = panel(0.765, 0.12, "References taking\nthe rarer\ninterpretation"); a3 = panel(0.92, 0.07, "Request\nsets")
     h = rowh * 0.5
     for i, (_n, _q, _p, _a, _b, op, st, ref, sets) in enumerate(R):
         y = ys[i]
@@ -483,14 +484,14 @@ def funnel():
     ex = lambda i: int(E[i + 2].strip())
     sel = len(json.load(open("out/transfer/ext/render/selection.json"))); fil = sum(N.FIL()["verdicts"].values())
     F5 = N.P("fig5_tab4_disclosure")
-    S = [("choices proposed", inv(1) + ex(1)), ("the other reading changes the answer", inv(2) + ex(2)),
-         ("both readings described exactly", inv(3) + ex(3)), ("a reviewer model finds it open", inv(4) + inv(5) + ex(4) + ex(5)),
+    S = [("choices proposed", inv(1) + ex(1)), ("the other interpretation changes the answer", inv(2) + ex(2)),
+         ("both interpretations described exactly", inv(3) + ex(3)), ("a reviewer model finds it open", inv(4) + inv(5) + ex(4) + ex(5)),
          ("one choice kept per task", G["selected"] + sel), ("requests pass all checks", G["frozen"] + fil),
          ("an author finds it open", N.P("accepted")["scopes"]["accepted_all_types"]["n"]),
-         ("other reading in \u22651% of references", F5["n_families"])]
+         ("other interpretation in \u22651% of references", F5["n_families"])]
     fig, ax = plt.subplots(figsize=(W, 1.95)); y = np.arange(len(S))[::-1]
     for (lab, v), yy in zip(S, y):
-        last = lab.startswith("other reading")
+        last = lab.startswith("other interpretation")
         ax.barh(yy, v, 0.62, color=BLUE if last else BLUE_L, **EDGE)
         ax.text(v + 10, yy, "%d" % v, va="center", fontsize=6.8, fontweight="bold" if last else "normal")
     ax.set_yticks(y); ax.set_yticklabels([l for l, _v in S]); ax.set_xlim(0, 980); ax.set_xlabel("count")
@@ -500,13 +501,13 @@ def funnel():
 # ---------------------------------------------------------------- when DtP's extra readings are worth its false alarms
 def breakeven():
     """Per 100 questions, what DtP adds over our method at four shares of ambiguous questions (both models pooled;
-    out/ambrosia/final/exchange.json rates): wrong alternatives on clear questions against readings found on ambiguous ones."""
+    out/ambrosia/final/exchange.json rates): wrong alternatives on clear questions against interpretations found on ambiguous ones."""
     X = json.load(open("out/ambrosia/final/exchange.json"))["models"]["pooled"]["rates"]
     rs = sorted(X, key=float); x = np.arange(len(rs)); w = 0.36
     fig, ax = plt.subplots(figsize=(W, 1.45))
     wr = [X[r]["extra_wrong"] for r in rs]; fd = [X[r]["extra_readings"] for r in rs]
     ax.bar(x - w / 2, wr, w, color=RED, label="wrong alternatives DtP adds", **EDGE)
-    ax.bar(x + w / 2, fd, w, color=BLUE, label="readings DtP adds", **EDGE)
+    ax.bar(x + w / 2, fd, w, color=BLUE, label="interpretations DtP adds", **EDGE)
     for xx, a, b in zip(x, wr, fd):
         ax.text(xx - w / 2, a + 3, "%.0f" % a, ha="center", fontsize=6.5); ax.text(xx + w / 2, b + 3, "%.0f" % b, ha="center", fontsize=6.5)
     ax.set_xticks(x); ax.set_xticklabels(["%d%%" % round(100 * float(r)) for r in rs]); ax.set_xlabel("share of questions that are ambiguous")

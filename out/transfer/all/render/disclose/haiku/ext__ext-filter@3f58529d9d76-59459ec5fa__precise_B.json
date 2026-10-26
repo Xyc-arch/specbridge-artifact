@@ -4,23 +4,11 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH kept AS (SELECT r.name AS race_name, ds.points AS pts FROM driverStandings ds JOIN races r ON r.raceId = ds.raceId WHERE ds.points > 1.0), per_race AS (SELECT race_name, AVG(pts) AS avg_pts FROM kept GROUP BY race_name), overall AS (SELECT AVG(avg_pts) AS overall_avg FROM per_race) SELECT p.race_name, p.avg_pts AS average, p.avg_pts - o.overall_avg AS difference FROM per_race p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL AND p.avg_pts > o.overall_avg;",
+  "sql": "WITH filtered_standings AS (\n  SELECT r.name, ds.points\n  FROM driverStandings ds\n  JOIN races r ON ds.raceId = r.raceId\n  WHERE ds.points > 1.0\n),\nrace_averages AS (\n  SELECT name, AVG(points) as race_avg\n  FROM filtered_standings\n  GROUP BY name\n),\noverall_avg AS (\n  SELECT AVG(race_avg) as overall_average\n  FROM race_averages\n)\nSELECT ra.name, ra.race_avg, ra.race_avg - oa.overall_average as difference\nFROM race_averages ra\nCROSS JOIN overall_avg oa\nWHERE ra.race_avg > oa.overall_average\n  AND oa.overall_average IS NOT NULL\nORDER BY ra.name",
   "assumptions": [
    {
-    "assumption": "Each driverStandings row joins to exactly one race through races.raceId, and the filter ds.points > 1.0 is applied to the stored season-to-date value, as the request specifies. NULL points are excluded by that filter.",
+    "assumption": "Races with identical names appearing in different years are grouped together into a single race-name group for averaging purposes (grouping by races.name rather than races.raceId). The request says 'For each race name', which supports this interpretation.",
     "unresolved": false
-   },
-   {
-    "assumption": "Race names are grouped across all seasons, so every year's 'Monaco Grand Prix' rows form one group, as the request's 'for each race name' implies.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The per-race-name averages are combined with an unweighted mean, one value per name. If no names remain, the overall average is NULL and the query returns no rows.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The query was written from the schema and was not executed against the database here, so its output is unverified.",
-    "unresolved": true
    }
   ],
   "alternatives": []
@@ -31,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 12.8,
- "chars_out": 1320
+ "seconds": 49.6,
+ "chars_out": 959
 }

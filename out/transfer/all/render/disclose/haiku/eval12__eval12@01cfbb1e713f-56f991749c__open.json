@@ -2,24 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-56f991749c",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH overall_avg AS (\n  SELECT AVG(modelconf) as val\n  FROM compliancecase\n  WHERE modelconf IS NOT NULL\n),\nstatus_avgs AS (\n  SELECT \n    brokrepstat,\n    AVG(modelconf) as status_avg\n  FROM compliancecase\n  WHERE modelconf IS NOT NULL\n  GROUP BY brokrepstat\n),\nabove_avg_statuses AS (\n  SELECT \n    sa.brokrepstat,\n    sa.status_avg,\n    sa.status_avg - oa.val as above_average\n  FROM status_avgs sa\n  CROSS JOIN overall_avg oa\n  WHERE oa.val IS NOT NULL\n    AND sa.status_avg > oa.val\n),\nmean_of_qualifying AS (\n  SELECT AVG(status_avg) as val\n  FROM above_avg_statuses\n)\nSELECT \n  aas.brokrepstat as status,\n  aas.status_avg,\n  aas.above_average,\n  aas.status_avg / mq.val as ratio\nFROM above_avg_statuses aas\nCROSS JOIN mean_of_qualifying mq\nWHERE mq.val IS NOT NULL\nORDER BY aas.status_avg DESC",
+  "sql": "WITH overall_avg AS (\n  SELECT AVG(modelconf) as overall_average\n  FROM compliancecase\n  WHERE modelconf IS NOT NULL\n),\nstatus_avgs AS (\n  SELECT \n    brokrepstat,\n    AVG(modelconf) as avg_modelconf\n  FROM compliancecase\n  WHERE modelconf IS NOT NULL\n  GROUP BY brokrepstat\n),\nqualifying_statuses AS (\n  SELECT \n    sa.brokrepstat,\n    sa.avg_modelconf,\n    oa.overall_average\n  FROM status_avgs sa\n  CROSS JOIN overall_avg oa\n  WHERE sa.avg_modelconf > oa.overall_average\n),\nmean_of_qualifying AS (\n  SELECT AVG(avg_modelconf) as mean_qualifying\n  FROM qualifying_statuses\n)\nSELECT \n  qs.brokrepstat as status,\n  qs.avg_modelconf,\n  qs.avg_modelconf - qs.overall_average as above_average,\n  qs.avg_modelconf / mq.mean_qualifying as ratio\nFROM qualifying_statuses qs\nCROSS JOIN mean_of_qualifying mq\nORDER BY qs.brokrepstat;",
   "assumptions": [
    {
-    "assumption": "NULL brokrepstat values form a single group ('No Status') and are included in the comparison; they are treated as their own distinct status category.",
+    "assumption": "The overall average reference is the mean of all modelconf values across compliancecase (excluding NULLs), and statuses qualify when their individual average exceeds this overall average using strict inequality (>).",
     "unresolved": false
    },
    {
-    "assumption": "The phrase 'how far above average' means the difference: (status average modelconf) \u2212 (overall average modelconf).",
-    "unresolved": false
-   },
-   {
-    "assumption": "The 'mean of the qualifying statuses' averages' refers to the arithmetic mean of the status averages that meet the above-average threshold, computed across all qualifying statuses.",
-    "unresolved": false
-   },
-   {
-    "assumption": "When any reference value (overall average, status average, or mean of qualifying averages) is NULL or undefined, the query returns an empty result set (no rows).",
+    "assumption": "'Return nothing if a reference value is missing' means if overall_average is NULL (no non-NULL modelconf values exist), the query returns zero rows.",
     "unresolved": false
    }
   ],
@@ -31,6 +23,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 75.8,
- "chars_out": 1763
+ "seconds": 65.3,
+ "chars_out": 1419
 }

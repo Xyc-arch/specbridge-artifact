@@ -5,15 +5,7 @@
  "description": "Compare each station's average bandwidth usage with the unweighted mean of the station averages.",
  "a": {
   "request": "Average the bandwidth usage (`bandusagepct`) of the telescopes at each observatory station, ignoring missing values. Take as the baseline the average of those station averages (each station counting once). For the stations whose average is above that baseline, return one row with two unrounded values: the mean of those stations' averages, and the mean amount by which they exceed the baseline.",
-  "sql": "WITH station_avg AS (SELECT observstation, AVG(bandusagepct) AS avg_bw FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation), baseline AS (SELECT AVG(avg_bw) AS base FROM station_avg) SELECT AVG(s.avg_bw) AS mean_above_baseline_avg, AVG(s.avg_bw - b.base) AS mean_excess_over_baseline FROM station_avg s CROSS JOIN baseline b WHERE s.avg_bw > b.base;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "b": {
-  "request": "For each observatory station, average `telescopes.bandusagepct` across its telescopes (skipping NULLs). Take the unweighted mean of those station averages as the threshold, keep the stations whose average is above it, and return one row with the mean of those kept station averages and the mean amount by which they exceed the threshold, both unrounded",
-  "sql": "WITH station_avgs AS (SELECT observstation, AVG(bandusagepct) AS avg_band FROM telescopes GROUP BY observstation), threshold AS (SELECT AVG(avg_band) AS thr FROM station_avgs), kept AS (SELECT s.avg_band, t.thr FROM station_avgs s CROSS JOIN threshold t WHERE s.avg_band > t.thr) SELECT AVG(avg_band) AS kept_mean_avg, AVG(avg_band - thr) AS mean_excess_over_threshold FROM kept;",
+  "sql": "WITH station_avg AS (SELECT observstation, AVG(bandusagepct) as station_avg FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation), baseline AS (SELECT AVG(station_avg) as baseline_value FROM station_avg), above_baseline AS (SELECT sa.station_avg, sa.station_avg - b.baseline_value as excess FROM station_avg sa CROSS JOIN baseline b WHERE sa.station_avg > b.baseline_value) SELECT AVG(station_avg) as mean_of_above_baseline_averages, AVG(excess) as mean_excess FROM above_baseline",
   "executes": true,
   "matches": [
    "A"
@@ -21,17 +13,28 @@
  },
  "c": {
   "request": "For observatory stations whose average telescope bandwidth usage (`bandusagepct`) is above average, what is their mean bandwidth usage, and how far above average are they on average? Ignore missing usage values, and give both figures unrounded in a single row. Compare each station's average bandwidth usage with the unweighted mean of the station averages.",
-  "sql": "WITH station_avg AS (SELECT observstation, AVG(bandusagepct) AS avg_bw FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation), overall AS (SELECT AVG(avg_bw) AS grand_avg FROM station_avg), above AS (SELECT s.avg_bw FROM station_avg s CROSS JOIN overall o WHERE s.avg_bw > o.grand_avg) SELECT AVG(a.avg_bw) AS mean_bandwidth_usage, AVG(a.avg_bw) - o.grand_avg AS avg_excess_above_average FROM above a CROSS JOIN overall o;",
+  "sql": "WITH station_avgs AS (\n  SELECT \n    observstation,\n    AVG(bandusagepct) as station_avg\n  FROM telescopes\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation\n),\nstation_mean AS (\n  SELECT AVG(station_avg) as mean_val\n  FROM station_avgs\n),\nabove_average_stations AS (\n  SELECT sa.station_avg\n  FROM station_avgs sa\n  WHERE sa.station_avg > (SELECT mean_val FROM station_mean)\n)\nSELECT \n  AVG(aas.station_avg) as mean_bandwidth_usage,\n  AVG(aas.station_avg) - (SELECT mean_val FROM station_mean) as above_average\nFROM above_average_stations aas",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
  "d": {
-  "request": "For observatory stations, ignoring missing `bandusagepct` values, compare each station's average telescope bandwidth usage with the unweighted mean of the station averages.",
-  "sql": "WITH station_usage AS (SELECT observstation, AVG(bandusagepct) AS avg_bandusage FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation) SELECT observstation, avg_bandusage, AVG(avg_bandusage) OVER () AS mean_of_station_averages, avg_bandusage - AVG(avg_bandusage) OVER () AS difference_from_mean FROM station_usage ORDER BY observstation;",
+  "request": "For observatory stations whose average telescope bandwidth usage exceeds the unweighted mean of all station averages, return their collective mean bandwidth usage and their average deviation above that overall mean.",
+  "sql": "WITH station_averages AS (\n  SELECT \n    o.observstation,\n    AVG(t.bandusagepct) as station_avg_bandwidth\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n  GROUP BY o.observstation\n),\noverall_mean AS (\n  SELECT AVG(station_avg_bandwidth) as overall_mean_bandwidth\n  FROM station_averages\n)\nSELECT \n  AVG(sa.station_avg_bandwidth) as collective_mean_bandwidth,\n  AVG(sa.station_avg_bandwidth - om.overall_mean_bandwidth) as average_deviation_above_mean\nFROM station_averages sa\nCROSS JOIN overall_mean om\nWHERE sa.station_avg_bandwidth > om.overall_mean_bandwidth",
   "executes": true,
-  "matches": []
- }
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "For observatory stations whose average telescope bandwidth usage is above the mean of all station-level average bandwidth usages, return the mean bandwidth usage across those stations and their mean deviation above the overall station-average mean, with both values unrounded in a single row.",
+  "sql": "WITH station_avg_bandwidth AS (\n  SELECT \n    t.observstation,\n    AVG(t.bandusagepct) as station_avg_bandwidth\n  FROM telescopes t\n  GROUP BY t.observstation\n),\noverall_mean AS (\n  SELECT AVG(station_avg_bandwidth) as overall_avg\n  FROM station_avg_bandwidth\n)\nSELECT \n  AVG(sab.station_avg_bandwidth) as mean_bandwidth_usage,\n  AVG(sab.station_avg_bandwidth - om.overall_avg) as mean_deviation_above_overall\nFROM station_avg_bandwidth sab\nCROSS JOIN overall_mean om\nWHERE sab.station_avg_bandwidth > om.overall_avg",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "For observatory stations whose average telescope bandwidth usage is above the mean of all station-level average bandwidth usages, return the mean bandwidth usage across those stations and their mean deviation above the overall station-average mean, with both values unrounded in a single row."
+ },
+ "calls": 6
 }

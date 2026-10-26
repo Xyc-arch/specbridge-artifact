@@ -1,0 +1,27 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f12d27cb47",
+ "model": "haiku",
+ "response": {
+  "sql": "WITH site_averages AS (\n  SELECT \n    sm.zoneref,\n    s.entrystat,\n    AVG(CAST(sm.facetfaces AS REAL)) as site_avg_faces\n  FROM scanmesh sm\n  JOIN sites s ON s.zoneregistry = sm.zoneref\n  WHERE sm.facetfaces IS NOT NULL\n  GROUP BY sm.zoneref, s.entrystat\n),\nbaseline AS (\n  SELECT AVG(CAST(sm.facetfaces AS REAL)) as baseline_avg\n  FROM scanmesh sm\n  JOIN sites s ON s.zoneregistry = sm.zoneref\n  WHERE sm.facetfaces IS NOT NULL\n),\nstatus_averages AS (\n  SELECT \n    sa.entrystat,\n    AVG(sa.site_avg_faces) as status_avg\n  FROM site_averages sa\n  WHERE sa.entrystat IS NOT NULL\n  GROUP BY sa.entrystat\n),\nfiltered_sites AS (\n  SELECT \n    sa.site_avg_faces,\n    sta.status_avg,\n    b.baseline_avg\n  FROM site_averages sa\n  JOIN status_averages sta ON sa.entrystat = sta.entrystat\n  CROSS JOIN baseline b\n  WHERE sa.site_avg_faces > sta.status_avg\n    AND b.baseline_avg IS NOT NULL\n)\nSELECT \n  AVG(site_avg_faces) as avg_kept_sites,\n  AVG(site_avg_faces - baseline_avg) as avg_diff_from_baseline,\n  AVG(site_avg_faces - status_avg) as avg_diff_from_status\nFROM filtered_sites;",
+  "assumptions": [
+   {
+    "assumption": "Missing facetfaces values (NULL) are excluded from all average calculations, including the baseline.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The baseline is computed from all individual facetfaces values across all matched scanmesh records, regardless of site access status. If baseline is NULL, the result returns one row with three NULL values rather than zero rows.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Each site is identified uniquely by zoneref; multiple scanmesh records may exist per site and contribute to that site's average.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": []
+}

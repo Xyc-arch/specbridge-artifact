@@ -2,53 +2,51 @@
  "case": "eval12:eval12@01cfbb1e713f-e14588a994",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'Missing') AS funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n            THEN ss.boxy / ss.boxz\n            END) AS avg_ratio,\n    SUM(ss.volm3) AS total_size\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'Missing')\n),\naverage_size_calc AS (\n  SELECT \n    AVG(total_size) AS overall_average_size\n  FROM funding_stats\n)\nSELECT \n  AVG(fs.avg_ratio) AS average_of_ratios,\n  SUM(fs.total_size) AS combined_size,\n  AVG(fs.total_size - asc.overall_average_size) AS average_excess\nFROM funding_stats fs\nCROSS JOIN average_size_calc asc\nWHERE fs.total_size > asc.overall_average_size",
+  "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') AS funding_source,\n    AVG(\n      CASE \n        WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL AND sp.boxz != 0\n        THEN sp.boxy / sp.boxz\n      END\n    ) AS avg_ratio,\n    COUNT(*) AS size\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\nstats_with_avg AS (\n  SELECT \n    avg_ratio,\n    size,\n    AVG(size) OVER () AS avg_size\n  FROM funding_stats\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_ratios,\n  SUM(size) AS combined_size,\n  AVG(size - avg_size) AS avg_excess\nFROM stats_with_avg\nWHERE size > avg_size",
   "assumptions": [
    {
-    "assumption": "\"Size\" for each funding source is the sum of volumes (volm3). This interprets \"how big it is\" as the total scanned volume across all spatial records for that funding source.",
+    "assumption": "\"size\" of a funding source is the count of scanspatial records associated with that funding source, not a sum of area/volume or other aggregate measure",
     "unresolved": true
    },
    {
-    "assumption": "NULL funding sources are treated as a distinct group labeled 'Missing', per the request to \"treat a missing source as its own group\".",
-    "unresolved": false
-   },
-   {
-    "assumption": "When calculating the ratio boxy/boxz, records where either value is NULL or where boxz equals 0 are excluded (ignoring missing values).",
-    "unresolved": false
+    "assumption": "\"ignoring missing values\" applies only to the ratio calculation; the size count includes all records regardless of whether boxy/boxz are NULL",
+    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "\"Size\" is the count of spatial records per funding source, not the sum of volumes. This interprets \"bigger than average\" funding sources as those with more scan records.",
-    "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'Missing') AS funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n            THEN ss.boxy / ss.boxz\n            END) AS avg_ratio,\n    COUNT(*) AS total_size\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'Missing')\n),\naverage_size_calc AS (\n  SELECT \n    AVG(total_size) AS overall_average_size\n  FROM funding_stats\n)\nSELECT \n  AVG(fs.avg_ratio) AS average_of_ratios,\n  SUM(fs.total_size) AS combined_size,\n  AVG(fs.total_size - asc.overall_average_size) AS average_excess\nFROM funding_stats fs\nCROSS JOIN average_size_calc asc\nWHERE fs.total_size > asc.overall_average_size"
+    "interpretation": "\"size\" means the total area (sum of aream2) per funding source rather than record count",
+    "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') AS funding_source,\n    AVG(\n      CASE \n        WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL AND sp.boxz != 0\n        THEN sp.boxy / sp.boxz\n      END\n    ) AS avg_ratio,\n    SUM(sp.aream2) AS size\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\nstats_with_avg AS (\n  SELECT \n    avg_ratio,\n    size,\n    AVG(size) OVER () AS avg_size\n  FROM funding_stats\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_ratios,\n  SUM(size) AS combined_size,\n  AVG(size - avg_size) AS avg_excess\nFROM stats_with_avg\nWHERE size > avg_size"
    },
    {
-    "interpretation": "\"Size\" is the sum of areas (aream2) rather than volumes, measuring \"how big\" by total scanned surface area.",
-    "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'Missing') AS funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n            THEN ss.boxy / ss.boxz\n            END) AS avg_ratio,\n    SUM(ss.aream2) AS total_size\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'Missing')\n),\naverage_size_calc AS (\n  SELECT \n    AVG(total_size) AS overall_average_size\n  FROM funding_stats\n)\nSELECT \n  AVG(fs.avg_ratio) AS average_of_ratios,\n  SUM(fs.total_size) AS combined_size,\n  AVG(fs.total_size - asc.overall_average_size) AS average_excess\nFROM funding_stats fs\nCROSS JOIN average_size_calc asc\nWHERE fs.total_size > asc.overall_average_size"
+    "interpretation": "\"ignoring missing values\" applies to both ratio and size calculations\u2014count only records where both boxy and boxz are non-NULL",
+    "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') AS funding_source,\n    AVG(\n      CASE \n        WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL AND sp.boxz != 0\n        THEN sp.boxy / sp.boxz\n      END\n    ) AS avg_ratio,\n    COUNT(CASE WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL THEN 1 END) AS size\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\nstats_with_avg AS (\n  SELECT \n    avg_ratio,\n    size,\n    AVG(size) OVER () AS avg_size\n  FROM funding_stats\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_ratios,\n  SUM(size) AS combined_size,\n  AVG(size - avg_size) AS avg_excess\nFROM stats_with_avg\nWHERE size > avg_size"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [],
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [
   {
-   "interpretation": "\"Size\" is the count of spatial records per funding source, not the sum of volumes. This interprets \"bigger than average\" funding sources as those with more scan records.",
-   "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'Missing') AS funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n            THEN ss.boxy / ss.boxz\n            END) AS avg_ratio,\n    COUNT(*) AS total_size\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'Missing')\n),\naverage_size_calc AS (\n  SELECT \n    AVG(total_size) AS overall_average_size\n  FROM funding_stats\n)\nSELECT \n  AVG(fs.avg_ratio) AS average_of_ratios,\n  SUM(fs.total_size) AS combined_size,\n  AVG(fs.total_size - asc.overall_average_size) AS average_excess\nFROM funding_stats fs\nCROSS JOIN average_size_calc asc\nWHERE fs.total_size > asc.overall_average_size",
+   "interpretation": "\"size\" means the total area (sum of aream2) per funding source rather than record count",
+   "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') AS funding_source,\n    AVG(\n      CASE \n        WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL AND sp.boxz != 0\n        THEN sp.boxy / sp.boxz\n      END\n    ) AS avg_ratio,\n    SUM(sp.aream2) AS size\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\nstats_with_avg AS (\n  SELECT \n    avg_ratio,\n    size,\n    AVG(size) OVER () AS avg_size\n  FROM funding_stats\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_ratios,\n  SUM(size) AS combined_size,\n  AVG(size - avg_size) AS avg_excess\nFROM stats_with_avg\nWHERE size > avg_size",
+   "executes": true,
+   "matches": []
+  },
+  {
+   "interpretation": "\"ignoring missing values\" applies to both ratio and size calculations\u2014count only records where both boxy and boxz are non-NULL",
+   "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') AS funding_source,\n    AVG(\n      CASE \n        WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL AND sp.boxz != 0\n        THEN sp.boxy / sp.boxz\n      END\n    ) AS avg_ratio,\n    COUNT(CASE WHEN sp.boxy IS NOT NULL AND sp.boxz IS NOT NULL THEN 1 END) AS size\n  FROM projects p\n  JOIN scanspatial sp ON p.arcregistry = sp.arcref\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\nstats_with_avg AS (\n  SELECT \n    avg_ratio,\n    size,\n    AVG(size) OVER () AS avg_size\n  FROM funding_stats\n)\nSELECT \n  AVG(avg_ratio) AS avg_of_ratios,\n  SUM(size) AS combined_size,\n  AVG(size - avg_size) AS avg_excess\nFROM stats_with_avg\nWHERE size > avg_size",
    "executes": true,
    "matches": [
     "A"
    ]
-  },
-  {
-   "interpretation": "\"Size\" is the sum of areas (aream2) rather than volumes, measuring \"how big\" by total scanned surface area.",
-   "sql": "WITH funding_stats AS (\n  SELECT \n    COALESCE(p.fundflux, 'Missing') AS funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n            THEN ss.boxy / ss.boxz\n            END) AS avg_ratio,\n    SUM(ss.aream2) AS total_size\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'Missing')\n),\naverage_size_calc AS (\n  SELECT \n    AVG(total_size) AS overall_average_size\n  FROM funding_stats\n)\nSELECT \n  AVG(fs.avg_ratio) AS average_of_ratios,\n  SUM(fs.total_size) AS combined_size,\n  AVG(fs.total_size - asc.overall_average_size) AS average_excess\nFROM funding_stats fs\nCROSS JOIN average_size_calc asc\nWHERE fs.total_size > asc.overall_average_size",
-   "executes": true,
-   "matches": []
   }
  ],
- "seconds": 71.6,
- "chars_out": 3383
+ "seconds": 77.3,
+ "chars_out": 2886
 }

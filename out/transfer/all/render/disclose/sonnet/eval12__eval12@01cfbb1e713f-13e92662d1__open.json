@@ -2,23 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH s AS (SELECT t.transreg, t.ordertypedist, f.shortintrt, f.optvolrt, AVG(f.shortintrt) OVER (PARTITION BY t.ordertypedist) AS mix_avg_short FROM sentimentandfundamentals f JOIN transactionrecord t ON f.transref = t.transreg) SELECT transreg AS transaction_ref, ordertypedist AS order_type_mix, AVG(shortintrt) AS avg_short_interest, AVG(optvolrt) AS avg_option_volume_ratio, AVG(shortintrt) / NULLIF(MAX(mix_avg_short), 0) AS short_interest_ratio FROM s GROUP BY transreg, ordertypedist ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10",
+  "sql": "WITH j AS (SELECT t.transreg, t.ordertypedist, s.shortintrt, s.optvolrt FROM sentimentandfundamentals s JOIN transactionrecord t ON s.transref = t.transreg), g AS (SELECT ordertypedist, AVG(shortintrt) AS grp_avg FROM j GROUP BY ordertypedist), x AS (SELECT transreg, ordertypedist, AVG(shortintrt) AS avg_short_interest, AVG(optvolrt) AS avg_option_volume_ratio FROM j GROUP BY transreg, ordertypedist) SELECT x.transreg, x.ordertypedist, x.avg_short_interest, x.avg_option_volume_ratio, x.avg_short_interest / g.grp_avg AS ratio FROM x JOIN g ON g.ordertypedist IS x.ordertypedist ORDER BY (x.avg_short_interest / g.grp_avg) IS NULL, x.avg_short_interest / g.grp_avg DESC LIMIT 10",
   "assumptions": [
    {
-    "assumption": "The order type mix is transactionrecord.ordertypedist. The benchmark average short interest for a mix is the average of shortintrt over all matched sentiment rows with that mix, ignoring NULLs. It is not an average of per-transaction averages.",
+    "assumption": "The order type mix average short interest is the average of shortintrt over all matched sentiment rows with that ordertypedist (row-level), not an average of per-transaction averages. The ratio is the transaction's average divided by that group average.",
     "unresolved": true
    },
    {
-    "assumption": "Ratio = transaction's average short interest divided by the mix's average. It is NULL when either is missing or the mix average is 0. Transactions with no matching sentiment rows are excluded. A NULL mix value forms its own group.",
+    "assumption": "A transaction with several sentiment rows is one output row, with averages taken over its rows. NULL values are ignored by AVG. A ratio is NULL when the transaction's average is NULL or the group average is NULL or zero (SQLite returns NULL for division by zero).",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The mix benchmark is the average of the per-transaction average short interest values, so each transaction counts equally regardless of how many sentiment rows it has.",
-    "sql": "WITH per AS (SELECT t.transreg, t.ordertypedist, AVG(f.shortintrt) AS a, AVG(f.optvolrt) AS o FROM sentimentandfundamentals f JOIN transactionrecord t ON f.transref = t.transreg GROUP BY t.transreg, t.ordertypedist), g AS (SELECT per.*, AVG(a) OVER (PARTITION BY ordertypedist) AS mix_avg FROM per) SELECT transreg AS transaction_ref, ordertypedist AS order_type_mix, a AS avg_short_interest, o AS avg_option_volume_ratio, a / NULLIF(mix_avg, 0) AS short_interest_ratio FROM g ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10"
+    "interpretation": "The order type mix average is the mean of the per-transaction average short interest values (each transaction weighted equally), rather than a mean across all sentiment rows.",
+    "sql": "WITH x AS (SELECT t.transreg, t.ordertypedist, AVG(s.shortintrt) AS avg_short_interest, AVG(s.optvolrt) AS avg_option_volume_ratio FROM sentimentandfundamentals s JOIN transactionrecord t ON s.transref = t.transreg GROUP BY t.transreg, t.ordertypedist), g AS (SELECT ordertypedist, AVG(avg_short_interest) AS grp_avg FROM x GROUP BY ordertypedist) SELECT x.transreg, x.ordertypedist, x.avg_short_interest, x.avg_option_volume_ratio, x.avg_short_interest / g.grp_avg AS ratio FROM x JOIN g ON g.ordertypedist IS x.ordertypedist ORDER BY (x.avg_short_interest / g.grp_avg) IS NULL, x.avg_short_interest / g.grp_avg DESC LIMIT 10"
    }
   ]
  },
@@ -29,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The mix benchmark is the average of the per-transaction average short interest values, so each transaction counts equally regardless of how many sentiment rows it has.",
-   "sql": "WITH per AS (SELECT t.transreg, t.ordertypedist, AVG(f.shortintrt) AS a, AVG(f.optvolrt) AS o FROM sentimentandfundamentals f JOIN transactionrecord t ON f.transref = t.transreg GROUP BY t.transreg, t.ordertypedist), g AS (SELECT per.*, AVG(a) OVER (PARTITION BY ordertypedist) AS mix_avg FROM per) SELECT transreg AS transaction_ref, ordertypedist AS order_type_mix, a AS avg_short_interest, o AS avg_option_volume_ratio, a / NULLIF(mix_avg, 0) AS short_interest_ratio FROM g ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10",
+   "interpretation": "The order type mix average is the mean of the per-transaction average short interest values (each transaction weighted equally), rather than a mean across all sentiment rows.",
+   "sql": "WITH x AS (SELECT t.transreg, t.ordertypedist, AVG(s.shortintrt) AS avg_short_interest, AVG(s.optvolrt) AS avg_option_volume_ratio FROM sentimentandfundamentals s JOIN transactionrecord t ON s.transref = t.transreg GROUP BY t.transreg, t.ordertypedist), g AS (SELECT ordertypedist, AVG(avg_short_interest) AS grp_avg FROM x GROUP BY ordertypedist) SELECT x.transreg, x.ordertypedist, x.avg_short_interest, x.avg_option_volume_ratio, x.avg_short_interest / g.grp_avg AS ratio FROM x JOIN g ON g.ordertypedist IS x.ordertypedist ORDER BY (x.avg_short_interest / g.grp_avg) IS NULL, x.avg_short_interest / g.grp_avg DESC LIMIT 10",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 12.4,
- "chars_out": 1863
+ "seconds": 11.7,
+ "chars_out": 2218
 }

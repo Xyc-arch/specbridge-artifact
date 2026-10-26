@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-989c45ebd2",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT t.tradekind, COUNT(*) AS cnt FROM advancedbehavior a JOIN transactionrecord r ON a.translink = r.transreg JOIN trader t ON r.trdref = t.tradereg GROUP BY t.tradekind), s AS (SELECT tradekind, cnt, 1.0 * cnt / SUM(cnt) OVER () AS share FROM c), av AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.tradekind, s.cnt AS behaviour_count, s.share, s.share - av.avg_share AS share_minus_avg FROM s CROSS JOIN av WHERE av.avg_share IS NOT NULL AND s.share > av.avg_share",
+  "sql": "WITH j AS (SELECT t.tradekind AS tradekind FROM advancedbehavior a JOIN transactionrecord r ON a.translink = r.transreg JOIN trader t ON r.trdref = t.tradereg), c AS (SELECT tradekind, COUNT(*) AS cnt FROM j GROUP BY tradekind), s AS (SELECT tradekind, cnt, CAST(cnt AS REAL) / (SELECT SUM(cnt) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT s.tradekind, s.cnt AS count, s.share, s.share - a.avg_share AS share_minus_avg FROM s, a WHERE a.avg_share IS NOT NULL AND s.share > a.avg_share",
   "assumptions": [
    {
-    "assumption": "The amount of behaviour analysis for a trader type is the number of advancedbehavior rows that join through transactionrecord to trader. Inner joins drop non-matching rows.",
+    "assumption": "Each advancedbehavior row that links through transactionrecord to a trader counts as one unit of behaviour analysis. Rows with no matching transaction or trader are dropped by the inner joins.",
     "unresolved": false
    },
    {
-    "assumption": "A NULL tradekind forms its own group, because GROUP BY keeps NULL as a group. It is counted in the total and in the average of shares.",
+    "assumption": "A NULL tradekind is kept as its own group. The average is taken over the per-type shares, including the NULL group, and is not weighted by count.",
     "unresolved": false
    },
    {
-    "assumption": "Shares are computed with 1.0 multiplication to avoid integer division and are not rounded. The average is the plain mean of the per-type shares, which equals 1 divided by the number of types.",
+    "assumption": "Shares are unrounded real-number divisions. If there are no groups, the average is NULL and the query returns no rows.",
     "unresolved": false
    }
   ],
@@ -27,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 8.2,
- "chars_out": 1187
+ "seconds": 8.0,
+ "chars_out": 1179
 }

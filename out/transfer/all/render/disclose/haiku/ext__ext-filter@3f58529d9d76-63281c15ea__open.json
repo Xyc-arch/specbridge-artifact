@@ -4,25 +4,35 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH race_avg AS (\n  SELECT r.raceId, r.name AS raceName, AVG(cr.points) AS avgPoints, COUNT(*) AS resultCount\n  FROM constructorResults cr\n  JOIN races r ON r.raceId = cr.raceId\n  WHERE cr.points > 1.0\n  GROUP BY r.raceId, r.name\n),\nname_avg AS (\n  SELECT raceName, AVG(avgPoints) AS nameAvg\n  FROM race_avg\n  GROUP BY raceName\n)\nSELECT ra.raceId, ra.raceName, ra.avgPoints, ra.resultCount, ra.avgPoints / na.nameAvg AS ratio\nFROM race_avg ra\nJOIN name_avg na ON na.raceName = ra.raceName\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH filtered_results AS (\n    SELECT cr.raceId, cr.points, r.name as raceName\n    FROM constructorResults cr\n    JOIN races r ON cr.raceId = r.raceId\n    WHERE cr.points > 1.0\n),\nper_race_stats AS (\n    SELECT raceId, raceName, AVG(points) as perRaceAverage, COUNT(*) as resultCount\n    FROM filtered_results\n    GROUP BY raceId, raceName\n),\nrace_name_averages AS (\n    SELECT raceName, AVG(perRaceAverage) as raceNameAverage\n    FROM per_race_stats\n    GROUP BY raceName\n)\nSELECT prs.raceId, prs.raceName, prs.perRaceAverage, prs.resultCount,\n       prs.perRaceAverage / rna.raceNameAverage as ratio\nFROM per_race_stats prs\nJOIN race_name_averages rna ON prs.raceName = rna.raceName\nORDER BY ratio DESC NULLS LAST, prs.raceId\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "The higher side of the 1.0 dividing line means strictly greater than 1.0 (constructorResults.points > 1.0), so results worth exactly 1.0 are dropped.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The race-name average is taken only over races that have at least one kept result, since races with no kept results have no per-race average to contribute. Races with a NULL name are excluded by the join.",
+    "assumption": "\"higher side\" of the 1.0 dividing line means > 1.0 (strictly greater), not >= 1.0. In standard usage, a dividing line separates two regions without including the boundary itself.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "\"higher side\" could include the boundary: >= 1.0 instead of > 1.0",
+    "sql": "WITH filtered_results AS (\n    SELECT cr.raceId, cr.points, r.name as raceName\n    FROM constructorResults cr\n    JOIN races r ON cr.raceId = r.raceId\n    WHERE cr.points >= 1.0\n),\nper_race_stats AS (\n    SELECT raceId, raceName, AVG(points) as perRaceAverage, COUNT(*) as resultCount\n    FROM filtered_results\n    GROUP BY raceId, raceName\n),\nrace_name_averages AS (\n    SELECT raceName, AVG(perRaceAverage) as raceNameAverage\n    FROM per_race_stats\n    GROUP BY raceName\n)\nSELECT prs.raceId, prs.raceName, prs.perRaceAverage, prs.resultCount,\n       prs.perRaceAverage / rna.raceNameAverage as ratio\nFROM per_race_stats prs\nJOIN race_name_averages rna ON prs.raceName = rna.raceName\nORDER BY ratio DESC NULLS LAST, prs.raceId\nLIMIT 10"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 13.3,
- "chars_out": 1029
+ "alternatives": [
+  {
+   "interpretation": "\"higher side\" could include the boundary: >= 1.0 instead of > 1.0",
+   "sql": "WITH filtered_results AS (\n    SELECT cr.raceId, cr.points, r.name as raceName\n    FROM constructorResults cr\n    JOIN races r ON cr.raceId = r.raceId\n    WHERE cr.points >= 1.0\n),\nper_race_stats AS (\n    SELECT raceId, raceName, AVG(points) as perRaceAverage, COUNT(*) as resultCount\n    FROM filtered_results\n    GROUP BY raceId, raceName\n),\nrace_name_averages AS (\n    SELECT raceName, AVG(perRaceAverage) as raceNameAverage\n    FROM per_race_stats\n    GROUP BY raceName\n)\nSELECT prs.raceId, prs.raceName, prs.perRaceAverage, prs.resultCount,\n       prs.perRaceAverage / rna.raceNameAverage as ratio\nFROM per_race_stats prs\nJOIN race_name_averages rna ON prs.raceName = rna.raceName\nORDER BY ratio DESC NULLS LAST, prs.raceId\nLIMIT 10",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 72.0,
+ "chars_out": 1956
 }

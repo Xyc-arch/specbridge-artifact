@@ -2,17 +2,17 @@
  "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH tx AS (\n  SELECT s.transref AS transreg, t.ordertypedist, AVG(s.shortintrt) AS avg_short, AVG(s.optvolrt) AS avg_opt\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord t ON t.transreg = s.transref\n  GROUP BY s.transref, t.ordertypedist\n),\nbase AS (\n  SELECT t.ordertypedist, AVG(s.shortintrt) AS base_short\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord t ON t.transreg = s.transref\n  GROUP BY t.ordertypedist\n)\nSELECT tx.transreg, tx.ordertypedist, tx.avg_short, tx.avg_opt,\n  tx.avg_short / NULLIF(b.base_short, 0) AS ratio\nFROM tx\nLEFT JOIN base b ON b.ordertypedist IS NOT DISTINCT FROM tx.ordertypedist\nORDER BY ratio DESC NULLS LAST\nLIMIT 10",
+  "sql": "WITH t AS (SELECT s.transref AS transref, tr.ordertypedist AS ordertypedist, AVG(s.shortintrt) AS avg_short, AVG(s.optvolrt) AS avg_opt FROM sentimentandfundamentals s JOIN transactionrecord tr ON tr.transreg = s.transref GROUP BY s.transref, tr.ordertypedist), b AS (SELECT tr.ordertypedist AS ordertypedist, AVG(s.shortintrt) AS base FROM sentimentandfundamentals s JOIN transactionrecord tr ON tr.transreg = s.transref GROUP BY tr.ordertypedist) SELECT t.transref, t.ordertypedist, t.avg_short, t.avg_opt, t.avg_short * 1.0 / NULLIF(b.base, 0) AS ratio FROM t LEFT JOIN b ON b.ordertypedist IS t.ordertypedist ORDER BY ratio IS NULL, ratio DESC LIMIT 10",
   "assumptions": [
    {
-    "assumption": "The baseline is the average of shortintrt over all matched snapshots in the same order type mix (each snapshot weighted equally, NULLs ignored), not an average of per-transaction averages.",
+    "assumption": "Baseline is the average shortintrt over all matched snapshots in the order type mix (snapshot-weighted, NULLs ignored); a zero or NULL baseline gives a NULL ratio.",
     "unresolved": false
    },
    {
-    "assumption": "If the baseline is zero, the ratio is NULL, so it sorts last. Transactions with a NULL ordertypedist are grouped together as their own mix.",
-    "unresolved": false
+    "assumption": "Transactions whose ordertypedist is NULL are kept and form their own group (matched via IS), so their baseline is the average over snapshots with NULL mix.",
+    "unresolved": true
    }
   ],
   "alternatives": []
@@ -22,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 6.7
+ "seconds": 6.0
 }

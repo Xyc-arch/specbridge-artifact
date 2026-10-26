@@ -4,40 +4,19 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH ev AS (SELECT link_to_event, AVG(amount) AS avg_amount FROM budget WHERE amount IS NOT NULL AND link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(amount) AS overall_avg FROM budget WHERE amount IS NOT NULL), kept AS (SELECT ev.link_to_event, ev.avg_amount FROM ev, overall WHERE ev.avg_amount > overall.overall_avg), kept_mean AS (SELECT AVG(avg_amount) AS kept_avg FROM kept) SELECT k.link_to_event, k.avg_amount, k.avg_amount - o.overall_avg AS above_overall, k.avg_amount - m.kept_avg AS above_kept_mean FROM kept k, overall o, kept_mean m ORDER BY above_kept_mean DESC LIMIT 10",
+  "sql": "WITH budget_stats AS (\n  SELECT AVG(amount) as overall_avg\n  FROM budget\n  WHERE amount IS NOT NULL\n),\nevent_averages AS (\n  SELECT \n    link_to_event,\n    AVG(amount) as event_avg\n  FROM budget\n  WHERE amount IS NOT NULL\n  GROUP BY link_to_event\n),\nfiltered_events AS (\n  SELECT \n    ea.link_to_event,\n    ea.event_avg,\n    bs.overall_avg\n  FROM event_averages ea\n  CROSS JOIN budget_stats bs\n  WHERE ea.event_avg > bs.overall_avg\n),\nkept_average AS (\n  SELECT AVG(event_avg) as kept_events_avg\n  FROM filtered_events\n)\nSELECT \n  fe.link_to_event,\n  fe.event_avg,\n  (fe.event_avg - fe.overall_avg) as above_overall_average,\n  (fe.event_avg - ka.kept_events_avg) as difference_from_kept_average\nFROM filtered_events fe\nCROSS JOIN kept_average ka\nORDER BY difference_from_kept_average DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The database is SQLite (the query uses LIMIT and comma joins between CTEs, which work in SQLite and most other engines).",
-    "unresolved": false
-   },
-   {
-    "assumption": "The overall average is the mean of `amount` over all budget lines with a non-null amount, including lines whose link_to_event is NULL. Those lines count toward the overall mean but form no event group.",
-    "unresolved": false
-   },
-   {
-    "assumption": "\"Event link\" means the `budget.link_to_event` id itself, not the event's name from the event table.",
-    "unresolved": true
-   },
-   {
-    "assumption": "\"The mean of the kept events' averages\" is unweighted: each kept event counts once, regardless of how many budget lines it has.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Budget lines with a NULL amount are excluded from both the per-event averages and the overall mean.",
+    "assumption": "Ignoring missing amounts means excluding rows where budget.amount is NULL from all average calculations",
     "unresolved": false
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "\"Event link\" means the event's name: show the event_name from the event table, joined on link_to_event, alongside the same metrics.",
-    "sql": "WITH ev AS (SELECT link_to_event, AVG(amount) AS avg_amount FROM budget WHERE amount IS NOT NULL AND link_to_event IS NOT NULL GROUP BY link_to_event), overall AS (SELECT AVG(amount) AS overall_avg FROM budget WHERE amount IS NOT NULL), kept AS (SELECT ev.link_to_event, ev.avg_amount FROM ev, overall WHERE ev.avg_amount > overall.overall_avg), kept_mean AS (SELECT AVG(avg_amount) AS kept_avg FROM kept) SELECT k.link_to_event, e.event_name, k.avg_amount, k.avg_amount - o.overall_avg AS above_overall, k.avg_amount - m.kept_avg AS above_kept_mean FROM kept k CROSS JOIN overall o CROSS JOIN kept_mean m LEFT JOIN event e ON e.event_id = k.link_to_event ORDER BY above_kept_mean DESC LIMIT 10"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 13.0
+ "seconds": 69.0
 }

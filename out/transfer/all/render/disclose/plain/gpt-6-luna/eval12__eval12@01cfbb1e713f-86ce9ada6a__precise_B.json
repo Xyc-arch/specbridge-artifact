@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH matched_units AS (\n  SELECT\n    sf.sentreg,\n    tr.ordertypedist AS order_type_mix,\n    sf.instownpct AS ownership\n  FROM sentimentandfundamentals AS sf\n  JOIN transactionrecord AS tr\n    ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL\n    AND sf.instownpct IS NOT NULL\n),\nunits_with_baselines AS (\n  SELECT\n    sentreg,\n    order_type_mix,\n    ownership,\n    AVG(ownership) OVER (PARTITION BY order_type_mix) AS mix_baseline,\n    AVG(ownership) OVER () AS overall_average\n  FROM matched_units\n),\nkept_units AS (\n  SELECT *\n  FROM units_with_baselines\n  WHERE ownership > overall_average\n)\nSELECT\n  AVG(ownership) AS average_ownership,\n  AVG(ownership / mix_baseline) AS average_ownership_to_mix_baseline,\n  AVG(ownership - overall_average) AS average_excess_overall_average\nFROM kept_units;"
+  "sql": "WITH matched AS (\n  SELECT s.sentreg, t.ordertypedist AS order_type_mix, s.instownpct AS ownership\n  FROM sentimentandfundamentals AS s\n  JOIN transactionrecord AS t ON s.transref = t.transreg\n  WHERE t.ordertypedist IS NOT NULL\n    AND s.instownpct IS NOT NULL\n), baselines AS (\n  SELECT order_type_mix, AVG(ownership) AS mix_baseline\n  FROM matched\n  GROUP BY order_type_mix\n), overall AS (\n  SELECT AVG(ownership) AS overall_avg\n  FROM matched\n), kept AS (\n  SELECT m.ownership, b.mix_baseline, o.overall_avg\n  FROM matched AS m\n  JOIN baselines AS b ON m.order_type_mix = b.order_type_mix\n  CROSS JOIN overall AS o\n  WHERE m.ownership > o.overall_avg\n)\nSELECT AVG(ownership) AS average_ownership,\n       AVG(ownership / mix_baseline) AS average_ownership_to_mix_baseline,\n       AVG(ownership - overall_avg) AS average_excess_ownership\nFROM kept;"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 6.9,
- "chars_out": 853
+ "seconds": 29.3,
+ "chars_out": 883
 }

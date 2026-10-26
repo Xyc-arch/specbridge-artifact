@@ -1,0 +1,36 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1e89ccdc51",
+ "model": "haiku",
+ "response": {
+  "sql": "WITH race_stats AS (\n  SELECT \n    races.name,\n    SUM(results.points) as total_points,\n    AVG(CAST(results.laps AS REAL)) as avg_laps\n  FROM results\n  JOIN races ON results.raceId = races.raceId\n  GROUP BY races.name\n),\navg_total AS (\n  SELECT AVG(total_points) as avg_total_points\n  FROM race_stats\n),\nfiltered AS (\n  SELECT rs.total_points, rs.avg_laps, at.avg_total_points\n  FROM race_stats rs\n  CROSS JOIN avg_total at\n  WHERE rs.total_points > at.avg_total_points\n)\nSELECT \n  SUM(total_points),\n  AVG(avg_laps),\n  AVG(total_points - avg_total_points)\nFROM filtered",
+  "assumptions": [
+   {
+    "assumption": "\"the average laps for the kept race names\" means the unweighted average of the per-race average-laps values computed in the grouping step (i.e., AVG of the avg_laps column), not a recomputed overall average from all individual lap times",
+    "unresolved": true
+   },
+   {
+    "assumption": "results.laps (stored as TEXT) can be cast to REAL for numeric aggregation",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"the average laps for the kept race names\" could mean the overall average of all individual lap-time values from results belonging to kept race names\u2014a weighted average that may differ from the unweighted average of per-race averages if races have unequal numbers of results",
+    "sql": "WITH race_stats AS (\n  SELECT \n    races.name,\n    SUM(results.points) as total_points\n  FROM results\n  JOIN races ON results.raceId = races.raceId\n  GROUP BY races.name\n),\navg_total AS (\n  SELECT AVG(total_points) as avg_total_points\n  FROM race_stats\n),\nkept_names AS (\n  SELECT rs.name, rs.total_points, at.avg_total_points\n  FROM race_stats rs\n  CROSS JOIN avg_total at\n  WHERE rs.total_points > at.avg_total_points\n),\nsum_kept AS (\n  SELECT SUM(total_points) as sum_total FROM kept_names\n),\nlaps_kept AS (\n  SELECT AVG(CAST(results.laps AS REAL)) as avg_laps\n  FROM results\n  JOIN races ON results.raceId = races.raceId\n  WHERE races.name IN (SELECT name FROM kept_names)\n),\nexcess_kept AS (\n  SELECT AVG(total_points - avg_total_points) as avg_excess\n  FROM kept_names\n)\nSELECT \n  sk.sum_total,\n  lk.avg_laps,\n  ek.avg_excess\nFROM sum_kept sk\nCROSS JOIN laps_kept lk\nCROSS JOIN excess_kept ek"
+   }
+  ]
+ },
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "\"the average laps for the kept race names\" could mean the overall average of all individual lap-time values from results belonging to kept race names\u2014a weighted average that may differ from the unweighted average of per-race averages if races have unequal numbers of results",
+   "sql": "WITH race_stats AS (\n  SELECT \n    races.name,\n    SUM(results.points) as total_points\n  FROM results\n  JOIN races ON results.raceId = races.raceId\n  GROUP BY races.name\n),\navg_total AS (\n  SELECT AVG(total_points) as avg_total_points\n  FROM race_stats\n),\nkept_names AS (\n  SELECT rs.name, rs.total_points, at.avg_total_points\n  FROM race_stats rs\n  CROSS JOIN avg_total at\n  WHERE rs.total_points > at.avg_total_points\n),\nsum_kept AS (\n  SELECT SUM(total_points) as sum_total FROM kept_names\n),\nlaps_kept AS (\n  SELECT AVG(CAST(results.laps AS REAL)) as avg_laps\n  FROM results\n  JOIN races ON results.raceId = races.raceId\n  WHERE races.name IN (SELECT name FROM kept_names)\n),\nexcess_kept AS (\n  SELECT AVG(total_points - avg_total_points) as avg_excess\n  FROM kept_names\n)\nSELECT \n  sk.sum_total,\n  lk.avg_laps,\n  ek.avg_excess\nFROM sum_kept sk\nCROSS JOIN laps_kept lk\nCROSS JOIN excess_kept ek",
+   "matches": [
+    "B"
+   ]
+  }
+ ]
+}

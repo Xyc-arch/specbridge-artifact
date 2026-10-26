@@ -3,9 +3,9 @@
  "sample": 5,
  "model": "haiku",
  "response": {
-  "sql": "WITH color_totals AS (\n  SELECT p.product_color AS product_color,\n         SUM(ili.derived_total_cost) AS invoiced_amount\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON p.product_id = ili.product_id\n  GROUP BY p.product_color\n),\nshares AS (\n  SELECT product_color,\n         invoiced_amount,\n         invoiced_amount * 1.0 / SUM(invoiced_amount) OVER () AS share,\n         AVG(invoiced_amount) OVER () AS avg_per_color\n  FROM color_totals\n),\nabove_avg AS (\n  SELECT * FROM shares\n  WHERE invoiced_amount > avg_per_color\n)\nSELECT AVG(invoiced_amount) AS avg_invoiced_amount,\n       AVG(share) AS avg_share,\n       AVG(invoiced_amount - avg_per_color) AS avg_amount_above_per_color_average\nFROM above_avg;"
+  "sql": "WITH color_totals AS (SELECT COALESCE(p.product_color, 'No Color') AS product_color, SUM(ili.derived_total_cost) AS total_invoiced, SUM(ili.derived_total_cost) / (SELECT SUM(derived_total_cost) FROM Invoice_Line_Items) AS share FROM Invoice_Line_Items ili JOIN Products p ON ili.product_id = p.product_id GROUP BY COALESCE(p.product_color, 'No Color')), color_stats AS (SELECT AVG(total_invoiced) AS avg_per_color FROM color_totals), above_average_colors AS (SELECT ct.total_invoiced, ct.share, cs.avg_per_color FROM color_totals ct CROSS JOIN color_stats cs WHERE ct.total_invoiced > cs.avg_per_color) SELECT AVG(total_invoiced) AS average_invoiced_amount, AVG(share) AS average_share, AVG(total_invoiced - avg_per_color) AS average_above_average FROM above_average_colors;"
  },
  "primary_executes": true,
  "primary_matches": [],
- "seconds": 9.0
+ "seconds": 45.4
 }

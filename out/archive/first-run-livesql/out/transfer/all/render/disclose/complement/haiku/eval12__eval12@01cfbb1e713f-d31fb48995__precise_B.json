@@ -1,0 +1,31 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-d31fb48995",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH first_baseline AS (\n  SELECT AVG(pulsepersec) as baseline_1\n  FROM signals\n  WHERE pulsepersec IS NOT NULL\n),\ntelescope_averages AS (\n  SELECT \n    telescref,\n    AVG(pulsepersec) as avg_pulse_rate\n  FROM signals\n  WHERE pulsepersec IS NOT NULL\n  GROUP BY telescref\n),\nabove_first_baseline AS (\n  SELECT \n    ta.telescref,\n    ta.avg_pulse_rate\n  FROM telescope_averages ta\n  CROSS JOIN first_baseline fb\n  WHERE ta.avg_pulse_rate > fb.baseline_1\n),\nsecond_baseline AS (\n  SELECT AVG(avg_pulse_rate) as baseline_2\n  FROM above_first_baseline\n),\nfinal_telescopes AS (\n  SELECT \n    afb.telescref,\n    afb.avg_pulse_rate\n  FROM above_first_baseline afb\n  CROSS JOIN second_baseline sb\n  WHERE afb.avg_pulse_rate > sb.baseline_2\n)\nSELECT \n  AVG(ft.avg_pulse_rate) as mean_avg_pulse_rates,\n  AVG(ft.avg_pulse_rate - (SELECT baseline_1 FROM first_baseline)) as mean_exceeds_first_baseline,\n  AVG(ft.avg_pulse_rate - (SELECT baseline_2 FROM second_baseline)) as mean_exceeds_second_baseline\nFROM final_telescopes ft",
+  "assumptions": [
+   {
+    "assumption": "Missing values in pulsepersec are represented as NULL and should be excluded from all AVG() calculations",
+    "unresolved": false
+   },
+   {
+    "assumption": "The word 'above' in 'average is above this baseline' means strictly greater than (>) rather than >= (i.e., averages equal to a baseline are not kept)",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "If 'above' should be interpreted as greater-than-or-equal-to (>=), use >= instead of > in both WHERE clauses of the above_first_baseline and final_telescopes CTEs",
+    "sql": "WITH first_baseline AS (\n  SELECT AVG(pulsepersec) as baseline_1\n  FROM signals\n  WHERE pulsepersec IS NOT NULL\n),\ntelescope_averages AS (\n  SELECT \n    telescref,\n    AVG(pulsepersec) as avg_pulse_rate\n  FROM signals\n  WHERE pulsepersec IS NOT NULL\n  GROUP BY telescref\n),\nabove_first_baseline AS (\n  SELECT \n    ta.telescref,\n    ta.avg_pulse_rate\n  FROM telescope_averages ta\n  CROSS JOIN first_baseline fb\n  WHERE ta.avg_pulse_rate >= fb.baseline_1\n),\nsecond_baseline AS (\n  SELECT AVG(avg_pulse_rate) as baseline_2\n  FROM above_first_baseline\n),\nfinal_telescopes AS (\n  SELECT \n    afb.telescref,\n    afb.avg_pulse_rate\n  FROM above_first_baseline afb\n  CROSS JOIN second_baseline sb\n  WHERE afb.avg_pulse_rate >= sb.baseline_2\n)\nSELECT \n  AVG(ft.avg_pulse_rate) as mean_avg_pulse_rates,\n  AVG(ft.avg_pulse_rate - (SELECT baseline_1 FROM first_baseline)) as mean_exceeds_first_baseline,\n  AVG(ft.avg_pulse_rate - (SELECT baseline_2 FROM second_baseline)) as mean_exceeds_second_baseline\nFROM final_telescopes ft"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 34.6
+}

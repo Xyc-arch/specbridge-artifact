@@ -2,15 +2,10 @@
  "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH telescope_weather_groups AS (\n  SELECT\n    t.telescregistry,\n    o.weathprofile,\n    AVG(s.modindex) AS avg_modindex,\n    AVG(s.phaseshiftdeg) AS avg_phaseshift\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n  GROUP BY t.telescregistry, o.weathprofile\n),\nbaseline AS (\n  SELECT AVG(avg_modindex) AS mean_group_avg_modindex\n  FROM telescope_weather_groups\n),\nkept_groups AS (\n  SELECT g.*\n  FROM telescope_weather_groups AS g\n  CROSS JOIN baseline AS b\n  WHERE g.avg_modindex > b.mean_group_avg_modindex\n)\nSELECT\n  weathprofile,\n  AVG(avg_modindex) AS avg_modindex,\n  AVG(avg_phaseshift) AS avg_phaseshift,\n  AVG(avg_modindex - b.mean_group_avg_modindex) AS avg_modindex_above_baseline\nFROM kept_groups\nCROSS JOIN baseline AS b\nGROUP BY weathprofile;",
-  "assumptions": [
-   {
-    "assumption": "The baseline is the unweighted mean of all telescope/weather group average modulation indices; NULL group averages are excluded by AVG, as in standard SQL.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH telescope_weather AS (\n  SELECT\n    t.telescregistry,\n    o.weathprofile,\n    AVG(s.modindex) AS avg_modulation_index,\n    AVG(s.phaseshiftdeg) AS avg_phase_shift\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n  GROUP BY t.telescregistry, o.weathprofile\n),\nscored_groups AS (\n  SELECT\n    *,\n    AVG(avg_modulation_index) OVER () AS baseline\n  FROM telescope_weather\n),\nkept_groups AS (\n  SELECT *, avg_modulation_index - baseline AS excess_modulation_index\n  FROM scored_groups\n  WHERE avg_modulation_index > baseline\n)\nSELECT\n  weathprofile,\n  AVG(avg_modulation_index) AS avg_modulation_index,\n  AVG(avg_phase_shift) AS avg_phase_shift,\n  AVG(excess_modulation_index) AS avg_excess_modulation_index\nFROM kept_groups\nGROUP BY weathprofile;",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
@@ -19,6 +14,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 8.2,
- "chars_out": 1111
+ "seconds": 4.5,
+ "chars_out": 912
 }

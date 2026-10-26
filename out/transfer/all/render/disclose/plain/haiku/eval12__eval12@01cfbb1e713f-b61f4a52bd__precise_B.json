@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH executions_cleaned AS (\n  SELECT \n    COALESCE(ordersmark, '__NULL__') as order_ref,\n    fillcount\n  FROM orderexecutions\n  WHERE fillcount IS NOT NULL AND fillcount > 0\n),\norder_avg_fills AS (\n  SELECT \n    order_ref,\n    AVG(fillcount) as avg_fill\n  FROM executions_cleaned\n  GROUP BY order_ref\n),\nbenchmark_1 AS (\n  SELECT AVG(avg_fill) as b1\n  FROM order_avg_fills\n),\nabove_b1 AS (\n  SELECT \n    oaf.order_ref,\n    oaf.avg_fill,\n    oaf.avg_fill - b1.b1 as excess_1\n  FROM order_avg_fills oaf\n  CROSS JOIN benchmark_1 b1\n  WHERE oaf.avg_fill > b1.b1\n),\nbenchmark_2 AS (\n  SELECT AVG(avg_fill) as b2\n  FROM above_b1\n),\nabove_b2 AS (\n  SELECT \n    ab1.order_ref,\n    ab1.avg_fill,\n    ab1.excess_1,\n    ab1.avg_fill - b2.b2 as excess_2\n  FROM above_b1 ab1\n  CROSS JOIN benchmark_2 b2\n  WHERE ab1.avg_fill > b2.b2\n)\nSELECT \n  AVG(avg_fill) as avg_fill_quantity,\n  AVG(excess_1) as avg_first_excess,\n  AVG(excess_2) as avg_second_excess\nFROM above_b2"
+  "sql": "WITH per_order_averages AS (SELECT COALESCE(ordersmark, 'NULL_ORDER') as ordersmark_key, AVG(fillcount) as avg_fillcount FROM orderexecutions WHERE fillcount IS NOT NULL AND fillcount > 0 GROUP BY COALESCE(ordersmark, 'NULL_ORDER')), first_benchmark AS (SELECT AVG(avg_fillcount) as benchmark1 FROM per_order_averages), filtered_first AS (SELECT poa.ordersmark_key, poa.avg_fillcount, poa.avg_fillcount - fb.benchmark1 as excess1 FROM per_order_averages poa CROSS JOIN first_benchmark fb WHERE poa.avg_fillcount > fb.benchmark1), second_benchmark AS (SELECT AVG(avg_fillcount) as benchmark2 FROM filtered_first), filtered_second AS (SELECT ff.ordersmark_key, ff.avg_fillcount, ff.excess1, ff.avg_fillcount - sb.benchmark2 as excess2 FROM filtered_first ff CROSS JOIN second_benchmark sb WHERE ff.avg_fillcount > sb.benchmark2) SELECT AVG(avg_fillcount) as avg_per_order_fill, AVG(excess1) as avg_first_excess, AVG(excess2) as avg_second_excess FROM filtered_second"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 33.6,
- "chars_out": 1027
+ "seconds": 19.6,
+ "chars_out": 991
 }

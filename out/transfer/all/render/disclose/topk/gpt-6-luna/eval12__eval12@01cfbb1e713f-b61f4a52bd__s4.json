@@ -3,11 +3,11 @@
  "sample": 4,
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(fillcount) AS avg_fill_size\n  FROM orderexecutions\n  GROUP BY ordersmark\n), first_benchmark AS (\n  SELECT AVG(avg_fill_size) AS avg_all_orders\n  FROM per_order\n), first_winners AS (\n  SELECT p.ordersmark,\n         p.avg_fill_size,\n         p.avg_fill_size - b.avg_all_orders AS margin_over_first\n  FROM per_order p\n  CROSS JOIN first_benchmark b\n  WHERE p.avg_fill_size > b.avg_all_orders\n), second_benchmark AS (\n  SELECT AVG(avg_fill_size) AS avg_first_winners\n  FROM first_winners\n), final_orders AS (\n  SELECT w.avg_fill_size,\n         w.margin_over_first,\n         w.avg_fill_size - b.avg_first_winners AS margin_over_second\n  FROM first_winners w\n  CROSS JOIN second_benchmark b\n  WHERE w.avg_fill_size > b.avg_first_winners\n)\nSELECT AVG(avg_fill_size) AS avg_per_order_fill_size,\n       AVG(margin_over_first) AS avg_margin_over_first_benchmark,\n       AVG(margin_over_second) AS avg_margin_over_second_benchmark\nFROM final_orders"
+  "sql": "WITH per_order AS (SELECT ordersmark, AVG(fillcount) AS avg_fill_size FROM orderexecutions GROUP BY ordersmark), first_filtered AS (SELECT ordersmark, avg_fill_size, avg_fill_size - AVG(avg_fill_size) OVER () AS margin_over_all FROM per_order), second_benchmark AS (SELECT AVG(avg_fill_size) AS group_avg FROM first_filtered WHERE margin_over_all > 0), final_orders AS (SELECT f.avg_fill_size, f.margin_over_all, f.avg_fill_size - b.group_avg AS margin_over_group FROM first_filtered f CROSS JOIN second_benchmark b WHERE f.margin_over_all > 0 AND f.avg_fill_size > b.group_avg) SELECT AVG(avg_fill_size) AS avg_per_order_fill_size, AVG(margin_over_all) AS avg_margin_over_all, AVG(margin_over_group) AS avg_margin_over_second FROM final_orders;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 4.2
+ "seconds": 5.1
 }

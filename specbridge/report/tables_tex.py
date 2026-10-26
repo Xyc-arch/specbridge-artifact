@@ -48,7 +48,7 @@ def main_results():
     rng = lambda ns: ("%d" % ns[0]) if min(ns) == max(ns) else "%d--%d" % (min(ns), max(ns))
     A = d("accepted")["scopes"]["accepted"]["models"]; T = json.load(open(TOPK))["models"]
     rows.append(("Request sets, judged by a model", "names the open choice", nf, [pc(F[m]["recognises"]["k"], F[m]["recognises"]["n"]) for m in M]))
-    rows.append(("", "stated reading matches SQL", rng([F[m]["faithful_given_stated"]["n"] for m in M]), [pc(F[m]["faithful_given_stated"]["k"], F[m]["faithful_given_stated"]["n"]) for m in M]))
+    rows.append(("", "stated interpretation matches SQL", rng([F[m]["faithful_given_stated"]["n"] for m in M]), [pc(F[m]["faithful_given_stated"]["k"], F[m]["faithful_given_stated"]["n"]) for m in M]))
     rows.append(("", "settled request called open", nf, [pc(F[m]["false_open"]["k"], F[m]["false_open"]["n"]) for m in M], True))
     rows.append(("Request sets, median seconds per request", "SQL only", nf, [F[m]["overhead"]["median_seconds_plain"] for m in M], True))
     rows.append(("", "SQL and explanation", nf, [F[m]["overhead"]["median_seconds_disclosure"] for m in M], True))
@@ -110,7 +110,7 @@ def conventions():
     for g, _n in rows:
         for k in K: assert G[g]["kinds"][k]["n"] >= MIN, (g, k)
     L = ["\\begin{table}[t]",
-         "\\caption{Shared defaults of BIRD and Spider: share (\\%%) of silent questions whose reference takes the usual reading. Tie: one row at an extreme. Count: rows. Null: no missing-value filter. Join: inner. Betw.: inclusive. Strict: ``after'', ``over'' strict. Text: exact match. Last column: silent questions against the usual reading. Cells $\\ge$ %d cases; counts in Appendix~\\ref{sec:disaggregated}.}" % MIN,
+         "\\caption{Shared defaults of BIRD and Spider: share (\\%%) of silent questions whose reference takes the usual interpretation. Tie: one row at an extreme. Count: rows. Null: no missing-value filter. Join: inner. Betw.: inclusive. Strict: ``after'', ``over'' strict. Text: exact match. Last column: silent questions against the usual interpretation. Cells $\\ge$ %d cases; counts in Appendix~\\ref{sec:disaggregated}.}" % MIN,
          "\\label{tab:conventionscol}", "\\centering\\footnotesize", "\\setlength{\\tabcolsep}{2.8pt}",
          "\\begin{tabular}{@{}l" + "r" * len(K) + "r@{}}", "\\toprule",
          "Group & " + " & ".join(head[k] for k in K) + " & Against\\\\", "\\midrule"]
@@ -149,16 +149,16 @@ def comparison():
          "\\midrule",
          "Benchmark databases, unmodified & \\xm & \\xm & \\cm\\\\",
          "Measures reference conventions & \\xm & \\xm & \\cm\\\\",
-         "One request per reading & \\xm & \\cm & \\cm\\\\",
+         "One request per interpretation & \\xm & \\cm & \\cm\\\\",
          "Separates computing from reporting & \\xm & \\xm & \\cm\\\\",
-         "Checks the stated reading & \\xm & \\xm & \\cm\\\\",
+         "Checks the stated interpretation & \\xm & \\xm & \\cm\\\\",
          "Penalizes raising a settled choice & \\xm & \\xm & \\cm\\\\",
          "\\bottomrule", "\\end{tabular}", "\\end{table}"]
     write("comparison", "\n".join(L) + "\n")
     print("  kinds outside both taxonomies:", {k: meaning[k] for k in outside}, "sum", cov(outside), "of", tot)
 
 def decomposition():
-    """Open requests not covered (both readings not returned), and the share of them where the same solver answers BOTH specific requests
+    """Open requests not covered (both interpretations not returned), and the share of them where the same solver answers BOTH specific requests
     right: (1) specific requests with exploration, (2) the same on the sets both reviewers accept, (3) matched: specific requests in the
     same single call as the open request (specbridge.comm.transfer.matched), when complete."""
     f = d("fig5_tab4_disclosure"); F = f["models"]; n = f["n_families"]
@@ -166,7 +166,7 @@ def decomposition():
     sh = lambda x: "%d/%d (%.0f\\%%)" % (x["both_specific_right"], x["not_covered"], pc(x["both_specific_right"], x["not_covered"]))
     cols = ["exploration", "both reviewers"] + (["matched single call"] if have_matched else [])
     L = ["\\begin{table}[t]",
-         "\\caption{Missed readings the solver can compute. Among open requests not answered with both readings, the share where the same solver answers \\emph{both} specific requests right, under three settings for the specific requests.}",
+         "\\caption{Missed interpretations the solver can compute. Among open requests not answered with both interpretations, the share where the same solver answers \\emph{both} specific requests right, under three settings for the specific requests.}",
          "\\label{tab:decomposition}", "\\centering\\footnotesize", "\\setlength{\\tabcolsep}{3pt}",
          "\\begin{tabular}{@{}l" + "r" * len(cols) + "@{}}", "\\toprule",
          "& \\multicolumn{%d}{c}{both specific right / open not covered}\\\\" % len(cols), "\\cmidrule(l){2-%d}" % (1 + len(cols)),
@@ -203,7 +203,7 @@ def writer_swap():
 
 def checklist():
     """In-context personalization vs a same-length style placebo (specbridge.comm.transfer.checklist), split by the benchmark each
-    database comes from: open requests with both readings (placebo -> personalized), exact McNemar per cell, pooled sign-flip per column,
+    database comes from: open requests with both interpretations (placebo -> personalized), exact McNemar per cell, pooled sign-flip per column,
     and main SQL right on the specific request."""
     r = json.load(open(CHECKLIST)); S = dict(r["by_source"], Overall={"models": r["models"], "pooled": r["pooled"]})
     cols = ["BIRD", "Spider", "LiveSQLBench", "Overall"]; star = lambda v: "$^{*}$" if v < 0.05 else ""
@@ -212,7 +212,7 @@ def checklist():
          "\\caption{Personalization against a placebo, on %d request sets drawn at random, split by the benchmark each database comes from. "
          "Both arms use the explanation call with one block added before the schema: the choices this user wants raised (personalized), "
          "or the same length and procedure about the user's SQL writing style (placebo). The arms ran interleaved. Cells: open requests "
-         "whose answer returns both readings, placebo $\\rightarrow$ personalized; $^{*}$ exact McNemar $p<0.05$. Gain: pooled over solvers, "
+         "whose answer returns both interpretations, placebo $\\rightarrow$ personalized; $^{*}$ exact McNemar $p<0.05$. Gain: pooled over solvers, "
          "in points, with sign-flip $p$. Specific: main SQL right on the sets' specific requests, summed over solvers.}" % r["n_sets"],
          "\\label{tab:checklist}", "\\centering\\footnotesize", "\\setlength{\\tabcolsep}{3pt}",
          "\\begin{tabular}{@{}lrrrr@{}}", "\\toprule",
@@ -231,7 +231,7 @@ def method_ambrosia():
     J = json.load(open("out/ambrosia/final/final.json")); NAME = {"plain": "Plain", "dtp": "DtP", "samplek": "Three samples", "ours": "Ours"}
     L = ["\\begin{table}[t]",
          "\\caption{Disclosure method on 150 fresh AMBROSIA test questions per solver (90 ambiguous, 60 unambiguous), shape-tolerant. "
-         "Recovered: of the readings the plain answer missed that the solver computes when asked the unambiguous version. Precision on "
+         "Recovered: of the interpretations the plain answer missed that the solver computes when asked the unambiguous version. Precision on "
          "unambiguous questions. Bottom: ours minus each arm, pooled over both solvers, paired 95\\% bootstrap intervals (points).}",
          "\\label{tab:method}", "\\centering\\footnotesize", "\\setlength{\\tabcolsep}{2.0pt}",
          "\\begin{tabular}{@{}llrrrrr@{}}", "\\toprule", "& Arm & AllFound & Recall & Recovered & Precision & Calls / kchars \\\\", "\\midrule"]
@@ -258,7 +258,7 @@ def method_reqsets():
     S, G = J["sonnet"], J["gpt-6-sol"]; pair = lambda f: "%s / %s" % (f(S), f(G))
     L = ["\\begin{table}[t]",
          "\\caption{The same four methods on %d development request sets; each cell gives Sonnet / GPT-Sol. Both: the open request's answers include "
-         "both readings. Names: the response names the choice built into the set (Opus judge, blind to method and model). Recovered: of the %d readings per model "
+         "both interpretations. Names: the response names the choice built into the set (Opus judge, blind to method and model). Recovered: of the %d interpretations per model "
          "that the plain answer missed but the model computes when asked. Right: specific requests answered correctly (of %d). Calls: per request.}" % (S["sets"], S["computable"], S["sets"]),
          "\\label{tab:methodsets}", "\\centering\\footnotesize", "\\setlength{\\tabcolsep}{3.5pt}",
          "\\begin{tabular}{@{}lccccc@{}}", "\\toprule", "Method & Both & Names & Recovered & Right & Calls \\\\", "\\midrule"]
@@ -271,7 +271,7 @@ def method_reqsets():
 
 def methods():
     """Section 7: the four methods, compact: AMBROSIA final test (precision on unambiguous questions, ambiguous questions with every
-    reading found, calls per question; final.json) and request sets (both readings returned, specific requests right; out/reqmethod100)."""
+    interpretation found, calls per question; final.json) and request sets (both interpretations returned, specific requests right; out/reqmethod100)."""
     F = json.load(open("out/ambrosia/final/final.json"))["solvers"]; R = json.load(open("out/reqmethod100/results.json"))
     NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ours": "Ours"}
     n_amb = F["sonnet"]["n_ambiguous"]; n_sets = R["sonnet"]["sets"]

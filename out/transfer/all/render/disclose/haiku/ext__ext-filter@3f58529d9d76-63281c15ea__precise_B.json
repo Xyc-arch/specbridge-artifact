@@ -4,25 +4,8 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH race_avg AS (\n  SELECT r.raceId, r.name AS raceName, AVG(cr.points) AS avgPoints, COUNT(*) AS resultCount\n  FROM constructorResults cr\n  JOIN races r ON r.raceId = cr.raceId\n  WHERE cr.points > 1.0\n  GROUP BY r.raceId, r.name\n),\nname_avg AS (\n  SELECT raceName, AVG(avgPoints) AS nameAvg\n  FROM race_avg\n  GROUP BY raceName\n)\nSELECT ra.raceId, ra.raceName, ra.avgPoints, ra.resultCount, ra.avgPoints / na.nameAvg AS ratio\nFROM race_avg ra\nJOIN name_avg na ON na.raceName = ra.raceName\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
-  "assumptions": [
-   {
-    "assumption": "The filter 'points > 1.0' applies to constructorResults.points, and rows with NULL points are excluded by the comparison.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Each race's average and count are computed over its constructorResults rows that pass the filter, so the count is the number of constructor results for that race with points > 1.0.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Races sharing a name are grouped by exact match on races.name across all years.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The ratio divides the unrounded per-race average by the unrounded race-name average. Ties in ratio have no specified order, so the top 10 may vary among tied rows.",
-    "unresolved": true
-   }
-  ],
+  "sql": "WITH perRaceStats AS (\n  SELECT \n    cr.raceId,\n    r.name as raceName,\n    AVG(cr.points) as perRaceAvg,\n    COUNT(*) as resultCount\n  FROM constructorResults cr\n  JOIN races r ON cr.raceId = r.raceId\n  WHERE cr.points > 1.0\n  GROUP BY cr.raceId, r.name\n),\nraceNameStats AS (\n  SELECT \n    raceName,\n    AVG(perRaceAvg) as raceNameAvg\n  FROM perRaceStats\n  GROUP BY raceName\n)\nSELECT \n  prs.raceId,\n  prs.raceName,\n  prs.perRaceAvg,\n  prs.resultCount,\n  CASE \n    WHEN rns.raceNameAvg > 0 THEN prs.perRaceAvg / rns.raceNameAvg\n    ELSE NULL\n  END as ratio\nFROM perRaceStats prs\nINNER JOIN raceNameStats rns ON prs.raceName = rns.raceName\nORDER BY \n  CASE WHEN ratio IS NULL THEN 1 ELSE 0 END,\n  ratio DESC\nLIMIT 10",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
@@ -31,6 +14,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 13.8,
- "chars_out": 1312
+ "seconds": 59.1,
+ "chars_out": 817
 }

@@ -4,36 +4,19 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH line AS (SELECT e.event_id, e.status, b.remaining, (b.spent - b.amount) * 1.0 / b.amount AS overspend FROM budget b JOIN event e ON e.event_id = b.link_to_event), ev AS (SELECT event_id, status, AVG(remaining) AS avg_remaining, AVG(overspend) AS avg_overspend FROM line GROUP BY event_id, status), overall AS (SELECT AVG(avg_remaining) AS mean_ev_remaining FROM ev) SELECT ev.status, AVG(ev.avg_remaining) AS avg_remaining, AVG(ev.avg_overspend) AS avg_overspend_rate, AVG(ev.avg_remaining) / (SELECT mean_ev_remaining FROM overall) AS remaining_ratio FROM ev GROUP BY ev.status;",
+  "sql": "WITH event_level AS (\n  SELECT \n    e.event_id,\n    e.status,\n    AVG(b.remaining) as avg_remaining,\n    AVG((b.spent - b.amount) / NULLIF(b.amount, 0)) as avg_overspend_rate\n  FROM budget b\n  INNER JOIN event e ON b.link_to_event = e.event_id\n  GROUP BY e.event_id, e.status\n),\n\nglobal_mean_remaining AS (\n  SELECT AVG(avg_remaining) as global_mean\n  FROM event_level\n),\n\nstatus_aggregates AS (\n  SELECT \n    status,\n    AVG(avg_remaining) as avg_remaining,\n    AVG(avg_overspend_rate) as avg_overspend_rate\n  FROM event_level\n  GROUP BY status\n)\n\nSELECT \n  s.status,\n  s.avg_remaining,\n  s.avg_overspend_rate,\n  s.avg_remaining / NULLIF(g.global_mean, 0) as ratio\nFROM status_aggregates s\nCROSS JOIN global_mean_remaining g",
   "assumptions": [
    {
-    "assumption": "\"status\" means event.status (the event table's field), not budget.event_status. Both exist, and the request does not say which one to group by.",
+    "assumption": "Division by zero handling: NULLIF converts zero denominators to NULL, which AVG() then ignores. If budget.amount is zero or the global mean is zero, the division yields NULL. The request does not specify how to handle division by zero.",
     "unresolved": true
-   },
-   {
-    "assumption": "Budget lines whose link_to_event has no matching event are dropped by the inner join. Events with a NULL status form their own group.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Dialect is SQLite: AVG skips NULLs, and division by a zero or NULL amount yields NULL, so those lines are ignored in the overspend average. A zero overall mean would also yield NULL for the ratio.",
-    "unresolved": false
-   },
-   {
-    "assumption": "An event with no usable remaining values contributes nothing to the status averages or to the overall mean, since AVG ignores NULL event-level values.",
-    "unresolved": false
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "Group by budget.event_status (the status recorded on each budget line) rather than the event table's status. Each line is grouped by its own status, then the same event-level averaging and ratio are applied.",
-    "sql": "WITH line AS (SELECT b.event_status AS status, e.event_id, b.remaining, (b.spent - b.amount) * 1.0 / b.amount AS overspend FROM budget b JOIN event e ON e.event_id = b.link_to_event), ev AS (SELECT event_id, status, AVG(remaining) AS avg_remaining, AVG(overspend) AS avg_overspend FROM line GROUP BY event_id, status), overall AS (SELECT AVG(avg_remaining) AS mean_ev_remaining FROM ev) SELECT ev.status, AVG(ev.avg_remaining) AS avg_remaining, AVG(ev.avg_overspend) AS avg_overspend_rate, AVG(ev.avg_remaining) / (SELECT mean_ev_remaining FROM overall) AS remaining_ratio FROM ev GROUP BY ev.status;"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 12.5
+ "seconds": 73.4
 }

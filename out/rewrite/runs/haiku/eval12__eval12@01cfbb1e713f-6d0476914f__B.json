@@ -3,9 +3,26 @@
  "model": "haiku",
  "reading": "B",
  "description": "Each rating's average length is compared with the mean length over all individual films.",
+ "d": {
+  "request": "Find ratings whose average film length exceeds the overall mean length of all films, then among those, retain only ratings whose average length also exceeds the mean of that filtered group's average lengths, returning the mean of the final set's average lengths along with the average distances they sit above the overall mean and above the first-filter group's mean.",
+  "sql": "WITH overall_mean AS (\n  SELECT AVG(length) as overall_avg FROM film\n),\nfirst_filter AS (\n  SELECT rating, AVG(length) as avg_length\n  FROM film\n  GROUP BY rating\n  HAVING AVG(length) > (SELECT overall_avg FROM overall_mean)\n),\nfirst_filter_mean AS (\n  SELECT AVG(avg_length) as first_filter_avg FROM first_filter\n),\nsecond_filter AS (\n  SELECT rating, avg_length\n  FROM first_filter\n  WHERE avg_length > (SELECT first_filter_avg FROM first_filter_mean)\n)\nSELECT\n  AVG(avg_length) as final_set_mean,\n  AVG(avg_length - (SELECT overall_avg FROM overall_mean)) as avg_distance_above_overall_mean,\n  AVG(avg_length - (SELECT first_filter_avg FROM first_filter_mean)) as avg_distance_above_first_filter_mean\nFROM second_filter",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
  "b": {
-  "request": "Keep ratings whose AVG(length) exceeds the film-level AVG(length) over all non-NULL films, then keep those whose AVG(length) also exceeds the mean of the first-cut ratings' AVG(length) values, and return one row with AVG of the survivors' averages, AVG(their averages minus the film-level mean), and AVG(their averages minus the first-cut mean), unrounded",
-  "sql": "WITH film_level AS (SELECT AVG(length) AS overall_avg FROM film WHERE length IS NOT NULL), rating_avgs AS (SELECT rating, AVG(length) AS avg_len FROM film WHERE length IS NOT NULL GROUP BY rating), first_cut AS (SELECT r.rating, r.avg_len FROM rating_avgs r CROSS JOIN film_level f WHERE r.avg_len > f.overall_avg), first_mean AS (SELECT AVG(avg_len) AS cut_mean FROM first_cut), survivors AS (SELECT fc.avg_len FROM first_cut fc CROSS JOIN first_mean m WHERE fc.avg_len > m.cut_mean) SELECT AVG(s.avg_len) AS avg_of_survivor_avgs, AVG(s.avg_len - f.overall_avg) AS avg_gap_to_film_mean, AVG(s.avg_len - m.cut_mean) AS avg_gap_to_first_cut_mean FROM survivors s CROSS JOIN film_level f CROSS JOIN first_mean m;",
+  "request": "For each film rating, calculate its average length (excluding NULLs); identify ratings with average length greater than the overall mean film length; from these, keep only ratings with average length greater than the mean of the first-cut ratings' average lengths; return the mean of the remaining ratings' average lengths, their average excess over the overall mean film length, and their average excess over the mean of the first-cut ratings' average lengths.",
+  "sql": "WITH film_stats AS (\n  SELECT \n    rating,\n    AVG(length) as avg_length\n  FROM film\n  WHERE length IS NOT NULL\n  GROUP BY rating\n),\noverall_mean AS (\n  SELECT AVG(length) as overall_avg\n  FROM film\n  WHERE length IS NOT NULL\n),\nfirst_cut AS (\n  SELECT \n    fs.rating,\n    fs.avg_length\n  FROM film_stats fs\n  CROSS JOIN overall_mean om\n  WHERE fs.avg_length > om.overall_avg\n),\nfirst_cut_mean AS (\n  SELECT AVG(avg_length) as first_cut_avg\n  FROM first_cut\n),\nsecond_cut AS (\n  SELECT \n    fc.rating,\n    fc.avg_length\n  FROM first_cut fc\n  CROSS JOIN first_cut_mean fcm\n  WHERE fc.avg_length > fcm.first_cut_avg\n)\nSELECT \n  AVG(sc.avg_length) as mean_remaining_avg_lengths,\n  AVG(sc.avg_length - om.overall_avg) as avg_excess_over_overall_mean,\n  AVG(sc.avg_length - fcm.first_cut_avg) as avg_excess_over_first_cut_mean\nFROM second_cut sc\nCROSS JOIN overall_mean om\nCROSS JOIN first_cut_mean fcm",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For each film rating, calculate its average length (excluding NULLs); identify ratings with average length greater than the overall mean film length; from these, keep only ratings with average length greater than the mean of the first-cut ratings' average lengths; return the mean of the remaining ratings' average lengths, their average excess over the overall mean film length, and their average excess over the mean of the first-cut ratings' average lengths."
+ },
+ "a": {
+  "request": "Compute each film `rating`'s average `length`, ignoring missing lengths. As the baseline, take the average length over all films, with each film counting equally. Keep the ratings whose average length is above that baseline. Among those ratings, take the mean of their average lengths and keep only the ratings that are above that mean too. Return one row with: the mean of the remaining ratings' average lengths, the mean amount by which they exceed the baseline, and the mean amount by which they exceed the kept ratings' mean. Do not round anything.",
+  "sql": "WITH rating_avgs AS (SELECT rating, AVG(length) as avg_length FROM film WHERE length IS NOT NULL GROUP BY rating), baseline_calc AS (SELECT AVG(length) as baseline_avg FROM film WHERE length IS NOT NULL), above_baseline AS (SELECT ra.avg_length FROM rating_avgs ra, baseline_calc b WHERE ra.avg_length > b.baseline_avg), kept_mean_calc AS (SELECT AVG(avg_length) as kept_mean FROM above_baseline), final_kept AS (SELECT ab.avg_length FROM above_baseline ab, kept_mean_calc km WHERE ab.avg_length > km.kept_mean) SELECT AVG(avg_length) as mean_of_remaining, AVG(avg_length) - (SELECT baseline_avg FROM baseline_calc) as mean_excess_over_baseline, AVG(avg_length) - (SELECT kept_mean FROM kept_mean_calc) as mean_excess_over_kept_mean FROM final_kept",
   "executes": true,
   "matches": [
    "B"
@@ -13,25 +30,11 @@
  },
  "c": {
   "request": "Which film ratings have an average `length` (ignoring missing lengths) that is longer than average? Of those ratings, keep only the ones that also run longer than the mean of their own average lengths. Give one row with: the mean of the remaining ratings' average lengths, how far on average they sit above that first average, and how far on average they sit above the mean of the ratings that passed the first cut. No rounding. Each rating's average length is compared with the mean length over all individual films.",
-  "sql": "WITH overall AS (SELECT AVG(length) AS overall_avg FROM film WHERE length IS NOT NULL), by_rating AS (SELECT rating, AVG(length) AS avg_len FROM film WHERE length IS NOT NULL GROUP BY rating), first_cut AS (SELECT b.rating, b.avg_len FROM by_rating b CROSS JOIN overall o WHERE b.avg_len > o.overall_avg), first_mean AS (SELECT AVG(avg_len) AS fc_mean FROM first_cut), second_cut AS (SELECT f.rating, f.avg_len FROM first_cut f CROSS JOIN first_mean m WHERE f.avg_len > m.fc_mean) SELECT AVG(s.avg_len) AS mean_remaining_avg_length, AVG(s.avg_len - o.overall_avg) AS avg_gap_above_overall_avg, AVG(s.avg_len - m.fc_mean) AS avg_gap_above_first_cut_mean FROM second_cut s CROSS JOIN overall o CROSS JOIN first_mean m",
+  "sql": "WITH film_avg AS (SELECT AVG(length) as overall_avg FROM film WHERE length IS NOT NULL), rating_avgs AS (SELECT rating, AVG(length) as rating_avg FROM film WHERE length IS NOT NULL GROUP BY rating), first_cut AS (SELECT rating, rating_avg FROM rating_avgs WHERE rating_avg > (SELECT overall_avg FROM film_avg)), first_cut_avg AS (SELECT AVG(rating_avg) as fc_avg FROM first_cut), second_cut AS (SELECT rating, rating_avg FROM first_cut WHERE rating_avg > (SELECT fc_avg FROM first_cut_avg)) SELECT AVG(rating_avg), AVG(rating_avg - (SELECT overall_avg FROM film_avg)), AVG(rating_avg - (SELECT fc_avg FROM first_cut_avg)) FROM second_cut",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "a": {
-  "request": "Compute each film `rating`'s average `length`, ignoring missing lengths. As the baseline, take the average length over all films, with each film counting equally. Keep the ratings whose average length is above that baseline. Among those ratings, take the mean of their average lengths and keep only the ratings that are above that mean too. Return one row with: the mean of the remaining ratings' average lengths, the mean amount by which they exceed the baseline, and the mean amount by which they exceed the kept ratings' mean. Do not round anything.",
-  "sql": "WITH rating_avg AS (SELECT rating, AVG(length) AS avg_len FROM film WHERE length IS NOT NULL GROUP BY rating), baseline AS (SELECT AVG(length) AS base_len FROM film WHERE length IS NOT NULL), above_baseline AS (SELECT r.rating, r.avg_len FROM rating_avg r CROSS JOIN baseline b WHERE r.avg_len > b.base_len), kept_mean AS (SELECT AVG(avg_len) AS mean_len FROM above_baseline), final_set AS (SELECT a.rating, a.avg_len FROM above_baseline a CROSS JOIN kept_mean k WHERE a.avg_len > k.mean_len) SELECT AVG(f.avg_len) AS mean_of_remaining_avgs, AVG(f.avg_len - b.base_len) AS mean_excess_over_baseline, AVG(f.avg_len - k.mean_len) AS mean_excess_over_kept_mean FROM final_set f CROSS JOIN baseline b CROSS JOIN kept_mean k;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Among the film ratings whose average `length` (ignoring missing lengths) is above the overall average, keep those whose average length is also above the mean of their own average lengths. For that remaining set, give one row with: the mean of their average lengths, how far on average they sit above that mean, and how far on average they sit above the mean of the ratings that passed the first cut. Do not round. Note that each rating's average length should be compared against the mean length across all individual films.",
-  "sql": "WITH overall AS (SELECT AVG(length) AS overall_avg FROM film), r AS (SELECT rating, AVG(length) AS avg_len FROM film WHERE length IS NOT NULL GROUP BY rating), first_cut AS (SELECT r.rating, r.avg_len FROM r CROSS JOIN overall o WHERE r.avg_len > o.overall_avg), m1 AS (SELECT AVG(avg_len) AS mean1 FROM first_cut), second_cut AS (SELECT fc.rating, fc.avg_len FROM first_cut fc CROSS JOIN m1 WHERE fc.avg_len > m1.mean1), m2 AS (SELECT AVG(avg_len) AS mean2 FROM second_cut) SELECT m2.mean2 AS mean_of_avg_lengths, AVG(sc.avg_len - m2.mean2) AS avg_above_mean, AVG(sc.avg_len - m1.mean1) AS avg_above_first_cut_mean FROM second_cut sc CROSS JOIN m1 CROSS JOIN m2;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

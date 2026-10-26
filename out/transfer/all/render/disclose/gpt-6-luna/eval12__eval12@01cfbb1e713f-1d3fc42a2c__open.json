@@ -2,23 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-1d3fc42a2c",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH project_ratios AS (\n  SELECT\n    p.arcregistry AS project_id,\n    p.fundflux AS funding_source,\n    AVG(s.boxx / NULLIF(s.boxz, 0)) AS ratio\n  FROM projects AS p\n  JOIN scanspatial AS s\n    ON s.arcref = p.arcregistry\n  WHERE s.boxx IS NOT NULL\n    AND s.boxz IS NOT NULL\n  GROUP BY p.arcregistry, p.fundflux\n), ranked AS (\n  SELECT\n    project_id,\n    funding_source,\n    ratio,\n    ratio - AVG(ratio) OVER (PARTITION BY funding_source) AS margin\n  FROM project_ratios\n)\nSELECT project_id, funding_source, ratio, margin\nFROM ranked\nORDER BY margin DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH matched AS (\n  SELECT p.arcregistry, p.fundflux, ss.boxx * 1.0 / ss.boxz AS ratio\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  WHERE ss.boxx IS NOT NULL\n    AND ss.boxz IS NOT NULL\n    AND ss.boxz <> 0\n), project_ratios AS (\n  SELECT arcregistry, fundflux, AVG(ratio) AS ratio\n  FROM matched\n  GROUP BY arcregistry, fundflux\n), scored AS (\n  SELECT arcregistry, fundflux, ratio,\n         ratio - AVG(ratio) OVER (PARTITION BY fundflux) AS margin\n  FROM project_ratios\n)\nSELECT arcregistry AS project_id, fundflux AS funding_source, ratio, margin\nFROM scored\nORDER BY margin DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "A project's ratio is the average of its matched spatial records' boxx-to-boxz ratios; records with either dimension missing are ignored, and boxz = 0 yields an undefined ratio. The funding-source average compares these per-project ratios, giving each project equal weight.",
+    "assumption": "For a project with multiple spatial records, its ratio is the simple average of the individual boxx/boxz ratios; zero boxz is excluded as an undefined ratio. Each project is then compared with the simple average of those per-project ratios in its funding source.",
     "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "If \u201csimple average ratio\u201d means average the project\u2019s boxx and boxz values across its records first, then divide those averages, compare that project ratio against the funding-source average of those project ratios.",
+    "sql": "WITH matched AS (\n  SELECT p.arcregistry, p.fundflux, ss.boxx, ss.boxz\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  WHERE ss.boxx IS NOT NULL AND ss.boxz IS NOT NULL\n), project_ratios AS (\n  SELECT arcregistry, fundflux,\n         AVG(boxx) * 1.0 / NULLIF(AVG(boxz), 0) AS ratio\n  FROM matched\n  GROUP BY arcregistry, fundflux\n), scored AS (\n  SELECT arcregistry, fundflux, ratio,\n         ratio - AVG(ratio) OVER (PARTITION BY fundflux) AS margin\n  FROM project_ratios\n)\nSELECT arcregistry AS project_id, fundflux AS funding_source, ratio, margin\nFROM scored\nORDER BY margin DESC NULLS LAST\nLIMIT 10;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [],
- "seconds": 9.1,
- "chars_out": 953
+ "alternatives": [
+  {
+   "interpretation": "If \u201csimple average ratio\u201d means average the project\u2019s boxx and boxz values across its records first, then divide those averages, compare that project ratio against the funding-source average of those project ratios.",
+   "sql": "WITH matched AS (\n  SELECT p.arcregistry, p.fundflux, ss.boxx, ss.boxz\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n  WHERE ss.boxx IS NOT NULL AND ss.boxz IS NOT NULL\n), project_ratios AS (\n  SELECT arcregistry, fundflux,\n         AVG(boxx) * 1.0 / NULLIF(AVG(boxz), 0) AS ratio\n  FROM matched\n  GROUP BY arcregistry, fundflux\n), scored AS (\n  SELECT arcregistry, fundflux, ratio,\n         ratio - AVG(ratio) OVER (PARTITION BY fundflux) AS margin\n  FROM project_ratios\n)\nSELECT arcregistry AS project_id, fundflux AS funding_source, ratio, margin\nFROM scored\nORDER BY margin DESC NULLS LAST\nLIMIT 10;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 11.1,
+ "chars_out": 1892
 }

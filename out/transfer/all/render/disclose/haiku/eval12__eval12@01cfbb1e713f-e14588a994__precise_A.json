@@ -2,31 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-e14588a994",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH grouped_by_funding AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') as funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n             THEN ss.boxy / ss.boxz END) as avg_ratio,\n    COUNT(*) as record_count\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\ncross_source_avg AS (\n  SELECT AVG(record_count) as avg_count FROM grouped_by_funding\n),\nfiltered_sources AS (\n  SELECT \n    gbf.avg_ratio,\n    gbf.record_count,\n    csa.avg_count\n  FROM grouped_by_funding gbf\n  CROSS JOIN cross_source_avg csa\n  WHERE gbf.record_count > csa.avg_count\n)\nSELECT \n  AVG(avg_ratio) as avg_ratio,\n  SUM(record_count) as total_records,\n  AVG(record_count - avg_count) as avg_excess\nFROM filtered_sources;",
+  "sql": "WITH grouped_data AS (\n  SELECT\n    p.fundflux,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 THEN ss.boxy / ss.boxz END) AS ratio_avg,\n    COUNT(*) AS record_count\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY p.fundflux\n),\navg_count AS (\n  SELECT AVG(record_count) AS cross_avg FROM grouped_data\n),\nkept_sources AS (\n  SELECT \n    gd.ratio_avg,\n    gd.record_count,\n    ac.cross_avg\n  FROM grouped_data gd\n  CROSS JOIN avg_count ac\n  WHERE gd.record_count > ac.cross_avg\n)\nSELECT\n  AVG(ratio_avg) AS avg_ratio,\n  SUM(record_count) AS total_records,\n  AVG(record_count - cross_avg) AS avg_excess\nFROM kept_sources",
   "assumptions": [
    {
-    "assumption": "When computing the average ratio (boxy/boxz) for each funding source, 'ignoring missing values' applies only to the ratio calculation. The record count includes all spatial records in that funding source, not just those with computable ratios.",
+    "assumption": "Records where boxz = 0 are excluded from the boxy/boxz ratio calculation to avoid division by zero.",
+    "unresolved": false
+   },
+   {
+    "assumption": "\"The number of spatial records\" counts all records in each funding-source group, including those with missing (NULL) boxy or boxz values, since the request specifies \"ignoring missing values\" only for the ratio, not the count.",
     "unresolved": true
-   },
-   {
-    "assumption": "Division by zero (boxz = 0) is treated as an undefined ratio, excluded from the average like NULL values.",
-    "unresolved": false
-   },
-   {
-    "assumption": "NULL funding sources are represented as the string literal 'NULL' in grouping to allow them to form a distinct group.",
-    "unresolved": false
-   },
-   {
-    "assumption": "'Above the average' means strictly greater than (>), not greater than or equal to.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The phrase 'ignoring missing values' applies to both the ratio calculation and the record count. The record count should include only spatial records where boxy and boxz are both non-NULL (and boxz \u2260 0), not all records in the funding source.",
-    "sql": "WITH grouped_by_funding AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') as funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n             THEN ss.boxy / ss.boxz END) as avg_ratio,\n    COUNT(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n               THEN 1 END) as record_count\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\ncross_source_avg AS (\n  SELECT AVG(record_count) as avg_count FROM grouped_by_funding\n),\nfiltered_sources AS (\n  SELECT \n    gbf.avg_ratio,\n    gbf.record_count,\n    csa.avg_count\n  FROM grouped_by_funding gbf\n  CROSS JOIN cross_source_avg csa\n  WHERE gbf.record_count > csa.avg_count\n)\nSELECT \n  AVG(avg_ratio) as avg_ratio,\n  SUM(record_count) as total_records,\n  AVG(record_count - avg_count) as avg_excess\nFROM filtered_sources;"
+    "interpretation": "If \"ignoring missing values\" applies to both the ratio and the record count, then spatial records with NULL or missing boxy/boxz are filtered out before grouping, so record counts include only rows with valid ratio values.",
+    "sql": "WITH grouped_data AS (\n  SELECT\n    p.fundflux,\n    AVG(ss.boxy / ss.boxz) AS ratio_avg,\n    COUNT(*) AS record_count\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  WHERE ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0\n  GROUP BY p.fundflux\n),\navg_count AS (\n  SELECT AVG(record_count) AS cross_avg FROM grouped_data\n),\nkept_sources AS (\n  SELECT \n    gd.ratio_avg,\n    gd.record_count,\n    ac.cross_avg\n  FROM grouped_data gd\n  CROSS JOIN avg_count ac\n  WHERE gd.record_count > ac.cross_avg\n)\nSELECT\n  AVG(ratio_avg) AS avg_ratio,\n  SUM(record_count) AS total_records,\n  AVG(record_count - cross_avg) AS avg_excess\nFROM kept_sources"
    }
   ]
  },
@@ -37,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The phrase 'ignoring missing values' applies to both the ratio calculation and the record count. The record count should include only spatial records where boxy and boxz are both non-NULL (and boxz \u2260 0), not all records in the funding source.",
-   "sql": "WITH grouped_by_funding AS (\n  SELECT \n    COALESCE(p.fundflux, 'NULL') as funding_source,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n             THEN ss.boxy / ss.boxz END) as avg_ratio,\n    COUNT(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 \n               THEN 1 END) as record_count\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\ncross_source_avg AS (\n  SELECT AVG(record_count) as avg_count FROM grouped_by_funding\n),\nfiltered_sources AS (\n  SELECT \n    gbf.avg_ratio,\n    gbf.record_count,\n    csa.avg_count\n  FROM grouped_by_funding gbf\n  CROSS JOIN cross_source_avg csa\n  WHERE gbf.record_count > csa.avg_count\n)\nSELECT \n  AVG(avg_ratio) as avg_ratio,\n  SUM(record_count) as total_records,\n  AVG(record_count - avg_count) as avg_excess\nFROM filtered_sources;",
+   "interpretation": "If \"ignoring missing values\" applies to both the ratio and the record count, then spatial records with NULL or missing boxy/boxz are filtered out before grouping, so record counts include only rows with valid ratio values.",
+   "sql": "WITH grouped_data AS (\n  SELECT\n    p.fundflux,\n    AVG(ss.boxy / ss.boxz) AS ratio_avg,\n    COUNT(*) AS record_count\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  WHERE ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0\n  GROUP BY p.fundflux\n),\navg_count AS (\n  SELECT AVG(record_count) AS cross_avg FROM grouped_data\n),\nkept_sources AS (\n  SELECT \n    gd.ratio_avg,\n    gd.record_count,\n    ac.cross_avg\n  FROM grouped_data gd\n  CROSS JOIN avg_count ac\n  WHERE gd.record_count > ac.cross_avg\n)\nSELECT\n  AVG(ratio_avg) AS avg_ratio,\n  SUM(record_count) AS total_records,\n  AVG(record_count - cross_avg) AS avg_excess\nFROM kept_sources",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 48.5,
- "chars_out": 2918
+ "seconds": 73.1,
+ "chars_out": 2211
 }

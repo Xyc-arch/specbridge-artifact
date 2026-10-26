@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-95f2f15de7",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH status_rates AS (\n  SELECT\n    s.healtheval,\n    SUM(sc.scancount) AS total_scancount,\n    AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS gb_per_minute_rate\n  FROM scans AS sc\n  JOIN sites AS s\n    ON sc.zoneref = s.zoneregistry\n  GROUP BY s.healtheval\n),\nwith_average AS (\n  SELECT\n    status_rates.*,\n    AVG(gb_per_minute_rate) OVER () AS average_rate_across_statuses\n  FROM status_rates\n)\nSELECT\n  healtheval,\n  total_scancount,\n  gb_per_minute_rate,\n  gb_per_minute_rate - average_rate_across_statuses AS rate_minus_average\nFROM with_average\nWHERE gb_per_minute_rate > average_rate_across_statuses;",
+  "sql": "WITH status_rates AS (\n  SELECT\n    si.healtheval,\n    SUM(sc.scancount) AS total_scancount,\n    AVG(sc.gbsize / sc.spanmin) AS gb_per_minute\n  FROM scans AS sc\n  JOIN sites AS si\n    ON sc.zoneref = si.zoneregistry\n  GROUP BY si.healtheval\n),\naverage_rate AS (\n  SELECT AVG(gb_per_minute) AS avg_rate\n  FROM status_rates\n)\nSELECT\n  sr.healtheval,\n  sr.total_scancount,\n  sr.gb_per_minute,\n  sr.gb_per_minute - ar.avg_rate AS rate_minus_average\nFROM status_rates AS sr\nCROSS JOIN average_rate AS ar\nWHERE sr.gb_per_minute > ar.avg_rate;",
   "assumptions": [
    {
-    "assumption": "A zero scan duration makes that scan's GB-per-minute ratio undefined, so it is excluded from the rate average; SQL also ignores missing ratios and status rates when computing the overall average.",
+    "assumption": "SQLite AVG ignores NULL rates, so statuses with no non-NULL per-scan ratios do not affect the across-status average; if that average is NULL, the comparison returns no rows.",
     "unresolved": false
    }
   ],
@@ -18,5 +18,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 9.4
+ "seconds": 38.7
 }

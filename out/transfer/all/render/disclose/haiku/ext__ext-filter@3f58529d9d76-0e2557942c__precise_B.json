@@ -4,22 +4,10 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_race AS (\n  SELECT raceId,\n         AVG(points) AS avg_points,\n         AVG(wins) AS avg_wins\n  FROM constructorStandings\n  WHERE points > 6.0\n  GROUP BY raceId\n),\noverall AS (\n  SELECT AVG(avg_wins) AS overall_avg_wins FROM per_race\n)\nSELECT p.raceId,\n       p.avg_points,\n       p.avg_wins,\n       p.avg_wins - o.overall_avg_wins AS diff\nFROM per_race p\nCROSS JOIN overall o\nWHERE o.overall_avg_wins IS NOT NULL\nORDER BY (p.avg_wins - o.overall_avg_wins) IS NULL,\n         (p.avg_wins - o.overall_avg_wins) DESC\nLIMIT 10;",
+  "sql": "WITH race_averages AS (\n  SELECT \n    raceId,\n    AVG(points) as avg_points,\n    AVG(wins) as avg_wins\n  FROM constructorStandings\n  WHERE points > 6.0\n  GROUP BY raceId\n),\noverall_avg_wins AS (\n  SELECT AVG(avg_wins) as overall_avg_wins\n  FROM race_averages\n  WHERE avg_wins IS NOT NULL\n)\nSELECT \n  ra.raceId,\n  ra.avg_points,\n  ra.avg_wins,\n  ra.avg_wins - oaw.overall_avg_wins as diff\nFROM race_averages ra\nCROSS JOIN overall_avg_wins oaw\nWHERE oaw.overall_avg_wins IS NOT NULL\nORDER BY \n  CASE WHEN diff IS NOT NULL THEN 0 ELSE 1 END,\n  diff DESC\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "The threshold is strict: only constructorStandings rows with points > 6.0 are used, and rows with NULL points are excluded by that comparison.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Per-race averages use only non-NULL values. A race whose wins are all NULL still appears, with a NULL average wins and NULL difference, sorted last. A race with no qualifying rows is absent from the output.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The overall average is the unweighted mean of the per-race average wins, with NULL per-race values ignored. If that mean is NULL, the WHERE clause returns no rows.",
-    "unresolved": false
-   },
-   {
-    "assumption": "constructorStandings.points and wins are season-to-date values, as the verified notes state and the request's wording implies, so no per-race point totals are recomputed.",
+    "assumption": "\"more than 6.0\" is strictly greater than (>), not >=",
     "unresolved": false
    }
   ],
@@ -31,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 14.6,
- "chars_out": 1445
+ "seconds": 57.3,
+ "chars_out": 773
 }

@@ -1,0 +1,24 @@
+{
+ "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
+ "wording": "precise_B",
+ "model": "gpt-6-luna",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH eligible AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n), grouped AS (\n  SELECT\n    orderslink,\n    side,\n    AVG(net_fee_rate) AS group_avg_net_fee_rate,\n    COUNT(*) AS record_count\n  FROM eligible\n  GROUP BY orderslink, side\n), scored AS (\n  SELECT\n    orderslink,\n    side,\n    group_avg_net_fee_rate,\n    record_count,\n    group_avg_net_fee_rate - AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS difference_from_side_avg,\n    AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg\n  FROM grouped\n)\nSELECT\n  orderslink,\n  side,\n  group_avg_net_fee_rate,\n  record_count,\n  difference_from_side_avg\nFROM scored\nWHERE group_avg_net_fee_rate > side_avg\nORDER BY difference_from_side_avg DESC NULLS LAST\nLIMIT 10",
+  "assumptions": [
+   {
+    "assumption": "The record count counts eligible fee rows, including rows whose rebate is missing; AVG ignores their NULL net fee rates, as requested.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [],
+ "seconds": 17.6,
+ "chars_out": 1136
+}

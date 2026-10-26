@@ -3,33 +3,38 @@
  "model": "haiku",
  "reading": "A",
  "description": "Per race name, count every driver standings record. Compare those counts with their average across names and summarise the names that are above average.",
- "c": {
-  "request": "Using driver standings linked to their races by race id (leaving out standings with no matching race), for each race name (`races.name`) get the average season-to-date championship points (`driverStandings.points`, ignoring missing values) and how big its standings field is. Then focus on the race names whose field size is strictly above the average field size across all race names. In one row, give the average of their average points, their average field size, and how far above the overall average their field size is on average. No rounding. Per race name, count every driver standings record. Compare those counts with their average across names and summarise the names that are above average.",
-  "sql": "WITH per_name AS (SELECT r.name AS race_name, AVG(ds.points) AS avg_points, COUNT(*) AS field_size FROM driverStandings ds JOIN races r ON ds.raceId = r.raceId GROUP BY r.name), overall AS (SELECT AVG(field_size) AS avg_field FROM per_name), above AS (SELECT p.* FROM per_name p CROSS JOIN overall o WHERE p.field_size > o.avg_field) SELECT AVG(a.avg_points) AS avg_of_avg_points, AVG(a.field_size) AS avg_field_size, AVG(a.field_size - o.avg_field) AS avg_field_size_above_overall FROM above a CROSS JOIN overall o;",
+ "d": {
+  "request": "For each race name, count the number of driver standings records linked to races with that name, calculate the mean count across all race names, select race names whose count exceeds this mean, and return one row with: the mean of the average season-to-date championship points for those selected race names, the mean count of driver standings records for those race names, and the mean of how much each of those race names' counts exceeds the overall mean count.",
+  "sql": "WITH race_standing_counts AS (SELECT r.name as race_name, COUNT(ds.driverStandingsId) as standing_count, AVG(ds.points) as avg_points_for_race FROM races r LEFT JOIN driverStandings ds ON r.raceId = ds.raceId GROUP BY r.name), overall_mean_count AS (SELECT AVG(standing_count) as mean_count FROM race_standing_counts), selected_races AS (SELECT rsc.race_name, rsc.standing_count, rsc.avg_points_for_race, omc.mean_count FROM race_standing_counts rsc CROSS JOIN overall_mean_count omc WHERE rsc.standing_count > omc.mean_count) SELECT AVG(avg_points_for_race) as mean_of_avg_points, AVG(standing_count) as mean_count_of_standings, AVG(standing_count - mean_count) as mean_excess_over_mean FROM selected_races",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "For each race name (`races.name`), count the driver standings records joined to races by `raceId` (dropping unmatched standings), take the average of those counts across all race names, and return in one row the average count of the names whose count is strictly above that average, plus how far above it they sit on average, unrounded",
-  "sql": "WITH name_counts AS (SELECT r.name AS name, COUNT(*) AS cnt FROM driverStandings ds JOIN races r ON r.raceId = ds.raceId GROUP BY r.name), avg_cnt AS (SELECT AVG(cnt) AS avg_c FROM name_counts) SELECT AVG(nc.cnt) AS avg_count_above, AVG(nc.cnt - a.avg_c) AS avg_excess_above FROM name_counts nc CROSS JOIN avg_cnt a WHERE nc.cnt > a.avg_c;",
+  "request": "For each race name, count driver standings records and calculate the mean of non-null season-to-date points; identify race names with counts strictly exceeding the overall mean count; output the mean of their average points, their mean count, and the difference between their mean count and the overall mean count.",
+  "sql": "WITH race_stats AS (SELECT r.name AS race_name, COUNT(*) AS driver_count, AVG(ds.points) AS avg_points FROM driverStandings ds JOIN races r ON ds.raceId = r.raceId GROUP BY r.name), overall_mean_count AS (SELECT AVG(driver_count) AS overall_mean FROM race_stats), filtered_races AS (SELECT rs.driver_count, rs.avg_points FROM race_stats rs, overall_mean_count omc WHERE rs.driver_count > omc.overall_mean) SELECT AVG(fr.avg_points) AS mean_of_average_points, AVG(fr.driver_count) AS mean_count, AVG(fr.driver_count) - omc.overall_mean AS difference_from_overall_mean FROM filtered_races fr, overall_mean_count omc",
   "executes": true,
-  "matches": []
+  "matches": [
+   "A"
+  ],
+  "raw": "For each race name, count driver standings records and calculate the mean of non-null season-to-date points; identify race names with counts strictly exceeding the overall mean count; output the mean of their average points, their mean count, and the difference between their mean count and the overall mean count."
  },
  "a": {
   "request": "Linking driver standings to races by race id (and dropping standings with no matching race), work out for each race name (`races.name`) the average season-to-date championship points (`driverStandings.points`, ignoring missing values) and the number of driver standings records under that name. Take the average of that count across all race names, and keep only the race names whose count is strictly above it. Return a single row with three values: the average of those race names' average points, the average of their counts, and the average amount by which their count exceeds the overall average count. Don't round anything.",
-  "sql": "WITH joined AS (SELECT r.name AS race_name, ds.points AS points FROM driverStandings ds JOIN races r ON ds.raceId = r.raceId), per_name AS (SELECT race_name, AVG(points) AS avg_points, COUNT(*) AS cnt FROM joined GROUP BY race_name), overall AS (SELECT AVG(cnt) AS avg_cnt FROM per_name), filtered AS (SELECT p.avg_points, p.cnt FROM per_name p, overall o WHERE p.cnt > o.avg_cnt) SELECT AVG(avg_points) AS avg_of_avg_points, AVG(cnt) AS avg_of_counts, AVG(cnt - (SELECT avg_cnt FROM overall)) AS avg_excess_count FROM filtered;",
+  "sql": "WITH race_stats AS (SELECT r.name, AVG(CAST(ds.points AS FLOAT)) as avg_points, COUNT(*) as count_records FROM driverStandings ds INNER JOIN races r ON ds.raceId = r.raceId GROUP BY r.name), overall_avg_count AS (SELECT AVG(CAST(count_records AS FLOAT)) as avg_count FROM race_stats), filtered_races AS (SELECT rs.avg_points, rs.count_records, oac.avg_count FROM race_stats rs CROSS JOIN overall_avg_count oac WHERE rs.count_records > oac.avg_count) SELECT AVG(avg_points), AVG(CAST(count_records AS FLOAT)), AVG(CAST(count_records AS FLOAT) - avg_count) FROM filtered_races",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Across all race names, for each race name, count every driver standings record (from driver standings linked to races by race id, leaving out standings with no matching race) and compare those counts with their average across names, then summarise the race names whose count is above that average.",
-  "sql": "WITH counts AS (\n  SELECT r.name AS raceName, COUNT(ds.driverStandingsId) AS cnt\n  FROM driverStandings ds\n  JOIN races r ON ds.raceId = r.raceId\n  GROUP BY r.name\n),\navg_count AS (\n  SELECT AVG(cnt) AS avg_cnt FROM counts\n)\nSELECT c.raceName, c.cnt, a.avg_cnt\nFROM counts c, avg_count a\nWHERE c.cnt > a.avg_cnt\nORDER BY c.cnt DESC;",
+ "c": {
+  "request": "Using driver standings linked to their races by race id (leaving out standings with no matching race), for each race name (`races.name`) get the average season-to-date championship points (`driverStandings.points`, ignoring missing values) and how big its standings field is. Then focus on the race names whose field size is strictly above the average field size across all race names. In one row, give the average of their average points, their average field size, and how far above the overall average their field size is on average. No rounding. Per race name, count every driver standings record. Compare those counts with their average across names and summarise the names that are above average.",
+  "sql": "WITH race_stats AS (SELECT r.name, AVG(ds.points) as avg_points, COUNT(*) as field_size FROM driverStandings ds INNER JOIN races r ON ds.raceId = r.raceId WHERE ds.points IS NOT NULL GROUP BY r.name), overall_avg_field_size AS (SELECT AVG(field_size) as overall_avg FROM race_stats), above_avg_races AS (SELECT rs.avg_points, rs.field_size FROM race_stats rs WHERE rs.field_size > (SELECT overall_avg FROM overall_avg_field_size)) SELECT AVG(avg_points) as avg_of_avg_points, AVG(field_size) as avg_field_size, AVG(field_size) - (SELECT overall_avg FROM overall_avg_field_size) as above_overall_avg FROM above_avg_races",
   "executes": true,
-  "matches": []
- }
+  "matches": [
+   "A"
+  ]
+ },
+ "calls": 6
 }

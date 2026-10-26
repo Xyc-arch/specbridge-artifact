@@ -2,31 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-e14588a994",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(*) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS avg_sz FROM g) SELECT AVG(g.avg_ratio) AS avg_of_ratios, SUM(g.sz) AS combined_size, AVG(g.sz - a.avg_sz) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.sz > a.avg_sz",
+  "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy * 1.0 / s.boxz) AS avg_ratio, COUNT(*) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS avg_sz FROM g) SELECT AVG(g.avg_ratio) AS avg_of_ratios, SUM(g.sz) AS combined_size, AVG(g.sz - a.avg_sz) AS avg_excess_over_avg_size FROM g, a WHERE g.sz > a.avg_sz",
   "assumptions": [
    {
-    "assumption": "A funding source's 'size' is the number of scanspatial rows linked to it through an inner join to projects. A NULL fundflux forms its own group, and GROUP BY keeps NULL as one group.",
+    "assumption": "A funding source's 'size' is the number of scanspatial records linked to it, via an inner join to projects. Projects with no spatial records are excluded.",
     "unresolved": true
    },
    {
-    "assumption": "The average size is the unweighted mean of the per-source sizes. Only sources with size strictly above it are kept.",
+    "assumption": "A NULL fundflux is its own group, which GROUP BY does by default. Ratios are boxy/boxz in real arithmetic. Rows with a NULL boxy or boxz are skipped by AVG, and a boxz of 0 gives a NULL ratio that is also skipped.",
     "unresolved": false
    },
    {
-    "assumption": "A boxz of 0 is treated as missing, via NULLIF, to avoid division by zero. Rows where boxy or boxz is NULL are ignored by AVG.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The result row's ratio is the plain average of the per-source average ratios. It is not weighted by size.",
+    "assumption": "'Above average size' means strictly greater than the unweighted mean of group sizes across all funding sources. The excess is each qualifying group's size minus that mean, averaged over the qualifying groups. The final row averages the per-group ratios with equal weight per group.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Size is the number of distinct projects per funding source that have spatial scans, not the number of spatial rows.",
-    "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(DISTINCT p.arcregistry) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS avg_sz FROM g) SELECT AVG(g.avg_ratio) AS avg_of_ratios, SUM(g.sz) AS combined_size, AVG(g.sz - a.avg_sz) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.sz > a.avg_sz"
+    "interpretation": "Size is the number of records with a usable (non-missing) ratio, not all linked records.",
+    "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy * 1.0 / s.boxz) AS avg_ratio, COUNT(s.boxy * 1.0 / s.boxz) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS avg_sz FROM g) SELECT AVG(g.avg_ratio) AS avg_of_ratios, SUM(g.sz) AS combined_size, AVG(g.sz - a.avg_sz) AS avg_excess_over_avg_size FROM g, a WHERE g.sz > a.avg_sz"
    }
   ]
  },
@@ -37,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Size is the number of distinct projects per funding source that have spatial scans, not the number of spatial rows.",
-   "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(DISTINCT p.arcregistry) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS avg_sz FROM g) SELECT AVG(g.avg_ratio) AS avg_of_ratios, SUM(g.sz) AS combined_size, AVG(g.sz - a.avg_sz) AS avg_excess_over_average FROM g CROSS JOIN a WHERE g.sz > a.avg_sz",
+   "interpretation": "Size is the number of records with a usable (non-missing) ratio, not all linked records.",
+   "sql": "WITH g AS (SELECT p.fundflux AS src, AVG(s.boxy * 1.0 / s.boxz) AS avg_ratio, COUNT(s.boxy * 1.0 / s.boxz) AS sz FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), a AS (SELECT AVG(sz) AS avg_sz FROM g) SELECT AVG(g.avg_ratio) AS avg_of_ratios, SUM(g.sz) AS combined_size, AVG(g.sz - a.avg_sz) AS avg_excess_over_avg_size FROM g, a WHERE g.sz > a.avg_sz",
    "executes": true,
    "matches": [
-    "B"
+    "A"
    ]
   }
  ],
- "seconds": 9.7,
- "chars_out": 1735
+ "seconds": 11.3,
+ "chars_out": 1737
 }

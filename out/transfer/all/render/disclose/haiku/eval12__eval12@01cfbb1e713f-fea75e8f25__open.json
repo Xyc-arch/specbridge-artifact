@@ -2,19 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH humidity_by_equip AS (SELECT equipref, AVG(humepct) as avg_humidity FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), overall_avg AS (SELECT AVG(humepct) as global_avg FROM scanenvironment WHERE humepct IS NOT NULL), above_avg AS (SELECT h.equipref, h.avg_humidity, o.global_avg FROM humidity_by_equip h CROSS JOIN overall_avg o WHERE h.avg_humidity IS NOT NULL AND o.global_avg IS NOT NULL AND h.avg_humidity > o.global_avg), group_stats AS (SELECT AVG(avg_humidity) as above_group_avg FROM above_avg) SELECT a.equipref, a.avg_humidity, a.avg_humidity - a.global_avg as exceeds_overall, a.avg_humidity - gs.above_group_avg as exceeds_group_mean FROM above_avg a CROSS JOIN group_stats gs ORDER BY exceeds_group_mean DESC NULLS LAST LIMIT 10",
+  "sql": "WITH equipment_avgs AS (\n  SELECT \n    equipref,\n    AVG(humepct) as avg_humidity\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n),\noverall_avg_cte AS (\n  SELECT AVG(humepct) as overall_avg\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n),\nabove_avg_equipment AS (\n  SELECT ea.equipref, ea.avg_humidity\n  FROM equipment_avgs ea\n  CROSS JOIN overall_avg_cte oa\n  WHERE ea.avg_humidity > oa.overall_avg\n),\nabove_avg_group_mean_cte AS (\n  SELECT AVG(avg_humidity) as group_mean\n  FROM above_avg_equipment\n)\nSELECT \n  aae.equipref,\n  aae.avg_humidity,\n  aae.avg_humidity - oa.overall_avg as exceeds_all_avg,\n  aae.avg_humidity - agm.group_mean as exceeds_group_mean\nFROM above_avg_equipment aae\nCROSS JOIN overall_avg_cte oa\nCROSS JOIN above_avg_group_mean_cte agm\nWHERE oa.overall_avg IS NOT NULL\n  AND agm.group_mean IS NOT NULL\nORDER BY \n  exceeds_group_mean IS NULL,\n  exceeds_group_mean DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The 'average across all equipment' is the global mean of all humidity readings (weighted by reading count per equipment), not the unweighted mean of per-equipment average humidity values. This affects whether equipment with many readings vs. few readings pull the baseline average more heavily.",
-    "unresolved": true
+    "assumption": "\"The average across all equipment\" refers to the mean of all individual humidity readings in scanenvironment, not the mean of per-equipment averages. This is the standard interpretation of \"overall average.\"",
+    "unresolved": false
+   },
+   {
+    "assumption": "\"Return nothing if either reference average is missing\" means return an empty result set if the overall average or the group mean is NULL. This prevents meaningless results when there are no records or no above-average equipment.",
+    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The 'average across all equipment' refers to the unweighted mean of per-equipment averages\u2014each equipment contributes equally regardless of how many humidity measurements it has.",
-    "sql": "WITH humidity_by_equip AS (SELECT equipref, AVG(humepct) as avg_humidity FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), overall_avg AS (SELECT AVG(avg_humidity) as global_avg FROM humidity_by_equip), above_avg AS (SELECT h.equipref, h.avg_humidity, o.global_avg FROM humidity_by_equip h CROSS JOIN overall_avg o WHERE h.avg_humidity IS NOT NULL AND o.global_avg IS NOT NULL AND h.avg_humidity > o.global_avg), group_stats AS (SELECT AVG(avg_humidity) as above_group_avg FROM above_avg) SELECT a.equipref, a.avg_humidity, a.avg_humidity - a.global_avg as exceeds_overall, a.avg_humidity - gs.above_group_avg as exceeds_group_mean FROM above_avg a CROSS JOIN group_stats gs ORDER BY exceeds_group_mean DESC NULLS LAST LIMIT 10"
+    "interpretation": "\"The average across all equipment\" could mean the arithmetic mean of each equipment's average humidity (rather than the mean of all raw readings). This would group-normalize differently if equipment have unequal numbers of readings.",
+    "sql": "WITH equipment_avgs AS (\n  SELECT \n    equipref,\n    AVG(humepct) as avg_humidity\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n),\noverall_avg_cte AS (\n  SELECT AVG(avg_humidity) as overall_avg\n  FROM equipment_avgs\n),\nabove_avg_equipment AS (\n  SELECT ea.equipref, ea.avg_humidity\n  FROM equipment_avgs ea\n  CROSS JOIN overall_avg_cte oa\n  WHERE ea.avg_humidity > oa.overall_avg\n),\nabove_avg_group_mean_cte AS (\n  SELECT AVG(avg_humidity) as group_mean\n  FROM above_avg_equipment\n)\nSELECT \n  aae.equipref,\n  aae.avg_humidity,\n  aae.avg_humidity - oa.overall_avg as exceeds_all_avg,\n  aae.avg_humidity - agm.group_mean as exceeds_group_mean\nFROM above_avg_equipment aae\nCROSS JOIN overall_avg_cte oa\nCROSS JOIN above_avg_group_mean_cte agm\nWHERE oa.overall_avg IS NOT NULL\n  AND agm.group_mean IS NOT NULL\nORDER BY \n  exceeds_group_mean IS NULL,\n  exceeds_group_mean DESC\nLIMIT 10;"
    }
   ]
  },
@@ -23,14 +27,14 @@
  "primary_matches": [],
  "alternatives": [
   {
-   "interpretation": "The 'average across all equipment' refers to the unweighted mean of per-equipment averages\u2014each equipment contributes equally regardless of how many humidity measurements it has.",
-   "sql": "WITH humidity_by_equip AS (SELECT equipref, AVG(humepct) as avg_humidity FROM scanenvironment WHERE humepct IS NOT NULL GROUP BY equipref), overall_avg AS (SELECT AVG(avg_humidity) as global_avg FROM humidity_by_equip), above_avg AS (SELECT h.equipref, h.avg_humidity, o.global_avg FROM humidity_by_equip h CROSS JOIN overall_avg o WHERE h.avg_humidity IS NOT NULL AND o.global_avg IS NOT NULL AND h.avg_humidity > o.global_avg), group_stats AS (SELECT AVG(avg_humidity) as above_group_avg FROM above_avg) SELECT a.equipref, a.avg_humidity, a.avg_humidity - a.global_avg as exceeds_overall, a.avg_humidity - gs.above_group_avg as exceeds_group_mean FROM above_avg a CROSS JOIN group_stats gs ORDER BY exceeds_group_mean DESC NULLS LAST LIMIT 10",
+   "interpretation": "\"The average across all equipment\" could mean the arithmetic mean of each equipment's average humidity (rather than the mean of all raw readings). This would group-normalize differently if equipment have unequal numbers of readings.",
+   "sql": "WITH equipment_avgs AS (\n  SELECT \n    equipref,\n    AVG(humepct) as avg_humidity\n  FROM scanenvironment\n  WHERE humepct IS NOT NULL\n  GROUP BY equipref\n),\noverall_avg_cte AS (\n  SELECT AVG(avg_humidity) as overall_avg\n  FROM equipment_avgs\n),\nabove_avg_equipment AS (\n  SELECT ea.equipref, ea.avg_humidity\n  FROM equipment_avgs ea\n  CROSS JOIN overall_avg_cte oa\n  WHERE ea.avg_humidity > oa.overall_avg\n),\nabove_avg_group_mean_cte AS (\n  SELECT AVG(avg_humidity) as group_mean\n  FROM above_avg_equipment\n)\nSELECT \n  aae.equipref,\n  aae.avg_humidity,\n  aae.avg_humidity - oa.overall_avg as exceeds_all_avg,\n  aae.avg_humidity - agm.group_mean as exceeds_group_mean\nFROM above_avg_equipment aae\nCROSS JOIN overall_avg_cte oa\nCROSS JOIN above_avg_group_mean_cte agm\nWHERE oa.overall_avg IS NOT NULL\n  AND agm.group_mean IS NOT NULL\nORDER BY \n  exceeds_group_mean IS NULL,\n  exceeds_group_mean DESC\nLIMIT 10;",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 81.3,
- "chars_out": 2172
+ "seconds": 64.6,
+ "chars_out": 2840
 }

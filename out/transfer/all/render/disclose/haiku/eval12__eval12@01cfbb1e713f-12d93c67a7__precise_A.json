@@ -2,13 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-12d93c67a7",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH grouped AS (SELECT orders.timespan, AVG(fees.rebrate / fees.feerate) as avg_ratio, COUNT(*) as fee_count FROM fees INNER JOIN orders ON fees.orderslink = orders.recordvault GROUP BY orders.timespan), avg_count AS (SELECT AVG(fee_count) as overall_avg_count FROM grouped), filtered AS (SELECT grouped.avg_ratio, grouped.fee_count, avg_count.overall_avg_count FROM grouped CROSS JOIN avg_count WHERE grouped.fee_count > avg_count.overall_avg_count) SELECT AVG(avg_ratio) as avg_of_avg_ratios, SUM(fee_count) as sum_of_fee_counts, AVG(fee_count - overall_avg_count) as avg_excess_count FROM filtered",
+  "sql": "WITH grouped AS (\n  SELECT \n    o.timespan,\n    AVG(CASE \n        WHEN f.feerate IS NOT NULL AND f.feerate != 0 AND f.rebrate IS NOT NULL\n        THEN f.rebrate / f.feerate \n      END) as avg_ratio,\n    COUNT(f.feesnode) as fee_count\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  GROUP BY o.timespan\n),\navg_count AS (\n  SELECT AVG(fee_count) as avg_fee_count\n  FROM grouped\n),\nkept_groups AS (\n  SELECT \n    g.avg_ratio,\n    g.fee_count,\n    a.avg_fee_count\n  FROM grouped g\n  CROSS JOIN avg_count a\n  WHERE g.fee_count > a.avg_fee_count\n)\nSELECT \n  AVG(kg.avg_ratio) as avg_of_avg_ratios,\n  SUM(kg.fee_count) as sum_of_fee_counts,\n  AVG(kg.fee_count - kg.avg_fee_count) as avg_excess\nFROM kept_groups kg",
   "assumptions": [
    {
-    "assumption": "feerate is never zero, to avoid division-by-zero errors in the expression rebrate / feerate. The schema and documentation do not explicitly prohibit zero values, but the semantics of \"fee percentage\" and the lack of error-handling guidance make this a safe assumption.",
-    "unresolved": false
+    "assumption": "feerate is never exactly 0; if it is, records with feerate = 0 are excluded from the rebrate/feerate ratio calculation to avoid division by zero errors",
+    "unresolved": true
    }
   ],
   "alternatives": []
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 74.3,
- "chars_out": 1006
+ "seconds": 84.2,
+ "chars_out": 1042
 }

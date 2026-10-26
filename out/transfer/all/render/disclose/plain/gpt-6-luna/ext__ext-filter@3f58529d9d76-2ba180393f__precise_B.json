@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH group_averages AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    AVG(f.feerate - f.rebrate) AS avg_net_fee_rate,\n    COUNT(*) AS record_count\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n  GROUP BY f.orderslink, o.dealedge\n),\nside_averages AS (\n  SELECT\n    side,\n    AVG(avg_net_fee_rate) AS side_avg_net_fee_rate\n  FROM group_averages\n  GROUP BY side\n)\nSELECT\n  g.orderslink,\n  g.side,\n  g.avg_net_fee_rate,\n  g.record_count,\n  g.avg_net_fee_rate - s.side_avg_net_fee_rate AS difference\nFROM group_averages AS g\nJOIN side_averages AS s\n  ON g.side = s.side\nWHERE g.avg_net_fee_rate > s.side_avg_net_fee_rate\nORDER BY difference DESC NULLS LAST\nLIMIT 10;"
+  "sql": "WITH filtered AS (\n  SELECT f.orderslink, o.dealedge AS side, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n), group_stats AS (\n  SELECT orderslink, side,\n         AVG(net_fee_rate) AS avg_net_fee_rate,\n         COUNT(*) AS record_count\n  FROM filtered\n  GROUP BY orderslink, side\n), side_stats AS (\n  SELECT side, AVG(avg_net_fee_rate) AS side_avg_net_fee_rate\n  FROM group_stats\n  GROUP BY side\n)\nSELECT g.orderslink, g.side, g.avg_net_fee_rate, g.record_count,\n       g.avg_net_fee_rate - s.side_avg_net_fee_rate AS difference\nFROM group_stats AS g\nJOIN side_stats AS s ON g.side = s.side\nWHERE g.avg_net_fee_rate > s.side_avg_net_fee_rate\nORDER BY difference DESC NULLS LAST\nLIMIT 10;"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 3.8,
- "chars_out": 764
+ "seconds": 13.2,
+ "chars_out": 807
 }

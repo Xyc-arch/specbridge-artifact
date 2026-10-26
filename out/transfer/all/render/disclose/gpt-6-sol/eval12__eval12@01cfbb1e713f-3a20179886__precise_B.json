@@ -2,33 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-3a20179886",
  "wording": "precise_B",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH type_counts AS (SELECT tr.tradekind, COUNT(DISTINCT tx.transreg) AS transaction_count FROM advancedbehavior ab JOIN transactionrecord tx ON tx.transreg = ab.translink JOIN trader tr ON tr.tradereg = tx.trdref WHERE tr.tradekind IS NOT NULL GROUP BY tr.tradekind), type_stats AS (SELECT transaction_count, transaction_count::numeric / SUM(transaction_count) OVER () AS share, AVG(transaction_count::numeric) OVER () AS average_count FROM type_counts) SELECT SUM(transaction_count) AS sum_counts, AVG(share) AS average_share, AVG(transaction_count - average_count) AS average_excess FROM type_stats WHERE transaction_count > average_count",
+  "sql": "WITH type_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS transaction_count FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), benchmarks AS (SELECT SUM(transaction_count) AS total_count, AVG(transaction_count) AS average_count FROM type_counts) SELECT SUM(tc.transaction_count) AS sum_of_counts, AVG(1.0 * tc.transaction_count / b.total_count) AS average_share, AVG(tc.transaction_count - b.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN benchmarks AS b WHERE tc.transaction_count > b.average_count",
   "assumptions": [
    {
-    "assumption": "The average is across trader types represented by at least one qualifying analysis; NULL is not a trader type.",
+    "assumption": "A NULL tradekind is an unknown type and is excluded from the counts and benchmarks.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Include trader types present in the trader table even when they have no qualifying analysed transaction.",
-    "sql": "WITH trader_types AS (SELECT DISTINCT tradekind FROM trader WHERE tradekind IS NOT NULL), type_counts AS (SELECT tt.tradekind, COUNT(DISTINCT tx.transreg) AS transaction_count FROM trader_types tt LEFT JOIN trader tr ON tr.tradekind = tt.tradekind LEFT JOIN transactionrecord tx ON tx.trdref = tr.tradereg AND EXISTS (SELECT 1 FROM advancedbehavior ab WHERE ab.translink = tx.transreg) GROUP BY tt.tradekind), type_stats AS (SELECT transaction_count, transaction_count::numeric / NULLIF(SUM(transaction_count) OVER (), 0) AS share, AVG(transaction_count::numeric) OVER () AS average_count FROM type_counts) SELECT SUM(transaction_count) AS sum_counts, AVG(share) AS average_share, AVG(transaction_count - average_count) AS average_excess FROM type_stats WHERE transaction_count > average_count"
+    "interpretation": "Treat NULL tradekind as its own group when calculating counts and benchmarks.",
+    "sql": "WITH type_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS transaction_count FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind), benchmarks AS (SELECT SUM(transaction_count) AS total_count, AVG(transaction_count) AS average_count FROM type_counts) SELECT SUM(tc.transaction_count) AS sum_of_counts, AVG(1.0 * tc.transaction_count / b.total_count) AS average_share, AVG(tc.transaction_count - b.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN benchmarks AS b WHERE tc.transaction_count > b.average_count"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [
   {
-   "interpretation": "Include trader types present in the trader table even when they have no qualifying analysed transaction.",
-   "sql": "WITH trader_types AS (SELECT DISTINCT tradekind FROM trader WHERE tradekind IS NOT NULL), type_counts AS (SELECT tt.tradekind, COUNT(DISTINCT tx.transreg) AS transaction_count FROM trader_types tt LEFT JOIN trader tr ON tr.tradekind = tt.tradekind LEFT JOIN transactionrecord tx ON tx.trdref = tr.tradereg AND EXISTS (SELECT 1 FROM advancedbehavior ab WHERE ab.translink = tx.transreg) GROUP BY tt.tradekind), type_stats AS (SELECT transaction_count, transaction_count::numeric / NULLIF(SUM(transaction_count) OVER (), 0) AS share, AVG(transaction_count::numeric) OVER () AS average_count FROM type_counts) SELECT SUM(transaction_count) AS sum_counts, AVG(share) AS average_share, AVG(transaction_count - average_count) AS average_excess FROM type_stats WHERE transaction_count > average_count",
-   "executes": false,
-   "matches": []
+   "interpretation": "Treat NULL tradekind as its own group when calculating counts and benchmarks.",
+   "sql": "WITH type_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS transaction_count FROM advancedbehavior AS ab JOIN transactionrecord AS tr ON tr.transreg = ab.translink JOIN trader AS t ON t.tradereg = tr.trdref GROUP BY t.tradekind), benchmarks AS (SELECT SUM(transaction_count) AS total_count, AVG(transaction_count) AS average_count FROM type_counts) SELECT SUM(tc.transaction_count) AS sum_of_counts, AVG(1.0 * tc.transaction_count / b.total_count) AS average_share, AVG(tc.transaction_count - b.average_count) AS average_excess FROM type_counts AS tc CROSS JOIN benchmarks AS b WHERE tc.transaction_count > b.average_count",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
   }
  ],
- "seconds": 32.4,
- "chars_out": 1829
+ "seconds": 20.1,
+ "chars_out": 1641
 }

@@ -3,26 +3,9 @@
  "model": "haiku",
  "reading": "A",
  "description": "Films with an allowed rental duration of 5 days or more are included; exactly 5 days counts.",
- "b": {
-  "request": "Films with `rental_duration >= 5` are kept, grouped by `original_language_id` with NULL as its own group, and the output is one unrounded row: the unweighted mean of the per-group `AVG(rental_rate)` values, then the unweighted mean of the per-group `COUNT(*)` values (NULL if no groups remain).",
-  "sql": "SELECT AVG(CAST(g.avg_rate AS DOUBLE)) AS mean_of_avg_rental_rate, AVG(CAST(g.films AS DOUBLE)) AS mean_of_group_counts FROM (SELECT original_language_id, AVG(rental_rate) AS avg_rate, COUNT(*) AS films FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) AS g;",
-  "executes": true,
-  "matches": [
-   "A"
-  ],
-  "raw": "Films with `rental_duration >= 5` are kept, grouped by `original_language_id` with NULL as its own group, and the output is one unrounded row: the unweighted mean of the per-group `AVG(rental_rate)` values, then the unweighted mean of the per-group `COUNT(*)` values (NULL if no groups remain)."
- },
- "a": {
-  "request": "Considering only films whose allowed rental duration (`film.rental_duration`) is at least 5 days, group them by original language (`film.original_language_id`), treating films with no original language as one group of their own, and for each group work out the average rental rate (`rental_rate`) and the number of films. Then, across those groups, what is the average of the group average rental rates and the average of the group film counts? Treat each group equally, ignore missing values (missing if none remain), return the two figures in that order as a single row, and don't round.",
-  "sql": "SELECT AVG(g.avg_rate) AS avg_of_group_avg_rates, AVG(g.film_count) AS avg_of_group_counts FROM (SELECT original_language_id, AVG(rental_rate) AS avg_rate, COUNT(*) AS film_count FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) AS g;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
  "d": {
-  "request": "For films with `rental_duration >= 5`, group by `original_language_id` (with NULL as its own group), compute each group's `AVG(rental_rate)` and `COUNT(*)`, then return the unrounded mean of the group averages and the unrounded mean of the group counts as one row, or NULL if no groups remain.",
-  "sql": "SELECT AVG(g.avg_rate) AS mean_of_group_avg_rates, AVG(g.cnt) AS mean_of_group_counts FROM (SELECT original_language_id, AVG(rental_rate) AS avg_rate, COUNT(*) AS cnt FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) AS g;",
+  "request": "Filter films to rental_duration >= 5, group by original_language_id (NULL as separate group), calculate average rental_rate and count per group, return unrounded average of group-level averages and average of group-level counts with equal group weighting.",
+  "sql": "SELECT AVG(avg_rate) AS avg_of_group_avgs, AVG(group_count) AS avg_of_group_counts FROM (SELECT original_language_id, AVG(rental_rate) AS avg_rate, COUNT(*) AS group_count FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) subquery",
   "executes": true,
   "matches": [
    "A"
@@ -30,7 +13,24 @@
  },
  "c": {
   "request": "Using 5 days (`film.rental_duration`) as the cutoff for a long allowed rental period and considering only films with a long one, group them by original language (`film.original_language_id`), treating films with no original language as one group of their own, and for each group work out the average rental rate (`rental_rate`) and the number of films. Then, across those groups, what is the average of the group average rental rates and the average of the group film counts? Treat each group equally, ignore missing values (missing if none remain), return the two figures in that order as a single row, and don't round. Films with an allowed rental duration of 5 days or more are included; exactly 5 days counts.",
-  "sql": "SELECT AVG(g.avg_rate) AS avg_of_group_avg_rates, AVG(g.films) AS avg_of_group_film_counts FROM (SELECT original_language_id, AVG(rental_rate) AS avg_rate, COUNT(*) AS films FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) AS g;",
+  "sql": "WITH filtered_films AS (SELECT original_language_id, rental_rate FROM film WHERE rental_duration >= 5), group_stats AS (SELECT original_language_id, AVG(rental_rate) AS avg_rental_rate, COUNT(*) AS film_count FROM filtered_films GROUP BY original_language_id) SELECT AVG(avg_rental_rate) AS avg_group_rental_rates, AVG(film_count) AS avg_group_film_counts FROM group_stats",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "b": {
+  "request": "Films with rental_duration >= 5 grouped by original_language_id (nulls as a separate group), returning the unweighted mean of the per-group mean rental rates and the unweighted mean of the per-group film counts.",
+  "sql": "SELECT AVG(mean_rental_rate) as unweighted_mean_rental_rate, AVG(film_count) as unweighted_mean_film_count FROM (SELECT original_language_id, AVG(rental_rate) as mean_rental_rate, COUNT(*) as film_count FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) subquery",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "Films with rental_duration >= 5 grouped by original_language_id (nulls as a separate group), returning the unweighted mean of the per-group mean rental rates and the unweighted mean of the per-group film counts."
+ },
+ "a": {
+  "request": "Considering only films whose allowed rental duration (`film.rental_duration`) is at least 5 days, group them by original language (`film.original_language_id`), treating films with no original language as one group of their own, and for each group work out the average rental rate (`rental_rate`) and the number of films. Then, across those groups, what is the average of the group average rental rates and the average of the group film counts? Treat each group equally, ignore missing values (missing if none remain), return the two figures in that order as a single row, and don't round.",
+  "sql": "SELECT AVG(group_avg_rental_rate), AVG(group_film_count) FROM (SELECT original_language_id, AVG(rental_rate) as group_avg_rental_rate, COUNT(*) as group_film_count FROM film WHERE rental_duration >= 5 GROUP BY original_language_id) subquery",
   "executes": true,
   "matches": [
    "A"

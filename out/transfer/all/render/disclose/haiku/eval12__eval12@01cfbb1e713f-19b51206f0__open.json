@@ -2,23 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH operator_stats AS (\n  SELECT \n    COUNT(*) as scan_count,\n    AVG(gbsize / spanmin) as avg_gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n  GROUP BY crewref\n),\nsimple_avg AS (\n  SELECT AVG(avg_gb_per_min) as simple_avg_gb_per_min\n  FROM operator_stats\n)\nSELECT\n  AVG(os.scan_count) as avg_scans_per_operator,\n  AVG(os.avg_gb_per_min) as avg_gb_per_min_these_ops,\n  AVG(os.avg_gb_per_min) - sa.simple_avg_gb_per_min as avg_excess\nFROM operator_stats os\nCROSS JOIN simple_avg sa\nWHERE os.avg_gb_per_min > sa.simple_avg_gb_per_min",
+  "sql": "WITH operator_metrics AS (SELECT crewref, AVG(CAST(gbsize AS REAL) / spanmin) AS avg_gb_per_min, COUNT(*) AS scan_count FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0 GROUP BY crewref), overall_avg AS (SELECT AVG(avg_gb_per_min) AS overall_avg_gb_per_min FROM operator_metrics), top_operators AS (SELECT om.crewref, om.avg_gb_per_min, om.scan_count, oa.overall_avg_gb_per_min FROM operator_metrics om CROSS JOIN overall_avg oa WHERE om.avg_gb_per_min > oa.overall_avg_gb_per_min) SELECT AVG(scan_count) AS avg_scans_per_operator, AVG(avg_gb_per_min) AS avg_gb_per_min, AVG(avg_gb_per_min - overall_avg_gb_per_min) AS avg_excess FROM top_operators;",
   "assumptions": [
    {
-    "assumption": "\"Missing values are ignored\" means scans with NULL gbsize or NULL spanmin are excluded entirely from calculations",
-    "unresolved": false
+    "assumption": "Scans with NULL gbsize, NULL spanmin, or spanmin \u2264 0 are excluded (to handle missing values and avoid undefined division)",
+    "unresolved": true
    },
    {
-    "assumption": "\"The simple average of that figure across all operators\" refers to the unweighted arithmetic mean of each operator's average (i.e., average of the operator-level averages, not weighted by scan count per operator)",
+    "assumption": "\"the simple average of that figure across all operators\" means the average of per-operator averages (equal weight per operator)",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "\"The simple average across all operators\" is the overall weighted average\u2014computed as avg(gbsize / spanmin) across all scans from all operators (equivalent to the average weighted by each operator's number of scans)",
-    "sql": "WITH overall_avg AS (\n  SELECT AVG(gbsize / spanmin) as overall_gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n),\noperator_stats AS (\n  SELECT \n    COUNT(*) as scan_count,\n    AVG(gbsize / spanmin) as avg_gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n  GROUP BY crewref\n)\nSELECT\n  AVG(os.scan_count) as avg_scans_per_operator,\n  AVG(os.avg_gb_per_min) as avg_gb_per_min_these_ops,\n  AVG(os.avg_gb_per_min) - oa.overall_gb_per_min as avg_excess\nFROM operator_stats os\nCROSS JOIN overall_avg oa\nWHERE os.avg_gb_per_min > oa.overall_gb_per_min"
+    "interpretation": "\"the simple average of that figure across all operators\" could mean the average of gbsize/spanmin across all scans (per-scan weighting instead of per-operator weighting)",
+    "sql": "WITH operator_metrics AS (SELECT crewref, AVG(CAST(gbsize AS REAL) / spanmin) AS avg_gb_per_min, COUNT(*) AS scan_count FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0 GROUP BY crewref), overall_avg AS (SELECT AVG(CAST(gbsize AS REAL) / spanmin) AS overall_avg_gb_per_min FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0), top_operators AS (SELECT om.crewref, om.avg_gb_per_min, om.scan_count, oa.overall_avg_gb_per_min FROM operator_metrics om CROSS JOIN overall_avg oa WHERE om.avg_gb_per_min > oa.overall_avg_gb_per_min) SELECT AVG(scan_count) AS avg_scans_per_operator, AVG(avg_gb_per_min) AS avg_gb_per_min, AVG(avg_gb_per_min - overall_avg_gb_per_min) AS avg_excess FROM top_operators;"
    }
   ]
  },
@@ -29,12 +29,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "\"The simple average across all operators\" is the overall weighted average\u2014computed as avg(gbsize / spanmin) across all scans from all operators (equivalent to the average weighted by each operator's number of scans)",
-   "sql": "WITH overall_avg AS (\n  SELECT AVG(gbsize / spanmin) as overall_gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n),\noperator_stats AS (\n  SELECT \n    COUNT(*) as scan_count,\n    AVG(gbsize / spanmin) as avg_gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL\n  GROUP BY crewref\n)\nSELECT\n  AVG(os.scan_count) as avg_scans_per_operator,\n  AVG(os.avg_gb_per_min) as avg_gb_per_min_these_ops,\n  AVG(os.avg_gb_per_min) - oa.overall_gb_per_min as avg_excess\nFROM operator_stats os\nCROSS JOIN overall_avg oa\nWHERE os.avg_gb_per_min > oa.overall_gb_per_min",
+   "interpretation": "\"the simple average of that figure across all operators\" could mean the average of gbsize/spanmin across all scans (per-scan weighting instead of per-operator weighting)",
+   "sql": "WITH operator_metrics AS (SELECT crewref, AVG(CAST(gbsize AS REAL) / spanmin) AS avg_gb_per_min, COUNT(*) AS scan_count FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0 GROUP BY crewref), overall_avg AS (SELECT AVG(CAST(gbsize AS REAL) / spanmin) AS overall_avg_gb_per_min FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0), top_operators AS (SELECT om.crewref, om.avg_gb_per_min, om.scan_count, oa.overall_avg_gb_per_min FROM operator_metrics om CROSS JOIN overall_avg oa WHERE om.avg_gb_per_min > oa.overall_avg_gb_per_min) SELECT AVG(scan_count) AS avg_scans_per_operator, AVG(avg_gb_per_min) AS avg_gb_per_min, AVG(avg_gb_per_min - overall_avg_gb_per_min) AS avg_excess FROM top_operators;",
    "executes": true,
    "matches": []
   }
  ],
- "seconds": 79.2,
- "chars_out": 1996
+ "seconds": 93.9,
+ "chars_out": 2098
 }

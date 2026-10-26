@@ -2,37 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-30b46b4254",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH scan_rates AS (\n  SELECT s.\"riskeval\", sc.\"gbsize\" / NULLIF(sc.\"spanmin\", 0) AS rate\n  FROM scans AS sc\n  JOIN sites AS s ON s.\"zoneregistry\" = sc.\"zoneref\"\n), group_rates AS (\n  SELECT \"riskeval\", AVG(rate) AS rate\n  FROM scan_rates\n  GROUP BY \"riskeval\"\n), benchmark AS (\n  SELECT AVG(rate) AS rate FROM group_rates\n)\nSELECT AVG(g.rate) AS average_rate,\n       AVG(g.rate - b.rate) AS average_margin_above_benchmark\nFROM group_rates AS g\nCROSS JOIN benchmark AS b\nWHERE g.rate > b.rate;",
+  "sql": "WITH site_rates AS (\n  SELECT\n    CASE WHEN s.riskeval IS NULL THEN 1 ELSE 0 END AS is_missing_status,\n    s.riskeval,\n    AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS avg_rate\n  FROM scans AS sc\n  JOIN sites AS s ON s.zoneregistry = sc.zoneref\n  GROUP BY is_missing_status, s.riskeval\n),\nbenchmark AS (\n  SELECT AVG(avg_rate) AS benchmark_rate\n  FROM site_rates\n),\nabove AS (\n  SELECT sr.avg_rate, b.benchmark_rate\n  FROM site_rates AS sr\n  CROSS JOIN benchmark AS b\n  WHERE b.benchmark_rate IS NOT NULL\n    AND sr.avg_rate > b.benchmark_rate\n)\nSELECT\n  AVG(avg_rate) AS average_rate,\n  AVG(avg_rate - benchmark_rate) AS average_margin_above_benchmark\nFROM above;",
   "assumptions": [
    {
-    "assumption": "Each status group's rate is the average of the individual matched scans' gbsize/spanmin ratios; scans with a zero duration or missing size or duration have no rate. The final aggregate returns one row with NULL averages if no group is strictly above the benchmark.",
+    "assumption": "A scan contributes its GB-per-minute rate only when its site matches a row in sites; NULL or zero scan durations yield NULL rates and are excluded from the averages. Sites with a matching scan but no non-NULL rate still form a status group, whose rate is NULL and does not affect the benchmark.",
     "unresolved": true
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "If a group's rate should instead be its total file size divided by its total scan duration, calculate each group rate from the sums before taking the plain average across groups.",
-    "sql": "WITH group_rates AS (\n  SELECT s.\"riskeval\",\n         SUM(sc.\"gbsize\") / NULLIF(SUM(sc.\"spanmin\"), 0) AS rate\n  FROM scans AS sc\n  JOIN sites AS s ON s.\"zoneregistry\" = sc.\"zoneref\"\n  GROUP BY s.\"riskeval\"\n), benchmark AS (\n  SELECT AVG(rate) AS rate FROM group_rates\n)\nSELECT AVG(g.rate) AS average_rate,\n       AVG(g.rate - b.rate) AS average_margin_above_benchmark\nFROM group_rates AS g\nCROSS JOIN benchmark AS b\nWHERE g.rate > b.rate;"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [
-  {
-   "interpretation": "If a group's rate should instead be its total file size divided by its total scan duration, calculate each group rate from the sums before taking the plain average across groups.",
-   "sql": "WITH group_rates AS (\n  SELECT s.\"riskeval\",\n         SUM(sc.\"gbsize\") / NULLIF(SUM(sc.\"spanmin\"), 0) AS rate\n  FROM scans AS sc\n  JOIN sites AS s ON s.\"zoneregistry\" = sc.\"zoneref\"\n  GROUP BY s.\"riskeval\"\n), benchmark AS (\n  SELECT AVG(rate) AS rate FROM group_rates\n)\nSELECT AVG(g.rate) AS average_rate,\n       AVG(g.rate - b.rate) AS average_margin_above_benchmark\nFROM group_rates AS g\nCROSS JOIN benchmark AS b\nWHERE g.rate > b.rate;",
-   "executes": true,
-   "matches": [
-    "B"
-   ]
-  }
- ],
- "seconds": 26.7,
- "chars_out": 1537
+ "alternatives": [],
+ "seconds": 5.3,
+ "chars_out": 1058
 }

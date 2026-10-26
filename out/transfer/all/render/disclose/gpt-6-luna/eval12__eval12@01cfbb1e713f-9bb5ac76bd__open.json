@@ -2,19 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH telescope_weather_avgs AS (\n  SELECT\n    s.telescref,\n    o.weathprofile,\n    AVG(s.modindex) AS avg_modindex,\n    AVG(s.phaseshiftdeg) AS avg_phaseshiftdeg\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n  GROUP BY s.telescref, o.weathprofile\n), overall AS (\n  SELECT AVG(modindex) AS avg_modindex\n  FROM signals\n), qualifying_groups AS (\n  SELECT tw.*\n  FROM telescope_weather_avgs AS tw\n  CROSS JOIN overall AS ov\n  WHERE tw.avg_modindex > ov.avg_modindex\n)\nSELECT\n  qg.weathprofile,\n  AVG(qg.avg_modindex) AS avg_modindex,\n  AVG(qg.avg_phaseshiftdeg) AS avg_phaseshiftdeg,\n  AVG(qg.avg_modindex - ov.avg_modindex) AS avg_above_overall_modindex\nFROM qualifying_groups AS qg\nCROSS JOIN overall AS ov\nGROUP BY qg.weathprofile;",
+  "sql": "WITH telescope_weather_groups AS (\n  SELECT\n    t.telescregistry,\n    o.weathprofile,\n    AVG(s.modindex) AS avg_modulation_index,\n    AVG(s.phaseshiftdeg) AS avg_phase_shift\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n  GROUP BY t.telescregistry, o.weathprofile\n), overall AS (\n  SELECT AVG(modindex) AS overall_avg_modulation_index\n  FROM signals\n), above_average_groups AS (\n  SELECT g.*\n  FROM telescope_weather_groups AS g\n  CROSS JOIN overall AS x\n  WHERE g.avg_modulation_index > x.overall_avg_modulation_index\n)\nSELECT\n  g.weathprofile,\n  AVG(g.avg_modulation_index) AS avg_modulation_index,\n  AVG(g.avg_phase_shift) AS avg_phase_shift,\n  AVG(g.avg_modulation_index - x.overall_avg_modulation_index) AS avg_above_overall_modulation_index\nFROM above_average_groups AS g\nCROSS JOIN overall AS x\nGROUP BY g.weathprofile;",
   "assumptions": [
    {
-    "assumption": "The overall average modulation index is across all rows in signals, including signals without a matching telescope or observatory; unmatched signals are dropped from the telescope/weather groups as requested.",
+    "assumption": "The overall average modulation index is calculated over all rows in signals, including signals without a matching telescope or observatory; the requested inner joins apply to the telescope/weather groups.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Each qualifying telescope/weather group contributes equally to the per-weather averages, regardless of how many signals are in the group.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "If the overall average should use only signals that match a telescope and observatory, calculate it over the joined population instead.",
-    "sql": "WITH matched AS (\n  SELECT s.telescref, o.weathprofile, s.modindex, s.phaseshiftdeg\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n), telescope_weather_avgs AS (\n  SELECT telescref, weathprofile, AVG(modindex) AS avg_modindex, AVG(phaseshiftdeg) AS avg_phaseshiftdeg\n  FROM matched\n  GROUP BY telescref, weathprofile\n), overall AS (\n  SELECT AVG(modindex) AS avg_modindex FROM matched\n), qualifying_groups AS (\n  SELECT tw.*\n  FROM telescope_weather_avgs AS tw\n  CROSS JOIN overall AS ov\n  WHERE tw.avg_modindex > ov.avg_modindex\n)\nSELECT\n  qg.weathprofile,\n  AVG(qg.avg_modindex) AS avg_modindex,\n  AVG(qg.avg_phaseshiftdeg) AS avg_phaseshiftdeg,\n  AVG(qg.avg_modindex - ov.avg_modindex) AS avg_above_overall_modindex\nFROM qualifying_groups AS qg\nCROSS JOIN overall AS ov\nGROUP BY qg.weathprofile;"
+    "interpretation": "Calculate the overall average only over signals that match to both a telescope and an observatory.",
+    "sql": "WITH matched AS (\n  SELECT s.modindex, s.phaseshiftdeg, t.telescregistry, o.weathprofile\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n), telescope_weather_groups AS (\n  SELECT telescregistry, weathprofile,\n         AVG(modindex) AS avg_modulation_index,\n         AVG(phaseshiftdeg) AS avg_phase_shift\n  FROM matched\n  GROUP BY telescregistry, weathprofile\n), overall AS (\n  SELECT AVG(modindex) AS overall_avg_modulation_index FROM matched\n), above_average_groups AS (\n  SELECT g.*\n  FROM telescope_weather_groups AS g\n  CROSS JOIN overall AS x\n  WHERE g.avg_modulation_index > x.overall_avg_modulation_index\n)\nSELECT g.weathprofile,\n       AVG(g.avg_modulation_index) AS avg_modulation_index,\n       AVG(g.avg_phase_shift) AS avg_phase_shift,\n       AVG(g.avg_modulation_index - x.overall_avg_modulation_index) AS avg_above_overall_modulation_index\nFROM above_average_groups AS g\nCROSS JOIN overall AS x\nGROUP BY g.weathprofile;"
    }
   ]
  },
@@ -25,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "If the overall average should use only signals that match a telescope and observatory, calculate it over the joined population instead.",
-   "sql": "WITH matched AS (\n  SELECT s.telescref, o.weathprofile, s.modindex, s.phaseshiftdeg\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n), telescope_weather_avgs AS (\n  SELECT telescref, weathprofile, AVG(modindex) AS avg_modindex, AVG(phaseshiftdeg) AS avg_phaseshiftdeg\n  FROM matched\n  GROUP BY telescref, weathprofile\n), overall AS (\n  SELECT AVG(modindex) AS avg_modindex FROM matched\n), qualifying_groups AS (\n  SELECT tw.*\n  FROM telescope_weather_avgs AS tw\n  CROSS JOIN overall AS ov\n  WHERE tw.avg_modindex > ov.avg_modindex\n)\nSELECT\n  qg.weathprofile,\n  AVG(qg.avg_modindex) AS avg_modindex,\n  AVG(qg.avg_phaseshiftdeg) AS avg_phaseshiftdeg,\n  AVG(qg.avg_modindex - ov.avg_modindex) AS avg_above_overall_modindex\nFROM qualifying_groups AS qg\nCROSS JOIN overall AS ov\nGROUP BY qg.weathprofile;",
+   "interpretation": "Calculate the overall average only over signals that match to both a telescope and an observatory.",
+   "sql": "WITH matched AS (\n  SELECT s.modindex, s.phaseshiftdeg, t.telescregistry, o.weathprofile\n  FROM signals AS s\n  JOIN telescopes AS t ON t.telescregistry = s.telescref\n  JOIN observatories AS o ON o.observstation = t.observstation\n), telescope_weather_groups AS (\n  SELECT telescregistry, weathprofile,\n         AVG(modindex) AS avg_modulation_index,\n         AVG(phaseshiftdeg) AS avg_phase_shift\n  FROM matched\n  GROUP BY telescregistry, weathprofile\n), overall AS (\n  SELECT AVG(modindex) AS overall_avg_modulation_index FROM matched\n), above_average_groups AS (\n  SELECT g.*\n  FROM telescope_weather_groups AS g\n  CROSS JOIN overall AS x\n  WHERE g.avg_modulation_index > x.overall_avg_modulation_index\n)\nSELECT g.weathprofile,\n       AVG(g.avg_modulation_index) AS avg_modulation_index,\n       AVG(g.avg_phase_shift) AS avg_phase_shift,\n       AVG(g.avg_modulation_index - x.overall_avg_modulation_index) AS avg_above_overall_modulation_index\nFROM above_average_groups AS g\nCROSS JOIN overall AS x\nGROUP BY g.weathprofile;",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 17.2,
- "chars_out": 2218
+ "seconds": 10.3,
+ "chars_out": 2581
 }

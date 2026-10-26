@@ -4,8 +4,17 @@
  "reading": "B",
  "description": "A status counts as above average if its mean modulation index exceeds the mean modulation index over all signals.",
  "b": {
-  "request": "Group signals by `rfistat` (NULL as its own group), with overall mean `modindex` taken over non-null values only; keep groups whose mean exceeds that overall mean, and return each group's status, mean `modindex`, difference from the overall mean, and difference from the mean of the qualifying groups' means, unrounded",
-  "sql": "WITH overall AS (SELECT AVG(modindex) AS overall_mean FROM signals), grp AS (SELECT rfistat, AVG(modindex) AS group_mean FROM signals GROUP BY rfistat), qual AS (SELECT g.rfistat, g.group_mean FROM grp g CROSS JOIN overall o WHERE g.group_mean > o.overall_mean) SELECT q.rfistat AS rfi_status, q.group_mean AS mean_modindex, q.group_mean - o.overall_mean AS diff_from_overall_mean, q.group_mean - (SELECT AVG(group_mean) FROM qual) AS diff_from_qualifying_mean FROM qual q CROSS JOIN overall o ORDER BY q.rfistat;",
+  "request": "For each RFI status (treating NULL rfistat as a separate group), calculate its mean modulation index from signals with non-missing modindex values; identify statuses whose mean modindex exceeds the overall mean modindex across all signals (from non-missing values); for each qualifying status, report the status, its mean modindex, its difference from the overall mean, and its difference from the mean of all qualifying statuses' mean modindexes.",
+  "sql": "WITH overall_stats AS (\n  SELECT \n    AVG(modindex) AS overall_mean_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nrfi_stats AS (\n  SELECT \n    rfistat,\n    AVG(modindex) AS mean_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY rfistat\n),\nqualified_statuses AS (\n  SELECT \n    r.rfistat,\n    r.mean_modindex,\n    o.overall_mean_modindex\n  FROM rfi_stats r\n  CROSS JOIN overall_stats o\n  WHERE r.mean_modindex > o.overall_mean_modindex\n),\nqualifying_mean AS (\n  SELECT \n    AVG(mean_modindex) AS mean_of_qualifying\n  FROM qualified_statuses\n)\nSELECT \n  q.rfistat,\n  q.mean_modindex,\n  q.mean_modindex - q.overall_mean_modindex AS diff_from_overall,\n  q.mean_modindex - qm.mean_of_qualifying AS diff_from_qualifying_mean\nFROM qualified_statuses q\nCROSS JOIN qualifying_mean qm\nORDER BY q.rfistat",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For each RFI status (treating NULL rfistat as a separate group), calculate its mean modulation index from signals with non-missing modindex values; identify statuses whose mean modindex exceeds the overall mean modindex across all signals (from non-missing values); for each qualifying status, report the status, its mean modindex, its difference from the overall mean, and its difference from the mean of all qualifying statuses' mean modindexes."
+ },
+ "a": {
+  "request": "Group signals by RFI status (`rfistat`), with signals that have no status as their own group, and average the modulation index (`modindex`) for each group, ignoring missing values. Take as the baseline the overall average modulation index across all signals (each signal counting once), and keep the statuses whose average is above it. For each kept status, show the status, its average modulation index, how far that average is above the baseline, and how far it differs from the mean of the kept statuses' averages. Leave all values unrounded.",
+  "sql": "WITH overall_baseline AS (\n  SELECT AVG(modindex) AS baseline_avg\n  FROM signals\n  WHERE modindex IS NOT NULL\n),\nrfi_groups AS (\n  SELECT\n    COALESCE(rfistat, 'No Status') AS rfi_status,\n    AVG(modindex) AS avg_modindex\n  FROM signals\n  WHERE modindex IS NOT NULL\n  GROUP BY COALESCE(rfistat, 'No Status')\n),\nrfi_with_baseline AS (\n  SELECT\n    rg.rfi_status,\n    rg.avg_modindex,\n    ob.baseline_avg,\n    rg.avg_modindex - ob.baseline_avg AS above_baseline\n  FROM rfi_groups rg\n  CROSS JOIN overall_baseline ob\n  WHERE rg.avg_modindex > ob.baseline_avg\n),\nmean_of_kept AS (\n  SELECT AVG(avg_modindex) AS mean_kept\n  FROM rfi_with_baseline\n)\nSELECT\n  rwb.rfi_status,\n  rwb.avg_modindex,\n  rwb.above_baseline,\n  rwb.avg_modindex - mk.mean_kept AS differs_from_mean_of_kept\nFROM rfi_with_baseline rwb\nCROSS JOIN mean_of_kept mk\nORDER BY rwb.rfi_status;",
   "executes": true,
   "matches": [
    "B"
@@ -13,23 +22,19 @@
  },
  "c": {
   "request": "Which RFI statuses (`rfistat`) have an above-average modulation index (`modindex`)? Ignore missing index values, and treat signals with no status as their own group. For each such status, show the status, its average modulation index, how far above average it is, and how it differs from the mean of the qualifying statuses' averages. Leave all values unrounded. A status counts as above average if its mean modulation index exceeds the mean modulation index over all signals.",
-  "sql": "WITH valid AS (SELECT rfistat, modindex FROM signals WHERE modindex IS NOT NULL), overall AS (SELECT AVG(modindex) AS overall_avg FROM valid), grouped AS (SELECT rfistat, AVG(modindex) AS group_avg FROM valid GROUP BY rfistat), qualifying AS (SELECT g.rfistat, g.group_avg FROM grouped g CROSS JOIN overall o WHERE g.group_avg > o.overall_avg), qual_mean AS (SELECT AVG(group_avg) AS qual_avg FROM qualifying) SELECT q.rfistat AS rfistat, q.group_avg AS avg_modindex, q.group_avg - o.overall_avg AS above_average_by, q.group_avg - m.qual_avg AS diff_from_qualifying_mean FROM qualifying q CROSS JOIN overall o CROSS JOIN qual_mean m ORDER BY q.group_avg DESC;",
+  "sql": "WITH signal_data AS (SELECT rfistat, modindex FROM signals WHERE modindex IS NOT NULL), overall_avg AS (SELECT AVG(modindex) as overall_average FROM signal_data), status_averages AS (SELECT rfistat, AVG(modindex) as status_avg FROM signal_data GROUP BY rfistat), above_avg_statuses AS (SELECT sa.rfistat, sa.status_avg, oa.overall_average FROM status_averages sa CROSS JOIN overall_avg oa WHERE sa.status_avg > oa.overall_average), mean_of_qualifying AS (SELECT AVG(status_avg) as mean_of_qualifying FROM above_avg_statuses) SELECT aas.rfistat, aas.status_avg, aas.status_avg - aas.overall_average, aas.status_avg - mq.mean_of_qualifying FROM above_avg_statuses aas CROSS JOIN mean_of_qualifying mq ORDER BY aas.rfistat",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "a": {
-  "request": "Group signals by RFI status (`rfistat`), with signals that have no status as their own group, and average the modulation index (`modindex`) for each group, ignoring missing values. Take as the baseline the overall average modulation index across all signals (each signal counting once), and keep the statuses whose average is above it. For each kept status, show the status, its average modulation index, how far that average is above the baseline, and how far it differs from the mean of the kept statuses' averages. Leave all values unrounded.",
-  "sql": "WITH grp AS (\n  SELECT rfistat, AVG(modindex) AS avg_mod\n  FROM signals\n  GROUP BY rfistat\n),\nbase AS (\n  SELECT AVG(modindex) AS baseline FROM signals\n),\nkept AS (\n  SELECT g.rfistat, g.avg_mod, b.baseline\n  FROM grp g\n  CROSS JOIN base b\n  WHERE g.avg_mod > b.baseline\n)\nSELECT k.rfistat AS status,\n       k.avg_mod AS avg_modindex,\n       k.avg_mod - k.baseline AS above_baseline,\n       ABS(k.avg_mod - (SELECT AVG(avg_mod) FROM kept)) AS diff_from_kept_mean\nFROM kept k;",
-  "executes": true,
-  "matches": []
- },
- "calls": 6,
  "d": {
-  "request": "Among the RFI statuses (`rfistat`) whose mean modulation index (`modindex`) is above the mean across all signals, how does each status's average modulation index compare to the overall mean, and how does that difference compare to the average of the qualifying statuses' averages? Treat missing index values as excluded, treat signals with no status as their own group, and leave all values unrounded.",
-  "sql": "WITH valid AS (SELECT COALESCE(rfistat, '(no status)') AS rfi_status, modindex FROM signals WHERE modindex IS NOT NULL), overall AS (SELECT AVG(modindex) AS overall_mean FROM valid), status_avgs AS (SELECT rfi_status, AVG(modindex) AS status_mean FROM valid GROUP BY rfi_status), qualifying AS (SELECT s.rfi_status, s.status_mean FROM status_avgs s CROSS JOIN overall o WHERE s.status_mean > o.overall_mean), qual_avg AS (SELECT AVG(status_mean) AS avg_qualifying_mean FROM qualifying) SELECT q.rfi_status, q.status_mean, o.overall_mean, q.status_mean - o.overall_mean AS diff_from_overall, (q.status_mean - o.overall_mean) / qa.avg_qualifying_mean AS diff_vs_avg_qualifying FROM qualifying q CROSS JOIN overall o CROSS JOIN qual_avg qa ORDER BY q.rfi_status;",
+  "request": "For each RFI status (including signals with no status as a distinct group), calculate the mean modulation index excluding null values, identify statuses whose mean exceeds the global mean modulation index across all signals, and output the status, its mean modulation index, its deviation from the global mean, and its deviation from the mean of all qualifying statuses' means, with all values unrounded.",
+  "sql": "WITH global_mean AS (SELECT AVG(modindex) as global_avg FROM signals WHERE modindex IS NOT NULL),status_means AS (SELECT COALESCE(rfistat, 'NO_STATUS') as rfi_status,AVG(modindex) as status_mean FROM signals WHERE modindex IS NOT NULL GROUP BY COALESCE(rfistat, 'NO_STATUS')),qualifying_statuses AS (SELECT sm.rfi_status,sm.status_mean,gm.global_avg FROM status_means sm CROSS JOIN global_mean gm WHERE sm.status_mean > gm.global_avg),qualifying_means_avg AS (SELECT AVG(status_mean) as qualifying_avg FROM qualifying_statuses)SELECT qs.rfi_status as status,qs.status_mean as mean_modulation_index,(qs.status_mean - qs.global_avg) as deviation_from_global_mean,(qs.status_mean - qma.qualifying_avg) as deviation_from_qualifying_mean FROM qualifying_statuses qs CROSS JOIN qualifying_means_avg qma ORDER BY qs.rfi_status",
   "executes": true,
-  "matches": []
- }
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
 }

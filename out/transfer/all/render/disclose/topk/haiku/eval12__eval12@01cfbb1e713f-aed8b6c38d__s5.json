@@ -3,11 +3,9 @@
  "sample": 5,
  "model": "haiku",
  "response": {
-  "sql": "WITH patient_avg AS (SELECT p.ID, p.SEX, AVG(l.PT) AS avg_pt, AVG(l.IGA - l.IGM) AS avg_diff FROM Laboratory l JOIN Patient p ON l.ID = p.ID GROUP BY p.ID, p.SEX), overall AS (SELECT AVG(avg_diff) AS overall_mean FROM patient_avg) SELECT pa.SEX, AVG(pa.avg_pt) AS avg_pt, AVG(pa.avg_diff) AS avg_iga_igm_diff, AVG(pa.avg_diff / o.overall_mean) AS avg_ratio_to_overall_mean FROM patient_avg pa CROSS JOIN overall o GROUP BY pa.SEX;"
+  "sql": "WITH lab_with_patient AS (\n  SELECT \n    l.ID,\n    l.PT,\n    l.IGA,\n    l.IGM,\n    p.SEX,\n    CASE WHEN l.IGA IS NOT NULL AND l.IGM IS NOT NULL THEN l.IGA - l.IGM ELSE NULL END AS iga_igm_diff\n  FROM Laboratory l\n  INNER JOIN Patient p ON l.ID = p.ID\n),\npatient_averages AS (\n  SELECT \n    ID,\n    SEX,\n    AVG(PT) AS avg_pt,\n    AVG(iga_igm_diff) AS avg_iga_igm_diff\n  FROM lab_with_patient\n  GROUP BY ID, SEX\n),\noverall_mean AS (\n  SELECT AVG(iga_igm_diff) AS overall_mean_iga_igm\n  FROM lab_with_patient\n),\npatient_with_ratio AS (\n  SELECT \n    pa.ID,\n    pa.SEX,\n    pa.avg_pt,\n    pa.avg_iga_igm_diff,\n    CASE \n      WHEN pa.avg_iga_igm_diff IS NOT NULL AND om.overall_mean_iga_igm IS NOT NULL AND om.overall_mean_iga_igm != 0 \n      THEN pa.avg_iga_igm_diff / om.overall_mean_iga_igm \n      ELSE NULL \n    END AS ratio_to_overall_mean\n  FROM patient_averages pa\n  CROSS JOIN overall_mean om\n)\nSELECT \n  SEX,\n  AVG(avg_pt) AS average_pt,\n  AVG(avg_iga_igm_diff) AS average_iga_igm_difference,\n  AVG(ratio_to_overall_mean) AS average_ratio_to_overall_mean\nFROM patient_with_ratio\nGROUP BY SEX\nORDER BY SEX;"
  },
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 16.1
+ "primary_matches": [],
+ "seconds": 34.9
 }

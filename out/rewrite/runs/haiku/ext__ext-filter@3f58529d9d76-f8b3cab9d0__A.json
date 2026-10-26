@@ -3,36 +3,30 @@
  "model": "haiku",
  "reading": "A",
  "description": "Tracks whose file size equals 10323804 bytes are kept along with larger ones.",
- "a": {
-  "request": "Joining each track to its media type (dropping tracks with no matching media type) and keeping only tracks whose file size (`Track.Bytes`) is at least 10323804 bytes, for each media type name (`MediaType.Name`) give the media type name, the average list price per track (`Track.UnitPrice`), and the average of file size divided by track length (`Track.Bytes` \u00f7 `Track.Milliseconds`). Also give that last average divided by the plain average of it across all the media types. All averages should ignore missing values and be missing when there are none. Return no rows if the across-media-type average is missing. Leave all values unrounded.",
-  "sql": "WITH filtered AS (SELECT m.Name AS MediaTypeName, t.UnitPrice, CAST(t.Bytes AS REAL) / t.Milliseconds AS BytesPerMs FROM Track t INNER JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId WHERE t.Bytes >= 10323804), per_type AS (SELECT MediaTypeName, AVG(UnitPrice) AS avg_unit_price, AVG(BytesPerMs) AS avg_bytes_per_ms FROM filtered GROUP BY MediaTypeName) SELECT MediaTypeName AS name, avg_unit_price, avg_bytes_per_ms, avg_bytes_per_ms / (SELECT AVG(avg_bytes_per_ms) FROM per_type) AS ratio_to_overall_avg FROM per_type WHERE (SELECT AVG(avg_bytes_per_ms) FROM per_type) IS NOT NULL;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
  "d": {
-  "request": "Keep only tracks with `Track.Bytes >= 10323804` (threshold inclusive), inner-join to `MediaType` on `MediaTypeId`, group by `MediaType.Name`, and compute AVG(`Track.UnitPrice`) and AVG(`Track.Bytes` / `Track.Milliseconds`) per group, then divide each group's second average by the AVG of that quantity across all media-type groups, returning no rows when that across-group average is NULL and leaving values unrounded.",
-  "sql": "WITH filtered AS (\n  SELECT mt.Name AS MediaTypeName, t.UnitPrice, t.Bytes, t.Milliseconds\n  FROM Track t\n  INNER JOIN MediaType mt ON t.MediaTypeId = mt.MediaTypeId\n  WHERE t.Bytes >= 10323804\n),\ngrouped AS (\n  SELECT MediaTypeName,\n         AVG(UnitPrice) AS avg_unit_price,\n         AVG(Bytes * 1.0 / Milliseconds) AS avg_bytes_per_ms\n  FROM filtered\n  GROUP BY MediaTypeName\n),\noverall AS (\n  SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM grouped\n)\nSELECT g.MediaTypeName,\n       g.avg_unit_price,\n       g.avg_bytes_per_ms,\n       g.avg_bytes_per_ms / o.overall_avg AS ratio\nFROM grouped g\nCROSS JOIN overall o\nWHERE o.overall_avg IS NOT NULL;",
+  "request": "Inner join Track to MediaType for tracks with bytes >= 10323804, group by media type name, computing average unit price, average of bytes-per-millisecond, and normalized to the overall average, excluding nulls and returning no rows if overall average is null.",
+  "sql": "WITH overall_avg AS (SELECT AVG(CAST(Bytes AS FLOAT) / Milliseconds) as OverallAvg FROM Track WHERE Bytes >= 10323804 AND Bytes IS NOT NULL) SELECT mt.Name, AVG(t.UnitPrice) as AvgUnitPrice, AVG(CAST(t.Bytes AS FLOAT) / t.Milliseconds) as AvgBytesPerMillisecond, AVG(CAST(t.Bytes AS FLOAT) / t.Milliseconds) / oa.OverallAvg as NormalizedBytesPerMillisecond FROM Track t INNER JOIN MediaType mt ON t.MediaTypeId = mt.MediaTypeId CROSS JOIN overall_avg oa WHERE t.Bytes >= 10323804 AND t.Bytes IS NOT NULL GROUP BY mt.Name HAVING oa.OverallAvg IS NOT NULL",
   "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "b": {
-  "request": "For each media type name (MediaType.Name), inner join Track to MediaType on MediaTypeId, keep tracks with Bytes >= 10323804, and return the name, AVG(UnitPrice), AVG(Bytes/Milliseconds), and that ratio divided by the average of Bytes/Milliseconds across all media types, returning no rows when the across-type average is NULL and leaving values unrounded.",
-  "sql": "WITH filtered AS (SELECT mt.Name AS MediaTypeName, t.UnitPrice, CAST(t.Bytes AS REAL) / t.Milliseconds AS BytesPerMs FROM Track t INNER JOIN MediaType mt ON t.MediaTypeId = mt.MediaTypeId WHERE t.Bytes >= 10323804), per_type AS (SELECT MediaTypeName, AVG(UnitPrice) AS avg_unit_price, AVG(BytesPerMs) AS avg_bytes_per_ms FROM filtered GROUP BY MediaTypeName), overall AS (SELECT AVG(BytesPerMs) AS overall_avg FROM filtered) SELECT p.MediaTypeName AS Name, p.avg_unit_price, p.avg_bytes_per_ms, p.avg_bytes_per_ms / o.overall_avg AS ratio FROM per_type p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL",
-  "executes": true,
-  "matches": [],
-  "raw": "For each media type name (MediaType.Name), inner join Track to MediaType on MediaTypeId, keep tracks with Bytes >= 10323804, and return the name, AVG(UnitPrice), AVG(Bytes/Milliseconds), and that ratio divided by the average of Bytes/Milliseconds across all media types, returning no rows when the across-type average is NULL and leaving values unrounded."
+  "matches": []
  },
  "c": {
   "request": "Joining each track to its media type (dropping tracks with no matching media type) and using 10323804 bytes as the file-size threshold (`Track.Bytes`) to keep only the large files, for each media type name (`MediaType.Name`) give the media type name, the average list price per track (`Track.UnitPrice`), and the average of file size divided by track length (`Track.Bytes` \u00f7 `Track.Milliseconds`). Also give that last average divided by the plain average of it across all the media types. All averages should ignore missing values and be missing when there are none. Return no rows if the across-media-type average is missing. Leave all values unrounded. Tracks whose file size equals 10323804 bytes are kept along with larger ones.",
-  "sql": "WITH stats AS (SELECT mt.Name AS media_type_name, AVG(t.UnitPrice) AS avg_unit_price, AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS avg_bytes_per_ms FROM Track t JOIN MediaType mt ON t.MediaTypeId = mt.MediaTypeId WHERE t.Bytes >= 10323804 GROUP BY mt.Name), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM stats) SELECT s.media_type_name, s.avg_unit_price, s.avg_bytes_per_ms, s.avg_bytes_per_ms / o.overall_avg AS ratio_to_overall_avg FROM stats s CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL;",
+  "sql": "WITH filtered_tracks AS (\n  SELECT \n    t.UnitPrice,\n    t.Bytes,\n    t.Milliseconds,\n    m.Name AS MediaTypeName\n  FROM Track t\n  INNER JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId\n  WHERE t.Bytes >= 10323804\n),\nmedia_type_stats AS (\n  SELECT \n    MediaTypeName,\n    AVG(UnitPrice) AS avg_unit_price,\n    AVG(CAST(Bytes AS DOUBLE) / CAST(Milliseconds AS DOUBLE)) AS avg_bytes_per_ms\n  FROM filtered_tracks\n  GROUP BY MediaTypeName\n),\noverall_avg AS (\n  SELECT \n    AVG(CAST(Bytes AS DOUBLE) / CAST(Milliseconds AS DOUBLE)) AS overall_avg_bytes_per_ms\n  FROM filtered_tracks\n)\nSELECT \n  mts.MediaTypeName,\n  mts.avg_unit_price,\n  mts.avg_bytes_per_ms,\n  mts.avg_bytes_per_ms / oa.overall_avg_bytes_per_ms\nFROM media_type_stats mts\nCROSS JOIN overall_avg oa\nWHERE oa.overall_avg_bytes_per_ms IS NOT NULL",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
+ },
+ "a": {
+  "request": "Joining each track to its media type (dropping tracks with no matching media type) and keeping only tracks whose file size (`Track.Bytes`) is at least 10323804 bytes, for each media type name (`MediaType.Name`) give the media type name, the average list price per track (`Track.UnitPrice`), and the average of file size divided by track length (`Track.Bytes` \u00f7 `Track.Milliseconds`). Also give that last average divided by the plain average of it across all the media types. All averages should ignore missing values and be missing when there are none. Return no rows if the across-media-type average is missing. Leave all values unrounded.",
+  "sql": "WITH filtered_tracks AS (\n  SELECT \n    t.UnitPrice,\n    CAST(t.Bytes AS DECIMAL) / CAST(t.Milliseconds AS DECIMAL) AS bytes_per_millisecond,\n    m.Name\n  FROM Track t\n  INNER JOIN MediaType m ON t.MediaTypeId = m.MediaTypeId\n  WHERE t.Bytes >= 10323804\n),\nmedia_type_stats AS (\n  SELECT \n    Name,\n    AVG(UnitPrice) AS avg_unit_price,\n    AVG(bytes_per_millisecond) AS avg_bytes_per_millisecond\n  FROM filtered_tracks\n  GROUP BY Name\n),\noverall_avg AS (\n  SELECT AVG(avg_bytes_per_millisecond) AS overall_avg_bytes_per_millisecond\n  FROM media_type_stats\n)\nSELECT \n  m.Name,\n  m.avg_unit_price,\n  m.avg_bytes_per_millisecond,\n  m.avg_bytes_per_millisecond / o.overall_avg_bytes_per_millisecond\nFROM media_type_stats m\nCROSS JOIN overall_avg o\nWHERE o.overall_avg_bytes_per_millisecond IS NOT NULL",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "For each media type with tracks of at least 10323804 bytes, display the media type name, average unit price, average bytes-to-milliseconds ratio, and this ratio divided by the global average of that metric across all qualifying media types.",
+  "sql": "WITH qualifying_tracks AS (\n  SELECT \n    t.TrackId,\n    t.MediaTypeId,\n    t.UnitPrice,\n    t.Bytes,\n    t.Milliseconds\n  FROM Track t\n  WHERE t.Bytes >= 10323804\n),\nmedia_type_stats AS (\n  SELECT \n    m.MediaTypeId,\n    m.Name,\n    AVG(qt.UnitPrice) AS avg_unit_price,\n    AVG(qt.Bytes * 1.0 / qt.Milliseconds) AS ratio\n  FROM qualifying_tracks qt\n  JOIN MediaType m ON qt.MediaTypeId = m.MediaTypeId\n  GROUP BY m.MediaTypeId, m.Name\n),\nglobal_avg AS (\n  SELECT \n    AVG(qt.Bytes * 1.0 / qt.Milliseconds) AS global_ratio\n  FROM qualifying_tracks qt\n)\nSELECT \n  mts.Name,\n  mts.avg_unit_price,\n  mts.ratio,\n  mts.ratio / ga.global_ratio AS ratio_vs_global_avg\nFROM media_type_stats mts\nCROSS JOIN global_avg ga;",
+  "executes": true,
+  "matches": [],
+  "raw": "For each media type with tracks of at least 10323804 bytes, display the media type name, average unit price, average bytes-to-milliseconds ratio, and this ratio divided by the global average of that metric across all qualifying media types."
  },
  "calls": 6
 }

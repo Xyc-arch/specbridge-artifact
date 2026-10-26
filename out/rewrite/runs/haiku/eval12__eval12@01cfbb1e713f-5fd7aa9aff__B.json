@@ -3,9 +3,26 @@
  "model": "haiku",
  "reading": "B",
  "description": "For each rating, count the distinct film titles that have at least one copy in inventory; keep the ratings above the average count, then return the sum of their counts and their average amount above the average.",
+ "d": {
+  "request": "For each film rating, count the distinct films having at least one copy in inventory, then among ratings where this count exceeds the overall average, return the sum of their counts and the mean distance each exceeds the overall average.",
+  "sql": "WITH rating_film_counts AS (\n  SELECT f.rating, COUNT(DISTINCT f.film_id) as film_count\n  FROM film f\n  JOIN inventory i ON f.film_id = i.film_id\n  GROUP BY f.rating\n),\nstats AS (\n  SELECT AVG(film_count) as avg_count\n  FROM rating_film_counts\n)\nSELECT \n  SUM(rfc.film_count) as sum_of_counts,\n  AVG(rfc.film_count - s.avg_count) as mean_distance_above_avg\nFROM rating_film_counts rfc\nCROSS JOIN stats s\nWHERE rfc.film_count > s.avg_count",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "Count distinct films by rating that have at least one inventory copy; identify ratings above the average distinct film count; return the sum of distinct films across above-average ratings and the mean surplus by which above-average ratings exceed the overall mean count.",
+  "sql": "WITH film_counts AS (SELECT f.rating, COUNT(DISTINCT f.film_id) as distinct_films FROM film f JOIN inventory i ON f.film_id = i.film_id GROUP BY f.rating), avg_count AS (SELECT AVG(distinct_films) as avg_distinct FROM film_counts) SELECT SUM(fc.distinct_films) as sum_distinct_films, AVG(fc.distinct_films - ac.avg_distinct) as mean_surplus FROM film_counts fc CROSS JOIN avg_count ac WHERE fc.distinct_films > ac.avg_distinct",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "Count distinct films by rating that have at least one inventory copy; identify ratings above the average distinct film count; return the sum of distinct films across above-average ratings and the mean surplus by which above-average ratings exceed the overall mean count."
+ },
  "a": {
   "request": "For each film `rating`, count the distinct films that have at least one copy in inventory (each title once, however many copies). Which ratings have more such films than the average of these counts across all ratings? Give one row with the total number of those films across those above-average ratings and the average amount by which their counts exceed the across-rating average, unrounded.",
-  "sql": "WITH per_rating AS (SELECT f.rating, COUNT(DISTINCT f.film_id) AS films FROM film f JOIN inventory i ON i.film_id = f.film_id GROUP BY f.rating), stats AS (SELECT AVG(CAST(films AS DOUBLE)) AS avg_films FROM per_rating), above AS (SELECT p.rating, p.films, CAST(p.films AS DOUBLE) - s.avg_films AS excess FROM per_rating p CROSS JOIN stats s WHERE p.films > s.avg_films) SELECT SUM(films) AS total_films, AVG(excess) AS avg_excess FROM above;",
+  "sql": "WITH rating_counts AS (\n  SELECT f.rating, COUNT(DISTINCT f.film_id) AS distinct_films\n  FROM film f\n  JOIN inventory i ON f.film_id = i.film_id\n  GROUP BY f.rating\n),\naverage_all AS (\n  SELECT AVG(distinct_films) AS avg_count\n  FROM rating_counts\n),\nabove_average AS (\n  SELECT rc.distinct_films, (rc.distinct_films - aa.avg_count) AS excess\n  FROM rating_counts rc\n  CROSS JOIN average_all aa\n  WHERE rc.distinct_films > aa.avg_count\n)\nSELECT \n  SUM(distinct_films) AS total_films,\n  AVG(excess) AS avg_excess\nFROM above_average",
   "executes": true,
   "matches": [
    "B"
@@ -13,27 +30,11 @@
  },
  "c": {
   "request": "Looking at the films we have in stock by `rating`, which ratings have more films in inventory than the average rating does? Give me a single row with the total films in stock across those above-average ratings and, on average, how far above the across-rating average they are (no rounding). For each rating, count the distinct film titles that have at least one copy in inventory; keep the ratings above the average count, then return the sum of their counts and their average amount above the average.",
-  "sql": "WITH per_rating AS (SELECT f.rating, COUNT(DISTINCT f.title) AS films FROM inventory i JOIN film f ON f.film_id = i.film_id GROUP BY f.rating), avg_rating AS (SELECT AVG(films) AS avg_films FROM per_rating), above AS (SELECT p.rating, p.films, p.films - a.avg_films AS above_by FROM per_rating p CROSS JOIN avg_rating a WHERE p.films > a.avg_films) SELECT SUM(films) AS total_films, AVG(above_by) AS avg_above_by FROM above;",
+  "sql": "WITH rating_counts AS (\n  SELECT \n    f.rating,\n    COUNT(DISTINCT f.film_id) AS film_count\n  FROM film f\n  JOIN inventory i ON f.film_id = i.film_id\n  GROUP BY f.rating\n),\naverage_count AS (\n  SELECT AVG(film_count) AS avg_count\n  FROM rating_counts\n),\nabove_average AS (\n  SELECT \n    rc.film_count,\n    (rc.film_count - ac.avg_count) AS above_average_amount\n  FROM rating_counts rc\n  CROSS JOIN average_count ac\n  WHERE rc.film_count > ac.avg_count\n)\nSELECT \n  SUM(film_count) AS total_films_in_stock,\n  AVG(above_average_amount) AS avg_above_average\nFROM above_average",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "b": {
-  "request": "For each rating, count the distinct film titles with at least one inventory copy, keep the ratings whose count exceeds the mean of those per-rating counts, then return one row with the sum of the kept counts and the average of (kept count minus that mean)",
-  "sql": "WITH per_rating AS (\n  SELECT f.rating, COUNT(DISTINCT f.title) AS cnt\n  FROM film f\n  JOIN inventory i ON i.film_id = f.film_id\n  GROUP BY f.rating\n),\nstats AS (\n  SELECT AVG(cnt) AS mean_cnt FROM per_rating\n),\nkept AS (\n  SELECT p.cnt\n  FROM per_rating p\n  CROSS JOIN stats s\n  WHERE p.cnt > s.mean_cnt\n)\nSELECT SUM(k.cnt) AS total_kept_count,\n       AVG(k.cnt - s.mean_cnt) AS avg_excess_over_mean\nFROM kept k\nCROSS JOIN stats s;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "For each rating, how many distinct film titles have at least one copy in inventory? Keep only the ratings whose count is above the average count across ratings, then return the sum of those counts and, on average, how far each of those counts sits above the across-rating average (no rounding).",
-  "sql": "WITH rating_counts AS (SELECT f.rating, COUNT(DISTINCT f.title) AS title_count FROM film f JOIN inventory i ON i.film_id = f.film_id GROUP BY f.rating), avg_count AS (SELECT AVG(title_count) AS avg_title_count FROM rating_counts), above AS (SELECT rc.rating, rc.title_count, ac.avg_title_count FROM rating_counts rc CROSS JOIN avg_count ac WHERE rc.title_count > ac.avg_title_count) SELECT SUM(title_count) AS total_title_count, AVG(title_count - avg_title_count) AS avg_excess_over_mean FROM above;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

@@ -5,7 +5,24 @@
  "description": "Each phase's count is its number of distinct observatory stations, and column 2 sums these counts over the above-average phases.",
  "a": {
   "request": "Match each telescope to its observatory on `observstation`, and drop unmatched telescopes. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), compute two things: the average bandwidth usage (`telescopes.bandusagepct`) over its telescopes, ignoring missing values, and the number of distinct observatory stations. Keep the phases whose average is above the mean of all the phase averages. Return one row with three values: the average of the kept phases' bandwidth averages, the total of those distinct-station counts across the kept phases, and the average amount by which the kept phases exceed that mean. Don't round.",
-  "sql": "WITH joined AS (SELECT o.lunarstage, o.observstation, t.bandusagepct FROM telescopes t JOIN observatories o ON o.observstation = t.observstation), phase AS (SELECT lunarstage, AVG(bandusagepct) AS avg_bw, COUNT(DISTINCT observstation) AS station_count FROM joined GROUP BY lunarstage), overall AS (SELECT AVG(avg_bw) AS mean_avg FROM phase), kept AS (SELECT p.avg_bw, p.station_count FROM phase p CROSS JOIN overall x WHERE p.avg_bw > x.mean_avg) SELECT AVG(k.avg_bw) AS avg_of_kept_averages, SUM(k.station_count) AS total_station_count, AVG(k.avg_bw - x.mean_avg) AS avg_excess FROM kept k CROSS JOIN overall x;",
+  "sql": "WITH phase_stats AS (SELECT o.lunarstage, AVG(t.bandusagepct) AS avg_bandwidth, COUNT(DISTINCT o.observstation) AS distinct_stations FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation GROUP BY o.lunarstage), phase_stats_with_mean AS (SELECT avg_bandwidth, distinct_stations, AVG(avg_bandwidth) OVER () AS overall_mean FROM phase_stats), kept_phases AS (SELECT avg_bandwidth, distinct_stations, overall_mean FROM phase_stats_with_mean WHERE avg_bandwidth > overall_mean) SELECT AVG(avg_bandwidth) AS avg_of_kept_averages, SUM(distinct_stations) AS total_distinct_stations, AVG(avg_bandwidth - overall_mean) AS avg_excess FROM kept_phases",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each lunar phase (treating null as a separate group), calculate the average bandwidth usage across telescopes matched to observatories and count the distinct observatory stations; filter to phases with above-mean average bandwidth; output the mean of those filtered phases' averages, the sum of their distinct observatory station counts, and the mean excess of those averages over the overall average bandwidth mean.",
+  "sql": "WITH telescope_obs AS (\n  SELECT \n    t.bandusagepct,\n    o.lunarstage,\n    o.observstation\n  FROM telescopes t\n  JOIN observatories o ON t.observstation = o.observstation\n),\nphase_stats AS (\n  SELECT \n    lunarstage,\n    AVG(bandusagepct) as avg_bandwidth,\n    COUNT(DISTINCT observstation) as distinct_obs_count\n  FROM telescope_obs\n  GROUP BY lunarstage\n),\noverall_mean AS (\n  SELECT AVG(avg_bandwidth) as overall_avg\n  FROM phase_stats\n),\nfiltered_phases AS (\n  SELECT \n    ps.avg_bandwidth,\n    ps.distinct_obs_count,\n    om.overall_avg\n  FROM phase_stats ps\n  CROSS JOIN overall_mean om\n  WHERE ps.avg_bandwidth > om.overall_avg\n)\nSELECT \n  AVG(avg_bandwidth) as mean_filtered_averages,\n  SUM(distinct_obs_count) as sum_distinct_obs_counts,\n  AVG(avg_bandwidth - overall_avg) as mean_excess\nFROM filtered_phases;",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For each lunar phase (treating null as a separate group), calculate the average bandwidth usage across telescopes matched to observatories and count the distinct observatory stations; filter to phases with above-mean average bandwidth; output the mean of those filtered phases' averages, the sum of their distinct observatory station counts, and the mean excess of those averages over the overall average bandwidth mean."
+ },
+ "d": {
+  "request": "For each lunar phase (including missing as its own group), join telescopes to observatories on observstation and count distinct observatories, calculate average bandwidth usage per phase (excluding nulls), then select phases exceeding the mean of all phase averages and return: average of those selected phases' bandwidth averages, sum of their distinct observatory counts, and average amount by which their averages exceed the overall mean.",
+  "sql": "WITH phase_stats AS (SELECT COALESCE(o.lunarstage, 'Missing') as lunar_phase, COUNT(DISTINCT o.observstation) as distinct_observatories, AVG(t.bandusagepct) as avg_bandwidth FROM telescopes t JOIN observatories o ON t.observstation = o.observstation WHERE t.bandusagepct IS NOT NULL GROUP BY COALESCE(o.lunarstage, 'Missing')), overall_mean AS (SELECT AVG(avg_bandwidth) as mean_bandwidth FROM phase_stats), selected_phases AS (SELECT ps.lunar_phase, ps.distinct_observatories, ps.avg_bandwidth, om.mean_bandwidth, ps.avg_bandwidth - om.mean_bandwidth as excess FROM phase_stats ps CROSS JOIN overall_mean om WHERE ps.avg_bandwidth > om.mean_bandwidth) SELECT AVG(avg_bandwidth) as avg_of_selected_bandwidth, SUM(distinct_observatories) as sum_distinct_observatories, AVG(excess) as avg_excess_over_mean FROM selected_phases",
   "executes": true,
   "matches": [
    "B"
@@ -13,27 +30,11 @@
  },
  "c": {
   "request": "Match each telescope to its observatory on `observstation`, and drop unmatched telescopes. For each moon phase (`observatories.lunarstage`; a missing phase is its own group), find the average bandwidth usage (`telescopes.bandusagepct`), ignoring missing values, and how many are in that phase. Keep the phases whose average is above the mean of all the phase averages. Give one row with three values: the average of those phases' bandwidth averages, the total count across them, and the average amount by which they exceed the mean. Don't round. Each phase's count is its number of distinct observatory stations, and column 2 sums these counts over the above-average phases.",
-  "sql": "WITH phase_stats AS (SELECT o.lunarstage AS phase, AVG(t.bandusagepct) AS avg_band, COUNT(DISTINCT o.observstation) AS station_count FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.lunarstage), overall AS (SELECT AVG(avg_band) AS mean_avg FROM phase_stats), above AS (SELECT p.phase, p.avg_band, p.station_count, p.avg_band - o.mean_avg AS excess FROM phase_stats p CROSS JOIN overall o WHERE p.avg_band > o.mean_avg) SELECT AVG(avg_band) AS avg_of_phase_avgs, SUM(station_count) AS total_count, AVG(excess) AS avg_excess_over_mean FROM above;",
+  "sql": "WITH telescope_observatory_match AS (\n  SELECT \n    t.bandusagepct,\n    o.lunarstage,\n    o.observstation\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\nphase_stats AS (\n  SELECT \n    lunarstage,\n    AVG(bandusagepct) as avg_bandwidth,\n    COUNT(DISTINCT observstation) as station_count\n  FROM telescope_observatory_match\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY lunarstage\n),\noverall_mean AS (\n  SELECT AVG(avg_bandwidth) as mean_of_avgs\n  FROM phase_stats\n),\nabove_mean_phases AS (\n  SELECT \n    p.avg_bandwidth,\n    p.station_count,\n    om.mean_of_avgs\n  FROM phase_stats p\n  CROSS JOIN overall_mean om\n  WHERE p.avg_bandwidth > om.mean_of_avgs\n)\nSELECT \n  AVG(avg_bandwidth) as avg_of_phase_avgs,\n  SUM(station_count) as total_count,\n  AVG(avg_bandwidth - mean_of_avgs) as avg_excess\nFROM above_mean_phases;",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "b": {
-  "request": "Among the telescopes joined to observatories on `observstation` (unmatched dropped), group by `observatories.lunarstage` with missing as its own group, and for each phase take the number of distinct `observstation` values as its count and the average `telescopes.bandusagepct` (nulls ignored) as its average; keep phases whose average exceeds the mean of all phase averages, then return one row: the mean of those kept averages, the sum of their distinct-station counts, and the mean of (average \u2212 overall mean of phase averages) over those kept phases, unrounded",
-  "sql": "WITH phase_stats AS (\n  SELECT o.lunarstage AS phase,\n         COUNT(DISTINCT o.observstation) AS station_count,\n         AVG(t.bandusagepct) AS avg_band\n  FROM telescopes t\n  JOIN observatories o ON o.observstation = t.observstation\n  GROUP BY o.lunarstage\n),\noverall AS (\n  SELECT AVG(avg_band) AS overall_mean FROM phase_stats\n),\nkept AS (\n  SELECT p.* FROM phase_stats p CROSS JOIN overall v WHERE p.avg_band > v.overall_mean\n)\nSELECT AVG(k.avg_band) AS mean_kept_avg,\n       SUM(k.station_count) AS total_station_count,\n       AVG(k.avg_band - v.overall_mean) AS mean_deviation\nFROM kept k CROSS JOIN overall v;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "For each moon phase (`observatories.lunarstage`, with a missing phase treated as its own group), count the distinct observatory stations in that phase after matching telescopes to observatories on `observstation` and dropping unmatched telescopes. Then take the average `telescopes.bandusagepct` per phase, ignoring missing values, and keep only the phases whose average is above the mean of all phase averages. Return one row with three unrounded values: (1) the average of those kept phases' bandwidth averages, (2) the sum of their distinct-station counts, and (3) the average amount by which those kept phases' averages exceed the mean of all phase averages.",
-  "sql": "WITH phase_stats AS (SELECT o.lunarstage, COUNT(DISTINCT o.observstation) AS station_count, AVG(t.bandusagepct) AS avg_band FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.lunarstage), overall AS (SELECT AVG(avg_band) AS mean_avg FROM phase_stats), kept AS (SELECT p.station_count, p.avg_band, p.avg_band - ov.mean_avg AS excess FROM phase_stats p CROSS JOIN overall ov WHERE p.avg_band > ov.mean_avg) SELECT AVG(avg_band) AS avg_of_kept_averages, SUM(station_count) AS total_distinct_stations, AVG(excess) AS avg_excess_over_mean FROM kept;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

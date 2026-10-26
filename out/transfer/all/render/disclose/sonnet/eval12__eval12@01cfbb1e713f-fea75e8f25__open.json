@@ -2,23 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH eq AS (SELECT equipref, AVG(humepct) AS avg_hum FROM scanenvironment GROUP BY equipref), ov AS (SELECT AVG(avg_hum) AS overall_avg FROM eq), ab AS (SELECT eq.equipref, eq.avg_hum, ov.overall_avg FROM eq CROSS JOIN ov WHERE eq.avg_hum > ov.overall_avg), gm AS (SELECT AVG(avg_hum) AS group_avg FROM ab) SELECT ab.equipref, ab.avg_hum AS avg_humidity, ab.avg_hum - ab.overall_avg AS exceeds_overall_avg, ab.avg_hum - gm.group_avg AS diff_from_group_mean FROM ab CROSS JOIN gm WHERE ab.overall_avg IS NOT NULL AND gm.group_avg IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10",
+  "sql": "WITH per AS (SELECT equipref, AVG(humepct) AS avg_h FROM scanenvironment GROUP BY equipref HAVING AVG(humepct) IS NOT NULL), overall AS (SELECT AVG(avg_h) AS m FROM per), above AS (SELECT p.equipref, p.avg_h FROM per p, overall o WHERE p.avg_h > o.m), grp AS (SELECT AVG(avg_h) AS g FROM above) SELECT a.equipref AS equipref, a.avg_h AS avg_humidity, a.avg_h - o.m AS excess_over_all_avg, a.avg_h - g.g AS diff_from_group_mean FROM above a, overall o, grp g WHERE o.m IS NOT NULL AND g.g IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10",
   "assumptions": [
    {
-    "assumption": "The 'average across all equipment' is the mean of each equipment's own average humidity, so every equipment unit counts equally. Only equipment that appears in scanenvironment is included, and equipment with no humidity readings is ignored.",
+    "assumption": "The 'average across all equipment' is the mean of the per-equipment average humidities, so each piece of equipment counts equally regardless of how many readings it has.",
     "unresolved": true
    },
    {
-    "assumption": "'Above-average' is a strict comparison (>). The group mean is the mean of the per-equipment averages in that above-average group. Ranking is by difference from the group mean, descending.",
+    "assumption": "Only equipment with at least one non-null humidity reading in scanenvironment is considered. Equipment with no readings has no average and is excluded.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The group mean is the mean of the per-equipment averages of the above-average equipment. Ranking by difference from the group mean is the same as ranking by average humidity, and ties are broken arbitrarily.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The all-equipment average is the plain average of all humidity readings (each reading weighted equally), not the mean of per-equipment averages.",
-    "sql": "WITH eq AS (SELECT equipref, AVG(humepct) AS avg_hum FROM scanenvironment GROUP BY equipref), ov AS (SELECT AVG(humepct) AS overall_avg FROM scanenvironment), ab AS (SELECT eq.equipref, eq.avg_hum, ov.overall_avg FROM eq CROSS JOIN ov WHERE eq.avg_hum > ov.overall_avg), gm AS (SELECT AVG(avg_hum) AS group_avg FROM ab) SELECT ab.equipref, ab.avg_hum AS avg_humidity, ab.avg_hum - ab.overall_avg AS exceeds_overall_avg, ab.avg_hum - gm.group_avg AS diff_from_group_mean FROM ab CROSS JOIN gm WHERE ab.overall_avg IS NOT NULL AND gm.group_avg IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10"
+    "interpretation": "The all-equipment average is the pooled average of every non-null humidity reading (each reading weighted equally), rather than the mean of per-equipment averages.",
+    "sql": "WITH per AS (SELECT equipref, AVG(humepct) AS avg_h FROM scanenvironment GROUP BY equipref HAVING AVG(humepct) IS NOT NULL), overall AS (SELECT AVG(humepct) AS m FROM scanenvironment), above AS (SELECT p.equipref, p.avg_h FROM per p, overall o WHERE p.avg_h > o.m), grp AS (SELECT AVG(avg_h) AS g FROM above) SELECT a.equipref AS equipref, a.avg_h AS avg_humidity, a.avg_h - o.m AS excess_over_all_avg, a.avg_h - g.g AS diff_from_group_mean FROM above a, overall o, grp g WHERE o.m IS NOT NULL AND g.g IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10"
    }
   ]
  },
@@ -29,12 +33,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The all-equipment average is the plain average of all humidity readings (each reading weighted equally), not the mean of per-equipment averages.",
-   "sql": "WITH eq AS (SELECT equipref, AVG(humepct) AS avg_hum FROM scanenvironment GROUP BY equipref), ov AS (SELECT AVG(humepct) AS overall_avg FROM scanenvironment), ab AS (SELECT eq.equipref, eq.avg_hum, ov.overall_avg FROM eq CROSS JOIN ov WHERE eq.avg_hum > ov.overall_avg), gm AS (SELECT AVG(avg_hum) AS group_avg FROM ab) SELECT ab.equipref, ab.avg_hum AS avg_humidity, ab.avg_hum - ab.overall_avg AS exceeds_overall_avg, ab.avg_hum - gm.group_avg AS diff_from_group_mean FROM ab CROSS JOIN gm WHERE ab.overall_avg IS NOT NULL AND gm.group_avg IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10",
+   "interpretation": "The all-equipment average is the pooled average of every non-null humidity reading (each reading weighted equally), rather than the mean of per-equipment averages.",
+   "sql": "WITH per AS (SELECT equipref, AVG(humepct) AS avg_h FROM scanenvironment GROUP BY equipref HAVING AVG(humepct) IS NOT NULL), overall AS (SELECT AVG(humepct) AS m FROM scanenvironment), above AS (SELECT p.equipref, p.avg_h FROM per p, overall o WHERE p.avg_h > o.m), grp AS (SELECT AVG(avg_h) AS g FROM above) SELECT a.equipref AS equipref, a.avg_h AS avg_humidity, a.avg_h - o.m AS excess_over_all_avg, a.avg_h - g.g AS diff_from_group_mean FROM above a, overall o, grp g WHERE o.m IS NOT NULL AND g.g IS NOT NULL ORDER BY diff_from_group_mean DESC NULLS LAST LIMIT 10",
    "executes": true,
    "matches": []
   }
  ],
  "seconds": 11.6,
- "chars_out": 1921
+ "chars_out": 2077
 }

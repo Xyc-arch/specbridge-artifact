@@ -3,11 +3,9 @@
  "sample": 2,
  "model": "haiku",
  "response": {
-  "sql": "WITH per_txn AS (SELECT s.transref, t.ordertypedist, AVG(s.shortintrt) AS avg_shortint, AVG(s.optvolrt) AS avg_optvol FROM sentimentandfundamentals s JOIN transactionrecord t ON t.transreg = s.transref GROUP BY s.transref, t.ordertypedist), mix_avg AS (SELECT ordertypedist, AVG(avg_shortint) AS mix_shortint FROM per_txn GROUP BY ordertypedist) SELECT p.transref AS transaction_ref, p.ordertypedist AS order_type_mix, p.avg_shortint AS avg_short_interest, p.avg_optvol AS avg_option_volume_ratio, p.avg_shortint / NULLIF(m.mix_shortint, 0) AS short_interest_ratio FROM per_txn p JOIN mix_avg m ON m.ordertypedist IS NOT DISTINCT FROM p.ordertypedist ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH sentiment_by_trans AS (\n  SELECT \n    sf.transref,\n    AVG(sf.shortintrt) as trans_avg_short_int,\n    AVG(sf.optvolrt) as trans_avg_opt_vol\n  FROM sentimentandfundamentals sf\n  GROUP BY sf.transref\n),\norder_type_avg AS (\n  SELECT \n    tr.ordertypedist,\n    AVG(sf.shortintrt) as order_type_avg_short_int\n  FROM sentimentandfundamentals sf\n  JOIN transactionrecord tr ON sf.transref = tr.transreg\n  WHERE sf.shortintrt IS NOT NULL\n  GROUP BY tr.ordertypedist\n)\nSELECT \n  tr.transreg,\n  tr.ordertypedist,\n  sbt.trans_avg_short_int,\n  sbt.trans_avg_opt_vol,\n  CASE \n    WHEN ota.order_type_avg_short_int IS NOT NULL AND sbt.trans_avg_short_int IS NOT NULL\n    THEN sbt.trans_avg_short_int / ota.order_type_avg_short_int\n    ELSE NULL\n  END as ratio\nFROM transactionrecord tr\nINNER JOIN sentiment_by_trans sbt ON tr.transreg = sbt.transref\nLEFT JOIN order_type_avg ota ON tr.ordertypedist = ota.ordertypedist\nORDER BY ratio IS NULL, ratio DESC"
  },
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 10.0
+ "primary_matches": [],
+ "seconds": 77.3
 }

@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-e14588a994",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH source_metrics AS (\n    SELECT\n        COALESCE(p.fundflux, '<missing>') AS funding_source,\n        AVG(ss.boxy / NULLIF(ss.boxz, 0)) AS avg_ratio,\n        COUNT(*) AS size\n    FROM projects AS p\n    JOIN scanspatial AS ss\n      ON p.arcregistry = ss.arcref\n    WHERE ss.boxy IS NOT NULL\n      AND ss.boxz IS NOT NULL\n    GROUP BY COALESCE(p.fundflux, '<missing>')\n),\nwith_average_size AS (\n    SELECT\n        funding_source,\n        avg_ratio,\n        size,\n        AVG(size) OVER () AS average_size\n    FROM source_metrics\n)\nSELECT\n    AVG(avg_ratio) AS avg_ratio,\n    SUM(size) AS combined_size,\n    AVG(size - average_size) AS avg_excess_size\nFROM with_average_size\nWHERE size > average_size;",
+  "sql": "WITH project_source_ratios AS (\n  SELECT\n    COALESCE(p.fundflux, '<missing>') AS funding_source,\n    ss.boxy / NULLIF(ss.boxz, 0) AS ratio\n  FROM scanspatial AS ss\n  JOIN projects AS p ON p.arcregistry = ss.arcref\n), source_stats AS (\n  SELECT\n    funding_source,\n    AVG(ratio) AS avg_ratio,\n    COUNT(ratio) AS size\n  FROM project_source_ratios\n  GROUP BY funding_source\n), sized_sources AS (\n  SELECT *, AVG(size) OVER () AS avg_size\n  FROM source_stats\n)\nSELECT\n  AVG(avg_ratio) AS avg_ratio,\n  SUM(size) AS combined_size,\n  AVG(size - avg_size) AS avg_excess_size\nFROM sized_sources\nWHERE size > avg_size;",
   "assumptions": [
    {
-    "assumption": "\u201cSize\u201d means the number of spatial scan records contributing a non-missing boxy/boxz ratio for each funding source; a zero boxz is excluded because the ratio is undefined. The missing funding source is grouped separately from actual source values using the sentinel '<missing>'.",
+    "assumption": "\u201cSize\u201d means the number of non-missing boxy/boxz ratios per funding source, and missing funding sources are grouped together using the sentinel '<missing>'.",
     "unresolved": true
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 8.6,
- "chars_out": 1084
+ "seconds": 44.3,
+ "chars_out": 869
 }

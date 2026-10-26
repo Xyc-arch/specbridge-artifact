@@ -2,20 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (SELECT ordersmark, AVG(remaincount) AS avg_remain FROM orderexecutions GROUP BY ordersmark), b1 AS (SELECT AVG(remaincount) AS v FROM orderexecutions), above1 AS (SELECT p.ordersmark, p.avg_remain FROM per_order p, b1 WHERE p.avg_remain > b1.v), b2 AS (SELECT AVG(avg_remain) AS v FROM above1), above2 AS (SELECT a.avg_remain FROM above1 a, b2 WHERE a.avg_remain > b2.v) SELECT AVG(a.avg_remain) AS avg_of_averages, AVG(a.avg_remain - b1.v) AS avg_excess_over_first, AVG(a.avg_remain - b2.v) AS avg_excess_over_second FROM above2 a, b1, b2",
+  "sql": "WITH per AS (SELECT ordersmark, AVG(remaincount) AS a FROM orderexecutions GROUP BY ordersmark), b1 AS (SELECT AVG(remaincount) AS v FROM orderexecutions), s1 AS (SELECT per.a AS a FROM per, b1 WHERE per.a > b1.v), b2 AS (SELECT AVG(a) AS v FROM s1), s2 AS (SELECT s1.a AS a FROM s1, b2 WHERE s1.a > b2.v) SELECT AVG(a) AS avg_of_remaining_averages, AVG(a - (SELECT v FROM b1)) AS avg_excess_over_first_benchmark, AVG(a - (SELECT v FROM b2)) AS avg_excess_over_second_benchmark FROM s2",
   "assumptions": [
    {
-    "assumption": "The first benchmark is the plain mean of remaincount over all execution rows, ignoring NULLs. This is not the mean of the per-order averages.",
+    "assumption": "Executions with NULL ordersmark are grouped together as one order (SQLite GROUP BY puts NULLs in one group); orders whose remaincount values are all NULL have a NULL average and drop out of the comparisons.",
     "unresolved": false
    },
    {
-    "assumption": "Executions with a NULL ordersmark form a single group, as the request says. Orders whose remaincount values are all NULL have a NULL average and drop out at the first comparison.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Both filters are strict (>). The second benchmark is the mean of the averages of orders that passed the first filter.",
+    "assumption": "The first benchmark is AVG(remaincount) over all execution rows with non-null remaincount, not the mean of per-order averages. Comparisons are strict (>).",
     "unresolved": false
    }
   ],
@@ -26,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 6.5
+ "seconds": 8.0
 }

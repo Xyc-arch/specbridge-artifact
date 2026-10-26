@@ -4,32 +4,19 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH diffs AS (SELECT event_status, amount - spent AS diff FROM budget WHERE amount - spent IS NOT NULL), baseline AS (SELECT AVG(diff) AS base FROM diffs) SELECT d.event_status AS status, AVG(d.diff) AS avg_diff, AVG(d.diff) - b.base AS diff_from_baseline FROM diffs d CROSS JOIN baseline b GROUP BY d.event_status, b.base HAVING b.base IS NOT NULL;",
+  "sql": "WITH baseline AS (\n  SELECT AVG(budget.amount - budget.spent) as baseline_avg\n  FROM budget\n  WHERE budget.amount IS NOT NULL AND budget.spent IS NOT NULL\n),\nstatus_averages AS (\n  SELECT\n    budget.event_status,\n    AVG(budget.amount - budget.spent) as average\n  FROM budget\n  WHERE budget.amount IS NOT NULL AND budget.spent IS NOT NULL\n  GROUP BY budget.event_status\n)\nSELECT\n  status_averages.event_status,\n  status_averages.average,\n  status_averages.average - baseline.baseline_avg as difference_from_baseline\nFROM status_averages\nCROSS JOIN baseline\nWHERE baseline.baseline_avg IS NOT NULL",
   "assumptions": [
    {
-    "assumption": "Rows with a NULL event_status form their own group in the output, since the request does not say to exclude them.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The baseline is the average of (amount - spent) over all budget rows where that difference is non-NULL, with each row weighted equally. The per-status averages use the same filter.",
-    "unresolved": false
-   },
-   {
-    "assumption": "If the baseline is NULL, no rows are returned. This happens only when no row has a non-NULL difference, and the HAVING clause enforces it.",
+    "assumption": "A 'missing difference' occurs when either amount or spent is NULL, causing the subtraction to yield NULL. Rows with NULL in either column are excluded from both the baseline and per-status averages.",
     "unresolved": false
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "Exclude rows whose event_status is NULL from the per-status output, while still computing the baseline over all non-NULL differences.",
-    "sql": "WITH diffs AS (SELECT event_status, amount - spent AS diff FROM budget WHERE amount - spent IS NOT NULL), baseline AS (SELECT AVG(diff) AS base FROM diffs) SELECT d.event_status AS status, AVG(d.diff) AS avg_diff, AVG(d.diff) - b.base AS diff_from_baseline FROM diffs d CROSS JOIN baseline b WHERE d.event_status IS NOT NULL GROUP BY d.event_status, b.base HAVING b.base IS NOT NULL;"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 8.0
+ "seconds": 43.2
 }

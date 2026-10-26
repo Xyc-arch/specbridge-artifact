@@ -3,35 +3,30 @@
  "model": "haiku",
  "reading": "B",
  "description": "Compare each team's home-game total with the average number of games in an individual home_game record.",
+ "b": {
+  "request": "Rank the 10 teams with the highest ratio of their cumulative home games to the average games value across all individual home_game records, displaying each team's total home games, its proportion of all home games, and the ratio, sorted descending by ratio with missing values last.",
+  "sql": "SELECT hg.team_id, SUM(hg.games) as total_home_games, SUM(hg.games) / (SELECT SUM(games) FROM home_game WHERE games IS NOT NULL) as proportion_of_all_home_games, SUM(hg.games) / (SELECT AVG(games) FROM home_game WHERE games IS NOT NULL) as ratio FROM home_game hg WHERE hg.games IS NOT NULL GROUP BY hg.team_id ORDER BY ratio DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [],
+  "raw": "Rank the 10 teams with the highest ratio of their cumulative home games to the average games value across all individual home_game records, displaying each team's total home games, its proportion of all home games, and the ratio, sorted descending by ratio with missing values last."
+ },
  "a": {
   "request": "For each team (`team_id`) in `home_game`, add up its home `games`, ignoring missing values. Return the team id, that total, the total as a fraction of the sum over all teams, and the total divided by the average `games` value of a single `home_game` record. Sort by that last ratio from highest to lowest (missing last), keep the top 10, and don't round.",
-  "sql": "WITH team_totals AS (SELECT team_id, SUM(games) AS total_games FROM home_game GROUP BY team_id), overall AS (SELECT SUM(games) AS grand_total, AVG(games) AS avg_games FROM home_game) SELECT t.team_id, t.total_games, 1.0 * t.total_games / o.grand_total AS share_of_total, t.total_games / o.avg_games AS ratio_to_avg_game FROM team_totals t CROSS JOIN overall o ORDER BY ratio_to_avg_game DESC NULLS LAST LIMIT 10;",
+  "sql": "SELECT team_id, SUM(games) as total_games, SUM(games) / (SELECT SUM(games) FROM home_game WHERE games IS NOT NULL) as fraction_of_total, SUM(games) / (SELECT AVG(games) FROM home_game WHERE games IS NOT NULL) as ratio_to_avg FROM home_game GROUP BY team_id ORDER BY ratio_to_avg DESC NULLS LAST LIMIT 10",
   "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": []
  },
  "c": {
   "request": "Which 10 teams have the most home games relative to the average? For each team id, give its total home games (ignoring missing values), its share of all home games, and its total divided by the average number of home games. Sort by that ratio from highest to lowest (missing last) and don't round. Compare each team's home-game total with the average number of games in an individual home_game record.",
-  "sql": "WITH team_totals AS (SELECT team_id, SUM(games) AS total_home_games FROM home_game GROUP BY team_id), overall AS (SELECT SUM(games) AS all_games, AVG(games) AS avg_games FROM home_game) SELECT t.team_id, t.total_home_games, 1.0 * t.total_home_games / o.all_games AS share, t.total_home_games / o.avg_games AS ratio FROM team_totals t CROSS JOIN overall o ORDER BY ratio DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "b": {
-  "request": "Sum each team's `games` from `home_game` (skipping NULL values), divide by the average `games` across all `home_game` records, and report the top 10 teams by that ratio with their total, share of overall home games, and ratio unrounded, sorted descending with NULL ratios last",
-  "sql": "WITH base AS (SELECT team_id, games FROM home_game WHERE games IS NOT NULL), team_totals AS (SELECT team_id, SUM(games) AS total_games FROM base GROUP BY team_id), overall AS (SELECT SUM(games) AS grand_total, AVG(games) AS avg_games FROM base) SELECT t.team_id, t.total_games, t.total_games * 1.0 / o.grand_total AS share_of_home_games, t.total_games / o.avg_games AS ratio FROM team_totals t CROSS JOIN overall o ORDER BY ratio DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Compare each team's total home games with the average number of games per individual home_game record.",
-  "sql": "SELECT team_id, SUM(games) AS total_home_games, AVG(games) AS avg_games_per_record, (SELECT AVG(games) FROM home_game) AS overall_avg_games_per_record, SUM(games) - (SELECT AVG(games) FROM home_game) AS difference_from_overall_avg FROM home_game GROUP BY team_id ORDER BY team_id;",
+  "sql": "WITH team_stats AS (\n  SELECT \n    team_id,\n    SUM(games) as total_home_games\n  FROM home_game\n  WHERE games IS NOT NULL\n  GROUP BY team_id\n),\noverall_stats AS (\n  SELECT \n    AVG(games) as avg_games_per_record,\n    SUM(games) as total_all_games\n  FROM home_game\n  WHERE games IS NOT NULL\n)\nSELECT \n  ts.team_id,\n  ts.total_home_games,\n  ts.total_home_games / os.total_all_games as share_of_all_games,\n  ts.total_home_games / os.avg_games_per_record as ratio_to_average\nFROM team_stats ts\nCROSS JOIN overall_stats os\nORDER BY ratio_to_average DESC NULLS LAST\nLIMIT 10",
   "executes": true,
   "matches": []
- }
+ },
+ "d": {
+  "request": "For each of the top 10 teams by total home games (sum of games column), report the team's total home games, its share of all home games across all records, and its total home games divided by the average games value per individual home_game record.",
+  "sql": "WITH team_games AS (SELECT team_id, SUM(games) as total_games FROM home_game GROUP BY team_id), overall_stats AS (SELECT SUM(games) as total_all_games, AVG(games) as avg_games_per_record FROM home_game), top_10_teams AS (SELECT team_id, total_games FROM team_games ORDER BY total_games DESC LIMIT 10) SELECT t.team_id, t.total_games, (t.total_games / os.total_all_games) as share_of_all_games, (t.total_games / os.avg_games_per_record) as ratio_to_avg FROM top_10_teams t CROSS JOIN overall_stats os ORDER BY t.total_games DESC",
+  "executes": true,
+  "matches": []
+ },
+ "calls": 6
 }

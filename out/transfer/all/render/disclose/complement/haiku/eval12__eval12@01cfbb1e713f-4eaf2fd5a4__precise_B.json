@@ -4,32 +4,22 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "SELECT o.orderflow AS status, AVG(NULLIF(e.fillcount, 0)) AS avg_fillcount, COUNT(*) AS execution_count, CAST(COUNT(*) AS REAL) / SUM(COUNT(*)) OVER () AS execution_fraction FROM orders o JOIN orderexecutions e ON e.ordersmark = o.recordvault GROUP BY o.orderflow;",
+  "sql": "WITH filtered_executions AS (\n  SELECT o.orderflow, oe.fillcount\n  FROM orders o\n  INNER JOIN orderexecutions oe ON o.recordvault = oe.ordersmark\n  WHERE oe.fillcount IS NOT NULL AND oe.fillcount > 0\n),\nstatus_stats AS (\n  SELECT orderflow, AVG(fillcount) as avg_fillcount, COUNT(*) as exec_count\n  FROM filtered_executions\n  GROUP BY orderflow\n),\ntotal_executions AS (\n  SELECT SUM(exec_count) as total_count FROM status_stats\n)\nSELECT s.orderflow, s.avg_fillcount, s.exec_count, CAST(s.exec_count AS DOUBLE PRECISION) / CAST(t.total_count AS DOUBLE PRECISION) as fraction_of_total\nFROM status_stats s\nCROSS JOIN total_executions t\nORDER BY s.orderflow;",
   "assumptions": [
    {
-    "assumption": "execution_count counts every execution linked to an order, including executions with a missing or zero fillcount. The 'left out' clause is read as applying only to the average, not the count.",
+    "assumption": "\"The number of executions\" refers to the count of executions with fillcount > 0 and not NULL\u2014those contributing to the average\u2014not all executions for that status. The phrase \"so they are left out\" applies to both the average calculation and the count, meaning zero and NULL fills are excluded from all metrics.",
     "unresolved": true
-   },
-   {
-    "assumption": "The fraction's denominator is the total of execution_count across all statuses, so the fractions sum to 1 over the joined executions. Executions with no matching order are excluded by the inner join.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Orders with a NULL orderflow form their own NULL status group rather than being dropped.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Zero and missing fills are excluded from the count as well as the average, so execution_count and the fraction only cover executions with a non-zero, non-null fillcount.",
-    "sql": "SELECT o.orderflow AS status, AVG(NULLIF(e.fillcount, 0)) AS avg_fillcount, COUNT(NULLIF(e.fillcount, 0)) AS execution_count, CAST(COUNT(NULLIF(e.fillcount, 0)) AS REAL) / SUM(COUNT(NULLIF(e.fillcount, 0))) OVER () AS execution_fraction FROM orders o JOIN orderexecutions e ON e.ordersmark = o.recordvault GROUP BY o.orderflow;"
+    "interpretation": "\"The number of executions\" refers to all executions for each status (including those with fillcount = 0 or NULL), while the average is still calculated only from non-zero, non-NULL fills. The fraction would be (all executions for status) / (total all executions across statuses).",
+    "sql": "WITH all_executions_per_status AS (\n  SELECT o.orderflow, COUNT(*) as exec_count\n  FROM orders o\n  INNER JOIN orderexecutions oe ON o.recordvault = oe.ordersmark\n  GROUP BY o.orderflow\n),\nfiltered_for_avg AS (\n  SELECT o.orderflow, AVG(oe.fillcount) as avg_fillcount\n  FROM orders o\n  INNER JOIN orderexecutions oe ON o.recordvault = oe.ordersmark\n  WHERE oe.fillcount IS NOT NULL AND oe.fillcount > 0\n  GROUP BY o.orderflow\n),\ntotal_all_executions AS (\n  SELECT SUM(exec_count) as total_count FROM all_executions_per_status\n)\nSELECT a.orderflow, f.avg_fillcount, a.exec_count, CAST(a.exec_count AS DOUBLE PRECISION) / CAST(t.total_count AS DOUBLE PRECISION) as fraction_of_total\nFROM all_executions_per_status a\nLEFT JOIN filtered_for_avg f ON a.orderflow = f.orderflow\nCROSS JOIN total_all_executions t\nORDER BY a.orderflow;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 9.6
+ "primary_matches": [],
+ "seconds": 69.1
 }

@@ -2,33 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-3a20179886",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH counted_trades AS (\n  SELECT \n    t.tradekind,\n    COUNT(DISTINCT tr.transreg) as trade_count\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON ab.translink = tr.transreg\n  JOIN trader t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n),\ntotals_cte AS (\n  SELECT \n    SUM(trade_count) as total_count,\n    AVG(trade_count) as avg_count\n  FROM counted_trades\n),\ntrades_with_metrics AS (\n  SELECT \n    ct.tradekind,\n    ct.trade_count,\n    ct.trade_count::float / tc.total_count as share,\n    ct.trade_count - tc.avg_count as above_avg,\n    tc.avg_count as type_average\n  FROM counted_trades ct\n  CROSS JOIN totals_cte tc\n),\nabove_average_trades AS (\n  SELECT * \n  FROM trades_with_metrics\n  WHERE trade_count > type_average\n)\nSELECT \n  SUM(trade_count) as combined_count,\n  AVG(share) as average_share,\n  AVG(above_avg) as average_above_avg\nFROM above_average_trades",
+  "sql": "WITH cte_joined AS (\n  SELECT \n    ab.abhvreg,\n    t.tradekind\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n  INNER JOIN trader t ON tr.trdref = t.tradereg\n),\ncte_by_type AS (\n  SELECT \n    tradekind,\n    COUNT(*) as count_records,\n    COUNT(*) * 1.0 / (SELECT COUNT(*) FROM cte_joined) as share\n  FROM cte_joined\n  GROUP BY tradekind\n),\ncte_avg AS (\n  SELECT AVG(count_records) as avg_count FROM cte_by_type\n)\nSELECT \n  SUM(ct.count_records) as combined_number,\n  AVG(ct.share) as average_share,\n  AVG(ct.count_records - ca.avg_count) as average_above_avg\nFROM cte_by_type ct\nCROSS JOIN cte_avg ca\nWHERE ct.count_records > ca.avg_count;",
   "assumptions": [
    {
-    "assumption": "An 'analysed trade record' is a unique transactionrecord with an associated advancedbehavior record. If multiple advancedbehavior records reference the same transactionrecord, the trade is counted once.",
-    "unresolved": false
+    "assumption": "\"analysed trade records\" refers to individual advancedbehavior records. Each advancedbehavior record is counted separately; if multiple such records reference the same transaction, both are counted.",
+    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count advancedbehavior records instead of unique transactionrecords, interpreting 'analysed trade records' as the count of analysis records rather than the count of unique trades analysed.",
-    "sql": "WITH counted_analyses AS (\n  SELECT \n    t.tradekind,\n    COUNT(*) as analysis_count\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON ab.translink = tr.transreg\n  JOIN trader t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n),\ntotals_cte AS (\n  SELECT \n    SUM(analysis_count) as total_count,\n    AVG(analysis_count) as avg_count\n  FROM counted_analyses\n),\nanalyses_with_metrics AS (\n  SELECT \n    ca.tradekind,\n    ca.analysis_count,\n    ca.analysis_count::float / tc.total_count as share,\n    ca.analysis_count - tc.avg_count as above_avg,\n    tc.avg_count as type_average\n  FROM counted_analyses ca\n  CROSS JOIN totals_cte tc\n),\nabove_average_analyses AS (\n  SELECT * \n  FROM analyses_with_metrics\n  WHERE analysis_count > type_average\n)\nSELECT \n  SUM(analysis_count) as combined_count,\n  AVG(share) as average_share,\n  AVG(above_avg) as average_above_avg\nFROM above_average_analyses"
+    "interpretation": "Count each distinct transaction once per trader type, rather than counting each advancedbehavior record separately. Use DISTINCT tr.transreg in cte_joined to ensure transactions are counted only once, even if they have multiple linked advancedbehavior records.",
+    "sql": "WITH cte_joined AS (\n  SELECT DISTINCT\n    tr.transreg,\n    t.tradekind\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n  INNER JOIN trader t ON tr.trdref = t.tradereg\n),\ncte_by_type AS (\n  SELECT \n    tradekind,\n    COUNT(*) as count_records,\n    COUNT(*) * 1.0 / (SELECT COUNT(*) FROM cte_joined) as share\n  FROM cte_joined\n  GROUP BY tradekind\n),\ncte_avg AS (\n  SELECT AVG(count_records) as avg_count FROM cte_by_type\n)\nSELECT \n  SUM(ct.count_records) as combined_number,\n  AVG(ct.share) as average_share,\n  AVG(ct.count_records - ca.avg_count) as average_above_avg\nFROM cte_by_type ct\nCROSS JOIN cte_avg ca\nWHERE ct.count_records > ca.avg_count;"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [
   {
-   "interpretation": "Count advancedbehavior records instead of unique transactionrecords, interpreting 'analysed trade records' as the count of analysis records rather than the count of unique trades analysed.",
-   "sql": "WITH counted_analyses AS (\n  SELECT \n    t.tradekind,\n    COUNT(*) as analysis_count\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON ab.translink = tr.transreg\n  JOIN trader t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n),\ntotals_cte AS (\n  SELECT \n    SUM(analysis_count) as total_count,\n    AVG(analysis_count) as avg_count\n  FROM counted_analyses\n),\nanalyses_with_metrics AS (\n  SELECT \n    ca.tradekind,\n    ca.analysis_count,\n    ca.analysis_count::float / tc.total_count as share,\n    ca.analysis_count - tc.avg_count as above_avg,\n    tc.avg_count as type_average\n  FROM counted_analyses ca\n  CROSS JOIN totals_cte tc\n),\nabove_average_analyses AS (\n  SELECT * \n  FROM analyses_with_metrics\n  WHERE analysis_count > type_average\n)\nSELECT \n  SUM(analysis_count) as combined_count,\n  AVG(share) as average_share,\n  AVG(above_avg) as average_above_avg\nFROM above_average_analyses",
-   "executes": false,
-   "matches": []
+   "interpretation": "Count each distinct transaction once per trader type, rather than counting each advancedbehavior record separately. Use DISTINCT tr.transreg in cte_joined to ensure transactions are counted only once, even if they have multiple linked advancedbehavior records.",
+   "sql": "WITH cte_joined AS (\n  SELECT DISTINCT\n    tr.transreg,\n    t.tradekind\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n  INNER JOIN trader t ON tr.trdref = t.tradereg\n),\ncte_by_type AS (\n  SELECT \n    tradekind,\n    COUNT(*) as count_records,\n    COUNT(*) * 1.0 / (SELECT COUNT(*) FROM cte_joined) as share\n  FROM cte_joined\n  GROUP BY tradekind\n),\ncte_avg AS (\n  SELECT AVG(count_records) as avg_count FROM cte_by_type\n)\nSELECT \n  SUM(ct.count_records) as combined_number,\n  AVG(ct.share) as average_share,\n  AVG(ct.count_records - ca.avg_count) as average_above_avg\nFROM cte_by_type ct\nCROSS JOIN cte_avg ca\nWHERE ct.count_records > ca.avg_count;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
   }
  ],
- "seconds": 71.2,
- "chars_out": 2427
+ "seconds": 64.9,
+ "chars_out": 2078
 }

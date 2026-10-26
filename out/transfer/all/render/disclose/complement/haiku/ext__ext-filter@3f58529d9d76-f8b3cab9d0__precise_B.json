@@ -4,32 +4,12 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH filtered AS (SELECT M.Name AS MediaTypeName, T.UnitPrice, CAST(T.Bytes AS REAL) / NULLIF(T.Milliseconds, 0) AS BytesPerMs FROM Track T INNER JOIN MediaType M ON M.MediaTypeId = T.MediaTypeId WHERE T.Bytes > 10323804), per_type AS (SELECT MediaTypeName, AVG(UnitPrice) AS AvgUnitPrice, AVG(BytesPerMs) AS AvgBytesPerMs FROM filtered GROUP BY MediaTypeName), overall AS (SELECT AVG(AvgBytesPerMs) AS AvgOfAvgBytesPerMs FROM per_type) SELECT p.MediaTypeName, p.AvgUnitPrice, p.AvgBytesPerMs, p.AvgBytesPerMs / o.AvgOfAvgBytesPerMs AS RelativeToOverall FROM per_type p CROSS JOIN overall o WHERE o.AvgOfAvgBytesPerMs IS NOT NULL;",
-  "assumptions": [
-   {
-    "assumption": "Track.UnitPrice is the list price per track, and the averages are taken over the qualifying tracks in each media type (AVG skips NULLs).",
-    "unresolved": false
-   },
-   {
-    "assumption": "Each track's file-size-to-length ratio is Bytes divided by Milliseconds as a real number; zero-length tracks give NULL via NULLIF and are ignored in the average.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The 'plain average across all the media types' is the mean of the per-media-type averages of the ratio, so each media type counts equally regardless of how many tracks it has.",
-    "unresolved": true
-   }
-  ],
-  "alternatives": [
-   {
-    "interpretation": "The across-media-type average is the plain average of the ratio over all qualifying tracks (track-weighted), not the mean of the per-media-type averages.",
-    "sql": "WITH filtered AS (SELECT M.Name AS MediaTypeName, T.UnitPrice, CAST(T.Bytes AS REAL) / NULLIF(T.Milliseconds, 0) AS BytesPerMs FROM Track T INNER JOIN MediaType M ON M.MediaTypeId = T.MediaTypeId WHERE T.Bytes > 10323804), per_type AS (SELECT MediaTypeName, AVG(UnitPrice) AS AvgUnitPrice, AVG(BytesPerMs) AS AvgBytesPerMs FROM filtered GROUP BY MediaTypeName), overall AS (SELECT AVG(BytesPerMs) AS AvgBytesPerMsAllTracks FROM filtered) SELECT p.MediaTypeName, p.AvgUnitPrice, p.AvgBytesPerMs, p.AvgBytesPerMs / o.AvgBytesPerMsAllTracks AS RelativeToOverall FROM per_type p CROSS JOIN overall o WHERE o.AvgBytesPerMsAllTracks IS NOT NULL;"
-   }
-  ]
+  "sql": "WITH global_avg AS (\n  SELECT AVG(CAST(t.Bytes AS DECIMAL) / t.Milliseconds) as ratio\n  FROM Track t\n  INNER JOIN MediaType mt ON t.MediaTypeId = mt.MediaTypeId\n  WHERE t.Bytes > 10323804\n),\nmedia_type_avgs AS (\n  SELECT \n    mt.Name,\n    mt.MediaTypeId,\n    AVG(t.UnitPrice) as avg_unit_price,\n    AVG(CAST(t.Bytes AS DECIMAL) / t.Milliseconds) as avg_ratio\n  FROM Track t\n  INNER JOIN MediaType mt ON t.MediaTypeId = mt.MediaTypeId\n  WHERE t.Bytes > 10323804\n  GROUP BY mt.MediaTypeId, mt.Name\n)\nSELECT \n  mta.Name,\n  mta.avg_unit_price,\n  mta.avg_ratio,\n  mta.avg_ratio / ga.ratio as normalized_ratio\nFROM media_type_avgs mta\nCROSS JOIN global_avg ga\nWHERE ga.ratio IS NOT NULL",
+  "assumptions": [],
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 11.8
+ "primary_matches": [],
+ "seconds": 78.6
 }

@@ -3,26 +3,17 @@
  "model": "haiku",
  "reading": "A",
  "description": "Standing orders with an amount of 2802 or more are used in the per-purpose averages and in the overall average.",
- "a": {
-  "request": "Considering only standing orders (the `order` table) whose `amount` is at least 2802, compute the average `amount` for each payment purpose code (`k_symbol`), treating the blank purpose code as a group of its own. Then take the simple average of those per-purpose averages. Which purposes have an average above that overall figure? For each, list the `k_symbol`, its average amount, and how far it exceeds the overall figure (purpose average minus overall figure), without rounding.",
-  "sql": "WITH big AS (SELECT TRIM(COALESCE(k_symbol, '')) AS purpose, amount FROM `order` WHERE amount >= 2802), purpose_avg AS (SELECT purpose, AVG(amount) AS avg_amount FROM big GROUP BY purpose), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM purpose_avg) SELECT p.purpose AS k_symbol, p.avg_amount AS avg_amount, p.avg_amount - o.overall_avg AS excess_over_overall FROM purpose_avg p CROSS JOIN overall o WHERE p.avg_amount > o.overall_avg ORDER BY excess_over_overall DESC;",
+ "d": {
+  "request": "Filter orders where amount >= 2802, calculate the average amount for each k_symbol (treating blank as a separate group), compute the simple average of those per-purpose averages as the overall figure, identify k_symbols with average amount above the overall figure, and for each matching k_symbol report the k_symbol, its average amount, and the excess (average minus overall figure).",
+  "sql": "WITH filtered_orders AS (SELECT k_symbol, amount FROM `order` WHERE amount >= 2802), per_symbol_avg AS (SELECT k_symbol, AVG(amount) as avg_amount FROM filtered_orders GROUP BY k_symbol), overall_avg AS (SELECT AVG(avg_amount) as overall_figure FROM per_symbol_avg) SELECT ps.k_symbol, ps.avg_amount, ps.avg_amount - oa.overall_figure as excess FROM per_symbol_avg ps CROSS JOIN overall_avg oa WHERE ps.avg_amount > oa.overall_figure ORDER BY ps.k_symbol",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "b": {
-  "request": "Which purposes (k_symbol, including the blank code as its own group) have an average order amount, over orders with amount \u2265 2802, that is above the simple mean of those per-purpose averages, and by how much each exceeds it?",
-  "sql": "WITH filtered AS (\n  SELECT COALESCE(k_symbol, '') AS k_symbol, amount\n  FROM `order`\n  WHERE amount >= 2802\n),\nper_purpose AS (\n  SELECT k_symbol, AVG(amount) AS avg_amount\n  FROM filtered\n  GROUP BY k_symbol\n),\noverall AS (\n  SELECT AVG(avg_amount) AS mean_of_avgs FROM per_purpose\n)\nSELECT p.k_symbol,\n       p.avg_amount,\n       p.avg_amount - o.mean_of_avgs AS excess_over_mean\nFROM per_purpose p\nCROSS JOIN overall o\nWHERE p.avg_amount > o.mean_of_avgs\nORDER BY excess_over_mean DESC;",
-  "executes": true,
-  "matches": [
-   "A"
-  ],
-  "raw": "Which purposes (k_symbol, including the blank code as its own group) have an average order amount, over orders with amount \u2265 2802, that is above the simple mean of those per-purpose averages, and by how much each exceeds it?"
- },
- "d": {
-  "request": "Among standing orders with `amount >= 2802` in the `order` table, compute each `k_symbol` group's mean `amount` (with blank `k_symbol` as its own group), take the unweighted mean of those group means as the overall figure, and list each group whose mean exceeds that figure, with its mean and (group mean \u2212 overall figure) unrounded.",
-  "sql": "WITH filtered AS (SELECT TRIM(COALESCE(k_symbol, '')) AS k, amount FROM `order` WHERE amount >= 2802), group_means AS (SELECT k, AVG(amount) AS mean_amount FROM filtered GROUP BY k), overall AS (SELECT AVG(mean_amount) AS overall_mean FROM group_means) SELECT g.k AS k_symbol, g.mean_amount AS mean_amount, g.mean_amount - o.overall_mean AS diff_from_overall FROM group_means g CROSS JOIN overall o WHERE g.mean_amount > o.overall_mean;",
+ "a": {
+  "request": "Considering only standing orders (the `order` table) whose `amount` is at least 2802, compute the average `amount` for each payment purpose code (`k_symbol`), treating the blank purpose code as a group of its own. Then take the simple average of those per-purpose averages. Which purposes have an average above that overall figure? For each, list the `k_symbol`, its average amount, and how far it exceeds the overall figure (purpose average minus overall figure), without rounding.",
+  "sql": "WITH filtered_orders AS (SELECT k_symbol, amount FROM `order` WHERE amount >= 2802), purpose_averages AS (SELECT k_symbol, AVG(amount) as avg_amount FROM filtered_orders GROUP BY k_symbol), overall_average AS (SELECT AVG(avg_amount) as overall_avg FROM purpose_averages) SELECT pa.k_symbol, pa.avg_amount, pa.avg_amount - oa.overall_avg as exceeds FROM purpose_averages pa CROSS JOIN overall_average oa WHERE pa.avg_amount > oa.overall_avg ORDER BY pa.k_symbol",
   "executes": true,
   "matches": [
    "A"
@@ -30,11 +21,18 @@
  },
  "c": {
   "request": "Using an `amount` of 2802 as the cutoff for a large standing order (the `order` table), compute the average `amount` of the large orders for each payment purpose code (`k_symbol`), treating the blank purpose code as a group of its own. Then take the simple average of those per-purpose averages. Which purposes have an average above that overall figure? For each, list the `k_symbol`, its average amount, and how far it exceeds the overall figure (purpose average minus overall figure), without rounding. Standing orders with an amount of 2802 or more are used in the per-purpose averages and in the overall average.",
-  "sql": "WITH large AS (SELECT TRIM(k_symbol) AS k_symbol, amount FROM `order` WHERE amount >= 2802), per_purpose AS (SELECT k_symbol, AVG(amount) AS avg_amount FROM large GROUP BY k_symbol), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM per_purpose) SELECT p.k_symbol, p.avg_amount, p.avg_amount - o.overall_avg AS excess FROM per_purpose p CROSS JOIN overall o WHERE p.avg_amount > o.overall_avg;",
+  "sql": "WITH per_purpose AS (SELECT k_symbol, AVG(amount) as avg_amount FROM order WHERE amount >= 2802 GROUP BY k_symbol), overall AS (SELECT AVG(avg_amount) as overall_avg FROM per_purpose) SELECT per_purpose.k_symbol, per_purpose.avg_amount, per_purpose.avg_amount - overall.overall_avg as exceeds FROM per_purpose CROSS JOIN overall WHERE per_purpose.avg_amount > overall.overall_avg ORDER BY per_purpose.k_symbol",
+  "executes": false,
+  "matches": []
+ },
+ "b": {
+  "request": "Filter the order table to orders with amount >= 2802, group by k_symbol (treating blank/null as a separate group), calculate the mean amount for each k_symbol, compute the simple average of these per-k_symbol means as the overall reference figure, then report which k_symbols have a mean amount exceeding this overall figure, listing the k_symbol, its mean amount, and the difference (purpose mean minus overall figure), without rounding.",
+  "sql": "WITH filtered_orders AS (SELECT k_symbol, amount FROM `order` WHERE amount >= 2802), k_symbol_means AS (SELECT k_symbol, AVG(amount) as mean_amount FROM filtered_orders GROUP BY k_symbol), overall_mean AS (SELECT AVG(mean_amount) as overall_figure FROM k_symbol_means) SELECT k_symbol_means.k_symbol, k_symbol_means.mean_amount, k_symbol_means.mean_amount - overall_mean.overall_figure as difference FROM k_symbol_means CROSS JOIN overall_mean WHERE k_symbol_means.mean_amount > overall_mean.overall_figure",
   "executes": true,
   "matches": [
    "A"
-  ]
+  ],
+  "raw": "Filter the order table to orders with amount >= 2802, group by k_symbol (treating blank/null as a separate group), calculate the mean amount for each k_symbol, compute the simple average of these per-k_symbol means as the overall reference figure, then report which k_symbols have a mean amount exceeding this overall figure, listing the k_symbol, its mean amount, and the difference (purpose mean minus overall figure), without rounding."
  },
  "calls": 6
 }

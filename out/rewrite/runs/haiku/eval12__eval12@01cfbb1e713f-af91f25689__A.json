@@ -3,17 +3,9 @@
  "model": "haiku",
  "reading": "A",
  "description": "The average number of qualifying records per driver is computed only over drivers who appear in the qualifying table.",
- "c": {
-  "request": "Which 10 drivers have the most qualifying entries compared with the average driver? For each, show the driver ID, how many qualifying records they have, and that number divided by the average number of qualifying records per driver (unrounded), highest ratio first. The average number of qualifying records per driver is computed only over drivers who appear in the qualifying table.",
-  "sql": "WITH counts AS (SELECT driverId, COUNT(*) AS cnt FROM qualifying GROUP BY driverId), avg_cnt AS (SELECT AVG(cnt) AS avg_c FROM counts) SELECT c.driverId AS driverId, c.cnt AS qualifying_count, c.cnt * 1.0 / a.avg_c AS ratio FROM counts c CROSS JOIN avg_cnt a ORDER BY ratio DESC LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "b": {
-  "request": "Top 10 drivers by qualifying record count, each shown as driverId, count, and count \u00f7 (total qualifying rows \u00f7 distinct drivers in qualifying, unrounded), sorted by ratio descending",
-  "sql": "WITH q AS (SELECT driverId, COUNT(*) AS cnt FROM qualifying GROUP BY driverId), top AS (SELECT driverId, cnt FROM q ORDER BY cnt DESC LIMIT 10), stats AS (SELECT COUNT(*) * 1.0 / COUNT(DISTINCT driverId) AS avg_per_driver FROM qualifying) SELECT t.driverId AS driverId, t.cnt AS count, t.cnt / s.avg_per_driver AS ratio FROM top t CROSS JOIN stats s ORDER BY ratio DESC;",
+ "d": {
+  "request": "Find the top 10 drivers by the ratio of their qualifying record count to the average qualifying record count (calculated only among drivers with qualifying records), showing driver ID, number of qualifying records, and unrounded ratio, sorted by highest ratio first.",
+  "sql": "WITH driver_qualifying_counts AS (SELECT driverId, COUNT(*) as qualifying_count FROM qualifying GROUP BY driverId), avg_qualifying_count AS (SELECT AVG(qualifying_count) as avg_count FROM driver_qualifying_counts) SELECT dqc.driverId, dqc.qualifying_count, dqc.qualifying_count / (SELECT avg_count FROM avg_qualifying_count) as ratio FROM driver_qualifying_counts dqc ORDER BY ratio DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
@@ -21,19 +13,28 @@
  },
  "a": {
   "request": "For each driver who appears in the `qualifying` table, count their qualifying records and divide that count by the average number of qualifying records per driver, where the average is taken only over drivers who have at least one qualifying record. Show the `driverId`, the count, and the unrounded ratio for the 10 drivers with the highest ratio, highest first.",
-  "sql": "WITH q AS (SELECT driverId, COUNT(*) AS cnt FROM qualifying GROUP BY driverId), avg_c AS (SELECT CAST(SUM(cnt) AS REAL) / COUNT(*) AS avg_cnt FROM q) SELECT q.driverId, q.cnt AS count, q.cnt / avg_c.avg_cnt AS ratio FROM q, avg_c ORDER BY ratio DESC LIMIT 10;",
+  "sql": "WITH driver_qualifying_counts AS (SELECT driverId, COUNT(*) as qualifying_count FROM qualifying GROUP BY driverId), average_count AS (SELECT AVG(qualifying_count) as avg_qualifying FROM driver_qualifying_counts) SELECT dqc.driverId, dqc.qualifying_count as count, CAST(dqc.qualifying_count AS REAL) / ac.avg_qualifying as ratio FROM driver_qualifying_counts dqc CROSS JOIN average_count ac ORDER BY ratio DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Among the drivers who appear in the qualifying table, which 10 have the most qualifying entries relative to the average, and for each show the driver ID, its qualifying record count, and that count divided by the unrounded average qualifying records per driver (where the average covers only drivers present in the qualifying table), sorted by that ratio from highest to lowest?",
-  "sql": "WITH q AS (SELECT driverId, COUNT(*) AS cnt FROM qualifying WHERE driverId IS NOT NULL GROUP BY driverId), avg_q AS (SELECT AVG(cnt) AS avg_cnt FROM q) SELECT q.driverId AS driverId, q.cnt AS qualifying_records, q.cnt * 1.0 / avg_q.avg_cnt AS ratio FROM q CROSS JOIN avg_q ORDER BY ratio DESC LIMIT 10;",
+ "c": {
+  "request": "Which 10 drivers have the most qualifying entries compared with the average driver? For each, show the driver ID, how many qualifying records they have, and that number divided by the average number of qualifying records per driver (unrounded), highest ratio first. The average number of qualifying records per driver is computed only over drivers who appear in the qualifying table.",
+  "sql": "WITH driver_counts AS (\n  SELECT \n    driverId,\n    COUNT(*) as count\n  FROM qualifying\n  GROUP BY driverId\n),\navg_count AS (\n  SELECT AVG(count) as avg\n  FROM driver_counts\n)\nSELECT \n  dc.driverId,\n  dc.count,\n  dc.count * 1.0 / ac.avg as ratio\nFROM driver_counts dc\nCROSS JOIN avg_count ac\nORDER BY ratio DESC\nLIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
- }
+ },
+ "b": {
+  "request": "For the 10 drivers with the highest ratio of their individual qualifying record count to the average qualifying record count per driver (where the average is calculated across all drivers appearing in the qualifying table), display the driver ID, their qualifying record count, and their count divided by that average, sorted by ratio in descending order.",
+  "sql": "WITH driver_qualify_counts AS (\n  SELECT \n    driverId, \n    COUNT(*) as qualify_count\n  FROM qualifying\n  GROUP BY driverId\n),\navg_qualify_count AS (\n  SELECT AVG(qualify_count) as avg_count\n  FROM driver_qualify_counts\n)\nSELECT \n  d.driverId,\n  d.qualify_count,\n  d.qualify_count / a.avg_count as ratio\nFROM driver_qualify_counts d\nCROSS JOIN avg_qualify_count a\nORDER BY ratio DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "For the 10 drivers with the highest ratio of their individual qualifying record count to the average qualifying record count per driver (where the average is calculated across all drivers appearing in the qualifying table), display the driver ID, their qualifying record count, and their count divided by that average, sorted by ratio in descending order."
+ },
+ "calls": 6
 }

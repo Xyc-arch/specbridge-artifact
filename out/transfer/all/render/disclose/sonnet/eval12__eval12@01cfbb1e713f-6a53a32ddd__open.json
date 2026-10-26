@@ -2,31 +2,31 @@
  "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_source AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_rel_diff, SUM(CASE WHEN s.aream2 IS NOT NULL AND s.volm3 IS NOT NULL THEN s.aream2 END) / NULLIF(SUM(CASE WHEN s.aream2 IS NOT NULL AND s.volm3 IS NOT NULL THEN s.volm3 END), 0) AS area_vol_ratio FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), with_avg AS (SELECT *, AVG(area_vol_ratio) OVER () AS avg_ratio FROM per_source) SELECT fundflux, avg_rel_diff, area_vol_ratio, area_vol_ratio - avg_ratio AS ratio_above_average FROM with_avg WHERE area_vol_ratio > avg_ratio",
+  "sql": "WITH j AS (SELECT p.fundflux, s.aream2, s.volm3, s.boxx, s.boxy FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref), g AS (SELECT fundflux, AVG(CASE WHEN boxx IS NOT NULL AND boxy IS NOT NULL AND boxx <> 0 THEN (boxy - boxx) * 1.0 / boxx END) AS avg_rel_diff, SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN aream2 END) * 1.0 / NULLIF(SUM(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL THEN volm3 END), 0) AS ratio FROM j GROUP BY fundflux), a AS (SELECT AVG(ratio) AS avg_ratio FROM g) SELECT g.fundflux, g.avg_rel_diff, g.ratio, g.ratio - a.avg_ratio AS excess_over_avg FROM g CROSS JOIN a WHERE g.ratio > a.avg_ratio",
   "assumptions": [
    {
-    "assumption": "A funding source's area-to-volume ratio is SUM(aream2)/SUM(volm3), using only records where both values are present. This is a ratio of totals, not an average of per-record ratios.",
+    "assumption": "A funding source's area-to-volume ratio is its total aream2 divided by its total volm3, using only records where both values are present. The request defines per-record calculation only for the Y-vs-X difference, so the ratio is treated as an aggregate.",
     "unresolved": true
    },
    {
-    "assumption": "The 'simple average' is the unweighted mean of the per-funding-source ratios, with each funding source counted once.",
+    "assumption": "The relative difference is averaged only over records with non-null boxx and boxy and nonzero boxx, to avoid dividing by zero.",
     "unresolved": false
    },
    {
-    "assumption": "Records with boxx of 0 or NULL are left out of the relative-difference average, and a funding source with a NULL name is treated as its own group.",
+    "assumption": "The simple average is the unweighted mean of the per-funding-source ratios. Projects with a NULL fundflux are kept as their own group, which is included in that mean but cannot be told apart from a funding source named by the data.",
     "unresolved": false
    },
    {
-    "assumption": "An inner join to projects drops spatial records that have no matching project.",
+    "assumption": "The inner join drops spatial records whose arcref has no matching project, as requested.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The ratio is the average of the per-record aream2/volm3 values within each funding source, not a ratio of totals.",
-    "sql": "WITH per_source AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_rel_diff, AVG(s.aream2 / NULLIF(s.volm3, 0)) AS area_vol_ratio FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), with_avg AS (SELECT *, AVG(area_vol_ratio) OVER () AS avg_ratio FROM per_source) SELECT fundflux, avg_rel_diff, area_vol_ratio, area_vol_ratio - avg_ratio AS ratio_above_average FROM with_avg WHERE area_vol_ratio > avg_ratio"
+    "interpretation": "The ratio is the average of the per-record aream2/volm3 values within each funding source, skipping records where either value is missing or volm3 is 0.",
+    "sql": "WITH j AS (SELECT p.fundflux, s.aream2, s.volm3, s.boxx, s.boxy FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref), g AS (SELECT fundflux, AVG(CASE WHEN boxx IS NOT NULL AND boxy IS NOT NULL AND boxx <> 0 THEN (boxy - boxx) * 1.0 / boxx END) AS avg_rel_diff, AVG(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL AND volm3 <> 0 THEN aream2 * 1.0 / volm3 END) AS ratio FROM j GROUP BY fundflux), a AS (SELECT AVG(ratio) AS avg_ratio FROM g) SELECT g.fundflux, g.avg_rel_diff, g.ratio, g.ratio - a.avg_ratio AS excess_over_avg FROM g CROSS JOIN a WHERE g.ratio > a.avg_ratio"
    }
   ]
  },
@@ -37,14 +37,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The ratio is the average of the per-record aream2/volm3 values within each funding source, not a ratio of totals.",
-   "sql": "WITH per_source AS (SELECT p.fundflux, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_rel_diff, AVG(s.aream2 / NULLIF(s.volm3, 0)) AS area_vol_ratio FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), with_avg AS (SELECT *, AVG(area_vol_ratio) OVER () AS avg_ratio FROM per_source) SELECT fundflux, avg_rel_diff, area_vol_ratio, area_vol_ratio - avg_ratio AS ratio_above_average FROM with_avg WHERE area_vol_ratio > avg_ratio",
+   "interpretation": "The ratio is the average of the per-record aream2/volm3 values within each funding source, skipping records where either value is missing or volm3 is 0.",
+   "sql": "WITH j AS (SELECT p.fundflux, s.aream2, s.volm3, s.boxx, s.boxy FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref), g AS (SELECT fundflux, AVG(CASE WHEN boxx IS NOT NULL AND boxy IS NOT NULL AND boxx <> 0 THEN (boxy - boxx) * 1.0 / boxx END) AS avg_rel_diff, AVG(CASE WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL AND volm3 <> 0 THEN aream2 * 1.0 / volm3 END) AS ratio FROM j GROUP BY fundflux), a AS (SELECT AVG(ratio) AS avg_ratio FROM g) SELECT g.fundflux, g.avg_rel_diff, g.ratio, g.ratio - a.avg_ratio AS excess_over_avg FROM g CROSS JOIN a WHERE g.ratio > a.avg_ratio",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 11.5,
- "chars_out": 1998
+ "seconds": 13.2,
+ "chars_out": 2304
 }

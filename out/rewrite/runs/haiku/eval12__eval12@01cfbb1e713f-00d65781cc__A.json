@@ -3,9 +3,15 @@
  "model": "haiku",
  "reading": "A",
  "description": "A color's invoiced amount is the number of invoice line items for products of that color.",
+ "d": {
+  "request": "For each product color (treating NULL colors as a separate group), count the number of invoice line items; calculate each color's share of total invoice line items; filter to colors whose item count exceeds the average item count per color; and report one row with these above-average colors' average invoiced item count, average share of total, and average excess above the per-color mean.",
+  "sql": "WITH color_counts AS (\n  SELECT \n    p.product_color,\n    COUNT(*) as item_count\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON ili.product_id = p.product_id\n  GROUP BY p.product_color\n),\ntotal_items AS (\n  SELECT COUNT(*) as total FROM Invoice_Line_Items\n),\navg_count AS (\n  SELECT AVG(item_count) as avg_item_count FROM color_counts\n),\ncolor_with_stats AS (\n  SELECT \n    cc.item_count,\n    cc.item_count / (SELECT total FROM total_items) as share,\n    cc.item_count - (SELECT avg_item_count FROM avg_count) as excess\n  FROM color_counts cc\n  WHERE cc.item_count > (SELECT avg_item_count FROM avg_count)\n)\nSELECT \n  AVG(item_count) as avg_invoiced_item_count,\n  AVG(share) as avg_share_of_total,\n  AVG(excess) as avg_excess_above_per_color_mean\nFROM color_with_stats",
+  "executes": true,
+  "matches": []
+ },
  "a": {
   "request": "For each product color, count how many invoice line items were for products of that color. Products with no color count as their own group. Work out each color's share of the overall number of line items. Keep the colors whose count is above the average count per color. Over those colors, give one row with the average count, the average share, and the average amount by which the count exceeds the per-color average. Don't round anything.",
-  "sql": "WITH color_counts AS (SELECT p.product_color AS color, COUNT(*) AS cnt FROM Invoice_Line_Items ili JOIN Products p ON ili.product_id = p.product_id GROUP BY p.product_color), stats AS (SELECT SUM(cnt) AS total_cnt, AVG(cnt) AS avg_cnt FROM color_counts), shares AS (SELECT cc.color, cc.cnt, CAST(cc.cnt AS REAL) / s.total_cnt AS share, s.avg_cnt FROM color_counts cc CROSS JOIN stats s) SELECT AVG(cnt) AS avg_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess_over_color_average FROM shares WHERE cnt > avg_cnt;",
+  "sql": "WITH color_counts AS (\n  SELECT \n    p.product_color,\n    COUNT(*) as color_count\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON ili.product_id = p.product_id\n  GROUP BY p.product_color\n),\nstats AS (\n  SELECT \n    (SELECT COUNT(*) FROM Invoice_Line_Items) as total_items,\n    AVG(color_count) as avg_count_per_color\n  FROM color_counts\n),\nfiltered_colors AS (\n  SELECT \n    cc.color_count,\n    cc.color_count * 1.0 / s.total_items as share,\n    cc.color_count - s.avg_count_per_color as exceeds_average\n  FROM color_counts cc\n  CROSS JOIN stats s\n  WHERE cc.color_count > s.avg_count_per_color\n)\nSELECT \n  AVG(color_count) as avg_count,\n  AVG(share) as avg_share,\n  AVG(exceeds_average) as avg_exceeds\nFROM filtered_colors",
   "executes": true,
   "matches": [
    "A"
@@ -13,23 +19,16 @@
  },
  "c": {
   "request": "How much of each product color was invoiced? Products with no color count as their own group. Work out each color's share of the total invoiced. Look at the colors whose invoiced amount is above the average per color. For those colors, give one row with their average invoiced amount, their average share, and how far above the per-color average they are on average. Don't round anything. A color's invoiced amount is the number of invoice line items for products of that color.",
-  "sql": "WITH color_counts AS (SELECT p.product_color AS color, COUNT(*) AS invoiced FROM Invoice_Line_Items ili JOIN Products p ON p.product_id = ili.product_id GROUP BY p.product_color), totals AS (SELECT SUM(invoiced) AS total, AVG(invoiced) AS avg_invoiced FROM color_counts), shares AS (SELECT cc.color, cc.invoiced, CAST(cc.invoiced AS REAL) / t.total AS share, t.avg_invoiced FROM color_counts cc CROSS JOIN totals t WHERE cc.invoiced > t.avg_invoiced) SELECT AVG(invoiced) AS avg_invoiced_amount, AVG(share) AS avg_share, AVG(invoiced - avg_invoiced) AS avg_above_average FROM shares;",
+  "sql": "WITH color_invoices AS (\n  SELECT \n    COALESCE(p.product_color, 'No Color') as color,\n    COUNT(*) as invoiced_amount\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON ili.product_id = p.product_id\n  GROUP BY COALESCE(p.product_color, 'No Color')\n),\nstats AS (\n  SELECT \n    invoiced_amount,\n    invoiced_amount / (SELECT SUM(invoiced_amount) FROM color_invoices) as share,\n    (SELECT AVG(invoiced_amount) FROM color_invoices) as avg_inv\n  FROM color_invoices\n)\nSELECT \n  AVG(invoiced_amount) as avg_invoiced_amount,\n  AVG(share) as avg_share,\n  AVG(invoiced_amount - avg_inv) as avg_above_average\nFROM stats\nWHERE invoiced_amount > avg_inv",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
  },
  "b": {
-  "request": "Count the invoice line items per product color, with products that have no color (NULL) as their own group, then compute each color's share of the total count, keep the colors whose count is above the average count per color, and output one row per kept color with its average count, average share, and average amount above the per-color average, unrounded",
-  "sql": "WITH color_counts AS (\n  SELECT p.product_color AS color, COUNT(*) AS cnt\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON ili.product_id = p.product_id\n  GROUP BY p.product_color\n),\ntotals AS (\n  SELECT SUM(cnt) AS total_cnt, AVG(cnt) AS avg_cnt FROM color_counts\n),\nshares AS (\n  SELECT cc.color, cc.cnt, cc.cnt * 1.0 / t.total_cnt AS share, t.avg_cnt\n  FROM color_counts cc CROSS JOIN totals t\n)\nSELECT color, cnt AS color_count, avg_cnt AS avg_count, share, cnt - avg_cnt AS amount_above_avg\nFROM shares\nWHERE cnt > avg_cnt;",
+  "request": "Count invoice line items per product color (with NULL as a separate group), compute each color's share of total line item count, identify colors exceeding the average line item count, and output one row with their average count, average share, and average excess above the per-color average.",
+  "sql": "WITH color_counts AS (\n  SELECT \n    p.product_color,\n    COUNT(*) as line_item_count\n  FROM Invoice_Line_Items ili\n  JOIN Products p ON ili.product_id = p.product_id\n  GROUP BY p.product_color\n),\nwith_totals AS (\n  SELECT \n    cc.product_color,\n    cc.line_item_count,\n    SUM(cc.line_item_count) OVER () as total_count,\n    AVG(cc.line_item_count) OVER () as avg_count\n  FROM color_counts cc\n),\nenriched AS (\n  SELECT \n    product_color,\n    line_item_count,\n    line_item_count / total_count as color_share,\n    avg_count,\n    line_item_count - avg_count as excess\n  FROM with_totals\n  WHERE line_item_count > avg_count\n)\nSELECT \n  AVG(line_item_count) as average_count,\n  AVG(color_share) as average_share,\n  AVG(excess) as average_excess\nFROM enriched;",
   "executes": true,
-  "matches": []
+  "matches": [],
+  "raw": "Count invoice line items per product color (with NULL as a separate group), compute each color's share of total line item count, identify colors exceeding the average line item count, and output one row with their average count, average share, and average excess above the per-color average."
  },
- "calls": 6,
- "d": {
-  "request": "Among the color groups, which ones have an invoiced amount (the count of invoice line items for products of that color) above the per-color average, and for those colors, what are the average invoiced amount, average share of the total, and average percentage above the per-color average? Products with no color count as their own group, and nothing should be rounded.",
-  "sql": "WITH color_counts AS (SELECT p.product_color AS color, COUNT(*) AS invoiced_amount FROM Invoice_Line_Items ili JOIN Products p ON p.product_id = ili.product_id GROUP BY p.product_color), stats AS (SELECT AVG(invoiced_amount) AS avg_amount, SUM(invoiced_amount) AS total_amount FROM color_counts), above_avg AS (SELECT cc.color, cc.invoiced_amount, cc.invoiced_amount * 1.0 / s.total_amount AS share_of_total, (cc.invoiced_amount - s.avg_amount) * 100.0 / s.avg_amount AS pct_above_average FROM color_counts cc CROSS JOIN stats s WHERE cc.invoiced_amount > s.avg_amount) SELECT AVG(invoiced_amount) AS avg_invoiced_amount, AVG(share_of_total) AS avg_share_of_total, AVG(pct_above_average) AS avg_pct_above_average FROM above_avg;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

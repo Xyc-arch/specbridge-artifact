@@ -4,34 +4,33 @@
  "reading": "B",
  "description": "Compare each channel's average fee rate to the overall average fee rate across all linked fee records.",
  "b": {
-  "request": "Among fee records linked to orders (`fees.orderslink` = `orders.recordvault`, with NULL `feerate` excluded), return one row for the `orders.orderbase` channels whose mean `feerate` exceeds the overall mean `feerate` across all those linked records, giving the mean of those channels' mean rates and the average amount by which they exceed the overall mean, unrounded",
-  "sql": "WITH linked AS (SELECT o.orderbase, f.feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL), overall AS (SELECT AVG(feerate) AS overall_mean FROM linked), channel AS (SELECT orderbase, AVG(feerate) AS channel_mean FROM linked WHERE orderbase IS NOT NULL GROUP BY orderbase), above AS (SELECT c.channel_mean FROM channel c CROSS JOIN overall ov WHERE c.channel_mean > ov.overall_mean) SELECT AVG(a.channel_mean) AS mean_of_channel_means, AVG(a.channel_mean - ov.overall_mean) AS avg_excess_over_overall_mean FROM above a CROSS JOIN overall ov;",
+  "request": "For each order channel with linked fees, calculate that channel's average fee rate; identify channels whose average fee rate exceeds the global average fee rate across all linked fees; return a single row containing the mean of the above-average channels' average fee rates and the average amount by which these channels' mean rate exceeds the global average rate.",
+  "sql": "WITH global_avg AS (\n  SELECT AVG(f.feerate) as global_avg_fee_rate\n  FROM fees f\n),\nchannel_avgs AS (\n  SELECT o.exchspot, AVG(f.feerate) as channel_avg_fee_rate\n  FROM orders o\n  JOIN fees f ON o.recordvault = f.orderslink\n  GROUP BY o.exchspot\n),\nabove_avg_channels AS (\n  SELECT ca.channel_avg_fee_rate, ga.global_avg_fee_rate\n  FROM channel_avgs ca\n  CROSS JOIN global_avg ga\n  WHERE ca.channel_avg_fee_rate > ga.global_avg_fee_rate\n)\nSELECT \n  AVG(aac.channel_avg_fee_rate) as mean_of_above_average_rates,\n  AVG(aac.channel_avg_fee_rate - aac.global_avg_fee_rate) as avg_excess_over_global\nFROM above_avg_channels aac",
   "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "a": {
-  "request": "Looking at fees linked to orders (`fees.orderslink` = `orders.recordvault`), compute each order channel's (`orders.orderbase`) average fee rate (`feerate`, ignoring missing values), and use the average fee rate over all those linked fee records as the benchmark. For the channels whose average is strictly above that benchmark, return a single row with the mean of their average fee rates and the mean of how far each one exceeds the benchmark, unrounded.",
-  "sql": "WITH linked AS (SELECT o.orderbase, f.feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL), channel AS (SELECT orderbase, AVG(feerate) AS chan_avg FROM linked GROUP BY orderbase), bench AS (SELECT AVG(feerate) AS benchmark FROM linked) SELECT AVG(c.chan_avg) AS mean_channel_avg, AVG(c.chan_avg - b.benchmark) AS mean_excess FROM channel c CROSS JOIN bench b WHERE c.chan_avg > b.benchmark;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": [],
+  "raw": "For each order channel with linked fees, calculate that channel's average fee rate; identify channels whose average fee rate exceeds the global average fee rate across all linked fees; return a single row containing the mean of the above-average channels' average fee rates and the average amount by which these channels' mean rate exceeds the global average rate."
  },
  "c": {
   "request": "For fees tied to orders (`fees.orderslink` = `orders.recordvault`), which order channels (`orders.orderbase`) have an above-average fee rate (`feerate`, ignoring missing values)? Give me one row: those channels' mean average fee rate and, on average, how far above average they are, unrounded. Compare each channel's average fee rate to the overall average fee rate across all linked fee records.",
-  "sql": "WITH linked AS (\n  SELECT o.orderbase, f.feerate\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL\n),\noverall AS (\n  SELECT AVG(feerate) AS overall_avg FROM linked\n),\nchan AS (\n  SELECT orderbase, AVG(feerate) AS chan_avg FROM linked GROUP BY orderbase\n),\nabove AS (\n  SELECT c.chan_avg, c.chan_avg - o.overall_avg AS gap\n  FROM chan c CROSS JOIN overall o\n  WHERE c.chan_avg > o.overall_avg\n)\nSELECT AVG(chan_avg) AS mean_above_avg_fee_rate,\n       AVG(gap) AS avg_gap_above_overall\nFROM above;",
+  "sql": "WITH channel_avgs AS (\n  SELECT \n    o.orderbase,\n    AVG(f.feerate) as channel_avg\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL\n  GROUP BY o.orderbase\n),\noverall_avg_calc AS (\n  SELECT AVG(f.feerate) as overall_avg\n  FROM fees f\n  WHERE f.orderslink IS NOT NULL AND f.feerate IS NOT NULL\n)\nSELECT\n  AVG(ca.channel_avg) as mean_fee_rate,\n  AVG(ca.channel_avg - oa.overall_avg) as avg_distance_above_average\nFROM channel_avgs ca\nCROSS JOIN overall_avg_calc oa\nWHERE ca.channel_avg > oa.overall_avg",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "calls": 6,
  "d": {
-  "request": "Compare each channel's average fee rate against the overall average fee rate across all fee records linked to orders (`fees.orderslink` = `orders.recordvault`), ignoring missing `feerate` values.",
-  "sql": "WITH channel_fees AS (SELECT o.orderbase AS channel, AVG(f.feerate) AS channel_avg_fee_rate, COUNT(f.feerate) AS fee_count FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL GROUP BY o.orderbase), overall AS (SELECT AVG(f.feerate) AS overall_avg_fee_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL) SELECT c.channel, c.channel_avg_fee_rate, c.fee_count, o.overall_avg_fee_rate, c.channel_avg_fee_rate - o.overall_avg_fee_rate AS diff_from_overall FROM channel_fees c CROSS JOIN overall o ORDER BY c.channel;",
+  "request": "Identify order channels whose mean fee rate exceeds the overall mean fee rate across all linked fee records, returning the mean fee rate of those above-average channels and their average margin above the overall mean.",
+  "sql": "WITH overall_mean AS (\n  SELECT AVG(f.feerate) AS mean_fee_rate\n  FROM fees f\n  WHERE f.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    o.orderbase,\n    AVG(f.feerate) AS channel_mean_fee_rate\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL\n  GROUP BY o.orderbase\n)\nSELECT\n  cs.orderbase AS channel,\n  cs.channel_mean_fee_rate,\n  (cs.channel_mean_fee_rate - om.mean_fee_rate) AS avg_margin_above_overall_mean\nFROM channel_stats cs\nCROSS JOIN overall_mean om\nWHERE cs.channel_mean_fee_rate > om.mean_fee_rate\nORDER BY cs.channel_mean_fee_rate DESC;",
   "executes": true,
   "matches": []
- }
+ },
+ "a": {
+  "request": "Looking at fees linked to orders (`fees.orderslink` = `orders.recordvault`), compute each order channel's (`orders.orderbase`) average fee rate (`feerate`, ignoring missing values), and use the average fee rate over all those linked fee records as the benchmark. For the channels whose average is strictly above that benchmark, return a single row with the mean of their average fee rates and the mean of how far each one exceeds the benchmark, unrounded.",
+  "sql": "WITH linked_fees AS (\n  SELECT f.feerate, o.orderbase\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL\n),\nchannel_avgs AS (\n  SELECT orderbase, AVG(feerate) as channel_avg\n  FROM linked_fees\n  GROUP BY orderbase\n),\noverall_avg AS (\n  SELECT AVG(feerate) as benchmark\n  FROM linked_fees\n),\nabove_benchmark AS (\n  SELECT c.channel_avg, (c.channel_avg - o.benchmark) as excess\n  FROM channel_avgs c\n  CROSS JOIN overall_avg o\n  WHERE c.channel_avg > o.benchmark\n)\nSELECT AVG(channel_avg) as mean_avg_fee_rates, AVG(excess) as mean_excess\nFROM above_benchmark",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "calls": 6
 }

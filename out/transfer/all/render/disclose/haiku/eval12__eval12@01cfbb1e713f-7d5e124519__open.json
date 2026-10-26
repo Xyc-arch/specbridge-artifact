@@ -2,37 +2,41 @@
  "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH execution_stats AS (\n  SELECT\n    oe.ordersmark,\n    AVG(oe.fillcount) as order_avg_fill\n  FROM orderexecutions oe\n  WHERE oe.ordersmark IS NOT NULL AND oe.fillcount IS NOT NULL\n  GROUP BY oe.ordersmark\n),\ntimespan_stats AS (\n  SELECT\n    o.timespan,\n    AVG(oe.fillcount) as timespan_avg_fill\n  FROM orderexecutions oe\n  JOIN orders o ON oe.ordersmark = o.recordvault\n  WHERE oe.fillcount IS NOT NULL AND o.timespan IS NOT NULL\n  GROUP BY o.timespan\n),\nfiltered_orders AS (\n  SELECT\n    es.ordersmark,\n    o.timespan,\n    es.order_avg_fill,\n    es.order_avg_fill - ts.timespan_avg_fill as above_avg,\n    RANK() OVER (PARTITION BY o.timespan ORDER BY es.order_avg_fill DESC NULLS LAST) as rnk\n  FROM execution_stats es\n  JOIN orders o ON es.ordersmark = o.recordvault\n  JOIN timespan_stats ts ON o.timespan = ts.timespan\n  WHERE es.order_avg_fill > ts.timespan_avg_fill\n)\nSELECT\n  ordersmark,\n  timespan,\n  order_avg_fill,\n  above_avg,\n  rnk as rank\nFROM filtered_orders\nWHERE rnk <= 3\nORDER BY timespan, rnk",
+  "sql": "WITH order_fills AS (SELECT oe.ordersmark, o.timespan, AVG(oe.fillcount) AS order_avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY oe.ordersmark, o.timespan), timespan_stats AS (SELECT timespan, AVG(order_avg_fill) AS timespan_avg_fill FROM order_fills GROUP BY timespan), filtered_orders AS (SELECT of.ordersmark, of.timespan, of.order_avg_fill, ts.timespan_avg_fill, of.order_avg_fill - ts.timespan_avg_fill AS above_amount FROM order_fills of JOIN timespan_stats ts ON of.timespan = ts.timespan WHERE of.order_avg_fill > ts.timespan_avg_fill), ranked_orders AS (SELECT ordersmark, timespan, order_avg_fill, above_amount, RANK() OVER (PARTITION BY timespan ORDER BY order_avg_fill DESC NULLS LAST) AS rank FROM filtered_orders) SELECT ordersmark, timespan, order_avg_fill, above_amount, rank FROM ranked_orders WHERE rank <= 3 ORDER BY timespan, rank",
   "assumptions": [
    {
-    "assumption": "The average fill for a timespan is the average of all individual fillcount values across all executions in that timespan (not the average of order-level averages). This interprets 'time in force's average fill' as the aggregate metric across all orders sharing that timespan.",
+    "assumption": "Each order's average fill is the mean of its fillcount values across matched executions. The timespan's average fill is the mean of order-level averages within that timespan (unweighted by execution count).",
+    "unresolved": false
+   },
+   {
+    "assumption": "Orders with no matched executions are excluded; only orders joined to at least one execution are considered.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The average fill for a timespan is the average of each order's average fill (order-level averages). This would weight each order equally regardless of execution count.",
-    "sql": "WITH execution_stats AS (\n  SELECT\n    oe.ordersmark,\n    AVG(oe.fillcount) as order_avg_fill\n  FROM orderexecutions oe\n  WHERE oe.ordersmark IS NOT NULL AND oe.fillcount IS NOT NULL\n  GROUP BY oe.ordersmark\n),\ntimespan_stats AS (\n  SELECT\n    o.timespan,\n    AVG(es.order_avg_fill) as timespan_avg_fill\n  FROM execution_stats es\n  JOIN orders o ON es.ordersmark = o.recordvault\n  WHERE o.timespan IS NOT NULL\n  GROUP BY o.timespan\n),\nfiltered_orders AS (\n  SELECT\n    es.ordersmark,\n    o.timespan,\n    es.order_avg_fill,\n    es.order_avg_fill - ts.timespan_avg_fill as above_avg,\n    RANK() OVER (PARTITION BY o.timespan ORDER BY es.order_avg_fill DESC NULLS LAST) as rnk\n  FROM execution_stats es\n  JOIN orders o ON es.ordersmark = o.recordvault\n  JOIN timespan_stats ts ON o.timespan = ts.timespan\n  WHERE es.order_avg_fill > ts.timespan_avg_fill\n)\nSELECT\n  ordersmark,\n  timespan,\n  order_avg_fill,\n  above_avg,\n  rnk as rank\nFROM filtered_orders\nWHERE rnk <= 3\nORDER BY timespan, rnk"
+    "interpretation": "Calculate each timespan's average fill as the direct mean of all fillcount values across all executions (not as the mean of order-level averages), weighting orders by their execution count.",
+    "sql": "WITH order_fills AS (SELECT oe.ordersmark, o.timespan, AVG(oe.fillcount) AS order_avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY oe.ordersmark, o.timespan), timespan_stats AS (SELECT o.timespan, AVG(oe.fillcount) AS timespan_avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY o.timespan), filtered_orders AS (SELECT of.ordersmark, of.timespan, of.order_avg_fill, ts.timespan_avg_fill, of.order_avg_fill - ts.timespan_avg_fill AS above_amount FROM order_fills of JOIN timespan_stats ts ON of.timespan = ts.timespan WHERE of.order_avg_fill > ts.timespan_avg_fill), ranked_orders AS (SELECT ordersmark, timespan, order_avg_fill, above_amount, RANK() OVER (PARTITION BY timespan ORDER BY order_avg_fill DESC NULLS LAST) AS rank FROM filtered_orders) SELECT ordersmark, timespan, order_avg_fill, above_amount, rank FROM ranked_orders WHERE rank <= 3 ORDER BY timespan, rank"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
  "alternatives": [
   {
-   "interpretation": "The average fill for a timespan is the average of each order's average fill (order-level averages). This would weight each order equally regardless of execution count.",
-   "sql": "WITH execution_stats AS (\n  SELECT\n    oe.ordersmark,\n    AVG(oe.fillcount) as order_avg_fill\n  FROM orderexecutions oe\n  WHERE oe.ordersmark IS NOT NULL AND oe.fillcount IS NOT NULL\n  GROUP BY oe.ordersmark\n),\ntimespan_stats AS (\n  SELECT\n    o.timespan,\n    AVG(es.order_avg_fill) as timespan_avg_fill\n  FROM execution_stats es\n  JOIN orders o ON es.ordersmark = o.recordvault\n  WHERE o.timespan IS NOT NULL\n  GROUP BY o.timespan\n),\nfiltered_orders AS (\n  SELECT\n    es.ordersmark,\n    o.timespan,\n    es.order_avg_fill,\n    es.order_avg_fill - ts.timespan_avg_fill as above_avg,\n    RANK() OVER (PARTITION BY o.timespan ORDER BY es.order_avg_fill DESC NULLS LAST) as rnk\n  FROM execution_stats es\n  JOIN orders o ON es.ordersmark = o.recordvault\n  JOIN timespan_stats ts ON o.timespan = ts.timespan\n  WHERE es.order_avg_fill > ts.timespan_avg_fill\n)\nSELECT\n  ordersmark,\n  timespan,\n  order_avg_fill,\n  above_avg,\n  rnk as rank\nFROM filtered_orders\nWHERE rnk <= 3\nORDER BY timespan, rnk",
+   "interpretation": "Calculate each timespan's average fill as the direct mean of all fillcount values across all executions (not as the mean of order-level averages), weighting orders by their execution count.",
+   "sql": "WITH order_fills AS (SELECT oe.ordersmark, o.timespan, AVG(oe.fillcount) AS order_avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY oe.ordersmark, o.timespan), timespan_stats AS (SELECT o.timespan, AVG(oe.fillcount) AS timespan_avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault GROUP BY o.timespan), filtered_orders AS (SELECT of.ordersmark, of.timespan, of.order_avg_fill, ts.timespan_avg_fill, of.order_avg_fill - ts.timespan_avg_fill AS above_amount FROM order_fills of JOIN timespan_stats ts ON of.timespan = ts.timespan WHERE of.order_avg_fill > ts.timespan_avg_fill), ranked_orders AS (SELECT ordersmark, timespan, order_avg_fill, above_amount, RANK() OVER (PARTITION BY timespan ORDER BY order_avg_fill DESC NULLS LAST) AS rank FROM filtered_orders) SELECT ordersmark, timespan, order_avg_fill, above_amount, rank FROM ranked_orders WHERE rank <= 3 ORDER BY timespan, rank",
    "executes": true,
    "matches": [
-    "A"
+    "B"
    ]
   }
  ],
- "seconds": 72.5,
- "chars_out": 2712
+ "seconds": 70.2,
+ "chars_out": 2600
 }

@@ -2,24 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-fea75e8f25",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_equip AS (SELECT equipref, AVG(humepct) AS avg_hum FROM scanenvironment GROUP BY equipref), overall AS (SELECT AVG(avg_hum) AS overall_avg FROM per_equip), kept AS (SELECT p.equipref, p.avg_hum, o.overall_avg FROM per_equip p CROSS JOIN overall o WHERE p.avg_hum > o.overall_avg), kept_mean AS (SELECT AVG(avg_hum) AS kept_avg FROM kept) SELECT k.equipref, k.avg_hum AS avg_humidity, k.avg_hum - k.overall_avg AS excess_over_overall_avg, k.avg_hum - m.kept_avg AS diff_from_kept_mean FROM kept k CROSS JOIN kept_mean m WHERE k.overall_avg IS NOT NULL AND m.kept_avg IS NOT NULL ORDER BY diff_from_kept_mean DESC NULLS LAST LIMIT 10",
+  "sql": "WITH per AS (SELECT equipref, AVG(humepct) AS avg_h FROM scanenvironment GROUP BY equipref), ov AS (SELECT AVG(avg_h) AS overall FROM per), kept AS (SELECT p.equipref, p.avg_h, ov.overall FROM per p CROSS JOIN ov WHERE p.avg_h > ov.overall), km AS (SELECT AVG(avg_h) AS kept_mean FROM kept) SELECT k.equipref, k.avg_h AS avg_humidity, k.avg_h - k.overall AS excess_over_overall_avg, k.avg_h - km.kept_mean AS diff_from_kept_mean FROM kept k CROSS JOIN km WHERE k.overall IS NOT NULL AND km.kept_mean IS NOT NULL ORDER BY (k.avg_h - km.kept_mean) IS NULL, (k.avg_h - km.kept_mean) DESC, k.equipref LIMIT 10",
   "assumptions": [
    {
-    "assumption": "Equipment whose humidity readings are all NULL have a NULL average. They are excluded from the all-equipment average and cannot pass the 'above average' filter.",
+    "assumption": "The all-equipment average is the mean of the per-equipment average humidities (each equipment weighted equally). It is not the mean of all raw readings. Equipment with only NULL humidity has a NULL average and is left out of that mean.",
     "unresolved": false
    },
    {
-    "assumption": "The 'all-equipment average' is the unweighted mean of the per-equipment averages, not the mean of all raw readings.",
+    "assumption": "The difference from the kept mean is signed (equipment average minus kept-equipment mean). The excess over the overall average is likewise average minus overall average.",
     "unresolved": false
    },
    {
-    "assumption": "The 'kept-equipment mean' is the unweighted mean of the kept equipment's averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Equipment is grouped by scanenvironment.equipref without joining to the equipment table.",
+    "assumption": "Ties at 10th place are broken by equipref, which is an arbitrary but deterministic choice.",
     "unresolved": false
    }
   ],
@@ -31,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 7.0,
- "chars_out": 1277
+ "seconds": 9.8,
+ "chars_out": 1254
 }

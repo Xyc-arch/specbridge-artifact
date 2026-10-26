@@ -4,21 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH pc AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_pc AS (SELECT AVG(TrackCount) AS AvgTracks FROM pc), ranked AS (SELECT pc.PlaylistId, pc.TrackCount, CAST(pc.TrackCount AS REAL) / NULLIF(avg_pc.AvgTracks, 0) AS Ratio FROM pc CROSS JOIN avg_pc) SELECT PlaylistId, TrackCount, Ratio FROM ranked ORDER BY Ratio IS NULL, Ratio DESC, PlaylistId LIMIT 10;",
+  "sql": "WITH PlaylistCounts AS (\n  SELECT p.PlaylistId, COUNT(pt.TrackId) as TrackCount\n  FROM Playlist p\n  LEFT JOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId\n  GROUP BY p.PlaylistId\n),\nAverageCount AS (\n  SELECT AVG(TrackCount) as AvgTrackCount\n  FROM PlaylistCounts\n)\nSELECT \n  pc.PlaylistId,\n  pc.TrackCount,\n  pc.TrackCount / ac.AvgTrackCount as Ratio\nFROM PlaylistCounts pc\nCROSS JOIN AverageCount ac\nORDER BY Ratio IS NULL, Ratio DESC\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "The average is taken over all playlists, including empty ones (counted as 0 tracks via LEFT JOIN). The request does not say whether empty playlists should count toward the average.",
+    "assumption": "Include all playlists from the Playlist table in the average calculation, even those with zero tracks (via LEFT JOIN on PlaylistTrack). This means the average denominator includes empty playlists.",
     "unresolved": true
-   },
-   {
-    "assumption": "Ratio is NULL only when the average is NULL or 0 (for example, no playlist has any tracks); NULLIF prevents division by zero. Ties in ratio are broken by PlaylistId.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The average is taken only over playlists that contain at least one track, so empty playlists are excluded from the denominator. The top 10 ordering is the same as the primary query; only the ratio values change.",
-    "sql": "WITH pc AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_pc AS (SELECT AVG(TrackCount) AS AvgTracks FROM pc WHERE TrackCount > 0), ranked AS (SELECT pc.PlaylistId, pc.TrackCount, CAST(pc.TrackCount AS REAL) / NULLIF(avg_pc.AvgTracks, 0) AS Ratio FROM pc CROSS JOIN avg_pc) SELECT PlaylistId, TrackCount, Ratio FROM ranked ORDER BY Ratio IS NULL, Ratio DESC, PlaylistId LIMIT 10;"
+    "interpretation": "Only consider playlists that have at least one track; calculate the average only over non-empty playlists (exclude zero-track playlists from both the results and the average denominator).",
+    "sql": "WITH PlaylistCounts AS (\n  SELECT PlaylistId, COUNT(TrackId) as TrackCount\n  FROM PlaylistTrack\n  GROUP BY PlaylistId\n),\nAverageCount AS (\n  SELECT AVG(TrackCount) as AvgTrackCount\n  FROM PlaylistCounts\n)\nSELECT \n  pc.PlaylistId,\n  pc.TrackCount,\n  pc.TrackCount / ac.AvgTrackCount as Ratio\nFROM PlaylistCounts pc\nCROSS JOIN AverageCount ac\nORDER BY Ratio IS NULL, Ratio DESC\nLIMIT 10"
    }
   ]
  },
@@ -29,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The average is taken only over playlists that contain at least one track, so empty playlists are excluded from the denominator. The top 10 ordering is the same as the primary query; only the ratio values change.",
-   "sql": "WITH pc AS (SELECT p.PlaylistId, COUNT(pt.TrackId) AS TrackCount FROM Playlist p LEFT JOIN PlaylistTrack pt ON pt.PlaylistId = p.PlaylistId GROUP BY p.PlaylistId), avg_pc AS (SELECT AVG(TrackCount) AS AvgTracks FROM pc WHERE TrackCount > 0), ranked AS (SELECT pc.PlaylistId, pc.TrackCount, CAST(pc.TrackCount AS REAL) / NULLIF(avg_pc.AvgTracks, 0) AS Ratio FROM pc CROSS JOIN avg_pc) SELECT PlaylistId, TrackCount, Ratio FROM ranked ORDER BY Ratio IS NULL, Ratio DESC, PlaylistId LIMIT 10;",
+   "interpretation": "Only consider playlists that have at least one track; calculate the average only over non-empty playlists (exclude zero-track playlists from both the results and the average denominator).",
+   "sql": "WITH PlaylistCounts AS (\n  SELECT PlaylistId, COUNT(TrackId) as TrackCount\n  FROM PlaylistTrack\n  GROUP BY PlaylistId\n),\nAverageCount AS (\n  SELECT AVG(TrackCount) as AvgTrackCount\n  FROM PlaylistCounts\n)\nSELECT \n  pc.PlaylistId,\n  pc.TrackCount,\n  pc.TrackCount / ac.AvgTrackCount as Ratio\nFROM PlaylistCounts pc\nCROSS JOIN AverageCount ac\nORDER BY Ratio IS NULL, Ratio DESC\nLIMIT 10",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 14.9,
- "chars_out": 1675
+ "seconds": 31.3,
+ "chars_out": 1442
 }

@@ -2,19 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-65eee834c9",
  "wording": "open",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(DISTINCT o.orderspivot) AS order_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), side_average AS (SELECT AVG(order_count) AS avg_count FROM side_counts) SELECT SUM(sc.order_count) AS total_count, AVG(sc.order_count - sa.avg_count) AS average_excess FROM side_counts AS sc CROSS JOIN side_average AS sa WHERE sc.order_count > sa.avg_count",
+  "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(*) AS n FROM orders AS o WHERE EXISTS (SELECT 1 FROM riskandmargin AS r WHERE r.ordervault = o.recordvault) GROUP BY o.dealedge), side_average AS (SELECT AVG(n) AS mean_n FROM side_counts) SELECT SUM(s.n) AS total_count, AVG(s.n - a.mean_n) AS average_excess FROM side_counts AS s CROSS JOIN side_average AS a WHERE s.n > a.mean_n HAVING COUNT(*) > 0;",
   "assumptions": [
    {
-    "assumption": "Each matched order is counted once per side, even if it has multiple risk/margin records; the average uses sides present among matched orders.",
+    "assumption": "Each matched order is counted once, even if it has multiple risk/margin records; the average uses sides with at least one matched order.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count each matched risk/margin record, so an order with multiple risk/margin records contributes multiple times.",
-    "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(*) AS match_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), side_average AS (SELECT AVG(match_count) AS avg_count FROM side_counts) SELECT SUM(sc.match_count) AS total_count, AVG(sc.match_count - sa.avg_count) AS average_excess FROM side_counts AS sc CROSS JOIN side_average AS sa WHERE sc.match_count > sa.avg_count"
+    "interpretation": "Count each matching risk/margin record and order pair.",
+    "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(*) AS n FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.dealedge), side_average AS (SELECT AVG(n) AS mean_n FROM side_counts) SELECT SUM(s.n) AS total_count, AVG(s.n - a.mean_n) AS average_excess FROM side_counts AS s CROSS JOIN side_average AS a WHERE s.n > a.mean_n HAVING COUNT(*) > 0;"
+   },
+   {
+    "interpretation": "Include both documented order sides in the average, assigning zero to a side with no matched orders.",
+    "sql": "WITH sides(dealedge) AS (VALUES ('Buy'), ('Sell')), side_counts AS (SELECT sides.dealedge, COUNT(o.orderspivot) AS n FROM sides LEFT JOIN orders AS o ON o.dealedge = sides.dealedge AND EXISTS (SELECT 1 FROM riskandmargin AS r WHERE r.ordervault = o.recordvault) GROUP BY sides.dealedge), side_average AS (SELECT AVG(n) AS mean_n FROM side_counts) SELECT SUM(s.n) AS total_count, AVG(s.n - a.mean_n) AS average_excess FROM side_counts AS s CROSS JOIN side_average AS a WHERE s.n > a.mean_n HAVING COUNT(*) > 0;"
    }
   ]
  },
@@ -25,14 +29,22 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count each matched risk/margin record, so an order with multiple risk/margin records contributes multiple times.",
-   "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(*) AS match_count FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault WHERE o.dealedge IS NOT NULL GROUP BY o.dealedge), side_average AS (SELECT AVG(match_count) AS avg_count FROM side_counts) SELECT SUM(sc.match_count) AS total_count, AVG(sc.match_count - sa.avg_count) AS average_excess FROM side_counts AS sc CROSS JOIN side_average AS sa WHERE sc.match_count > sa.avg_count",
+   "interpretation": "Count each matching risk/margin record and order pair.",
+   "sql": "WITH side_counts AS (SELECT o.dealedge, COUNT(*) AS n FROM riskandmargin AS r JOIN orders AS o ON r.ordervault = o.recordvault GROUP BY o.dealedge), side_average AS (SELECT AVG(n) AS mean_n FROM side_counts) SELECT SUM(s.n) AS total_count, AVG(s.n - a.mean_n) AS average_excess FROM side_counts AS s CROSS JOIN side_average AS a WHERE s.n > a.mean_n HAVING COUNT(*) > 0;",
    "executes": true,
    "matches": [
     "A"
    ]
+  },
+  {
+   "interpretation": "Include both documented order sides in the average, assigning zero to a side with no matched orders.",
+   "sql": "WITH sides(dealedge) AS (VALUES ('Buy'), ('Sell')), side_counts AS (SELECT sides.dealedge, COUNT(o.orderspivot) AS n FROM sides LEFT JOIN orders AS o ON o.dealedge = sides.dealedge AND EXISTS (SELECT 1 FROM riskandmargin AS r WHERE r.ordervault = o.recordvault) GROUP BY sides.dealedge), side_average AS (SELECT AVG(n) AS mean_n FROM side_counts) SELECT SUM(s.n) AS total_count, AVG(s.n - a.mean_n) AS average_excess FROM side_counts AS s CROSS JOIN side_average AS a WHERE s.n > a.mean_n HAVING COUNT(*) > 0;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
   }
  ],
- "seconds": 22.4,
- "chars_out": 1273
+ "seconds": 25.8,
+ "chars_out": 1804
 }

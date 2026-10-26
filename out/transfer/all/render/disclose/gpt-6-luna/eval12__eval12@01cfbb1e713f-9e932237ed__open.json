@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-9e932237ed",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH bucket_counts AS (\n  SELECT o.timespan, COUNT(*) AS bucket_count\n  FROM riskandmargin AS rm\n  JOIN orders AS o\n    ON rm.ordervault = o.recordvault\n  GROUP BY o.timespan\n), bucket_shares AS (\n  SELECT timespan,\n         bucket_count,\n         bucket_count::numeric / SUM(bucket_count) OVER () AS share\n  FROM bucket_counts\n), above_average AS (\n  SELECT bucket_count, share\n  FROM bucket_shares\n  WHERE share > AVG(share) OVER ()\n)\nSELECT COALESCE(SUM(bucket_count), 0) AS total_count,\n       AVG(share) AS average_share,\n       AVG(share - (SELECT AVG(share) FROM bucket_shares)) AS average_excess_share\nFROM above_average;",
+  "sql": "WITH bucket_counts AS (\n  SELECT\n    o.timespan,\n    COUNT(*) AS bucket_count\n  FROM riskandmargin AS rm\n  JOIN orders AS o\n    ON o.recordvault = rm.ordervault\n  GROUP BY o.timespan\n),\nshares AS (\n  SELECT\n    timespan,\n    bucket_count,\n    1.0 * bucket_count / SUM(bucket_count) OVER () AS share\n  FROM bucket_counts\n),\nabove_average AS (\n  SELECT share, bucket_count\n  FROM shares\n  WHERE share > AVG(share) OVER ()\n)\nSELECT\n  SUM(bucket_count) AS total_count,\n  AVG(share) AS average_share,\n  AVG(share - (SELECT AVG(share) FROM shares)) AS average_excess_share\nFROM above_average;",
   "assumptions": [
    {
-    "assumption": "Each matched riskandmargin record counts once, including multiple risk/margin records for the same order; NULL timespan values form one bucket. The average share is the unweighted mean across distinct buckets, including the NULL bucket.",
+    "assumption": "Each risk/margin record contributes one count, including multiple records matched to the same order. NULL timespan values form one bucket, and shares and the average share are calculated across the observed buckets.",
     "unresolved": false
    }
   ],
@@ -17,6 +17,6 @@
  "primary_executes": false,
  "primary_matches": [],
  "alternatives": [],
- "seconds": 9.7,
- "chars_out": 965
+ "seconds": 6.5,
+ "chars_out": 907
 }

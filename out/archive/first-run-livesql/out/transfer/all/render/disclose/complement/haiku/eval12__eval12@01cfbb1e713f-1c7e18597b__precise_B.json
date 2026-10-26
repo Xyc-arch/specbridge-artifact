@@ -1,0 +1,24 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-1c7e18597b",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH telescope_counts AS (\n  SELECT \n    observstation,\n    COUNT(*) as telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\nshares_calc AS (\n  SELECT \n    tc.observstation,\n    tc.telescope_count,\n    tc.telescope_count::DECIMAL / (SELECT COUNT(*)::DECIMAL FROM telescopes) as share,\n    AVG(tc.telescope_count::DECIMAL / (SELECT COUNT(*)::DECIMAL FROM telescopes)) \n      OVER () as avg_share\n  FROM telescope_counts tc\n),\nfiltered AS (\n  SELECT \n    observstation,\n    telescope_count,\n    share,\n    share - avg_share as diff_from_avg\n  FROM shares_calc\n  WHERE share > avg_share\n),\nwith_row_num AS (\n  SELECT \n    observstation,\n    telescope_count,\n    share,\n    diff_from_avg,\n    ROW_NUMBER() OVER (ORDER BY diff_from_avg DESC) as rn\n  FROM filtered\n),\ntenth_threshold AS (\n  SELECT \n    COALESCE(\n      (SELECT diff_from_avg FROM with_row_num WHERE rn = 10 LIMIT 1),\n      (SELECT MIN(diff_from_avg) FROM with_row_num)\n    ) as threshold\n)\nSELECT \n  observstation,\n  telescope_count,\n  share,\n  diff_from_avg\nFROM with_row_num\nWHERE diff_from_avg >= (SELECT threshold FROM tenth_threshold)\nORDER BY diff_from_avg DESC",
+  "assumptions": [
+   {
+    "assumption": "Only observatories with at least one telescope record are included in the analysis. Observatories with zero telescopes do not appear.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The average share is calculated as the arithmetic mean across all observatories that have telescopes, not weighted by any other factor.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": []
+ },
+ "raw": null,
+ "primary_executes": false,
+ "primary_matches": [],
+ "seconds": 61.2
+}

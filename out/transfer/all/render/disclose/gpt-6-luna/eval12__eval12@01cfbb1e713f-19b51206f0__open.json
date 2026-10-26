@@ -2,37 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH operator_stats AS (\n  SELECT\n    crewref,\n    COUNT(*) AS scan_count,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_min\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_avg AS (\n  SELECT AVG(avg_gb_per_min) AS avg_gb_per_min\n  FROM operator_stats\n),\nqualifying_operators AS (\n  SELECT os.scan_count, os.avg_gb_per_min, ao.avg_gb_per_min AS all_avg_gb_per_min\n  FROM operator_stats os\n  CROSS JOIN all_operator_avg ao\n  WHERE os.avg_gb_per_min > ao.avg_gb_per_min\n)\nSELECT\n  AVG(scan_count) AS avg_scans_per_operator,\n  AVG(avg_gb_per_min) AS avg_gb_per_min,\n  AVG(avg_gb_per_min - all_avg_gb_per_min) AS avg_excess_gb_per_min\nFROM qualifying_operators;",
+  "sql": "WITH per_scan AS (\n  SELECT crewref, gbsize / spanmin AS gb_per_minute\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0\n), per_operator AS (\n  SELECT crewref,\n         AVG(gb_per_minute) AS avg_gb_per_minute,\n         AVG((SELECT COUNT(*) FROM scans s2 WHERE s2.crewref = p.crewref)) AS avg_scans\n  FROM per_scan p\n  GROUP BY crewref\n), overall AS (\n  SELECT AVG(avg_gb_per_minute) AS all_operator_avg\n  FROM per_operator\n), above_average AS (\n  SELECT * FROM per_operator\n  WHERE avg_gb_per_minute > (SELECT all_operator_avg FROM overall)\n)\nSELECT AVG(avg_scans) AS avg_scans_done,\n       AVG(avg_gb_per_minute) AS avg_gb_per_minute,\n       AVG(avg_gb_per_minute) - (SELECT all_operator_avg FROM overall) AS avg_excess_gb_per_minute\nFROM above_average;",
   "assumptions": [
    {
-    "assumption": "The all-operator figure and the qualifying operators\u2019 average rate give each operator equal weight by averaging operator-level scan rates. Scan counts include all scans by each qualifying operator, even scans with missing rate inputs; NULL rates and zero-minute durations are excluded from rate averages.",
+    "assumption": "The all-operator figure is the unweighted average of each operator's per-scan GB/minute average; operators with no scans having both values present are excluded because their average is undefined. The scan count per selected operator includes all rows in scans, even scans lacking size or duration.",
     "unresolved": true
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "If \u201chow many scans\u201d means only scans with both file size and a nonzero duration, count only those rate-eligible scans per qualifying operator.",
-    "sql": "WITH operator_stats AS (\n  SELECT\n    crewref,\n    COUNT(*) FILTER (WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0) AS scan_count,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_min\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_avg AS (\n  SELECT AVG(avg_gb_per_min) AS avg_gb_per_min\n  FROM operator_stats\n),\nqualifying_operators AS (\n  SELECT os.scan_count, os.avg_gb_per_min, ao.avg_gb_per_min AS all_avg_gb_per_min\n  FROM operator_stats os\n  CROSS JOIN all_operator_avg ao\n  WHERE os.avg_gb_per_min > ao.avg_gb_per_min\n)\nSELECT\n  AVG(scan_count) AS avg_scans_per_operator,\n  AVG(avg_gb_per_min) AS avg_gb_per_min,\n  AVG(avg_gb_per_min - all_avg_gb_per_min) AS avg_excess_gb_per_min\nFROM qualifying_operators;"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [
-  {
-   "interpretation": "If \u201chow many scans\u201d means only scans with both file size and a nonzero duration, count only those rate-eligible scans per qualifying operator.",
-   "sql": "WITH operator_stats AS (\n  SELECT\n    crewref,\n    COUNT(*) FILTER (WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0) AS scan_count,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_min\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_avg AS (\n  SELECT AVG(avg_gb_per_min) AS avg_gb_per_min\n  FROM operator_stats\n),\nqualifying_operators AS (\n  SELECT os.scan_count, os.avg_gb_per_min, ao.avg_gb_per_min AS all_avg_gb_per_min\n  FROM operator_stats os\n  CROSS JOIN all_operator_avg ao\n  WHERE os.avg_gb_per_min > ao.avg_gb_per_min\n)\nSELECT\n  AVG(scan_count) AS avg_scans_per_operator,\n  AVG(avg_gb_per_min) AS avg_gb_per_min,\n  AVG(avg_gb_per_min - all_avg_gb_per_min) AS avg_excess_gb_per_min\nFROM qualifying_operators;",
-   "executes": true,
-   "matches": [
-    "B"
-   ]
-  }
- ],
- "seconds": 28.9,
- "chars_out": 1997
+ "alternatives": [],
+ "seconds": 6.6,
+ "chars_out": 1183
 }

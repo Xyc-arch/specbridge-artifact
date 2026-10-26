@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-9a9ca0e90a",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), overall AS (SELECT AVG(feerate - rebrate) AS overall_net FROM fees) SELECT AVG(p.avg_reb) AS mean_avg_rebtotal, AVG(p.avg_net) AS mean_avg_net_fee_rate, AVG(p.avg_net - o.overall_net) AS mean_excess FROM per_order p CROSS JOIN overall o WHERE p.avg_net > o.overall_net",
+  "sql": "WITH g AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), o AS (SELECT AVG(feerate - rebrate) AS overall FROM fees) SELECT AVG(g.avg_reb) AS mean_avg_rebtotal, AVG(g.avg_net) AS mean_avg_net_fee_rate, AVG(g.avg_net - o.overall) AS mean_excess_over_overall FROM g CROSS JOIN o WHERE g.avg_net > o.overall",
   "assumptions": [
    {
-    "assumption": "The overall average net fee rate is the average of (feerate - rebrate) across all individual fee rows. Rows where feerate or rebrate is NULL are skipped.",
+    "assumption": "The overall average net fee rate is the average of (feerate - rebrate) across all individual fee rows, skipping rows where either value is NULL, so orders with more fee rows weigh more.",
     "unresolved": true
    },
    {
-    "assumption": "Fee rows with NULL orderslink form a single group, which GROUP BY does naturally. Groups whose average net rate is NULL are excluded by the comparison.",
+    "assumption": "Fee rows with NULL orderslink form a single group, which SQLite's GROUP BY does by default.",
     "unresolved": false
    },
    {
-    "assumption": "The average total rebate per order skips NULL rebtotal values. Nothing is rounded.",
+    "assumption": "A fee row with a NULL feerate or rebrate has no net rate and is skipped in the net-rate averages. Its rebtotal still counts in the average rebtotal for that order.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The overall average net fee rate is the mean of the per-order (group) average net rates, so each order counts equally, rather than the row-level average.",
-    "sql": "WITH per_order AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), overall AS (SELECT AVG(avg_net) AS overall_net FROM per_order) SELECT AVG(p.avg_reb) AS mean_avg_rebtotal, AVG(p.avg_net) AS mean_avg_net_fee_rate, AVG(p.avg_net - o.overall_net) AS mean_excess FROM per_order p CROSS JOIN overall o WHERE p.avg_net > o.overall_net"
+    "interpretation": "The overall average net fee rate is the mean of the per-order (per-group) average net fee rates, so each order counts equally rather than each fee row.",
+    "sql": "WITH g AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), o AS (SELECT AVG(avg_net) AS overall FROM g) SELECT AVG(g.avg_reb) AS mean_avg_rebtotal, AVG(g.avg_net) AS mean_avg_net_fee_rate, AVG(g.avg_net - o.overall) AS mean_excess_over_overall FROM g CROSS JOIN o WHERE g.avg_net > o.overall"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The overall average net fee rate is the mean of the per-order (group) average net rates, so each order counts equally, rather than the row-level average.",
-   "sql": "WITH per_order AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), overall AS (SELECT AVG(avg_net) AS overall_net FROM per_order) SELECT AVG(p.avg_reb) AS mean_avg_rebtotal, AVG(p.avg_net) AS mean_avg_net_fee_rate, AVG(p.avg_net - o.overall_net) AS mean_excess FROM per_order p CROSS JOIN overall o WHERE p.avg_net > o.overall_net",
+   "interpretation": "The overall average net fee rate is the mean of the per-order (per-group) average net fee rates, so each order counts equally rather than each fee row.",
+   "sql": "WITH g AS (SELECT orderslink, AVG(feerate - rebrate) AS avg_net, AVG(rebtotal) AS avg_reb FROM fees GROUP BY orderslink), o AS (SELECT AVG(avg_net) AS overall FROM g) SELECT AVG(g.avg_reb) AS mean_avg_rebtotal, AVG(g.avg_net) AS mean_avg_net_fee_rate, AVG(g.avg_net - o.overall) AS mean_excess_over_overall FROM g CROSS JOIN o WHERE g.avg_net > o.overall",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 9.7,
- "chars_out": 1514
+ "seconds": 9.6,
+ "chars_out": 1576
 }

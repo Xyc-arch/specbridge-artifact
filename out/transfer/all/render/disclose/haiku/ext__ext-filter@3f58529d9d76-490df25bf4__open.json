@@ -4,21 +4,21 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "SELECT AVG(spent / NULLIF(amount, 0)) AS avg_ratio, COUNT(*) AS line_count FROM budget WHERE spent > 6;",
+  "sql": "SELECT AVG(CASE WHEN amount IS NOT NULL AND amount != 0 THEN spent * 1.0 / amount ELSE NULL END) as avg_ratio, COUNT(*) as count FROM budget WHERE spent > 6 HAVING COUNT(*) > 0",
   "assumptions": [
    {
-    "assumption": "\"Past the 6-dollar mark\" means spent > 6 (strictly greater). Lines with NULL spent are excluded by this filter.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A ratio is missing when amount is NULL or 0; NULLIF turns a zero amount into NULL so AVG skips that line. The average is NULL (blank) if no line has a usable ratio. COUNT(*) counts every line with spent > 6, including lines whose ratio is missing.",
+    "assumption": "\"gone past the 6-dollar mark\" is interpreted as spent > 6 rather than spent >= 6",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count only the qualifying lines that have a usable ratio, so the count matches the lines in the average.",
-    "sql": "SELECT AVG(spent / amount) AS avg_ratio, COUNT(*) AS line_count FROM budget WHERE spent > 6 AND amount IS NOT NULL AND amount <> 0;"
+    "interpretation": "\"gone past the 6-dollar mark\" could mean spent >= 6 if \"past\" is interpreted inclusively (at or beyond the threshold)",
+    "sql": "SELECT AVG(CASE WHEN amount IS NOT NULL AND amount != 0 THEN spent * 1.0 / amount ELSE NULL END) as avg_ratio, COUNT(*) as count FROM budget WHERE spent >= 6 HAVING COUNT(*) > 0"
+   },
+   {
+    "interpretation": "\"how many such lines\" could count only the lines with valid ratios (where amount IS NOT NULL AND amount != 0), with \"blank if there are none\" meaning blank if no valid ratios exist",
+    "sql": "SELECT AVG(CASE WHEN amount IS NOT NULL AND amount != 0 THEN spent * 1.0 / amount ELSE NULL END) as avg_ratio, COUNT(CASE WHEN amount IS NOT NULL AND amount != 0 THEN 1 END) as count FROM budget WHERE spent > 6 HAVING COUNT(CASE WHEN amount IS NOT NULL AND amount != 0 THEN 1 END) > 0"
    }
   ]
  },
@@ -29,14 +29,22 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count only the qualifying lines that have a usable ratio, so the count matches the lines in the average.",
-   "sql": "SELECT AVG(spent / amount) AS avg_ratio, COUNT(*) AS line_count FROM budget WHERE spent > 6 AND amount IS NOT NULL AND amount <> 0;",
+   "interpretation": "\"gone past the 6-dollar mark\" could mean spent >= 6 if \"past\" is interpreted inclusively (at or beyond the threshold)",
+   "sql": "SELECT AVG(CASE WHEN amount IS NOT NULL AND amount != 0 THEN spent * 1.0 / amount ELSE NULL END) as avg_ratio, COUNT(*) as count FROM budget WHERE spent >= 6 HAVING COUNT(*) > 0",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  },
+  {
+   "interpretation": "\"how many such lines\" could count only the lines with valid ratios (where amount IS NOT NULL AND amount != 0), with \"blank if there are none\" meaning blank if no valid ratios exist",
+   "sql": "SELECT AVG(CASE WHEN amount IS NOT NULL AND amount != 0 THEN spent * 1.0 / amount ELSE NULL END) as avg_ratio, COUNT(CASE WHEN amount IS NOT NULL AND amount != 0 THEN 1 END) as count FROM budget WHERE spent > 6 HAVING COUNT(CASE WHEN amount IS NOT NULL AND amount != 0 THEN 1 END) > 0",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 13.2,
- "chars_out": 860
+ "seconds": 63.2,
+ "chars_out": 1274
 }

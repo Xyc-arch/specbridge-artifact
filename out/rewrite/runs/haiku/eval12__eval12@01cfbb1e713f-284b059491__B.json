@@ -3,33 +3,32 @@
  "model": "haiku",
  "reading": "B",
  "description": "Treat each feature record separately, then compute and rank each record's share against the average record share.",
- "a": {
-  "request": "Treat each individual record in `scanfeatures` as one unit, without combining records from the same site; its count is that record's artifact count (`articount`), and missing counts are ignored in totals and averages. Each unit's share is its count divided by the overall artifact total across all of `scanfeatures`; if the overall total is missing, return no rows. The average share is the mean of the units' shares (ignoring missing shares); if that average is missing, return no rows. For each unit show the site code, its artifact count, its share, and its share minus the average share. Sort by that difference from highest to lowest with missing values last, and keep the top 10.",
-  "sql": "WITH totals AS (SELECT SUM(articount)::numeric AS total_count FROM scanfeatures), shares AS (SELECT sf.zoneref AS site_code, sf.articount AS artifact_count, sf.articount::numeric / NULLIF(t.total_count, 0) AS share FROM scanfeatures sf CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.site_code, s.artifact_count, s.share, s.share - a.avg_share AS share_diff FROM shares s CROSS JOIN avg_share a WHERE a.avg_share IS NOT NULL ORDER BY share_diff DESC NULLS LAST LIMIT 10;",
-  "executes": false,
-  "matches": []
- },
  "b": {
-  "request": "For each non-null `scanfeatures` record, compute share = `articount` / SUM(`articount`) over all non-null rows, take the mean of those shares as the average, and return the top 10 records by (share \u2212 average) descending with nulls last, showing `zoneref`, `articount`, share, and difference; return no rows if the total or average is null",
-  "sql": "WITH base AS (SELECT zoneref, articount FROM scanfeatures WHERE articount IS NOT NULL), totals AS (SELECT SUM(articount) AS total FROM base), shares AS (SELECT b.zoneref, b.articount, b.articount * 1.0 / NULLIF(t.total, 0) AS share FROM base b CROSS JOIN totals t), avgs AS (SELECT AVG(share) AS average FROM shares) SELECT s.zoneref, s.articount, s.share, s.share - a.average AS difference FROM shares s CROSS JOIN avgs a CROSS JOIN totals t WHERE t.total IS NOT NULL AND a.average IS NOT NULL ORDER BY difference DESC NULLS LAST LIMIT 10;",
+  "request": "Rank each scanfeatures record by its articount share relative to the mean share across all records, returning the top 10 with site code, artifact count, share, and share minus mean, sorted descending.",
+  "sql": "WITH stats AS (\n  SELECT \n    SUM(articount) as total_artifacts,\n    COUNT(*) as record_count\n  FROM scanfeatures\n),\nshares AS (\n  SELECT \n    sf.zoneref,\n    sf.articount,\n    CAST(sf.articount AS FLOAT) / stats.total_artifacts as share,\n    (CAST(sf.articount AS FLOAT) / stats.total_artifacts) - (1.0 / stats.record_count) as share_minus_mean\n  FROM scanfeatures sf\n  CROSS JOIN stats\n)\nSELECT \n  zoneref,\n  articount,\n  share,\n  share_minus_mean\nFROM shares\nORDER BY share_minus_mean DESC\nLIMIT 10",
   "executes": true,
   "matches": [
    "B"
-  ]
+  ],
+  "raw": "Rank each scanfeatures record by its articount share relative to the mean share across all records, returning the top 10 with site code, artifact count, share, and share minus mean, sorted descending."
+ },
+ "d": {
+  "request": "For each scanfeatures record, calculate its articount's share of the total articount sum, subtract the mean share from each record's share, rank by this difference descending, and return the top 10 records with their zoneref, articount, share, and share-minus-mean-share values, ignoring nulls and placing nulls last.",
+  "sql": "WITH totals AS (SELECT SUM(articount) as total_articount FROM scanfeatures WHERE articount IS NOT NULL), shares AS (SELECT zoneref, articount, articount::numeric / NULLIF((SELECT total_articount FROM totals), 0) as share FROM scanfeatures WHERE articount IS NOT NULL), stats AS (SELECT zoneref, articount, share, share - AVG(share) OVER () as share_minus_mean FROM shares) SELECT zoneref, articount, share, share_minus_mean FROM stats ORDER BY share_minus_mean DESC NULLS LAST LIMIT 10",
+  "executes": false,
+  "matches": []
  },
  "c": {
   "request": "In the feature scan data, which 10 site artifact counts (`articount`, identified by site code `zoneref`) stand furthest above the average in their share of all artifacts? Each count's share is that count divided by the overall artifact total across all of `scanfeatures` (return nothing if the overall total is missing), and the average share is the mean of those shares (again return nothing if that average is missing). For each, give the site code, the artifact count, its share, and its share minus the average share. Ignore missing counts, and sort from the highest difference down with missing values last. Treat each feature record separately, then compute and rank each record's share against the average record share.",
-  "sql": "WITH totals AS (\n  SELECT NULLIF(SUM(articount), 0) AS total_count\n  FROM scanfeatures\n),\nshares AS (\n  SELECT zoneref, articount, articount * 1.0 / (SELECT total_count FROM totals) AS share\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share\n  FROM shares\n)\nSELECT s.zoneref, s.articount, s.share, s.share - a.avg_share AS diff\nFROM shares s\nCROSS JOIN avg_share a\nWHERE (SELECT total_count FROM totals) IS NOT NULL\n  AND a.avg_share IS NOT NULL\nORDER BY diff DESC NULLS LAST\nLIMIT 10;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Across all records in `scanfeatures`, which 10 individual feature records have an artifact count (`articount`, with site code `zoneref`) whose share of the overall artifact total is furthest above the average record share? Each record's share is its `articount` divided by the overall artifact total across all of `scanfeatures` (return nothing if that total is missing), and the average record share is the mean of all per-record shares (return nothing if that average is missing). For each of the 10, give the site code, the artifact count, its share, and its share minus the average share. Ignore records with missing counts, and sort from the highest difference down with missing values last.",
-  "sql": "WITH valid AS (SELECT traitregistry, zoneref, articount FROM scanfeatures WHERE articount IS NOT NULL), total AS (SELECT NULLIF(SUM(articount), 0)::double precision AS total_art FROM valid), shares AS (SELECT v.zoneref, v.articount, v.articount::double precision / t.total_art AS share FROM valid v CROSS JOIN total t WHERE t.total_art IS NOT NULL), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.zoneref AS site_code, s.articount AS artifact_count, s.share, s.share - a.avg_share AS share_diff FROM shares s CROSS JOIN avg_share a WHERE a.avg_share IS NOT NULL ORDER BY share_diff DESC NULLS LAST LIMIT 10;",
+  "sql": "WITH total_artifacts AS (\n  SELECT SUM(articount) as total_count\n  FROM scanfeatures\n  WHERE articount IS NOT NULL\n),\nvalid_total AS (\n  SELECT total_count\n  FROM total_artifacts\n  WHERE total_count IS NOT NULL\n),\nshares AS (\n  SELECT \n    sf.zoneref,\n    sf.articount,\n    sf.articount::FLOAT / vt.total_count as share\n  FROM scanfeatures sf\n  CROSS JOIN valid_total vt\n  WHERE sf.articount IS NOT NULL\n),\navg_share AS (\n  SELECT AVG(share) as avg_val\n  FROM shares\n),\nvalid_avg AS (\n  SELECT avg_val\n  FROM avg_share\n  WHERE avg_val IS NOT NULL\n)\nSELECT \n  s.zoneref,\n  s.articount,\n  s.share,\n  s.share - va.avg_val as difference\nFROM shares s\nCROSS JOIN valid_avg va\nORDER BY difference DESC NULLS LAST\nLIMIT 10",
   "executes": false,
   "matches": []
- }
+ },
+ "a": {
+  "request": "Treat each individual record in `scanfeatures` as one unit, without combining records from the same site; its count is that record's artifact count (`articount`), and missing counts are ignored in totals and averages. Each unit's share is its count divided by the overall artifact total across all of `scanfeatures`; if the overall total is missing, return no rows. The average share is the mean of the units' shares (ignoring missing shares); if that average is missing, return no rows. For each unit show the site code, its artifact count, its share, and its share minus the average share. Sort by that difference from highest to lowest with missing values last, and keep the top 10.",
+  "sql": "WITH artifact_totals AS (SELECT SUM(articount) as total_artifacts FROM scanfeatures WHERE articount IS NOT NULL), shares AS (SELECT sf.zoneref, sf.articount, sf.articount::FLOAT / at.total_artifacts as share FROM scanfeatures sf CROSS JOIN artifact_totals at WHERE at.total_artifacts IS NOT NULL AND sf.articount IS NOT NULL), avg_share AS (SELECT AVG(share) as average_share FROM shares) SELECT s.zoneref, s.articount, s.share, s.share - av.average_share as diff FROM shares s CROSS JOIN avg_share av WHERE av.average_share IS NOT NULL ORDER BY s.share - av.average_share DESC NULLS LAST LIMIT 10",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6
 }

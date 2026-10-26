@@ -2,31 +2,45 @@
  "case": "eval12:eval12@01cfbb1e713f-56f991749c",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH status_avg AS (SELECT brokrepstat, AVG(modelconf) AS avg_modelconf FROM compliancecase GROUP BY brokrepstat), ref AS (SELECT AVG(modelconf) AS overall_avg FROM compliancecase), qualifying AS (SELECT s.brokrepstat, s.avg_modelconf, s.avg_modelconf - r.overall_avg AS diff_above_overall FROM status_avg s CROSS JOIN ref r WHERE s.avg_modelconf > r.overall_avg) SELECT brokrepstat, avg_modelconf, diff_above_overall, avg_modelconf / AVG(avg_modelconf) OVER () AS ratio_to_qualifying_mean FROM qualifying",
+  "sql": "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), ref AS (SELECT AVG(modelconf) AS m FROM compliancecase), q AS (SELECT g.brokrepstat, g.a, ref.m FROM g, ref WHERE g.a > ref.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS above_overall_avg, a / (SELECT AVG(a) FROM q) AS ratio_to_qualifying_mean FROM q;",
   "assumptions": [
    {
-    "assumption": "'Average' means the overall mean modelconf across all compliance cases (case-level, NULL modelconf ignored). A status qualifies if its own mean is strictly greater. If the overall mean is NULL, no rows are returned.",
+    "assumption": "The overall average is the mean of modelconf across all compliance cases with a non-null modelconf (a case-level average, not an average of the group averages). A status qualifies if its average is strictly greater than this value.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Cases with NULL brokrepstat form their own group, which appears as a NULL status. If the overall average is NULL, no rows are returned.",
     "unresolved": false
    },
    {
-    "assumption": "Cases with a NULL brokrepstat form their own group, shown with a NULL status.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The ratio divides each qualifying status's average by the mean of the qualifying statuses' averages, with each status weighted equally. Values are not rounded.",
+    "assumption": "'How far above average' is the difference (status average minus overall average), not a percentage.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "The reference average is the mean of the per-status averages (each status weighted equally) rather than the case-level average.",
+    "sql": "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), ref AS (SELECT AVG(a) AS m FROM g), q AS (SELECT g.brokrepstat, g.a, ref.m FROM g, ref WHERE g.a > ref.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS above_overall_avg, a / (SELECT AVG(a) FROM q) AS ratio_to_qualifying_mean FROM q;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 12.7,
- "chars_out": 1163
+ "alternatives": [
+  {
+   "interpretation": "The reference average is the mean of the per-status averages (each status weighted equally) rather than the case-level average.",
+   "sql": "WITH g AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), ref AS (SELECT AVG(a) AS m FROM g), q AS (SELECT g.brokrepstat, g.a, ref.m FROM g, ref WHERE g.a > ref.m) SELECT brokrepstat, a AS avg_modelconf, a - m AS above_overall_avg, a / (SELECT AVG(a) FROM q) AS ratio_to_qualifying_mean FROM q;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 9.1,
+ "chars_out": 1538
 }

@@ -2,31 +2,45 @@
  "case": "eval12:eval12@01cfbb1e713f-f12d27cb47",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_avgs AS (\n  SELECT \n    s.zoneregistry,\n    s.entrystat,\n    AVG(sm.facetfaces) as site_avg_faces\n  FROM sites s\n  INNER JOIN scanmesh sm ON s.zoneregistry = sm.zoneref\n  WHERE sm.facetfaces IS NOT NULL\n  GROUP BY s.zoneregistry, s.entrystat\n),\noverall_avg_cte AS (\n  SELECT AVG(sm.facetfaces) as overall_avg_faces\n  FROM scanmesh sm\n  WHERE sm.facetfaces IS NOT NULL\n),\nstatus_avgs AS (\n  SELECT \n    sa.entrystat,\n    AVG(sa.site_avg_faces) as status_avg_faces\n  FROM site_avgs sa\n  WHERE sa.entrystat IS NOT NULL\n  GROUP BY sa.entrystat\n),\nfocused_sites AS (\n  SELECT \n    sa.site_avg_faces,\n    sta.status_avg_faces,\n    oa.overall_avg_faces\n  FROM site_avgs sa\n  INNER JOIN status_avgs sta ON sa.entrystat = sta.entrystat\n  CROSS JOIN overall_avg_cte oa\n  WHERE sa.site_avg_faces > sta.status_avg_faces\n    AND oa.overall_avg_faces IS NOT NULL\n)\nSELECT \n  AVG(fs.site_avg_faces) as avg_face_count,\n  AVG(fs.site_avg_faces - fs.overall_avg_faces) as avg_above_overall,\n  AVG(fs.site_avg_faces - fs.status_avg_faces) as avg_above_status\nFROM focused_sites fs",
+  "sql": "WITH site_averages AS (\n  SELECT \n    s.zoneregistry,\n    s.entrystat,\n    AVG(CAST(sm.facetfaces AS REAL)) as site_avg_faces\n  FROM sites s\n  LEFT JOIN scanmesh sm ON s.zoneregistry = sm.zoneref\n  WHERE sm.facetfaces IS NOT NULL\n  GROUP BY s.zoneregistry, s.entrystat\n),\nstatus_averages AS (\n  SELECT \n    entrystat,\n    AVG(site_avg_faces) as status_avg_faces\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n),\noverall_average AS (\n  SELECT AVG(site_avg_faces) as overall_avg\n  FROM site_averages\n),\nabove_status_sites AS (\n  SELECT \n    sa.site_avg_faces,\n    st.status_avg_faces\n  FROM site_averages sa\n  JOIN status_averages st ON sa.entrystat = st.entrystat\n  WHERE sa.site_avg_faces > st.status_avg_faces\n)\nSELECT \n  AVG(ass.site_avg_faces) as avg_face_count,\n  AVG(ass.site_avg_faces) - oa.overall_avg as above_overall_avg,\n  AVG(ass.site_avg_faces - ass.status_avg_faces) as above_status_avg\nFROM above_status_sites ass\nCROSS JOIN overall_average oa",
   "assumptions": [
    {
-    "assumption": "The overall average of mesh faces should include all facetfaces from all mesh records in scanmesh (regardless of the site's access status), per the explicit statement '(sites without an access status included)'.",
+    "assumption": "\"Overall average number of mesh faces across all the matched data\" refers to the average of per-site averages (computed from site-level mean facetfaces), including sites without an access status, rather than a grand average of all individual facetfaces values. This interpretation aligns with the request's focus on site-level comparisons.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Sites with no mesh records or only NULL facetfaces values are excluded from all averages (they do not appear in site_averages); a NULL entrystat site is included in the overall_average but excluded from the filtering step (not joined to status_averages).",
     "unresolved": false
    },
    {
-    "assumption": "Only sites with at least one mesh record having non-NULL facetfaces are included in site-level averages, and only those with non-NULL entrystat participate in status-level comparisons or become focused sites.",
-    "unresolved": false
-   },
-   {
-    "assumption": "'Strictly above' means the strict inequality > rather than >=.",
+    "assumption": "\"Strictly above\" means > (not >=) when comparing site average to status average.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "\"Overall average number of mesh faces across all the matched data\" means the grand average of all individual facetfaces values from all scanmesh records (not the average of site-level averages). This interprets \"matched data\" as the underlying mesh records rather than the computed site-level summaries.",
+    "sql": "WITH all_mesh_avg AS (\n  SELECT AVG(CAST(facetfaces AS REAL)) as grand_avg\n  FROM scanmesh\n  WHERE facetfaces IS NOT NULL\n),\nsite_averages AS (\n  SELECT \n    s.zoneregistry,\n    s.entrystat,\n    AVG(CAST(sm.facetfaces AS REAL)) as site_avg_faces\n  FROM sites s\n  LEFT JOIN scanmesh sm ON s.zoneregistry = sm.zoneref\n  WHERE sm.facetfaces IS NOT NULL\n  GROUP BY s.zoneregistry, s.entrystat\n),\nstatus_averages AS (\n  SELECT \n    entrystat,\n    AVG(site_avg_faces) as status_avg_faces\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n),\nabove_status_sites AS (\n  SELECT \n    sa.site_avg_faces,\n    st.status_avg_faces\n  FROM site_averages sa\n  JOIN status_averages st ON sa.entrystat = st.entrystat\n  WHERE sa.site_avg_faces > st.status_avg_faces\n)\nSELECT \n  AVG(ass.site_avg_faces) as avg_face_count,\n  AVG(ass.site_avg_faces) - ama.grand_avg as above_overall_avg,\n  AVG(ass.site_avg_faces - ass.status_avg_faces) as above_status_avg\nFROM above_status_sites ass\nCROSS JOIN all_mesh_avg ama"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
- "alternatives": [],
- "seconds": 108.0,
- "chars_out": 1851
+ "alternatives": [
+  {
+   "interpretation": "\"Overall average number of mesh faces across all the matched data\" means the grand average of all individual facetfaces values from all scanmesh records (not the average of site-level averages). This interprets \"matched data\" as the underlying mesh records rather than the computed site-level summaries.",
+   "sql": "WITH all_mesh_avg AS (\n  SELECT AVG(CAST(facetfaces AS REAL)) as grand_avg\n  FROM scanmesh\n  WHERE facetfaces IS NOT NULL\n),\nsite_averages AS (\n  SELECT \n    s.zoneregistry,\n    s.entrystat,\n    AVG(CAST(sm.facetfaces AS REAL)) as site_avg_faces\n  FROM sites s\n  LEFT JOIN scanmesh sm ON s.zoneregistry = sm.zoneref\n  WHERE sm.facetfaces IS NOT NULL\n  GROUP BY s.zoneregistry, s.entrystat\n),\nstatus_averages AS (\n  SELECT \n    entrystat,\n    AVG(site_avg_faces) as status_avg_faces\n  FROM site_averages\n  WHERE entrystat IS NOT NULL\n  GROUP BY entrystat\n),\nabove_status_sites AS (\n  SELECT \n    sa.site_avg_faces,\n    st.status_avg_faces\n  FROM site_averages sa\n  JOIN status_averages st ON sa.entrystat = st.entrystat\n  WHERE sa.site_avg_faces > st.status_avg_faces\n)\nSELECT \n  AVG(ass.site_avg_faces) as avg_face_count,\n  AVG(ass.site_avg_faces) - ama.grand_avg as above_overall_avg,\n  AVG(ass.site_avg_faces - ass.status_avg_faces) as above_status_avg\nFROM above_status_sites ass\nCROSS JOIN all_mesh_avg ama",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 87.1,
+ "chars_out": 3366
 }

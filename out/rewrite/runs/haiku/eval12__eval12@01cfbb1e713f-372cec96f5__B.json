@@ -3,37 +3,36 @@
  "model": "haiku",
  "reading": "B",
  "description": "A budget line with `spent` = 0 means nothing has been spent yet, so it is left out of the rate averages.",
- "a": {
-  "request": "Using budget lines matched to their event (drop lines with no matching event), work out for each event its average spending rate, `spent` \u00f7 `amount`, across its lines, leaving out lines where `spent` is 0. Then, for each event `type`, average those event-level rates. Return the type, its average spending rate, and that rate divided by the simple mean of the per-type average rates. Ignore missing values in the averages, and don't round.",
-  "sql": "WITH line_rates AS (\n  SELECT b.link_to_event, b.spent * 1.0 / NULLIF(b.amount, 0) AS rate\n  FROM budget b\n  INNER JOIN event e ON e.event_id = b.link_to_event\n  WHERE b.spent IS NOT NULL AND b.spent <> 0 AND b.amount IS NOT NULL\n),\nevent_rates AS (\n  SELECT e.event_id, e.type, AVG(lr.rate) AS event_rate\n  FROM event e\n  JOIN line_rates lr ON lr.link_to_event = e.event_id\n  GROUP BY e.event_id, e.type\n),\ntype_rates AS (\n  SELECT type, AVG(event_rate) AS avg_rate\n  FROM event_rates\n  GROUP BY type\n)\nSELECT type, avg_rate, avg_rate / AVG(avg_rate) OVER () AS relative_rate\nFROM type_rates;",
+ "d": {
+  "request": "For each event type, calculate the average spending rate by first computing each event's mean of (spent \u00f7 amount) across its budget lines excluding those with spent = 0, then averaging these event-level rates by type, and finally dividing each type's average by the mean of all type-level averages.",
+  "sql": "WITH budget_rates AS (\n  SELECT \n    b.link_to_event,\n    e.type,\n    CAST(b.spent AS FLOAT) / CAST(b.amount AS FLOAT) AS rate\n  FROM budget b\n  JOIN event e ON b.link_to_event = e.event_id\n  WHERE b.spent > 0 AND b.amount > 0\n),\nevent_avg_rates AS (\n  SELECT \n    link_to_event,\n    type,\n    AVG(rate) AS event_rate\n  FROM budget_rates\n  GROUP BY link_to_event, type\n),\ntype_avg_rates AS (\n  SELECT \n    type,\n    AVG(event_rate) AS type_rate\n  FROM event_avg_rates\n  GROUP BY type\n),\noverall_mean AS (\n  SELECT AVG(type_rate) AS overall_avg\n  FROM type_avg_rates\n)\nSELECT \n  t.type,\n  t.type_rate,\n  (SELECT overall_avg FROM overall_mean) AS overall_average,\n  t.type_rate / (SELECT overall_avg FROM overall_mean) AS normalized_rate\nFROM type_avg_rates t\nORDER BY t.type",
   "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": []
  },
  "b": {
-  "request": "For each event, average `spent` \u00f7 `amount` over only the budget lines with `spent` > 0 (lines with `spent` = 0 excluded), joining budget to event on `link_to_event` = `event_id` (dropping unmatched lines), then average those event-level rates per `event.type`, and report each type's average rate alongside that rate divided by the unweighted mean of the per-type average rates, without rounding and ignoring NULLs",
-  "sql": "WITH event_rate AS (SELECT e.event_id, e.type, AVG(b.spent * 1.0 / b.amount) AS event_rate FROM budget b JOIN event e ON b.link_to_event = e.event_id WHERE b.spent > 0 AND b.amount <> 0 AND e.type IS NOT NULL GROUP BY e.event_id, e.type), type_rate AS (SELECT type, AVG(event_rate) AS avg_rate FROM event_rate GROUP BY type) SELECT type, avg_rate, avg_rate / (SELECT AVG(avg_rate) FROM type_rate) AS rate_vs_mean_type_rate FROM type_rate;",
+  "request": "Exclude budget lines with spent = 0 when calculating per-event average spending rates (spent \u00f7 amount) from matched budget-event lines, then for each event type average those event rates and display the type, its average spending rate, and that rate divided by the mean of all per-type rates.",
+  "sql": "WITH budget_with_rate AS (SELECT b.budget_id, b.link_to_event, CAST(b.spent AS FLOAT) / b.amount AS spending_rate FROM budget b WHERE b.spent > 0), event_avg_rate AS (SELECT link_to_event, AVG(spending_rate) AS event_avg_rate FROM budget_with_rate GROUP BY link_to_event), type_avg_rate AS (SELECT e.type, AVG(ear.event_avg_rate) AS type_avg_rate FROM event_avg_rate ear JOIN event e ON ear.link_to_event = e.event_id GROUP BY e.type), overall_mean AS (SELECT AVG(type_avg_rate) AS overall_mean_rate FROM type_avg_rate) SELECT tar.type, tar.type_avg_rate, tar.type_avg_rate / om.overall_mean_rate AS rate_divided_by_mean FROM type_avg_rate tar CROSS JOIN overall_mean om",
   "executes": true,
   "matches": [
    "B"
-  ]
+  ],
+  "raw": "Exclude budget lines with spent = 0 when calculating per-event average spending rates (spent \u00f7 amount) from matched budget-event lines, then for each event type average those event rates and display the type, its average spending rate, and that rate divided by the mean of all per-type rates."
  },
  "c": {
   "request": "Using budget lines matched to their event (drop lines with no matching event), work out for each event its average spending rate, `spent` \u00f7 `amount`, across its lines. Then, for each event `type`, average those event-level rates. Show the type, its average spending rate, and that rate divided by the simple mean of the per-type average rates. Ignore missing values in the averages, and don't round. A budget line with `spent` = 0 means nothing has been spent yet, so it is left out of the rate averages.",
-  "sql": "WITH line_rates AS (SELECT e.event_id, e.type, b.spent * 1.0 / b.amount AS rate FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.spent <> 0 AND b.amount IS NOT NULL AND b.amount <> 0), event_rates AS (SELECT event_id, type, AVG(rate) AS event_rate FROM line_rates GROUP BY event_id, type), type_rates AS (SELECT type, AVG(event_rate) AS type_rate FROM event_rates GROUP BY type) SELECT type, type_rate, type_rate / (SELECT AVG(type_rate) FROM type_rates) AS rate_vs_mean_type_rate FROM type_rates;",
+  "sql": "WITH event_rates AS (SELECT e.event_id, e.type, AVG(CAST(b.spent AS REAL) / CAST(b.amount AS REAL)) as avg_rate FROM budget b JOIN event e ON b.link_to_event = e.event_id WHERE b.spent > 0 GROUP BY e.event_id, e.type), type_rates AS (SELECT type, AVG(avg_rate) as type_avg_rate FROM event_rates GROUP BY type), overall_mean AS (SELECT AVG(type_avg_rate) as overall_avg FROM type_rates) SELECT type, type_avg_rate, type_avg_rate / (SELECT overall_avg FROM overall_mean) as normalized_rate FROM type_rates",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Rewritten as a standalone question:\n\nFor each event, average the rate `spent` \u00f7 `amount` across its budget lines, using only lines matched to an event (drop unmatched lines). Exclude any line where `spent` = 0, since nothing has been spent yet, so it does not count toward the rate averages. Then, for each event `type`, average those event-level rates. Ignore missing values in all averages and do not round. Show each type, its average spending rate, and that rate divided by the simple mean of the per-type average rates.",
-  "sql": "WITH line_rates AS (SELECT b.link_to_event AS event_id, CAST(b.spent AS REAL) / NULLIF(b.amount, 0) AS rate FROM budget b JOIN event e ON e.event_id = b.link_to_event WHERE b.spent IS NOT NULL AND b.spent <> 0 AND b.amount IS NOT NULL), event_rates AS (SELECT event_id, AVG(rate) AS event_rate FROM line_rates WHERE rate IS NOT NULL GROUP BY event_id), type_rates AS (SELECT e.type AS type, AVG(er.event_rate) AS avg_rate FROM event_rates er JOIN event e ON e.event_id = er.event_id WHERE e.type IS NOT NULL GROUP BY e.type) SELECT type, avg_rate, avg_rate / (SELECT AVG(avg_rate) FROM type_rates) AS rate_ratio FROM type_rates ORDER BY type;",
+ "a": {
+  "request": "Using budget lines matched to their event (drop lines with no matching event), work out for each event its average spending rate, `spent` \u00f7 `amount`, across its lines, leaving out lines where `spent` is 0. Then, for each event `type`, average those event-level rates. Return the type, its average spending rate, and that rate divided by the simple mean of the per-type average rates. Ignore missing values in the averages, and don't round.",
+  "sql": "WITH event_level AS (SELECT b.link_to_event, e.type, AVG(CASE WHEN b.spent > 0 THEN b.spent / b.amount ELSE NULL END) as event_avg_rate FROM budget b INNER JOIN event e ON b.link_to_event = e.event_id GROUP BY b.link_to_event, e.type), type_level AS (SELECT type, AVG(event_avg_rate) as type_avg_rate FROM event_level GROUP BY type), overall_stats AS (SELECT AVG(type_avg_rate) as overall_mean FROM type_level) SELECT type_level.type, type_level.type_avg_rate, type_level.type_avg_rate / overall_stats.overall_mean as normalized_rate FROM type_level CROSS JOIN overall_stats",
   "executes": true,
   "matches": [
    "B"
   ]
- }
+ },
+ "calls": 6
 }

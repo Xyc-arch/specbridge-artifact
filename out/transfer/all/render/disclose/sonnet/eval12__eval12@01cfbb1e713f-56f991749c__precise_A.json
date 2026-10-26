@@ -2,16 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-56f991749c",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), b AS (SELECT AVG(a) AS base FROM s), q AS (SELECT s.brokrepstat, s.a FROM s CROSS JOIN b WHERE s.a > b.base), qm AS (SELECT AVG(a) AS qmean FROM q) SELECT q.brokrepstat, q.a AS avg_modelconf, q.a - b.base AS diff_from_baseline, q.a / qm.qmean AS ratio_to_qualifying_mean FROM q CROSS JOIN b CROSS JOIN qm WHERE b.base IS NOT NULL AND qm.qmean IS NOT NULL",
+  "sql": "WITH s AS (SELECT brokrepstat, AVG(modelconf) AS a FROM compliancecase GROUP BY brokrepstat), b AS (SELECT AVG(a) AS base FROM s), q AS (SELECT s.brokrepstat, s.a FROM s, b WHERE s.a > b.base), m AS (SELECT AVG(a) AS qm FROM q) SELECT q.brokrepstat AS brokrepstat, q.a AS avg_modelconf, q.a - b.base AS diff_from_baseline, q.a / m.qm AS ratio_to_qualifying_mean FROM q, b, m WHERE b.base IS NOT NULL AND m.qm IS NOT NULL ORDER BY q.a DESC",
   "assumptions": [
    {
-    "assumption": "A status group whose modelconf values are all NULL has a NULL average. It is left out of the baseline mean, because AVG ignores NULLs, and it cannot qualify as above the baseline.",
+    "assumption": "Cases with NULL brokrepstat form one group, because SQLite's GROUP BY puts NULLs together. That group is reported with a NULL status if it qualifies.",
     "unresolved": false
    },
    {
-    "assumption": "Cases with a NULL brokrepstat form one group, and that group counts once in the baseline like any other status.",
+    "assumption": "A status whose cases all have NULL modelconf has a NULL average. It is left out of the baseline and cannot qualify. A group with no non-missing values has no average to count.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The baseline is the unweighted mean of the per-status averages, so each status counts once. The qualifying mean is the unweighted mean of the averages that exceed the baseline. Qualification is strictly greater than the baseline. Values are not rounded.",
     "unresolved": false
    }
   ],
@@ -23,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 7.3,
- "chars_out": 900
+ "seconds": 10.4,
+ "chars_out": 1170
 }

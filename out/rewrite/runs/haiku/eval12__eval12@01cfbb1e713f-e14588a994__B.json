@@ -3,9 +3,16 @@
  "model": "haiku",
  "reading": "B",
  "description": "The size of each funding source is measured by how many distinct projects it has spatial data for.",
+ "b": {
+  "request": "For each funding source (treating missing values as a separate group), count distinct projects appearing in scanspatial records; calculate the average boxy/boxz ratio per source ignoring missing values; identify sources with above-average project counts; output one row with their combined project count, average of their boxy/boxz ratios, and the mean per-source excess above the overall mean project count.",
+  "sql": "WITH funding_project_stats AS (\n  SELECT\n    COALESCE(p.fundflux, 'NULL') as funding_source,\n    COUNT(DISTINCT ss.arcref) as project_count,\n    AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz <> 0 THEN ss.boxy / ss.boxz ELSE NULL END) as avg_ratio\n  FROM scanspatial ss\n  LEFT JOIN projects p ON ss.arcref = p.arcregistry\n  GROUP BY COALESCE(p.fundflux, 'NULL')\n),\noverall_stats AS (\n  SELECT AVG(project_count) as overall_avg_project_count\n  FROM funding_project_stats\n),\nabove_average_sources AS (\n  SELECT\n    fps.project_count,\n    fps.avg_ratio,\n    fps.project_count - os.overall_avg_project_count as excess\n  FROM funding_project_stats fps\n  CROSS JOIN overall_stats os\n  WHERE fps.project_count > os.overall_avg_project_count\n)\nSELECT\n  SUM(project_count) as combined_project_count,\n  AVG(avg_ratio) as average_of_boxy_boxz_ratios,\n  AVG(excess) as mean_per_source_excess\nFROM above_average_sources;",
+  "executes": true,
+  "matches": [],
+  "raw": "For each funding source (treating missing values as a separate group), count distinct projects appearing in scanspatial records; calculate the average boxy/boxz ratio per source ignoring missing values; identify sources with above-average project counts; output one row with their combined project count, average of their boxy/boxz ratios, and the mean per-source excess above the overall mean project count."
+ },
  "c": {
   "request": "Looking at spatial scan data (`scanspatial`) linked to projects (`projects.arcregistry` = `scanspatial.arcref`), which funding sources (`projects.fundflux`, treating a missing source as its own group) are bigger than average? For each funding source, work out the average ratio of bounding box Y (`boxy`) to bounding box Z (`boxz`), ignoring missing values, and how big it is. For the sources above the average size across funding sources, give one row with the average of their ratios, their combined size, and how far on average they exceed the average size. No rounding. The size of each funding source is measured by how many distinct projects it has spatial data for.",
-  "sql": "WITH src AS (\n  SELECT p.fundflux,\n         AVG(s.boxy / NULLIF(s.boxz, 0)) AS avg_ratio,\n         COUNT(DISTINCT s.arcref) AS size\n  FROM scanspatial s\n  JOIN projects p ON p.arcregistry = s.arcref\n  GROUP BY p.fundflux\n),\navg_size AS (\n  SELECT AVG(size) AS avg_size FROM src\n),\nabove AS (\n  SELECT src.fundflux,\n         src.avg_ratio,\n         src.size,\n         src.size - a.avg_size AS excess\n  FROM src\n  CROSS JOIN avg_size a\n  WHERE src.size > a.avg_size\n)\nSELECT AVG(avg_ratio) AS avg_ratio,\n       SUM(size) AS combined_size,\n       AVG(excess) AS avg_excess_size\nFROM above;",
+  "sql": "WITH funding_stats AS (SELECT COALESCE(p.fundflux, 'Missing') as funding_source, COUNT(DISTINCT p.arcregistry) as project_count, AVG(CASE WHEN ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0 THEN ss.boxy / ss.boxz ELSE NULL END) as avg_ratio FROM scanspatial ss JOIN projects p ON ss.arcref = p.arcregistry GROUP BY COALESCE(p.fundflux, 'Missing')), overall_stats AS (SELECT AVG(project_count) as avg_count FROM funding_stats), above_avg AS (SELECT fs.avg_ratio, fs.project_count, os.avg_count FROM funding_stats fs, overall_stats os WHERE fs.project_count > os.avg_count) SELECT AVG(avg_ratio) as average_of_ratios, SUM(project_count) as combined_size, AVG(project_count - avg_count) as avg_excess FROM above_avg",
   "executes": true,
   "matches": [
    "B"
@@ -13,27 +20,19 @@
  },
  "a": {
   "request": "Using spatial records (`scanspatial`) matched to a project (`projects.arcregistry` = `scanspatial.arcref`), for each funding source (`projects.fundflux`, treating a missing source as its own group) compute the average ratio of bounding box Y (`boxy`) to bounding box Z (`boxz`), ignoring missing values, and the number of distinct projects. Keep the funding sources whose number of distinct projects is above the average of that number across all funding sources. Return one row with: the average of the kept sources' ratios; the total of their distinct project counts; and the average amount by which their counts exceed the cross-source average. No rounding.",
-  "sql": "WITH grp AS (SELECT p.fundflux AS fund, AVG(s.boxy * 1.0 / NULLIF(s.boxz, 0)) AS avg_ratio, COUNT(DISTINCT p.arcregistry) AS proj_cnt FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), overall AS (SELECT AVG(proj_cnt * 1.0) AS avg_cnt FROM grp), kept AS (SELECT g.avg_ratio, g.proj_cnt FROM grp g CROSS JOIN overall o WHERE g.proj_cnt > o.avg_cnt) SELECT AVG(k.avg_ratio) AS avg_ratio_kept, SUM(k.proj_cnt) AS total_distinct_projects, AVG(k.proj_cnt - o.avg_cnt) AS avg_excess_over_cross_source_avg FROM kept k CROSS JOIN overall o;",
+  "sql": "WITH funding_stats AS (\n  SELECT\n    p.fundflux,\n    AVG(ss.boxy / ss.boxz) as avg_ratio,\n    COUNT(DISTINCT ss.arcref) as distinct_projects\n  FROM scanspatial ss\n  JOIN projects p ON ss.arcref = p.arcregistry\n  WHERE ss.boxy IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0\n  GROUP BY p.fundflux\n),\navg_project_count AS (\n  SELECT AVG(distinct_projects) as avg_count\n  FROM funding_stats\n),\nkept_sources AS (\n  SELECT\n    fs.avg_ratio,\n    fs.distinct_projects,\n    apc.avg_count\n  FROM funding_stats fs\n  CROSS JOIN avg_project_count apc\n  WHERE fs.distinct_projects > apc.avg_count\n)\nSELECT\n  AVG(ks.avg_ratio),\n  SUM(ks.distinct_projects),\n  AVG(ks.distinct_projects - ks.avg_count)\nFROM kept_sources ks",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "b": {
-  "request": "For each funding source (NULL as its own group), size = count of distinct projects with scanspatial rows; average boxy/boxz per group ignoring NULLs; among groups whose size exceeds the mean group size, return one row: mean of their average ratios, sum of their sizes, and mean of (size \u2212 mean group size) over those groups, unrounded",
-  "sql": "WITH src AS (SELECT p.fundflux, p.arcregistry, s.domainregistry, s.boxy, s.boxz FROM projects p LEFT JOIN scanspatial s ON s.arcref = p.arcregistry), grp AS (SELECT fundflux, COUNT(DISTINCT CASE WHEN domainregistry IS NOT NULL THEN arcregistry END) AS grp_size, AVG(CASE WHEN boxy IS NOT NULL AND boxz IS NOT NULL AND boxz <> 0 THEN boxy / boxz END) AS avg_ratio FROM src GROUP BY fundflux), stats AS (SELECT AVG(grp_size) AS mean_size FROM grp), above AS (SELECT g.grp_size, g.avg_ratio FROM grp g CROSS JOIN stats st WHERE g.grp_size > st.mean_size) SELECT AVG(a.avg_ratio) AS mean_avg_ratio, SUM(a.grp_size) AS total_size, AVG(a.grp_size - st.mean_size) AS mean_excess_size FROM above a CROSS JOIN stats st;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
  "d": {
-  "request": "Among funding sources (`projects.fundflux`, with a missing source treated as its own group), which are bigger than average when size is measured by the number of distinct projects with spatial data in `scanspatial`? For each funding source, compute the average ratio of `boxy` to `boxz` across its linked scan records, ignoring missing values. Then, for the sources whose size is above the average size across funding sources, return one row with the average of their ratios, their combined size, and the average amount by which they exceed the average size, unrounded.",
-  "sql": "WITH per_project AS (\n  SELECT p.arcregistry, p.fundflux, s.domainregistry, s.boxy, s.boxz\n  FROM projects p\n  LEFT JOIN scanspatial s ON s.arcref = p.arcregistry\n),\ngrp AS (\n  SELECT fundflux,\n         COUNT(DISTINCT CASE WHEN domainregistry IS NOT NULL THEN arcregistry END) AS size,\n         AVG(boxy / NULLIF(boxz, 0)) AS avg_ratio\n  FROM per_project\n  GROUP BY fundflux\n),\noverall AS (\n  SELECT AVG(size) AS avg_size FROM grp\n)\nSELECT AVG(g.avg_ratio) AS avg_ratio,\n       SUM(g.size) AS combined_size,\n       AVG(g.size - o.avg_size) AS avg_excess\nFROM grp g\nCROSS JOIN overall o\nWHERE g.size > o.avg_size;",
+  "request": "For each funding source (including NULL as a separate group), measure size as the count of distinct projects with spatial data, calculate the average bounding box Y-to-Z ratio per source, identify sources with above-average project count, and return one row with the average of their ratios, combined project count, and average excess over mean project count.",
+  "sql": "WITH project_stats AS (\n  SELECT \n    p.fundflux,\n    COUNT(DISTINCT p.arcregistry) as project_count,\n    AVG(ss.boxy / ss.boxz) as avg_ratio\n  FROM projects p\n  INNER JOIN scanspatial ss ON p.arcregistry = ss.arcref\n  GROUP BY p.fundflux\n),\nmean_calculation AS (\n  SELECT AVG(project_count) as mean_count\n  FROM project_stats\n),\nabove_average AS (\n  SELECT \n    ps.project_count,\n    ps.avg_ratio,\n    mc.mean_count\n  FROM project_stats ps\n  CROSS JOIN mean_calculation mc\n  WHERE ps.project_count > mc.mean_count\n)\nSELECT \n  AVG(avg_ratio) as average_ratio,\n  SUM(project_count) as combined_project_count,\n  AVG(project_count - mean_count) as average_excess\nFROM above_average",
   "executes": true,
   "matches": [
    "B"
   ]
- }
+ },
+ "calls": 6
 }

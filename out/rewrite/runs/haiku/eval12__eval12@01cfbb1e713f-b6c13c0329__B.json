@@ -5,27 +5,28 @@
  "description": "For each sex, count the distinct patients who have at least one examination.",
  "a": {
   "request": "Matching examinations to their patients, count the distinct examined patients (`Examination.ID`) for each `SEX` value (blank and missing sexes are their own groups) and work out each sex's share of the combined count. Among the sexes whose count is above the average count per sex, give one row with the total of their counts, the average of their shares, and the average amount by which their counts exceed that per-sex average.",
-  "sql": "WITH sex_counts AS (SELECT p.SEX AS sex, COUNT(DISTINCT e.ID) AS cnt FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID GROUP BY p.SEX), totals AS (SELECT SUM(cnt) AS total_cnt, AVG(cnt) AS avg_cnt FROM sex_counts), shares AS (SELECT s.cnt, CAST(s.cnt AS REAL) / t.total_cnt AS share, t.avg_cnt FROM sex_counts s CROSS JOIN totals t) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(cnt - avg_cnt) AS avg_excess FROM shares WHERE cnt > avg_cnt",
+  "sql": "WITH sex_counts AS (\n  SELECT p.SEX, COUNT(DISTINCT e.ID) as count\n  FROM Examination e\n  JOIN Patient p ON e.ID = p.ID\n  GROUP BY p.SEX\n),\ntotal_info AS (\n  SELECT \n    SUM(count) as total_count,\n    COUNT(*) as num_sexes,\n    SUM(count) / COUNT(*) as avg_count_per_sex\n  FROM sex_counts\n),\nsex_shares AS (\n  SELECT \n    sc.SEX,\n    sc.count,\n    sc.count / ti.total_count as share,\n    (sc.count - ti.avg_count_per_sex) as excess\n  FROM sex_counts sc\n  CROSS JOIN total_info ti\n),\nabove_average AS (\n  SELECT \n    SEX,\n    count,\n    share,\n    excess\n  FROM sex_shares\n  WHERE count > (SELECT avg_count_per_sex FROM total_info)\n)\nSELECT \n  SUM(count) as total_counts,\n  AVG(share) as avg_share,\n  AVG(excess) as avg_excess\nFROM above_average",
+  "executes": true,
+  "matches": []
+ },
+ "d": {
+  "request": "For each patient sex (including blank and missing values as separate groups), count the distinct patients who have at least one examination record, calculate each sex's share of the total examined patients, and for sexes above the per-sex average, provide a combined row with their aggregate patient count, average percentage share, and mean deviation above the per-sex average.",
+  "sql": "WITH examined_patients AS (\n  SELECT DISTINCT e.ID, COALESCE(p.SEX, 'NULL') as Sex\n  FROM Examination e\n  JOIN Patient p ON e.ID = p.ID\n),\nsex_stats AS (\n  SELECT \n    Sex,\n    COUNT(DISTINCT ID) as PatientCount,\n    (COUNT(DISTINCT ID) * 100.0 / (SELECT COUNT(DISTINCT ID) FROM examined_patients)) as PercentageShare\n  FROM examined_patients\n  GROUP BY Sex\n),\navg_percentage AS (\n  SELECT AVG(PercentageShare) as AvgPercentage FROM sex_stats\n)\nSELECT \n  Sex,\n  PatientCount,\n  PercentageShare,\n  NULL as MeanDeviation\nFROM sex_stats\n\nUNION ALL\n\nSELECT \n  'Above Average' as Sex,\n  SUM(ss.PatientCount) as PatientCount,\n  AVG(ss.PercentageShare) as PercentageShare,\n  AVG(ss.PercentageShare - ap.AvgPercentage) as MeanDeviation\nFROM sex_stats ss\nCROSS JOIN avg_percentage ap\nWHERE ss.PercentageShare > ap.AvgPercentage",
   "executes": true,
   "matches": []
  },
  "b": {
-  "request": "For each value of Patient.SEX (with NULL and blank values as their own groups), count the distinct Patient.ID values that have at least one row in Examination",
-  "sql": "SELECT p.SEX, COUNT(DISTINCT p.ID) AS patient_count FROM Patient p WHERE EXISTS (SELECT 1 FROM Examination e WHERE e.ID = p.ID) GROUP BY p.SEX;",
-  "executes": true,
-  "matches": []
+  "request": "For each patient sex (including blank and missing as separate groups), count the distinct patients who have at least one examination record, display the count and percentage share for each sex, and for sex groups with above-average examination frequency, provide a combined row with their aggregate patient count, mean percentage share, and mean distance above the per-sex average.",
+  "sql": "WITH sex_groups AS (SELECT CASE WHEN p.SEX IS NULL THEN 'NULL' WHEN p.SEX = '' THEN 'BLANK' ELSE p.SEX END as sex_group, p.ID FROM Patient p INNER JOIN Examination e ON p.ID = e.ID), counts_by_sex AS (SELECT sex_group, COUNT(DISTINCT ID) as patient_count FROM sex_groups GROUP BY sex_group), total_patients AS (SELECT SUM(patient_count) as total FROM counts_by_sex), avg_count AS (SELECT AVG(CAST(patient_count AS FLOAT)) as avg_patients FROM counts_by_sex), stats AS (SELECT sex_group, patient_count, ROUND(100.0 * patient_count / (SELECT total FROM total_patients), 2) as percentage, (SELECT avg_patients FROM avg_count) as avg_patients FROM counts_by_sex), above_avg AS (SELECT sex_group, patient_count, percentage, CAST(patient_count AS FLOAT) - avg_patients as distance FROM stats WHERE patient_count > avg_patients) SELECT sex_group as sex, patient_count, percentage, NULL as mean_distance_above_avg FROM stats UNION ALL SELECT 'ABOVE_AVERAGE_COMBINED' as sex, SUM(patient_count) as patient_count, ROUND(AVG(percentage), 2) as percentage, ROUND(AVG(distance), 2) as mean_distance_above_avg FROM above_avg WHERE (SELECT COUNT(*) FROM above_avg) > 0 ORDER BY CASE WHEN sex = 'ABOVE_AVERAGE_COMBINED' THEN 0 ELSE 1 END, patient_count DESC",
+  "executes": false,
+  "matches": [],
+  "raw": "For each patient sex (including blank and missing as separate groups), count the distinct patients who have at least one examination record, display the count and percentage share for each sex, and for sex groups with above-average examination frequency, provide a combined row with their aggregate patient count, mean percentage share, and mean distance above the per-sex average."
  },
  "c": {
   "request": "Looking at the examination data by patient sex (blank and missing sexes as their own groups), how many were examined in each sex, and what share of the overall total is that? For the sexes above the per-sex average, give one row with their combined total, their average share, and on average how far above the per-sex average they are. For each sex, count the distinct patients who have at least one examination.",
-  "sql": "WITH exam_sex AS (SELECT e.ID AS pid, CASE WHEN p.SEX IS NULL THEN 'missing' WHEN TRIM(p.SEX) = '' THEN 'blank' ELSE p.SEX END AS sex FROM Examination e LEFT JOIN Patient p ON p.ID = e.ID), sex_counts AS (SELECT sex, COUNT(*) AS exams, COUNT(DISTINCT pid) AS patients FROM exam_sex GROUP BY sex), totals AS (SELECT SUM(exams) AS total, AVG(exams) AS avg_exams FROM sex_counts), shares AS (SELECT s.sex, s.exams, s.patients, 1.0 * s.exams / t.total AS share, s.exams - t.avg_exams AS excess FROM sex_counts s CROSS JOIN totals t) SELECT sex, exams, patients, share, excess FROM shares UNION ALL SELECT 'above_average', SUM(exams), NULL, AVG(share), AVG(excess) FROM shares WHERE excess > 0",
+  "sql": "WITH sex_exams AS (\n  SELECT \n    COALESCE(p.SEX, 'Missing/Blank') as sex,\n    COUNT(*) as exam_count,\n    COUNT(DISTINCT p.ID) as distinct_patients\n  FROM Examination e\n  LEFT JOIN Patient p ON e.ID = p.ID\n  GROUP BY COALESCE(p.SEX, 'Missing/Blank')\n),\ntotals AS (\n  SELECT \n    SUM(exam_count) as total_exams,\n    COUNT(*) as num_sex_groups,\n    SUM(exam_count) * 1.0 / COUNT(*) as avg_per_sex\n  FROM sex_exams\n),\nwith_metrics AS (\n  SELECT \n    se.sex,\n    se.exam_count,\n    se.distinct_patients,\n    ROUND(se.exam_count * 100.0 / t.total_exams, 2) as share_percent,\n    t.avg_per_sex,\n    ROUND(se.exam_count - t.avg_per_sex, 2) as deviation_from_avg\n  FROM sex_exams se, totals t\n),\nabove_avg AS (\n  SELECT * FROM with_metrics WHERE exam_count > avg_per_sex\n)\nSELECT \n  sex,\n  exam_count,\n  share_percent,\n  distinct_patients,\n  deviation_from_avg\nFROM with_metrics\nUNION ALL\nSELECT \n  'Above Average Combined',\n  SUM(exam_count),\n  ROUND(AVG(share_percent), 2),\n  SUM(distinct_patients),\n  ROUND(AVG(deviation_from_avg), 2)\nFROM above_avg",
   "executes": true,
   "matches": []
  },
- "calls": 6,
- "d": {
-  "request": "For each patient sex (with blank and missing sexes as their own groups), how many distinct patients have at least one examination?",
-  "sql": "SELECT p.SEX, COUNT(DISTINCT p.ID) AS patient_count FROM Patient p JOIN Examination e ON e.ID = p.ID GROUP BY p.SEX;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

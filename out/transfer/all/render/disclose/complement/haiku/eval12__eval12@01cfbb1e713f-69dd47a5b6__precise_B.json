@@ -4,22 +4,14 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH acct AS (SELECT d.A3 AS region, a.account_id, AVG(CASE WHEN t.type IN ('PRIJEM','VYDAJ') THEN t.amount END) AS avg_amount, AVG(t.balance) AS avg_balance FROM trans t JOIN account a ON a.account_id = t.account_id JOIN district d ON d.district_id = a.district_id GROUP BY d.A3, a.account_id), region AS (SELECT region, AVG(avg_amount) AS amount_avg, AVG(avg_balance) AS balance_avg FROM acct GROUP BY region) SELECT region, amount_avg, balance_avg, amount_avg / (SELECT AVG(amount_avg) FROM region) AS amount_ratio FROM region WHERE (SELECT AVG(amount_avg) FROM region) IS NOT NULL",
+  "sql": "WITH joined AS (\n  SELECT \n    t.account_id,\n    t.amount,\n    t.balance,\n    t.type,\n    d.A3 as region\n  FROM trans t\n  INNER JOIN account a ON t.account_id = a.account_id\n  INNER JOIN district d ON a.district_id = d.district_id\n),\nper_account AS (\n  SELECT \n    account_id,\n    region,\n    AVG(CASE WHEN type IN ('PRIJEM', 'VYDAJ') THEN amount END) as avg_amount,\n    AVG(balance) as avg_balance\n  FROM joined\n  GROUP BY account_id, region\n),\nper_region AS (\n  SELECT \n    region,\n    AVG(avg_amount) as region_avg_amount,\n    AVG(avg_balance) as region_avg_balance\n  FROM per_account\n  GROUP BY region\n),\nglobal_stats AS (\n  SELECT AVG(region_avg_amount) as global_avg_amount\n  FROM per_region\n)\nSELECT \n  pr.region,\n  pr.region_avg_amount,\n  pr.region_avg_balance,\n  CASE \n    WHEN gs.global_avg_amount IS NOT NULL\n    THEN pr.region_avg_amount / gs.global_avg_amount\n    ELSE NULL\n  END as ratio\nFROM per_region pr\nCROSS JOIN global_stats gs;",
   "assumptions": [
    {
-    "assumption": "The region is district.A3 of the account's district (account.district_id); each account maps to exactly one region, so grouping by region and account_id is exact. Inner joins drop unmatched rows.",
+    "assumption": "For each account, compute the average balance across *all* transactions (including types other than PRIJEM/VYDAJ), while the average amount uses only PRIJEM/VYDAJ transactions.",
     "unresolved": false
    },
    {
-    "assumption": "An account with no PRIJEM or VYDAJ transactions has a NULL per-account amount average and is skipped by AVG in the region's amount average, while its balance average still counts. The request does not say how such accounts should be treated.",
-    "unresolved": true
-   },
-   {
-    "assumption": "'Return nothing if the overall mean is missing' means returning zero rows when the plain mean of the regional amount averages is NULL. SQLite returns NULL for division by zero, so a zero overall mean yields a NULL ratio rather than an error.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The SQL targets SQLite, given the TEXT/REAL types and backtick-quoted `order` table in the schema.",
+    "assumption": "When the global mean of region amount-averages is NULL or missing, return NULL for the ratio field rather than omitting the region row entirely.",
     "unresolved": false
    }
   ],
@@ -30,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 16.3
+ "seconds": 77.8
 }

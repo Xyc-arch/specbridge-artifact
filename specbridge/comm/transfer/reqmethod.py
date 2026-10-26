@@ -81,11 +81,19 @@ def run(workers=6):
     judge(); report()
 
 
+def _plain_f(m, k, w):
+    """The explanation-call answer this comparison was run against. The LiveSQLBench sets were later re-answered with the SQLite
+    dialect named (dialect_rerun.merge); every other arm here used the first prompt, so the first-run answer is kept for them."""
+    f = "%s/%s/%s__%s.json" % (X._paths(LG.D)[2], m, k.replace(":", "__").replace("/", "_"), w)
+    a = os.path.join("out/archive/first-run-livesql", f)
+    return a if os.path.exists(a) else f
+
+
 def _answers(arm, m, k, w, C):
     """The answer set an arm returns: [(sql, matches)]; None when not available."""
     c = C[k]; con = DB.connect(c["snapshot"])
     if arm == "plain":
-        f = "%s/%s/%s__%s.json" % (X._paths(LG.D)[2], m, k.replace(":", "__").replace("/", "_"), w)
+        f = _plain_f(m, k, w)
         if not os.path.exists(f): return None
         o = json.load(open(f)); r = o.get("response") or {}
         qs = [r.get("sql")] + [x.get("sql") for x in (r.get("alternatives") or []) if isinstance(x, dict)]
@@ -122,7 +130,7 @@ def judge(batch=6):
                 key = "%s|%s|%s" % (k, m, a)
                 if key in J: continue
                 if a == "plain":
-                    f = "%s/%s/%s__open.json" % (X._paths(LG.D)[2], m, k.replace(":", "__").replace("/", "_"))
+                    f = _plain_f(m, k, "open")
                     if not os.path.exists(f): continue
                     r = json.load(open(f)).get("response") or {}; said = {"assumptions": r.get("assumptions"), "alternatives": [x.get("interpretation") for x in (r.get("alternatives") or []) if isinstance(x, dict)]}
                 else:

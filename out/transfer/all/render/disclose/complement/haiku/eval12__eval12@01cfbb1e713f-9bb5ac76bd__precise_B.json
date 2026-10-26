@@ -2,28 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-9bb5ac76bd",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH linked AS (\n  SELECT s.signalregistry, s.modindex, s.phaseshiftdeg, t.telescregistry, o.weathprofile\n  FROM signals s\n  JOIN telescopes t ON s.telescref = t.telescregistry\n  JOIN observatories o ON t.observstation = o.observstation\n),\nbaseline AS (\n  SELECT AVG(modindex) AS base_mod FROM linked\n),\ngroups AS (\n  SELECT telescregistry, weathprofile, AVG(modindex) AS grp_mod, AVG(phaseshiftdeg) AS grp_phase\n  FROM linked\n  GROUP BY telescregistry, weathprofile\n),\nkept AS (\n  SELECT g.* FROM groups g CROSS JOIN baseline b WHERE g.grp_mod > b.base_mod\n)\nSELECT k.weathprofile,\n  AVG(k.grp_mod) AS avg_mod_index,\n  AVG(k.grp_phase) AS avg_phase_shift,\n  AVG(k.grp_mod - b.base_mod) AS avg_mod_above_baseline\nFROM kept k CROSS JOIN baseline b\nGROUP BY k.weathprofile;",
+  "sql": "WITH linked_signals AS (\n  SELECT \n    s.modindex,\n    s.phaseshiftdeg,\n    t.telescregistry,\n    o.weathprofile\n  FROM signals s\n  INNER JOIN telescopes t ON s.telescref = t.telescregistry\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\noverall_baseline AS (\n  SELECT AVG(modindex) as baseline\n  FROM linked_signals\n),\ntelescope_weather_groups AS (\n  SELECT \n    ls.telescregistry,\n    ls.weathprofile,\n    AVG(ls.modindex) as group_avg_modindex,\n    AVG(ls.phaseshiftdeg) as group_avg_phaseshift\n  FROM linked_signals ls\n  GROUP BY ls.telescregistry, ls.weathprofile\n),\nfiltered_groups AS (\n  SELECT \n    twg.weathprofile,\n    twg.group_avg_modindex,\n    twg.group_avg_phaseshift,\n    ob.baseline\n  FROM telescope_weather_groups twg\n  CROSS JOIN overall_baseline ob\n  WHERE twg.group_avg_modindex > ob.baseline\n)\nSELECT \n  fg.weathprofile,\n  AVG(fg.group_avg_modindex) as avg_modindex,\n  AVG(fg.group_avg_phaseshift) as avg_phaseshift,\n  AVG(fg.group_avg_modindex - fg.baseline) as avg_above_baseline\nFROM filtered_groups fg\nGROUP BY fg.weathprofile;",
   "assumptions": [
    {
-    "assumption": "Linking uses inner joins, so signals whose telescref has no matching telescope, or whose telescope's observstation has no matching observatory, are dropped.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The baseline is AVG(modindex) over every linked signal, with NULL modulation indexes ignored, so each signal counts equally. It is not an average of the telescope/weather group averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Group averages use AVG, which ignores NULL modindex and phaseshiftdeg values. A group with no non-null modindex has a NULL average and is dropped by the comparison.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL weathprofile is treated as its own weather group, so it appears as a NULL row in the output. The request does not say whether observatories with missing weather data should be excluded.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The 'average amount above baseline' is the average of (group average modindex minus baseline) over the kept groups. This equals the average group modindex minus the baseline, and no rounding is applied.",
+    "assumption": "Groups (telescope/weather combinations) are filtered based on whether their average modulation index exceeds the global baseline\u2014computed once across all linked signals\u2014not based on individual signal values exceeding the baseline.",
     "unresolved": false
    }
   ],
@@ -34,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 12.3
+ "seconds": 61.7
 }

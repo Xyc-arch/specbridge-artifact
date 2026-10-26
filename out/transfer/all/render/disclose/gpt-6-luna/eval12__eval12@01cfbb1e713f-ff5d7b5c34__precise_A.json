@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH pair_averages AS (\n  SELECT f.orderslink, u.acctscope, AVG(f.feerate) AS avg_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  JOIN users AS u ON o.userlink = u.userstamp\n  GROUP BY f.orderslink, u.acctscope\n),\nabove_mean AS (\n  SELECT orderslink, acctscope, avg_fee_rate,\n         avg_fee_rate - AVG(avg_fee_rate) OVER () AS excess\n  FROM pair_averages\n),\nranked AS (\n  SELECT orderslink, acctscope, avg_fee_rate, excess,\n         RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) AS pair_rank\n  FROM above_mean\n  WHERE avg_fee_rate > (SELECT AVG(avg_fee_rate) FROM pair_averages)\n)\nSELECT orderslink, acctscope, avg_fee_rate, excess, pair_rank\nFROM ranked\nWHERE pair_rank <= 3;",
+  "sql": "WITH pair_averages AS (\n  SELECT\n    f.orderslink,\n    u.acctscope,\n    AVG(f.feerate) AS avg_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  JOIN users AS u ON o.userlink = u.userstamp\n  GROUP BY f.orderslink, u.acctscope\n),\nabove_mean AS (\n  SELECT\n    orderslink,\n    acctscope,\n    avg_fee_rate,\n    avg_fee_rate - AVG(avg_fee_rate) OVER () AS excess\n  FROM pair_averages\n  WHERE avg_fee_rate > (SELECT AVG(avg_fee_rate) FROM pair_averages)\n),\nranked AS (\n  SELECT\n    orderslink,\n    acctscope,\n    avg_fee_rate,\n    excess,\n    RANK() OVER (PARTITION BY acctscope ORDER BY excess DESC) AS rank\n  FROM above_mean\n)\nSELECT orderslink, acctscope, avg_fee_rate, excess, rank\nFROM ranked\nWHERE rank <= 3\nORDER BY acctscope, rank, orderslink;",
   "assumptions": [
    {
-    "assumption": "The mean of all pair averages is computed across all matched (orderslink, account scope) pairs, including pairs whose average fee rate is NULL; SQL AVG ignores NULL values.",
+    "assumption": "The mean of all pair averages is the unweighted arithmetic mean across the distinct orderslink/account-scope pairs produced by the specified joins; pairs with a NULL average fee rate are excluded from that mean.",
     "unresolved": false
    }
   ],
@@ -15,10 +15,8 @@
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
+ "primary_matches": [],
  "alternatives": [],
- "seconds": 8.0,
- "chars_out": 994
+ "seconds": 28.4,
+ "chars_out": 1096
 }

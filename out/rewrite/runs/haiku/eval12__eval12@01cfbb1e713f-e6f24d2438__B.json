@@ -3,31 +3,32 @@
  "model": "haiku",
  "reading": "B",
  "description": "For each trader type, count the distinct transactions that have at least one advanced behaviour analysis and a matching trader. Report that count and its share of the total count over all trader types.",
- "c": {
-  "request": "For each trader type, how many analysed trade records are there in the advanced behaviour data (only where the trade and its trader can be found), and what share of the overall total does each type make up? Keep the share unrounded. For each trader type, count the distinct transactions that have at least one advanced behaviour analysis and a matching trader. Report that count and its share of the total count over all trader types.",
-  "sql": "WITH counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS cnt FROM transactionrecord tr JOIN advancedbehavior ab ON ab.translink = tr.transreg JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind) SELECT tradekind, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM counts ORDER BY cnt DESC;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
  "a": {
   "request": "Considering only advanced behaviour analyses whose linked transaction record and trader both exist, for each trader type (`tradekind`) give the trader type, the number of distinct transactions analysed (a transaction analysed twice counts once), and that number divided by the total of these numbers over all trader types, without rounding.",
-  "sql": "WITH counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) AS txn_count FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref GROUP BY t.tradekind) SELECT tradekind, txn_count, txn_count::numeric / SUM(txn_count) OVER () AS share FROM counts;",
+  "sql": "WITH trader_counts AS (\n  SELECT \n    t.tradekind,\n    COUNT(DISTINCT ab.translink) as distinct_transactions\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n  INNER JOIN trader t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n)\nSELECT \n  tradekind,\n  distinct_transactions,\n  distinct_transactions::numeric / (SELECT SUM(distinct_transactions) FROM trader_counts) as proportion\nFROM trader_counts\nORDER BY tradekind;",
+  "executes": false,
+  "matches": []
+ },
+ "d": {
+  "request": "For each trader type, count the distinct transactions with an advanced behaviour analysis that also have a valid trader, reporting count and unrounded share of the total transaction count across all trader types.",
+  "sql": "WITH transaction_analysis AS (\n  SELECT \n    t.tradekind,\n    COUNT(DISTINCT tr.transreg) as transaction_count\n  FROM transactionrecord tr\n  JOIN trader t ON tr.trdref = t.tradereg\n  JOIN advancedbehavior ab ON ab.translink = tr.transreg\n  GROUP BY t.tradekind\n),\ntotal_count AS (\n  SELECT SUM(transaction_count) as total FROM transaction_analysis\n)\nSELECT \n  ta.tradekind,\n  ta.transaction_count,\n  ta.transaction_count::NUMERIC / tc.total as share\nFROM transaction_analysis ta\nCROSS JOIN total_count tc\nORDER BY ta.tradekind;",
+  "executes": false,
+  "matches": []
+ },
+ "c": {
+  "request": "For each trader type, how many analysed trade records are there in the advanced behaviour data (only where the trade and its trader can be found), and what share of the overall total does each type make up? Keep the share unrounded. For each trader type, count the distinct transactions that have at least one advanced behaviour analysis and a matching trader. Report that count and its share of the total count over all trader types.",
+  "sql": "WITH trade_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) as count FROM advancedbehavior ab JOIN transactionrecord tr ON ab.translink = tr.transreg JOIN trader t ON tr.trdref = t.tradereg GROUP BY t.tradekind), total AS (SELECT SUM(count) as total_count FROM trade_counts) SELECT tc.tradekind, tc.count, tc.count::NUMERIC / t.total_count as share FROM trade_counts tc, total t ORDER BY tc.tradekind;",
   "executes": false,
   "matches": []
  },
  "b": {
-  "request": "For each trader type, count distinct transactionrecord rows that have at least one advancedbehavior row (via translink) and a matching trader (via trdref \u2192 tradereg), grouped by trader.tradekind, reporting each count and its percentage of the total count across all trader types without rounding",
-  "sql": "SELECT t.tradekind, COUNT(*) AS record_count, COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS percentage FROM transactionrecord tr JOIN trader t ON t.tradereg = tr.trdref WHERE EXISTS (SELECT 1 FROM advancedbehavior ab WHERE ab.translink = tr.transreg) GROUP BY t.tradekind;",
+  "request": "For each trader type, count the distinct transactions that have at least one advanced behaviour analysis and a matching trader, reporting the count and its unrounded share of the total count across all trader types.",
+  "sql": "WITH transaction_counts AS (SELECT t.tradekind, COUNT(DISTINCT tr.transreg) as transaction_count FROM trader t INNER JOIN transactionrecord tr ON t.tradereg = tr.trdref INNER JOIN advancedbehavior ab ON tr.transreg = ab.translink GROUP BY t.tradekind), total_transactions AS (SELECT SUM(transaction_count) as total FROM transaction_counts) SELECT tc.tradekind, tc.transaction_count, CAST(tc.transaction_count AS FLOAT) / tt.total as share FROM transaction_counts tc CROSS JOIN total_transactions tt ORDER BY tc.tradekind",
   "executes": true,
-  "matches": []
+  "matches": [
+   "B"
+  ],
+  "raw": "For each trader type, count the distinct transactions that have at least one advanced behaviour analysis and a matching trader, reporting the count and its unrounded share of the total count across all trader types."
  },
- "calls": 6,
- "d": {
-  "request": "For each trader type, how many distinct transactions have at least one advanced behaviour analysis and a matching trader, and what share of the total does each type make up? Keep the share unrounded.",
-  "sql": "WITH matched AS (SELECT DISTINCT t.tradekind, tr.transreg FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink JOIN trader t ON t.tradereg = tr.trdref) SELECT tradekind, COUNT(*) AS transaction_count, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS share FROM matched GROUP BY tradekind ORDER BY tradekind;",
-  "executes": false,
-  "matches": []
- }
+ "calls": 6
 }

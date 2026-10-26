@@ -3,12 +3,10 @@
  "wording": "open",
  "model": "haiku",
  "response": {
-  "sql": "WITH per_order_avg AS (SELECT ordersmark, AVG(fillcount) as avg_fillcount FROM orderexecutions GROUP BY ordersmark), benchmark1 AS (SELECT AVG(avg_fillcount) as val FROM per_order_avg), filtered1 AS (SELECT ordersmark, avg_fillcount, avg_fillcount - (SELECT val FROM benchmark1) as margin1 FROM per_order_avg WHERE avg_fillcount > (SELECT val FROM benchmark1)), benchmark2 AS (SELECT AVG(avg_fillcount) as val FROM filtered1), filtered2 AS (SELECT ordersmark, avg_fillcount, margin1, avg_fillcount - (SELECT val FROM benchmark2) as margin2 FROM filtered1 WHERE avg_fillcount > (SELECT val FROM benchmark2)) SELECT AVG(avg_fillcount) as avg_fill_size, AVG(margin1) as avg_margin_vs_benchmark1, AVG(margin2) as avg_margin_vs_benchmark2 FROM filtered2"
+  "sql": "WITH order_fills AS (\n  SELECT \n    ordersmark,\n    AVG(fillcount) as avg_fill\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\nglobal_avg AS (\n  SELECT AVG(fillcount) as global_avg\n  FROM orderexecutions\n),\nfirst_filter AS (\n  SELECT \n    of.ordersmark,\n    of.avg_fill\n  FROM order_fills of\n  CROSS JOIN global_avg ga\n  WHERE of.avg_fill > ga.global_avg\n),\nfirst_filter_avg AS (\n  SELECT AVG(avg_fill) as filter_avg\n  FROM first_filter\n),\nfinal_filter AS (\n  SELECT \n    ff.ordersmark,\n    ff.avg_fill\n  FROM first_filter ff\n  CROSS JOIN first_filter_avg fa\n  WHERE ff.avg_fill > fa.filter_avg\n)\nSELECT \n  AVG(ff.avg_fill) as avg_fill_final,\n  AVG(ff.avg_fill - ga.global_avg) as margin_vs_global,\n  AVG(ff.avg_fill - fa.filter_avg) as margin_vs_filtered\nFROM final_filter ff\nCROSS JOIN global_avg ga\nCROSS JOIN first_filter_avg fa"
  },
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 38.5,
- "chars_out": 775
+ "primary_matches": [],
+ "seconds": 22.8,
+ "chars_out": 896
 }

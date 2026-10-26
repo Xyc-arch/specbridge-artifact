@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-56f991749c",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH status_averages AS (\n  SELECT\n    brokrepstat,\n    AVG(modelconf) AS avg_modelconf\n  FROM compliancecase\n  GROUP BY brokrepstat\n),\nreference AS (\n  SELECT AVG(modelconf) AS overall_avg\n  FROM compliancecase\n),\nqualifying AS (\n  SELECT sa.brokrepstat, sa.avg_modelconf, r.overall_avg\n  FROM status_averages sa\n  CROSS JOIN reference r\n  WHERE sa.avg_modelconf IS NOT NULL\n    AND r.overall_avg IS NOT NULL\n    AND sa.avg_modelconf > r.overall_avg\n),\nqualifying_mean AS (\n  SELECT AVG(avg_modelconf) AS mean_qualifying_avg\n  FROM qualifying\n)\nSELECT\n  q.brokrepstat AS status,\n  q.avg_modelconf AS average_model_confidence,\n  q.avg_modelconf - q.overall_avg AS above_average_by,\n  q.avg_modelconf / NULLIF(qm.mean_qualifying_avg, 0) AS ratio_to_mean_qualifying_average\nFROM qualifying q\nCROSS JOIN qualifying_mean qm\nWHERE qm.mean_qualifying_avg IS NOT NULL\n  AND qm.mean_qualifying_avg <> 0;",
+  "sql": "WITH status_averages AS (\n  SELECT\n    brokrepstat,\n    AVG(modelconf) AS avg_modelconf\n  FROM compliancecase\n  GROUP BY brokrepstat\n),\nqualifying AS (\n  SELECT brokrepstat, avg_modelconf\n  FROM status_averages\n  WHERE avg_modelconf > (SELECT AVG(modelconf) FROM compliancecase)\n),\nreference AS (\n  SELECT AVG(avg_modelconf) AS mean_qualifying_avg\n  FROM qualifying\n)\nSELECT\n  q.brokrepstat AS brokrepstat,\n  q.avg_modelconf AS avg_modelconf,\n  q.avg_modelconf - (SELECT AVG(modelconf) FROM compliancecase) AS amount_above_overall_average,\n  q.avg_modelconf / r.mean_qualifying_avg AS avg_divided_by_qualifying_mean\nFROM qualifying AS q\nCROSS JOIN reference AS r\nWHERE (SELECT AVG(modelconf) FROM compliancecase) IS NOT NULL\n  AND r.mean_qualifying_avg IS NOT NULL;",
   "assumptions": [
    {
-    "assumption": "The reference average is the average model confidence across all cases with a non-NULL modelconf. NULL brokrepstat values form their own status group, as requested.",
+    "assumption": "\u201cAbove-average\u201d compares each status average with the overall average of non-missing modelconf values across all cases. The qualifying-status reference is the arithmetic mean of the qualifying statuses\u2019 averages, with each status weighted equally. NULL statuses form their own group.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.6,
- "chars_out": 1171
+ "seconds": 41.9,
+ "chars_out": 1153
 }

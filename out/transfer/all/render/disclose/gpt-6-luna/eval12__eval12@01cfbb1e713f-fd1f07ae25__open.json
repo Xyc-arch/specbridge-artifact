@@ -2,23 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-fd1f07ae25",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH linked_fees AS (\n    SELECT f.orderslink, o.ordertune, f.rebtotal, f.rebrate, f.feerate\n    FROM fees AS f\n    JOIN orders AS o ON o.recordvault = f.orderslink\n), overall AS (\n    SELECT AVG(rebtotal) AS overall_avg_rebate\n    FROM linked_fees\n), grouped AS (\n    SELECT orderslink, ordertune,\n           AVG(rebtotal) AS avg_rebate,\n           AVG((rebrate - feerate) / NULLIF(feerate, 0)) AS avg_relative_gap\n    FROM linked_fees\n    GROUP BY orderslink, ordertune\n)\nSELECT g.orderslink, g.ordertune AS order_type,\n       g.avg_rebate, g.avg_relative_gap,\n       g.avg_rebate - x.overall_avg_rebate AS above_overall_avg\nFROM grouped AS g\nCROSS JOIN overall AS x\nWHERE g.avg_rebate > x.overall_avg_rebate\nORDER BY above_overall_avg DESC\nLIMIT 10;",
+  "sql": "WITH overall AS (\n  SELECT AVG(rebtotal) AS overall_avg_rebate\n  FROM fees\n), grouped AS (\n  SELECT\n    f.orderslink,\n    o.ordertune,\n    AVG(f.rebtotal) AS avg_rebate,\n    AVG((f.rebrate - f.feerate) / NULLIF(f.feerate, 0)) AS avg_relative_gap\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  GROUP BY f.orderslink, o.ordertune\n)\nSELECT\n  g.orderslink,\n  g.ordertune,\n  g.avg_rebate,\n  g.avg_relative_gap,\n  g.avg_rebate - overall.overall_avg_rebate AS margin_above_overall_avg\nFROM grouped AS g\nCROSS JOIN overall\nWHERE g.avg_rebate > overall.overall_avg_rebate\nORDER BY margin_above_overall_avg DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The overall average rebate is computed across all fee rows that have a matching order, using the same linked-fee population as the grouped averages.",
-    "unresolved": false
+    "assumption": "The overall average rebate is across all fee records, including fees without a matching order; the requested combinations themselves exclude fees without a matching order.",
+    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "If the overall average should use only fees linked to a matching order, calculate it over the same inner join.",
+    "sql": "WITH linked AS (\n  SELECT f.*\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n), overall AS (\n  SELECT AVG(rebtotal) AS overall_avg_rebate\n  FROM linked\n), grouped AS (\n  SELECT\n    f.orderslink,\n    o.ordertune,\n    AVG(f.rebtotal) AS avg_rebate,\n    AVG((f.rebrate - f.feerate) / NULLIF(f.feerate, 0)) AS avg_relative_gap\n  FROM linked AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY f.orderslink, o.ordertune\n)\nSELECT\n  g.orderslink,\n  g.ordertune,\n  g.avg_rebate,\n  g.avg_relative_gap,\n  g.avg_rebate - overall.overall_avg_rebate AS margin_above_overall_avg\nFROM grouped AS g\nCROSS JOIN overall\nWHERE g.avg_rebate > overall.overall_avg_rebate\nORDER BY margin_above_overall_avg DESC\nLIMIT 10;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 7.8,
- "chars_out": 1002
+ "alternatives": [
+  {
+   "interpretation": "If the overall average should use only fees linked to a matching order, calculate it over the same inner join.",
+   "sql": "WITH linked AS (\n  SELECT f.*\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n), overall AS (\n  SELECT AVG(rebtotal) AS overall_avg_rebate\n  FROM linked\n), grouped AS (\n  SELECT\n    f.orderslink,\n    o.ordertune,\n    AVG(f.rebtotal) AS avg_rebate,\n    AVG((f.rebrate - f.feerate) / NULLIF(f.feerate, 0)) AS avg_relative_gap\n  FROM linked AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  GROUP BY f.orderslink, o.ordertune\n)\nSELECT\n  g.orderslink,\n  g.ordertune,\n  g.avg_rebate,\n  g.avg_relative_gap,\n  g.avg_rebate - overall.overall_avg_rebate AS margin_above_overall_avg\nFROM grouped AS g\nCROSS JOIN overall\nWHERE g.avg_rebate > overall.overall_avg_rebate\nORDER BY margin_above_overall_avg DESC\nLIMIT 10;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 46.8,
+ "chars_out": 1814
 }

@@ -2,19 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-c078054b47",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg AS (\n  SELECT AVG(trans_avg) as overall_avg\n  FROM trans_avgs\n),\nkept_transactions AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta\n  CROSS JOIN overall_avg oa\n  WHERE ta.trans_avg > oa.overall_avg\n),\nkept_avg AS (\n  SELECT AVG(trans_avg) as kept_avg\n  FROM kept_transactions\n),\nresults_with_rank AS (\n  SELECT \n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - oa.overall_avg as above_overall,\n    kt.trans_avg - ka.kept_avg as above_kept,\n    ROW_NUMBER() OVER (ORDER BY kt.trans_avg - ka.kept_avg DESC NULLS LAST) as rn\n  FROM kept_transactions kt\n  CROSS JOIN overall_avg oa\n  CROSS JOIN kept_avg ka\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM results_with_rank\nWHERE rn <= 10 OR above_kept IS NOT DISTINCT FROM (SELECT above_kept FROM results_with_rank WHERE rn = 10)\nORDER BY above_kept DESC NULLS LAST;",
+  "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg_cte AS (\n  SELECT AVG(trans_avg) as overall_avg\n  FROM trans_avgs\n),\nkept_trans AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta, overall_avg_cte oa\n  WHERE ta.trans_avg > oa.overall_avg\n),\nkept_avg_cte AS (\n  SELECT AVG(trans_avg) as kept_avg\n  FROM kept_trans\n),\nresults AS (\n  SELECT \n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - oa.overall_avg as above_overall,\n    kt.trans_avg - ka.kept_avg as above_kept\n  FROM kept_trans kt, overall_avg_cte oa, kept_avg_cte ka\n),\nwith_rn AS (\n  SELECT \n    transref, trans_avg, above_overall, above_kept,\n    ROW_NUMBER() OVER (ORDER BY above_kept DESC NULLS LAST) as rn\n  FROM results\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM with_rn\nWHERE rn <= 10\n   OR above_kept = (SELECT above_kept FROM with_rn WHERE rn = 10)\nORDER BY above_kept DESC NULLS LAST",
   "assumptions": [
    {
-    "assumption": "Row position (not rank with ties) determines \"the 10th\": the query uses ROW_NUMBER to identify the 10th sorted row by position, then includes all rows matching its above_kept value. If ties should be handled by rank (all rows with the 10th-highest distinct value), use DENSE_RANK instead.",
+    "assumption": "Multiple sentimentandfundamentals records can reference the same transref; per-transaction average is computed by averaging anlycount across all such records (NULLs excluded from average).",
+    "unresolved": false
+   },
+   {
+    "assumption": "\"Kept transactions\" are those whose per-transaction average exceeds the overall mean of all per-transaction averages (strict inequality: >).",
+    "unresolved": false
+   },
+   {
+    "assumption": "SQLite supports window functions (ROW_NUMBER) and NULLS LAST in ORDER BY (SQLite 3.30+). If not available, the window function can be replaced with a simpler LIMIT/OFFSET subquery pattern.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "\"The 10th\" refers to the 10th distinct value (rank), not position. Include all rows with rank \u2264 10 using DENSE_RANK, so all rows with the same above_kept value as the lowest-ranked included row are returned together.",
-    "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg AS (\n  SELECT AVG(trans_avg) as overall_avg\n  FROM trans_avgs\n),\nkept_transactions AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta\n  CROSS JOIN overall_avg oa\n  WHERE ta.trans_avg > oa.overall_avg\n),\nkept_avg AS (\n  SELECT AVG(trans_avg) as kept_avg\n  FROM kept_transactions\n),\nresults_with_rank AS (\n  SELECT \n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - oa.overall_avg as above_overall,\n    kt.trans_avg - ka.kept_avg as above_kept,\n    DENSE_RANK() OVER (ORDER BY kt.trans_avg - ka.kept_avg DESC NULLS LAST) as dense_rn\n  FROM kept_transactions kt\n  CROSS JOIN overall_avg oa\n  CROSS JOIN kept_avg ka\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM results_with_rank\nWHERE dense_rn <= 10\nORDER BY above_kept DESC NULLS LAST;"
+    "interpretation": "\"Kept transactions\" are those whose average is >= overall average (inclusive) rather than strictly >. This would include transactions exactly at the overall mean.",
+    "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg_cte AS (\n  SELECT AVG(trans_avg) as overall_avg\n  FROM trans_avgs\n),\nkept_trans AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta, overall_avg_cte oa\n  WHERE ta.trans_avg >= oa.overall_avg\n),\nkept_avg_cte AS (\n  SELECT AVG(trans_avg) as kept_avg\n  FROM kept_trans\n),\nresults AS (\n  SELECT \n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - oa.overall_avg as above_overall,\n    kt.trans_avg - ka.kept_avg as above_kept\n  FROM kept_trans kt, overall_avg_cte oa, kept_avg_cte ka\n),\nwith_rn AS (\n  SELECT \n    transref, trans_avg, above_overall, above_kept,\n    ROW_NUMBER() OVER (ORDER BY above_kept DESC NULLS LAST) as rn\n  FROM results\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM with_rn\nWHERE rn <= 10\n   OR above_kept = (SELECT above_kept FROM with_rn WHERE rn = 10)\nORDER BY above_kept DESC NULLS LAST"
    }
   ]
  },
@@ -25,12 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "\"The 10th\" refers to the 10th distinct value (rank), not position. Include all rows with rank \u2264 10 using DENSE_RANK, so all rows with the same above_kept value as the lowest-ranked included row are returned together.",
-   "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg AS (\n  SELECT AVG(trans_avg) as overall_avg\n  FROM trans_avgs\n),\nkept_transactions AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta\n  CROSS JOIN overall_avg oa\n  WHERE ta.trans_avg > oa.overall_avg\n),\nkept_avg AS (\n  SELECT AVG(trans_avg) as kept_avg\n  FROM kept_transactions\n),\nresults_with_rank AS (\n  SELECT \n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - oa.overall_avg as above_overall,\n    kt.trans_avg - ka.kept_avg as above_kept,\n    DENSE_RANK() OVER (ORDER BY kt.trans_avg - ka.kept_avg DESC NULLS LAST) as dense_rn\n  FROM kept_transactions kt\n  CROSS JOIN overall_avg oa\n  CROSS JOIN kept_avg ka\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM results_with_rank\nWHERE dense_rn <= 10\nORDER BY above_kept DESC NULLS LAST;",
+   "interpretation": "\"Kept transactions\" are those whose average is >= overall average (inclusive) rather than strictly >. This would include transactions exactly at the overall mean.",
+   "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg_cte AS (\n  SELECT AVG(trans_avg) as overall_avg\n  FROM trans_avgs\n),\nkept_trans AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta, overall_avg_cte oa\n  WHERE ta.trans_avg >= oa.overall_avg\n),\nkept_avg_cte AS (\n  SELECT AVG(trans_avg) as kept_avg\n  FROM kept_trans\n),\nresults AS (\n  SELECT \n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - oa.overall_avg as above_overall,\n    kt.trans_avg - ka.kept_avg as above_kept\n  FROM kept_trans kt, overall_avg_cte oa, kept_avg_cte ka\n),\nwith_rn AS (\n  SELECT \n    transref, trans_avg, above_overall, above_kept,\n    ROW_NUMBER() OVER (ORDER BY above_kept DESC NULLS LAST) as rn\n  FROM results\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM with_rn\nWHERE rn <= 10\n   OR above_kept = (SELECT above_kept FROM with_rn WHERE rn = 10)\nORDER BY above_kept DESC NULLS LAST",
    "executes": true,
-   "matches": []
+   "matches": [
+    "B"
+   ]
   }
  ],
- "seconds": 113.9,
- "chars_out": 2703
+ "seconds": 105.9,
+ "chars_out": 3074
 }

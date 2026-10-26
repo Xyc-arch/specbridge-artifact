@@ -3,33 +3,36 @@
  "model": "haiku",
  "reading": "B",
  "description": "Per account scope, collapse fee records to one net rate per order (averaging within the order), then average across orders and count orders.",
- "b": {
-  "request": "For each account scope, average the net fee rate (`fees.feerate - fees.rebrate`) per order (grouping fees by `orders.recordvault`, joining `orders.userlink` = `users.userstamp` to `users.acctscope`, dropping unmatched rows), then report the scope, the count of orders, the average of those per-order net rates, and the difference between that scope average and the simple mean of all scope averages, unrounded",
-  "sql": "WITH order_net AS (SELECT o.recordvault, u.acctscope, AVG(f.feerate - f.rebrate) AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY o.recordvault, u.acctscope), scope_avg AS (SELECT acctscope, COUNT(*) AS order_count, AVG(net_rate) AS avg_net_rate FROM order_net GROUP BY acctscope) SELECT acctscope, order_count, avg_net_rate, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_mean_of_scope_avgs FROM scope_avg",
+ "c": {
+  "request": "For each account scope, using fees tied to orders (`fees.orderslink` = `orders.recordvault`) and to the users who placed them (`orders.userlink` = `users.userstamp`), with unmatched rows dropped, show the scope, the average net fee rate (fee rate minus maker rebate rate), how many it was averaged over, and how far that average sits from the simple mean of the scope averages. Don't round. Per account scope, collapse fee records to one net rate per order (averaging within the order), then average across orders and count orders.",
+  "sql": "WITH fee_order_user AS (SELECT u.acctscope, o.recordvault, (f.feerate - f.rebrate) AS net_fee_rate FROM fees f INNER JOIN orders o ON f.orderslink = o.recordvault INNER JOIN users u ON o.userlink = u.userstamp), order_level_net AS (SELECT acctscope, recordvault, AVG(net_fee_rate) AS avg_net_rate_per_order FROM fee_order_user GROUP BY acctscope, recordvault), scope_level AS (SELECT acctscope, AVG(avg_net_rate_per_order) AS avg_net_fee_rate, COUNT(DISTINCT recordvault) AS order_count FROM order_level_net GROUP BY acctscope), overall_mean AS (SELECT AVG(avg_net_fee_rate) AS mean_of_averages FROM scope_level) SELECT sl.acctscope, sl.avg_net_fee_rate, sl.order_count, sl.avg_net_fee_rate - om.mean_of_averages AS deviation_from_mean FROM scope_level sl CROSS JOIN overall_mean om ORDER BY sl.acctscope;",
   "executes": true,
-  "matches": []
+  "matches": [
+   "B"
+  ]
  },
  "a": {
   "request": "For each account scope (`users.acctscope`), taking fee records linked to their order (`fees.orderslink` = `orders.recordvault`) and that order's user (`orders.userlink` = `users.userstamp`), and dropping any without a match, show the scope, the average net fee rate (`feerate` minus `rebrate`) taken over orders, where each order's net rate is its average `feerate` minus its average `rebrate` across its fee records (ignoring orders where it is missing), the number of orders, and how far the scope's average net rate is above or below the plain average of the per-scope averages. No rounding.",
-  "sql": "WITH order_net AS (SELECT u.acctscope AS scope, o.recordvault, AVG(f.feerate) - AVG(f.rebrate) AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope, o.recordvault), scope_avg AS (SELECT scope, AVG(net_rate) AS avg_net_rate, COUNT(*) AS order_count FROM order_net WHERE net_rate IS NOT NULL GROUP BY scope) SELECT scope, avg_net_rate, order_count, avg_net_rate - AVG(avg_net_rate) OVER () AS diff_from_avg_of_scope_avgs FROM scope_avg;",
+  "sql": "WITH order_net_rates AS (SELECT o.recordvault, u.acctscope, AVG(f.feerate) - AVG(f.rebrate) AS net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY o.recordvault, u.acctscope), scope_stats AS (SELECT acctscope, AVG(net_rate) AS scope_avg_net_rate, COUNT(*) AS order_count FROM order_net_rates GROUP BY acctscope), overall_avg AS (SELECT AVG(scope_avg_net_rate) AS overall_average FROM scope_stats) SELECT s.acctscope, s.scope_avg_net_rate, s.order_count, s.scope_avg_net_rate - oa.overall_average AS difference_from_overall FROM scope_stats s CROSS JOIN overall_avg oa ORDER BY s.acctscope",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "c": {
-  "request": "For each account scope, using fees tied to orders (`fees.orderslink` = `orders.recordvault`) and to the users who placed them (`orders.userlink` = `users.userstamp`), with unmatched rows dropped, show the scope, the average net fee rate (fee rate minus maker rebate rate), how many it was averaged over, and how far that average sits from the simple mean of the scope averages. Don't round. Per account scope, collapse fee records to one net rate per order (averaging within the order), then average across orders and count orders.",
-  "sql": "WITH order_net AS (SELECT u.acctscope AS scope, o.recordvault, AVG(f.feerate - f.rebrate) AS order_net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope, o.recordvault), scope_avg AS (SELECT scope, AVG(order_net_rate) AS avg_net_fee_rate, COUNT(order_net_rate) AS order_count FROM order_net GROUP BY scope) SELECT scope, avg_net_fee_rate, order_count, avg_net_fee_rate - AVG(avg_net_fee_rate) OVER () AS diff_from_simple_mean FROM scope_avg;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
  "d": {
-  "request": "Per account scope, what is the average net fee rate (fee rate minus maker rebate rate) across orders, where each order's net rate is the average of its fee records' net rates, and how many orders is that average based on?",
-  "sql": "WITH order_net AS (SELECT o.recordvault, u.acctscope, AVG(f.feerate - f.rebrate) AS order_net_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY o.recordvault, u.acctscope) SELECT acctscope, AVG(order_net_rate) AS avg_net_fee_rate, COUNT(*) AS order_count FROM order_net GROUP BY acctscope;",
+  "request": "For each account scope, aggregate fees within each order by averaging their net rates (feerate - rebrate) to get one net rate per order, then average those per-order rates across orders in the scope, count the orders, and calculate the deviation of each scope's average from the overall mean of all scope averages.",
+  "sql": "WITH fees_with_net_rate AS (\n  SELECT \n    o.recordvault,\n    u.acctscope,\n    (f.feerate - f.rebrate) AS net_rate\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  JOIN users u ON o.userlink = u.userstamp\n),\nper_order_net_rate AS (\n  SELECT \n    recordvault,\n    acctscope,\n    AVG(net_rate) AS order_net_rate\n  FROM fees_with_net_rate\n  GROUP BY recordvault, acctscope\n),\nscope_averages AS (\n  SELECT \n    acctscope,\n    AVG(order_net_rate) AS scope_avg_net_rate,\n    COUNT(*) AS order_count\n  FROM per_order_net_rate\n  GROUP BY acctscope\n),\noverall_mean AS (\n  SELECT AVG(scope_avg_net_rate) AS mean_of_averages\n  FROM scope_averages\n)\nSELECT \n  s.acctscope,\n  s.scope_avg_net_rate,\n  s.order_count,\n  (s.scope_avg_net_rate - o.mean_of_averages) AS deviation\nFROM scope_averages s\nCROSS JOIN overall_mean o\nORDER BY s.acctscope",
   "executes": true,
-  "matches": []
- }
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For each account scope, average all fee net rates directly per scope, count fee records, and show absolute distance from the grand mean of scope averages.",
+  "sql": "WITH fee_with_scope AS (\n  SELECT \n    u.acctscope,\n    (f.feerate - f.rebrate) AS net_rate\n  FROM fees f\n  JOIN orders o ON f.orderslink = o.recordvault\n  JOIN users u ON o.userlink = u.userstamp\n),\nscope_stats AS (\n  SELECT \n    acctscope,\n    AVG(net_rate) AS avg_net_rate,\n    COUNT(*) AS fee_count\n  FROM fee_with_scope\n  GROUP BY acctscope\n),\ngrand_mean AS (\n  SELECT AVG(avg_net_rate) AS mean_of_averages\n  FROM scope_stats\n)\nSELECT \n  s.acctscope,\n  s.avg_net_rate,\n  s.fee_count,\n  ABS(s.avg_net_rate - g.mean_of_averages) AS distance_from_grand_mean\nFROM scope_stats s\nCROSS JOIN grand_mean g\nORDER BY s.acctscope",
+  "executes": true,
+  "matches": [],
+  "raw": "For each account scope, average all fee net rates directly per scope, count fee records, and show absolute distance from the grand mean of scope averages.\n\nFor each account scope, average all fee net rates directly per scope, count fee records, and show signed distance from the grand mean of scope averages.\n\nFor each account scope, average all fee net rates directly per scope, count orders contributing to rates, and show absolute distance from the grand mean of scope averages.\n\nFor each account scope, average all fee net rates directly per scope, count orders contributing to rates, and show signed distance from the grand mean of scope averages.\n\nFor each account scope, average all fee net rates directly per scope, count unique users, and show absolute distance from the grand mean of scope averages.\n\nFor each account scope, calculate per-order average net fee rates, average those rates across orders, count orders, and show absolute distance from the grand mean of scope averages.\n\nFor each account scope, calculate per-order average net fee rates, average those rates across orders, count orders, and show signed distance from the grand mean of scope averages.\n\nFor each account scope, calculate per-order average net fee rates, average those rates across orders, count orders, and show ratio or percentage distance from the grand mean of scope averages.\n\nFor each account scope, calculate per-order average net fee rates, average those rates across orders, count unique users, and show absolute distance from the grand mean of scope averages.\n\nFor each account scope, calculate per-order average net fee rates, average those rates across orders, count orders, and show the z-score or standard deviation distance from the grand mean of scope averages.\n\nFor each account scope, collapse each order's fees into one net rate per order by averaging the net fee rates within that order, then average those per-order rates across orders in the scope, count the orders, and show the absolute difference between each scope's average and the mean of all scope averages."
+ },
+ "calls": 6
 }

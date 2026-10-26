@@ -2,21 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-f7b50ba44b",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH type_counts AS (\n  SELECT o.ordertune, COUNT(*) AS order_count\n  FROM orderexecutions AS e\n  JOIN orders AS o ON o.recordvault = e.ordersmark\n  GROUP BY o.ordertune\n), shares AS (\n  SELECT order_count,\n         order_count::numeric / SUM(order_count) OVER () AS share\n  FROM type_counts\n), scored AS (\n  SELECT order_count, share, AVG(share) OVER () AS overall_avg_share\n  FROM shares\n)\nSELECT SUM(order_count) AS total_count,\n       AVG(share) AS average_share,\n       AVG(share - overall_avg_share) AS average_excess_share\nFROM scored\nWHERE share > overall_avg_share;",
+  "sql": "WITH order_type_counts AS (\n  SELECT\n    o.ordertune,\n    COUNT(*) AS executed_order_count\n  FROM orderexecutions AS e\n  JOIN orders AS o\n    ON o.recordvault = e.ordersmark\n  GROUP BY o.ordertune\n),\ntype_shares AS (\n  SELECT\n    ordertune,\n    executed_order_count,\n    1.0 * executed_order_count / SUM(executed_order_count) OVER () AS share\n  FROM order_type_counts\n),\nabove_average AS (\n  SELECT\n    executed_order_count,\n    share,\n    AVG(share) OVER () AS average_share\n  FROM type_shares\n)\nSELECT\n  SUM(executed_order_count) AS sum_of_counts,\n  AVG(share) AS average_share,\n  AVG(share - average_share) AS average_excess_share\nFROM above_average\nWHERE share > average_share;",
   "assumptions": [
    {
-    "assumption": "Each matching execution row counts once toward its order type; multiple executions for one order therefore count separately. The average share is the unweighted average across distinct ordertune groups, including NULL as its own group.",
-    "unresolved": true
+    "assumption": "Each matching execution row counts once toward its order type, so an order with multiple executions contributes multiple counts. Missing order types form one NULL group. Shares use only executions with a matching order.",
+    "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [],
- "seconds": 10.3,
- "chars_out": 906
+ "seconds": 29.4,
+ "chars_out": 1009
 }

@@ -4,22 +4,14 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH qualifying AS (SELECT DISTINCT ID FROM Laboratory WHERE `U-PRO` IS NOT NULL AND TRIM(`U-PRO`) <> '' AND `U-PRO` <> '-'), lab_in_patient AS (SELECT l.ID, l.PT, CAST(l.ALP AS REAL) / l.GPT AS ALP_GPT FROM Laboratory l JOIN Patient p ON p.ID = l.ID WHERE l.ID IN (SELECT ID FROM qualifying)), per_patient AS (SELECT ID, AVG(PT) AS avg_pt, AVG(ALP_GPT) AS avg_alp_gpt FROM lab_in_patient GROUP BY ID) SELECT COALESCE(p.SEX, '') AS SEX, AVG(pp.avg_pt) AS avg_PT, AVG(pp.avg_alp_gpt) AS avg_ALP_GPT_ratio FROM per_patient pp JOIN Patient p ON p.ID = pp.ID GROUP BY COALESCE(p.SEX, '');",
+  "sql": "SELECT p.SEX, AVG(patient_avg_pt) as avg_pt, AVG(patient_avg_alp_gpt_ratio) as avg_alp_gpt_ratio FROM (SELECT l.ID, AVG(l.PT) as patient_avg_pt, AVG(CASE WHEN l.ALP IS NOT NULL AND l.GPT IS NOT NULL AND l.GPT != 0 THEN l.ALP * 1.0 / l.GPT ELSE NULL END) as patient_avg_alp_gpt_ratio FROM Laboratory l WHERE l.ID IN (SELECT DISTINCT l2.ID FROM Laboratory l2 WHERE l2.`U-PRO` IS NOT NULL AND l2.`U-PRO` != '-') GROUP BY l.ID) patient_averages JOIN Patient p ON patient_averages.ID = p.ID GROUP BY p.SEX ORDER BY p.SEX",
   "assumptions": [
    {
-    "assumption": "A U-PRO value is 'recorded' when it is not NULL and not an empty or whitespace-only string; any other value (e.g. '+', '\u00b1', '1+') counts unless it is exactly '-'.",
+    "assumption": "Division by zero prevention: when GPT is 0 or NULL, the ALP/GPT ratio is treated as missing for that record and excluded from the patient's average.",
     "unresolved": false
    },
    {
-    "assumption": "Each patient's averages use all of that patient's lab records, not only the records where U-PRO is recorded; the qualifying U-PRO condition only selects which patients are included.",
-    "unresolved": false
-   },
-   {
-    "assumption": "ALP \u00f7 GPT uses real-valued division (ALP is cast to REAL) so integer truncation does not occur; records with GPT = 0 or a NULL ALP/GPT produce NULL and are ignored by AVG.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Blank sex means SEX is NULL or '', and both are grouped together and returned as an empty-string SEX value.",
+    "assumption": "The condition 'recorded and is something other than '-' means U-PRO IS NOT NULL AND U-PRO != '-'.",
     "unresolved": false
    }
   ],
@@ -31,6 +23,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 13.1,
- "chars_out": 1417
+ "seconds": 44.7,
+ "chars_out": 958
 }

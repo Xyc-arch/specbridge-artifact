@@ -3,9 +3,15 @@
  "model": "haiku",
  "reading": "A",
  "description": "Return exactly 10 rows; any rows tied with the 10th are dropped arbitrarily.",
+ "d": {
+  "request": "For each distinct ordersmark in orderexecutions (including null ordersmark as a separate group), count execution records, calculate the share as count/total_executions, compute difference as share minus 1/count_of_distinct_groups, return exactly 10 rows ranked by difference descending (dropping ties at rank 10 arbitrarily), with null ordersmark values last, displaying ordersmark, execution count, share, and difference without rounding.",
+  "sql": "WITH group_counts AS (SELECT ordersmark, COUNT(*) as exec_count FROM orderexecutions GROUP BY ordersmark), totals AS (SELECT SUM(exec_count) as total_execs, COUNT(*) as num_groups FROM group_counts), with_calculations AS (SELECT gc.ordersmark, gc.exec_count, CAST(gc.exec_count AS DECIMAL(20,10)) / CAST(t.total_execs AS DECIMAL(20,10)) as share, CAST(gc.exec_count AS DECIMAL(20,10)) / CAST(t.total_execs AS DECIMAL(20,10)) - CAST(1.0 AS DECIMAL(20,10)) / CAST(t.num_groups AS DECIMAL(20,10)) as difference, CASE WHEN gc.ordersmark IS NULL THEN 1 ELSE 0 END as is_null FROM group_counts gc CROSS JOIN totals t) SELECT ordersmark, exec_count, share, difference FROM with_calculations ORDER BY is_null ASC, difference DESC LIMIT 10",
+  "executes": true,
+  "matches": []
+ },
  "c": {
   "request": "For each order reference (`orderexecutions.ordersmark`, with executions lacking a reference counted together as one group), count its execution records and compute its share of all execution records. What are the top 10 order references by how far their share is above the average share across order references? Show the order reference, execution count, share and share minus the average share, without rounding, from largest difference to smallest (missing values last). Return exactly 10 rows; any rows tied with the 10th are dropped arbitrarily.",
-  "sql": "WITH grp AS (\n  SELECT ordersmark, COUNT(*) AS execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\ntot AS (\n  SELECT COUNT(*) AS total_count FROM orderexecutions\n),\nshares AS (\n  SELECT g.ordersmark, g.execution_count,\n         CAST(g.execution_count AS REAL) / t.total_count AS share\n  FROM grp g\n  CROSS JOIN tot t\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share FROM shares\n)\nSELECT s.ordersmark, s.execution_count, s.share, s.share - a.avg_share AS share_minus_avg\nFROM shares s\nCROSS JOIN avg_share a\nORDER BY share_minus_avg DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH execution_counts AS (\n  SELECT \n    ordersmark,\n    COUNT(*) as execution_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\ntotal_executions AS (\n  SELECT COUNT(*) as total_exec_count\n  FROM orderexecutions\n),\nexecution_shares AS (\n  SELECT \n    ec.ordersmark,\n    ec.execution_count,\n    ec.execution_count * 1.0 / te.total_exec_count as share\n  FROM execution_counts ec\n  CROSS JOIN total_executions te\n),\naverage_share AS (\n  SELECT AVG(share) as avg_share\n  FROM execution_shares\n),\nwith_differences AS (\n  SELECT \n    es.ordersmark,\n    es.execution_count,\n    es.share,\n    es.share - a.avg_share as share_diff\n  FROM execution_shares es\n  CROSS JOIN average_share a\n)\nSELECT \n  ordersmark,\n  execution_count,\n  share,\n  share_diff\nFROM with_differences\nORDER BY share_diff DESC NULLS LAST\nLIMIT 10",
   "executes": true,
   "matches": [
    "A"
@@ -13,27 +19,18 @@
  },
  "a": {
   "request": "For each order reference (`orderexecutions.ordersmark`, with executions lacking a reference counted together as one group), count its execution records and compute its share: that count divided by the total number of execution records. Then compute the average share across order references. List the order reference, execution count, share, and share minus the average share, without rounding, sorted by that difference from largest to smallest (missing values last). Return exactly the first 10 rows; if rows tie at the 10th place, include only as many of them as needed to reach 10, chosen arbitrarily.",
-  "sql": "WITH grouped AS (SELECT ordersmark, COUNT(*) AS execution_count FROM orderexecutions GROUP BY ordersmark), shares AS (SELECT ordersmark, execution_count, execution_count * 1.0 / SUM(execution_count) OVER () AS share FROM grouped), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.ordersmark AS order_reference, s.execution_count, s.share, s.share - a.avg_share AS share_minus_avg FROM shares s CROSS JOIN avg_share a ORDER BY share_minus_avg DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
+  "sql": "WITH exec_counts AS (SELECT ordersmark, COUNT(*) as exec_count FROM orderexecutions GROUP BY ordersmark), total_count AS (SELECT SUM(exec_count) as total_execs FROM exec_counts), with_shares AS (SELECT ec.ordersmark, ec.exec_count, ec.exec_count::NUMERIC / tc.total_execs::NUMERIC as share, AVG(ec.exec_count::NUMERIC / tc.total_execs::NUMERIC) OVER () as avg_share FROM exec_counts ec CROSS JOIN total_count tc), with_diff AS (SELECT ordersmark, exec_count, share, (share - avg_share) as diff FROM with_shares) SELECT ordersmark, exec_count, share, diff FROM with_diff ORDER BY ordersmark IS NULL, diff DESC LIMIT 10;",
+  "executes": false,
+  "matches": []
  },
  "b": {
-  "request": "Group `orderexecutions` rows by `ordersmark` (NULL `ordersmark` rows form one group), with each group's share = execution count \u00f7 total execution rows; return the top 10 groups by (share \u2212 average share across groups), showing ordersmark, execution count, share, and share \u2212 average share unrounded, sorted descending, with NULL-group ordering last",
-  "sql": "WITH grp AS (\n  SELECT ordersmark, COUNT(*) AS exec_count\n  FROM orderexecutions\n  GROUP BY ordersmark\n),\nshares AS (\n  SELECT ordersmark, exec_count,\n         1.0 * exec_count / SUM(exec_count) OVER () AS share\n  FROM grp\n),\nranked AS (\n  SELECT ordersmark, exec_count, share,\n         share - AVG(share) OVER () AS share_diff\n  FROM shares\n),\ntop_groups AS (\n  SELECT ordersmark, exec_count, share, share_diff\n  FROM ranked\n  ORDER BY share_diff DESC\n  LIMIT 10\n)\nSELECT ordersmark, exec_count, share, share_diff\nFROM top_groups\nORDER BY (ordersmark IS NULL) ASC, share_diff DESC;",
+  "request": "For each unique value in `orderexecutions.ordersmark` (treating NULL as a distinct group), count execution records, calculate each group's proportion of total executions and its deviation from the average proportion, rank by deviation descending, return exactly 10 rows with the highest deviations excluding rows tied with the 10th-ranked value, sort descending by deviation with NULL references last, and display order reference, execution count, proportion, and deviation without rounding.",
+  "sql": "WITH totals AS (SELECT COUNT(*) as total_count, COUNT(DISTINCT ordersmark) as unique_count FROM orderexecutions), execution_stats AS (SELECT ordersmark, COUNT(*) as execution_count, COUNT(*) * 1.0 / totals.total_count as proportion, COUNT(*) * 1.0 / totals.total_count - 1.0 / totals.unique_count as deviation FROM orderexecutions, totals GROUP BY ordersmark, totals.total_count, totals.unique_count), ranked AS (SELECT *, ROW_NUMBER() OVER (ORDER BY deviation DESC, CASE WHEN ordersmark IS NULL THEN 1 ELSE 0 END) as rn FROM execution_stats) SELECT ordersmark, execution_count, proportion, deviation FROM ranked WHERE rn <= 10 ORDER BY deviation DESC, CASE WHEN ordersmark IS NULL THEN 1 ELSE 0 END",
   "executes": true,
   "matches": [
    "A"
-  ]
+  ],
+  "raw": "For each unique value in `orderexecutions.ordersmark` (treating NULL as a distinct group), count execution records, calculate each group's proportion of total executions and its deviation from the average proportion, rank by deviation descending, return exactly 10 rows with the highest deviations excluding rows tied with the 10th-ranked value, sort descending by deviation with NULL references last, and display order reference, execution count, proportion, and deviation without rounding."
  },
- "calls": 6,
- "d": {
-  "request": "** For the order-reference analysis (grouping `orderexecutions.ordersmark`, with executions lacking a reference counted together as one group), return exactly 10 rows showing the order reference, execution count, share of all execution records, and share minus the average share across order references, unrounded and sorted from largest to smallest difference with missing values last. If any rows are tied with the 10th, drop them arbitrarily so that exactly 10 rows remain.",
-  "sql": "WITH grp AS (SELECT ordersmark, COUNT(*) AS exec_count FROM orderexecutions GROUP BY ordersmark), tot AS (SELECT SUM(exec_count) AS total_execs FROM grp), shares AS (SELECT g.ordersmark, g.exec_count, 1.0 * g.exec_count / t.total_execs AS share FROM grp g CROSS JOIN tot t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.ordersmark AS order_ref, s.exec_count, s.share, s.share - a.avg_share AS share_diff FROM shares s CROSS JOIN avg_share a ORDER BY (s.share - a.avg_share) DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "calls": 6
 }

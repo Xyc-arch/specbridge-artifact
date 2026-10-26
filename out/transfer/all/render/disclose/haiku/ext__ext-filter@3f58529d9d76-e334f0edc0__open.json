@@ -4,29 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH filtered AS (SELECT t.telescregistry, t.bandusagepct, o.observstation, o.weathprofile FROM telescopes t JOIN observatories o ON o.observstation = t.observstation WHERE t.pointaccarc > 4.86), grouped AS (SELECT observstation, weathprofile, AVG(bandusagepct) AS group_avg_band, COUNT(telescregistry) AS group_count FROM filtered GROUP BY observstation, weathprofile) SELECT AVG(group_avg_band) AS avg_of_group_avg_band, AVG(group_count) AS avg_group_count FROM grouped;",
+  "sql": "WITH group_stats AS (SELECT AVG(t.bandusagepct) as avg_bandwidth, COUNT(*) as telescope_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation WHERE t.pointaccarc > 4.86 GROUP BY t.observstation, o.weathprofile) SELECT AVG(avg_bandwidth) as overall_avg_bandwidth, AVG(telescope_count) as overall_avg_count FROM group_stats",
   "assumptions": [
    {
-    "assumption": "\"High side of a 4.86 cutoff\" means pointaccarc strictly greater than 4.86, so a telescope at exactly 4.86 is excluded.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Telescopes with a NULL weathprofile form their own group rather than being dropped, since GROUP BY treats NULL as a distinct value. The request does not say how to handle missing weather profiles.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The group count is the number of telescopes in the group, counted whether or not their bandusagepct is NULL. Groups whose bandusagepct values are all NULL have a NULL average and are skipped by the outer AVG, as the request asks.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The average of group counts includes every group, since COUNT never returns NULL.",
+    "assumption": "\"High side of a 4.86 cutoff\" means pointaccarc > 4.86 (strictly greater than). AVG() automatically ignores NULL values when calculating average bandwidth usage per group.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Exclude telescopes whose observatory has a NULL weathprofile, so only groups with a real weather profile are averaged.",
-    "sql": "WITH filtered AS (SELECT t.telescregistry, t.bandusagepct, o.observstation, o.weathprofile FROM telescopes t JOIN observatories o ON o.observstation = t.observstation WHERE t.pointaccarc > 4.86 AND o.weathprofile IS NOT NULL), grouped AS (SELECT observstation, weathprofile, AVG(bandusagepct) AS group_avg_band, COUNT(telescregistry) AS group_count FROM filtered GROUP BY observstation, weathprofile) SELECT AVG(group_avg_band) AS avg_of_group_avg_band, AVG(group_count) AS avg_group_count FROM grouped;"
+    "interpretation": "\"High side of a 4.86 cutoff\" could be interpreted as pointaccarc >= 4.86 (at or above the threshold, inclusive) rather than strictly greater than.",
+    "sql": "WITH group_stats AS (SELECT AVG(t.bandusagepct) as avg_bandwidth, COUNT(*) as telescope_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation WHERE t.pointaccarc >= 4.86 GROUP BY t.observstation, o.weathprofile) SELECT AVG(avg_bandwidth) as overall_avg_bandwidth, AVG(telescope_count) as overall_avg_count FROM group_stats"
    }
   ]
  },
@@ -37,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Exclude telescopes whose observatory has a NULL weathprofile, so only groups with a real weather profile are averaged.",
-   "sql": "WITH filtered AS (SELECT t.telescregistry, t.bandusagepct, o.observstation, o.weathprofile FROM telescopes t JOIN observatories o ON o.observstation = t.observstation WHERE t.pointaccarc > 4.86 AND o.weathprofile IS NOT NULL), grouped AS (SELECT observstation, weathprofile, AVG(bandusagepct) AS group_avg_band, COUNT(telescregistry) AS group_count FROM filtered GROUP BY observstation, weathprofile) SELECT AVG(group_avg_band) AS avg_of_group_avg_band, AVG(group_count) AS avg_group_count FROM grouped;",
+   "interpretation": "\"High side of a 4.86 cutoff\" could be interpreted as pointaccarc >= 4.86 (at or above the threshold, inclusive) rather than strictly greater than.",
+   "sql": "WITH group_stats AS (SELECT AVG(t.bandusagepct) as avg_bandwidth, COUNT(*) as telescope_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation WHERE t.pointaccarc >= 4.86 GROUP BY t.observstation, o.weathprofile) SELECT AVG(avg_bandwidth) as overall_avg_bandwidth, AVG(telescope_count) as overall_avg_count FROM group_stats",
    "executes": true,
    "matches": [
-    "B"
+    "A"
    ]
   }
  ],
- "seconds": 10.6,
- "chars_out": 1963
+ "seconds": 45.4,
+ "chars_out": 1225
 }

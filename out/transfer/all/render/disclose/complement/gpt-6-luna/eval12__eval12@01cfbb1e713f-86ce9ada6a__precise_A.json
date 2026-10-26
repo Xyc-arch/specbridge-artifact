@@ -2,10 +2,15 @@
  "case": "eval12:eval12@01cfbb1e713f-86ce9ada6a",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH unit_ownership AS (\n  SELECT\n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.instownpct) AS ownership\n  FROM sentimentandfundamentals AS sf\n  JOIN transactionrecord AS tr\n    ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nunits_with_baselines AS (\n  SELECT\n    transreg,\n    ordertypedist,\n    ownership,\n    AVG(ownership) OVER (PARTITION BY ordertypedist) AS mix_baseline,\n    AVG(ownership) OVER () AS overall_average\n  FROM unit_ownership\n),\nkept_units AS (\n  SELECT ownership, mix_baseline, overall_average\n  FROM units_with_baselines\n  WHERE ownership > overall_average\n)\nSELECT\n  AVG(ownership) AS average_ownership,\n  AVG(ownership / mix_baseline) AS average_ownership_to_mix_baseline_ratio,\n  AVG(ownership - overall_average) AS average_excess_overall_average\nFROM kept_units;",
-  "assumptions": [],
+  "sql": "WITH matched_snapshots AS (\n  SELECT tr.transreg, tr.ordertypedist, sf.instownpct\n  FROM sentimentandfundamentals AS sf\n  JOIN transactionrecord AS tr\n    ON sf.transref = tr.transreg\n), units AS (\n  SELECT transreg, ordertypedist, AVG(instownpct) AS ownership\n  FROM matched_snapshots\n  WHERE ordertypedist IS NOT NULL\n  GROUP BY transreg, ordertypedist\n), mix_baselines AS (\n  SELECT ordertypedist, AVG(ownership) AS baseline\n  FROM units\n  GROUP BY ordertypedist\n), overall AS (\n  SELECT AVG(ownership) AS avg_ownership\n  FROM units\n)\nSELECT\n  AVG(u.ownership) AS avg_kept_ownership,\n  AVG(u.ownership / mb.baseline) AS avg_ownership_to_mix_baseline,\n  AVG(u.ownership - o.avg_ownership) AS avg_excess_overall\nFROM units AS u\nJOIN mix_baselines AS mb ON mb.ordertypedist = u.ordertypedist\nCROSS JOIN overall AS o\nWHERE u.ownership > o.avg_ownership;",
+  "assumptions": [
+   {
+    "assumption": "Transactions without any matched sentiment snapshots do not form units; AVG ignores missing institutional ownership, and units whose snapshots all have missing ownership are excluded because their ownership is NULL.",
+    "unresolved": false
+   }
+  ],
   "alternatives": []
  },
  "raw": null,
@@ -13,5 +18,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 9.6
+ "seconds": 27.8
 }

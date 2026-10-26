@@ -5,15 +5,7 @@
  "description": "Only constructors that appear in the standings are counted. The average count per constructor is computed over them.",
  "c": {
   "request": "How many constructor standings records does each constructor have, and how does that compare with the average per constructor? Show the 10 constructors furthest above the average. Give the constructor id, its nationality, its number of standings records, and the difference from the average, largest first. Only constructors that appear in the standings are counted. The average count per constructor is computed over them.",
-  "sql": "WITH counts AS (SELECT constructorId, COUNT(*) AS cnt FROM constructorStandings GROUP BY constructorId), avg_c AS (SELECT AVG(cnt) AS avg_cnt FROM counts) SELECT c.constructorId, con.nationality, c.cnt AS record_count, c.cnt - a.avg_cnt AS diff_from_avg FROM counts c JOIN constructors con ON con.constructorId = c.constructorId CROSS JOIN avg_c a ORDER BY diff_from_avg DESC LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "b": {
-  "request": "How many constructor standings records does each constructor have, counting only constructors that appear in constructorStandings, and how does each one's count differ from the average count across those constructors? Show the 10 constructors with the largest positive difference, ordered from largest difference to smallest, with constructorId, nationality, record count, and difference",
-  "sql": "WITH counts AS (SELECT constructorId, COUNT(*) AS record_count FROM constructorStandings GROUP BY constructorId), avg_count AS (SELECT AVG(record_count) AS avg_records FROM counts) SELECT counts.constructorId, constructors.nationality, counts.record_count, counts.record_count - avg_count.avg_records AS difference FROM counts CROSS JOIN avg_count LEFT JOIN constructors ON constructors.constructorId = counts.constructorId WHERE counts.record_count - avg_count.avg_records > 0 ORDER BY difference DESC LIMIT 10",
+  "sql": "WITH constructor_counts AS (\n  SELECT \n    cs.constructorId,\n    COUNT(*) as standings_count\n  FROM constructorStandings cs\n  GROUP BY cs.constructorId\n),\naverage_count AS (\n  SELECT AVG(standings_count) as avg_count\n  FROM constructor_counts\n)\nSELECT \n  c.constructorId,\n  c.nationality,\n  cc.standings_count,\n  cc.standings_count - ac.avg_count as difference_from_average\nFROM constructor_counts cc\nJOIN constructors c ON cc.constructorId = c.constructorId\nCROSS JOIN average_count ac\nORDER BY difference_from_average DESC\nLIMIT 10;",
   "executes": true,
   "matches": [
    "A"
@@ -21,19 +13,28 @@
  },
  "a": {
   "request": "Considering only constructors that have at least one constructor standings record, count each constructor's standings records. Compare each count with the average count over those constructors. Show the 10 constructors furthest above that average: the constructor id, its `nationality`, its record count, and the difference from the average (unrounded), largest difference first.",
-  "sql": "WITH counts AS (SELECT constructorId, COUNT(*) AS cnt FROM constructorStandings WHERE constructorId IS NOT NULL GROUP BY constructorId), avg_c AS (SELECT AVG(cnt) AS avg_cnt FROM counts) SELECT c.constructorId, co.nationality, c.cnt AS record_count, c.cnt - a.avg_cnt AS diff FROM counts c JOIN constructors co ON co.constructorId = c.constructorId CROSS JOIN avg_c a ORDER BY diff DESC LIMIT 10;",
+  "sql": "WITH constructor_counts AS (SELECT constructorId, COUNT(*) as record_count FROM constructorStandings GROUP BY constructorId), avg_count AS (SELECT AVG(record_count) as avg_records FROM constructor_counts), with_difference AS (SELECT cc.constructorId, cc.record_count, ac.avg_records, cc.record_count - ac.avg_records as difference FROM constructor_counts cc CROSS JOIN avg_count ac) SELECT wd.constructorId, c.nationality, wd.record_count, wd.difference FROM with_difference wd JOIN constructors c ON wd.constructorId = c.constructorId ORDER BY wd.difference DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
  "d": {
-  "request": "For each constructor that appears in the constructor standings, count its standings records. Compared with the average count across those constructors only, show the 10 constructors furthest above that average. For each, give the constructor id, its nationality, its standings record count, and the difference from the average, ordered from largest difference to smallest.",
-  "sql": "WITH counts AS (SELECT constructorId, COUNT(*) AS standings_count FROM constructorStandings GROUP BY constructorId), avg_count AS (SELECT AVG(standings_count) AS avg_standings FROM counts) SELECT c.constructorId, k.nationality, c.standings_count, c.standings_count - a.avg_standings AS difference FROM counts c CROSS JOIN avg_count a LEFT JOIN constructors k ON k.constructorId = c.constructorId ORDER BY difference DESC LIMIT 10;",
+  "request": "For constructors appearing in constructorStandings, count their records, calculate the average count among only these constructors, and display the top 10 by (count - average), showing constructor id, nationality, record count, and difference from average, ordered by largest difference first.",
+  "sql": "WITH constructor_counts AS (SELECT cs.constructorId, COUNT(*) as record_count FROM constructorStandings cs GROUP BY cs.constructorId), average_calc AS (SELECT AVG(record_count) as avg_count FROM constructor_counts) SELECT cc.constructorId, c.nationality, cc.record_count, cc.record_count - ac.avg_count as difference FROM constructor_counts cc JOIN constructors c ON cc.constructorId = c.constructorId CROSS JOIN average_calc ac ORDER BY difference DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
- }
+ },
+ "b": {
+  "request": "For each constructor with at least one constructorStandings record, count their total number of such records, calculate the average count across all constructors appearing in standings, identify the 10 constructors furthest above that average, and display their constructor id, nationality, standings record count, and difference from average in descending order of difference.",
+  "sql": "WITH constructor_counts AS (SELECT c.constructorId, c.nationality, COUNT(*) as standings_record_count FROM constructorStandings cs JOIN constructors c ON cs.constructorId = c.constructorId GROUP BY c.constructorId, c.nationality), average_count AS (SELECT AVG(standings_record_count) as avg_count FROM constructor_counts) SELECT cc.constructorId, cc.nationality, cc.standings_record_count, (cc.standings_record_count - ac.avg_count) as difference_from_average FROM constructor_counts cc, average_count ac WHERE cc.standings_record_count > ac.avg_count ORDER BY difference_from_average DESC LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "For each constructor with at least one constructorStandings record, count their total number of such records, calculate the average count across all constructors appearing in standings, identify the 10 constructors furthest above that average, and display their constructor id, nationality, standings record count, and difference from average in descending order of difference."
+ },
+ "calls": 6
 }

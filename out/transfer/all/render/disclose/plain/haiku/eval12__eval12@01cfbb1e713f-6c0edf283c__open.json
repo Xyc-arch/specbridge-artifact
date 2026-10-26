@@ -3,10 +3,12 @@
  "wording": "open",
  "model": "haiku",
  "response": {
-  "sql": "WITH joined AS (SELECT sc.*, s.healtheval FROM scanconservation sc INNER JOIN sites s ON sc.zoneref = s.zoneregistry), status_groups AS (SELECT healtheval, COUNT(*) as cnt FROM joined GROUP BY healtheval), total_sum AS (SELECT SUM(cnt)::float as total_cnt FROM status_groups), with_shares AS (SELECT healtheval, cnt, cnt::float / (SELECT total_cnt FROM total_sum) as share FROM status_groups), avg_share_calc AS (SELECT AVG(share) as avg_share FROM with_shares), above_avg AS (SELECT cnt, share, (SELECT avg_share FROM avg_share_calc) as overall_avg_share FROM with_shares WHERE share > (SELECT avg_share FROM avg_share_calc)) SELECT AVG(cnt)::float as avg_count, AVG(share)::float as avg_share, AVG(share - overall_avg_share)::float as avg_excess FROM above_avg"
+  "sql": "WITH status_stats AS (\n    SELECT \n        s.healtheval,\n        COUNT(*) as cnt,\n        COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () as share_pct\n    FROM scanconservation sc\n    JOIN sites s ON sc.zoneref = s.zoneregistry\n    GROUP BY s.healtheval\n),\nwith_avg AS (\n    SELECT \n        *,\n        AVG(share_pct) OVER () as avg_share\n    FROM status_stats\n),\nabove_avg AS (\n    SELECT *\n    FROM with_avg\n    WHERE share_pct > avg_share\n)\nSELECT\n    AVG(cnt) as avg_count,\n    AVG(share_pct) as avg_share,\n    AVG(share_pct - avg_share) as avg_exceed\nFROM above_avg"
  },
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 20.4,
- "chars_out": 789
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "seconds": 39.0,
+ "chars_out": 611
 }

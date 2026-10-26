@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-9e932237ed",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH buckets AS (SELECT o.timespan AS tif, COUNT(*) AS cnt FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.timespan), shares AS (SELECT tif, cnt, cnt * 1.0 / SUM(cnt) OVER () AS share FROM buckets), avg_share AS (SELECT AVG(share) AS avg_s FROM shares), kept AS (SELECT s.cnt, s.share, a.avg_s FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_s) SELECT SUM(cnt) AS total_count, AVG(share) AS average_share, AVG(share - avg_s) AS avg_excess_over_average_share FROM kept",
+  "sql": "WITH b AS (SELECT o.timespan AS ts, COUNT(*) AS c FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault GROUP BY o.timespan), s AS (SELECT ts, c, c * 1.0 / SUM(c) OVER () AS share FROM b), a AS (SELECT ts, c, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(c) AS total_count, AVG(share) AS avg_share_of_kept, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share",
   "assumptions": [
    {
-    "assumption": "The average share is the mean of the per-bucket shares across all buckets (including the NULL time-in-force bucket), which equals 1/number of buckets.",
+    "assumption": "A bucket's count is the number of matched riskandmargin rows (inner join to orders) with that timespan value; NULL timespan forms its own bucket via GROUP BY.",
     "unresolved": false
    },
    {
-    "assumption": "Orders with NULL timespan form one bucket (GROUP BY groups NULLs together). Each riskandmargin row counts once; if an order has multiple risk records, each is counted.",
+    "assumption": "The 'average share' used as the threshold is the mean share across all buckets (equal to 1/number of buckets), not just the kept ones.",
     "unresolved": false
    },
    {
-    "assumption": "If no bucket exceeds the average (all buckets equal), the result row contains NULLs.",
+    "assumption": "'How far above the average share they are on average' is the mean of (bucket share minus the all-bucket average share) over the kept buckets.",
     "unresolved": false
    }
   ],
@@ -27,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 5.1,
- "chars_out": 1080
+ "seconds": 8.6,
+ "chars_out": 1054
 }

@@ -4,21 +4,21 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH purpose_avg AS (SELECT k_symbol, AVG(amount) AS avg_amount FROM `order` WHERE amount > 2802 GROUP BY k_symbol), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM purpose_avg) SELECT p.k_symbol, p.avg_amount, p.avg_amount - o.overall_avg AS excess_over_overall FROM purpose_avg p CROSS JOIN overall o WHERE p.avg_amount > o.overall_avg ORDER BY excess_over_overall DESC;",
+  "sql": "WITH purpose_averages AS (\n  SELECT \n    COALESCE(k_symbol, '') as k_symbol,\n    AVG(amount) as avg_amount\n  FROM `order`\n  WHERE amount > 2802\n  GROUP BY COALESCE(k_symbol, '')\n),\noverall_average AS (\n  SELECT AVG(avg_amount) as overall_avg\n  FROM purpose_averages\n)\nSELECT \n  pa.k_symbol,\n  pa.avg_amount,\n  pa.avg_amount - oa.overall_avg as exceeds\nFROM purpose_averages pa\nCROSS JOIN overall_average oa\nWHERE pa.avg_amount > oa.overall_avg\nORDER BY pa.k_symbol",
   "assumptions": [
    {
-    "assumption": "The blank purpose code is stored as an empty string '' in k_symbol. The schema makes k_symbol NOT NULL, so no NULLs exist, and GROUP BY keeps '' as its own group. Whitespace-only values are not treated as blank here.",
+    "assumption": "NULL values in k_symbol are treated as the blank purpose code group and converted to empty string for explicit representation",
     "unresolved": false
    },
    {
-    "assumption": "'Standing orders' means the rows of the `order` table, as the request states. The threshold is strict (amount > 2802), and the simple average is taken over the purpose groups that remain after that filter.",
+    "assumption": "\"Simple average of those per-purpose averages\" means AVG(avg_amount), weighting each purpose equally regardless of how many orders have that purpose",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Treat any whitespace-only k_symbol as blank too, so such rows join the blank-code group rather than forming their own group.",
-    "sql": "WITH purpose_avg AS (SELECT COALESCE(NULLIF(TRIM(k_symbol), ''), '') AS k_symbol, AVG(amount) AS avg_amount FROM `order` WHERE amount > 2802 GROUP BY COALESCE(NULLIF(TRIM(k_symbol), ''), '')), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM purpose_avg) SELECT p.k_symbol, p.avg_amount, p.avg_amount - o.overall_avg AS excess_over_overall FROM purpose_avg p CROSS JOIN overall o WHERE p.avg_amount > o.overall_avg ORDER BY excess_over_overall DESC;"
+    "interpretation": "Keep NULL values as NULL rather than converting to empty string: use GROUP BY k_symbol (without COALESCE). The computation logic remains identical; only the representation of blanks in output differs.",
+    "sql": "WITH purpose_averages AS (\n  SELECT \n    k_symbol,\n    AVG(amount) as avg_amount\n  FROM `order`\n  WHERE amount > 2802\n  GROUP BY k_symbol\n),\noverall_average AS (\n  SELECT AVG(avg_amount) as overall_avg\n  FROM purpose_averages\n)\nSELECT \n  pa.k_symbol,\n  pa.avg_amount,\n  pa.avg_amount - oa.overall_avg as exceeds\nFROM purpose_averages pa\nCROSS JOIN overall_average oa\nWHERE pa.avg_amount > oa.overall_avg\nORDER BY pa.k_symbol"
    }
   ]
  },
@@ -29,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Treat any whitespace-only k_symbol as blank too, so such rows join the blank-code group rather than forming their own group.",
-   "sql": "WITH purpose_avg AS (SELECT COALESCE(NULLIF(TRIM(k_symbol), ''), '') AS k_symbol, AVG(amount) AS avg_amount FROM `order` WHERE amount > 2802 GROUP BY COALESCE(NULLIF(TRIM(k_symbol), ''), '')), overall AS (SELECT AVG(avg_amount) AS overall_avg FROM purpose_avg) SELECT p.k_symbol, p.avg_amount, p.avg_amount - o.overall_avg AS excess_over_overall FROM purpose_avg p CROSS JOIN overall o WHERE p.avg_amount > o.overall_avg ORDER BY excess_over_overall DESC;",
+   "interpretation": "Keep NULL values as NULL rather than converting to empty string: use GROUP BY k_symbol (without COALESCE). The computation logic remains identical; only the representation of blanks in output differs.",
+   "sql": "WITH purpose_averages AS (\n  SELECT \n    k_symbol,\n    AVG(amount) as avg_amount\n  FROM `order`\n  WHERE amount > 2802\n  GROUP BY k_symbol\n),\noverall_average AS (\n  SELECT AVG(avg_amount) as overall_avg\n  FROM purpose_averages\n)\nSELECT \n  pa.k_symbol,\n  pa.avg_amount,\n  pa.avg_amount - oa.overall_avg as exceeds\nFROM purpose_averages pa\nCROSS JOIN overall_average oa\nWHERE pa.avg_amount > oa.overall_avg\nORDER BY pa.k_symbol",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 10.5,
- "chars_out": 1542
+ "seconds": 37.0,
+ "chars_out": 1658
 }

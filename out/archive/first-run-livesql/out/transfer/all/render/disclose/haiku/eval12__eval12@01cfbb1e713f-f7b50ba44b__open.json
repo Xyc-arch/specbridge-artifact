@@ -1,0 +1,38 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-f7b50ba44b",
+ "wording": "open",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH order_counts_by_type AS (\n  SELECT \n    o.ordertune,\n    COUNT(DISTINCT oe.ordersmark) as order_count\n  FROM orderexecutions oe\n  INNER JOIN orders o ON oe.ordersmark = o.recordvault\n  GROUP BY o.ordertune\n),\ntotal_orders AS (\n  SELECT SUM(order_count) as total FROM order_counts_by_type\n),\nshares_by_type AS (\n  SELECT \n    oct.ordertune,\n    oct.order_count,\n    oct.order_count::float / to.total as share,\n    AVG(oct.order_count::float / to.total) OVER () as avg_share\n  FROM order_counts_by_type oct\n  CROSS JOIN total_orders to\n),\nabove_avg_types AS (\n  SELECT \n    ordertune,\n    order_count,\n    share,\n    avg_share,\n    share - avg_share as excess\n  FROM shares_by_type\n  WHERE share > avg_share\n)\nSELECT\n  SUM(order_count) as total_count,\n  AVG(share) as avg_share,\n  AVG(excess) as avg_excess\nFROM above_avg_types",
+  "assumptions": [
+   {
+    "assumption": "\"Executed orders\" means unique orders of each type that have at least one execution, counted via COUNT(DISTINCT oe.ordersmark). The phrasing \"how many executed orders each order type has\" emphasizes orders (plural noun) not execution events, supporting this reading.",
+    "unresolved": true
+   },
+   {
+    "assumption": "At least one order type has a share strictly above the overall average share. If no types exceed the average, the result is entirely NULL.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "\"Executed orders\" refers to execution records themselves (all fills/partial fills per order type), not unique orders. Count total executions per type using COUNT(*) rather than counting distinct orders.",
+    "sql": "WITH execution_counts_by_type AS (\n  SELECT \n    o.ordertune,\n    COUNT(*) as execution_count\n  FROM orderexecutions oe\n  INNER JOIN orders o ON oe.ordersmark = o.recordvault\n  GROUP BY o.ordertune\n),\ntotal_executions AS (\n  SELECT SUM(execution_count) as total FROM execution_counts_by_type\n),\nshares_by_type AS (\n  SELECT \n    ecbt.ordertune,\n    ecbt.execution_count,\n    ecbt.execution_count::float / te.total as share,\n    AVG(ecbt.execution_count::float / te.total) OVER () as avg_share\n  FROM execution_counts_by_type ecbt\n  CROSS JOIN total_executions te\n),\nabove_avg_types AS (\n  SELECT \n    ordertune,\n    execution_count,\n    share,\n    avg_share,\n    share - avg_share as excess\n  FROM shares_by_type\n  WHERE share > avg_share\n)\nSELECT\n  SUM(execution_count) as total_count,\n  AVG(share) as avg_share,\n  AVG(excess) as avg_excess\nFROM above_avg_types"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": false,
+ "primary_matches": [],
+ "alternatives": [
+  {
+   "interpretation": "\"Executed orders\" refers to execution records themselves (all fills/partial fills per order type), not unique orders. Count total executions per type using COUNT(*) rather than counting distinct orders.",
+   "sql": "WITH execution_counts_by_type AS (\n  SELECT \n    o.ordertune,\n    COUNT(*) as execution_count\n  FROM orderexecutions oe\n  INNER JOIN orders o ON oe.ordersmark = o.recordvault\n  GROUP BY o.ordertune\n),\ntotal_executions AS (\n  SELECT SUM(execution_count) as total FROM execution_counts_by_type\n),\nshares_by_type AS (\n  SELECT \n    ecbt.ordertune,\n    ecbt.execution_count,\n    ecbt.execution_count::float / te.total as share,\n    AVG(ecbt.execution_count::float / te.total) OVER () as avg_share\n  FROM execution_counts_by_type ecbt\n  CROSS JOIN total_executions te\n),\nabove_avg_types AS (\n  SELECT \n    ordertune,\n    execution_count,\n    share,\n    avg_share,\n    share - avg_share as excess\n  FROM shares_by_type\n  WHERE share > avg_share\n)\nSELECT\n  SUM(execution_count) as total_count,\n  AVG(share) as avg_share,\n  AVG(excess) as avg_excess\nFROM above_avg_types",
+   "executes": false,
+   "matches": []
+  }
+ ],
+ "seconds": 70.8,
+ "chars_out": 2628
+}

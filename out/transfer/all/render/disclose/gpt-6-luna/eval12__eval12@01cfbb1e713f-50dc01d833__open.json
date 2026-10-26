@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-50dc01d833",
  "wording": "open",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH order_averages AS (\n  SELECT ordersmark, AVG(remaincount) AS avg_unfilled\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY ordersmark\n), overall AS (\n  SELECT AVG(avg_unfilled) AS avg_unfilled\n  FROM order_averages\n), above_overall AS (\n  SELECT oa.ordersmark, oa.avg_unfilled,\n         oa.avg_unfilled - o.avg_unfilled AS excess_over_overall\n  FROM order_averages oa\n  CROSS JOIN overall o\n  WHERE oa.avg_unfilled > o.avg_unfilled\n), group_average AS (\n  SELECT AVG(avg_unfilled) AS avg_unfilled\n  FROM above_overall\n), qualifying AS (\n  SELECT ao.avg_unfilled,\n         ao.excess_over_overall,\n         ao.avg_unfilled - ga.avg_unfilled AS excess_over_group\n  FROM above_overall ao\n  CROSS JOIN group_average ga\n  WHERE ao.avg_unfilled > ga.avg_unfilled\n)\nSELECT AVG(avg_unfilled) AS average_of_qualifying_orders,\n       AVG(excess_over_overall) AS average_excess_over_overall,\n       AVG(excess_over_group) AS average_excess_over_group\nFROM qualifying;",
+  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(remaincount) AS avg_unfilled\n  FROM orderexecutions\n  WHERE remaincount IS NOT NULL\n  GROUP BY ordersmark\n), overall AS (\n  SELECT AVG(avg_unfilled) AS avg_unfilled\n  FROM per_order\n), above_overall AS (\n  SELECT p.ordersmark, p.avg_unfilled, p.avg_unfilled - o.avg_unfilled AS excess_overall\n  FROM per_order AS p\n  CROSS JOIN overall AS o\n  WHERE p.avg_unfilled > o.avg_unfilled\n), group_average AS (\n  SELECT AVG(avg_unfilled) AS avg_unfilled\n  FROM above_overall\n), selected AS (\n  SELECT a.avg_unfilled,\n         a.excess_overall,\n         a.avg_unfilled - g.avg_unfilled AS excess_group\n  FROM above_overall AS a\n  CROSS JOIN group_average AS g\n  WHERE a.avg_unfilled > g.avg_unfilled\n)\nSELECT AVG(avg_unfilled), AVG(excess_overall), AVG(excess_group)\nFROM selected;",
   "assumptions": [
    {
-    "assumption": "Orders are grouped by the exact ordersmark value, with NULL references grouped together as one order. The overall and second averages are unweighted averages of per-order averages; NULL remaincount values are ignored.",
+    "assumption": "The overall and group averages are unweighted averages across orders\u2019 per-order averages; NULL remaincount values are ignored, while NULL ordersmark values form one group.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 8.7,
- "chars_out": 1303
+ "seconds": 7.5,
+ "chars_out": 1094
 }

@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH grp AS (SELECT f.orderslink, o.dealedge, AVG(f.feerate - f.rebrate) AS avg_net_fee, COUNT(*) AS rec_cnt FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate > 0.0009 GROUP BY f.orderslink, o.dealedge), side_avg AS (SELECT dealedge, AVG(avg_net_fee) AS side_avg FROM grp GROUP BY dealedge) SELECT g.orderslink, g.dealedge AS side, g.avg_net_fee, g.rec_cnt, g.avg_net_fee - s.side_avg AS diff FROM grp g JOIN side_avg s ON g.dealedge = s.dealedge WHERE g.avg_net_fee > s.side_avg ORDER BY diff DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH filtered_fees AS (\n  SELECT \n    f.orderslink,\n    o.dealedge,\n    f.feerate - f.rebrate AS net_fee\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n),\ngroup_stats AS (\n  SELECT \n    orderslink,\n    dealedge,\n    AVG(net_fee) AS group_avg_net_fee,\n    COUNT(*) AS record_count\n  FROM filtered_fees\n  GROUP BY orderslink, dealedge\n),\nside_averages AS (\n  SELECT \n    dealedge,\n    AVG(group_avg_net_fee) AS side_avg\n  FROM group_stats\n  GROUP BY dealedge\n),\nfiltered_groups AS (\n  SELECT \n    g.orderslink,\n    g.dealedge,\n    g.group_avg_net_fee,\n    g.record_count,\n    s.side_avg,\n    (g.group_avg_net_fee - s.side_avg) AS diff\n  FROM group_stats g\n  JOIN side_averages s ON g.dealedge = s.dealedge\n  WHERE g.group_avg_net_fee > s.side_avg\n)\nSELECT \n  orderslink,\n  dealedge,\n  group_avg_net_fee,\n  record_count,\n  diff\nFROM filtered_groups\nORDER BY diff DESC NULLS LAST\nLIMIT 10;"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 6.7,
- "chars_out": 554
+ "seconds": 72.9,
+ "chars_out": 1001
 }

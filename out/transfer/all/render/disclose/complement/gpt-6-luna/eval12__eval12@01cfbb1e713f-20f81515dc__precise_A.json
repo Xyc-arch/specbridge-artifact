@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_metrics AS (\n  SELECT\n    s.zoneregistry,\n    s.insurstat,\n    AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS avg_ratio,\n    COUNT(m.facetregistry) AS mesh_record_count\n  FROM sites AS s\n  JOIN scanmesh AS m\n    ON m.zoneref = s.zoneregistry\n  WHERE s.insurstat IS NOT NULL\n  GROUP BY s.zoneregistry, s.insurstat\n),\nstatus_averages AS (\n  SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio\n  FROM site_metrics\n  GROUP BY insurstat\n),\nkept_sites AS (\n  SELECT sm.*, sa.status_avg_ratio\n  FROM site_metrics AS sm\n  JOIN status_averages AS sa USING (insurstat)\n  WHERE sm.avg_ratio > sa.status_avg_ratio\n)\nSELECT\n  insurstat,\n  AVG(avg_ratio) AS avg_kept_site_ratio,\n  SUM(mesh_record_count) AS total_mesh_records,\n  AVG(avg_ratio - status_avg_ratio) AS avg_excess_over_status_average\nFROM kept_sites\nGROUP BY insurstat",
+  "sql": "WITH site_ratios AS (\n  SELECT s.zoneregistry,\n         s.insurstat,\n         AVG(1.0 * m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS avg_ratio,\n         COUNT(m.facetregistry) AS mesh_record_count\n  FROM sites AS s\n  JOIN scanmesh AS m ON m.zoneref = s.zoneregistry\n  WHERE s.insurstat IS NOT NULL\n  GROUP BY s.zoneregistry, s.insurstat\n), status_averages AS (\n  SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio\n  FROM site_ratios\n  GROUP BY insurstat\n), kept_sites AS (\n  SELECT sr.*, sa.status_avg_ratio\n  FROM site_ratios AS sr\n  JOIN status_averages AS sa ON sa.insurstat = sr.insurstat\n  WHERE sr.avg_ratio > sa.status_avg_ratio\n)\nSELECT insurstat,\n       AVG(avg_ratio) AS avg_kept_site_ratio,\n       SUM(mesh_record_count) AS total_mesh_records,\n       AVG(avg_ratio - status_avg_ratio) AS avg_excess_over_status_average\nFROM kept_sites\nGROUP BY insurstat;",
   "assumptions": [
    {
-    "assumption": "A site's mesh-record count includes every matching scanmesh row, even when its ratio is missing; AVG ignores missing ratios, and zero geometric accuracy is treated as an undefined ratio.",
+    "assumption": "A site's mesh-record count includes every matched scanmesh row, even when that row has a NULL resolution or geometric accuracy; only missing or zero-denominator ratios are excluded from the site's ratio average. Sites with no mesh records do not enter the site averages.",
     "unresolved": false
    }
   ],
@@ -18,5 +18,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 10.7
+ "seconds": 26.2
 }

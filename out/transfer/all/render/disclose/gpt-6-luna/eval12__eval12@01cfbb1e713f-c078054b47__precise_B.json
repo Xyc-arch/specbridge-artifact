@@ -2,21 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-c078054b47",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_transaction AS (\n  SELECT\n    transref,\n    AVG(anlycount) AS avg_anlycount\n  FROM sentimentandfundamentals\n  GROUP BY transref\n),\nscored AS (\n  SELECT\n    transref,\n    avg_anlycount,\n    avg_anlycount - AVG(avg_anlycount) OVER () AS above_overall,\n    AVG(avg_anlycount) OVER () AS overall_average\n  FROM per_transaction\n),\nkept AS (\n  SELECT\n    transref,\n    avg_anlycount,\n    above_overall,\n    avg_anlycount - AVG(avg_anlycount) OVER () AS above_kept_average\n  FROM scored\n  WHERE avg_anlycount > overall_average\n)\nSELECT transref, avg_anlycount, above_overall, above_kept_average\nFROM kept\nORDER BY above_kept_average DESC NULLS LAST\nFETCH FIRST 10 ROWS WITH TIES;",
+  "sql": "WITH per_transaction AS (\n  SELECT transref, AVG(anlycount) AS avg_anlycount\n  FROM sentimentandfundamentals\n  GROUP BY transref\n), overall AS (\n  SELECT AVG(avg_anlycount) AS overall_avg\n  FROM per_transaction\n), kept AS (\n  SELECT p.transref, p.avg_anlycount, o.overall_avg\n  FROM per_transaction AS p\n  CROSS JOIN overall AS o\n  WHERE p.avg_anlycount > o.overall_avg\n), scored AS (\n  SELECT transref,\n         avg_anlycount,\n         avg_anlycount - overall_avg AS above_overall,\n         avg_anlycount - AVG(avg_anlycount) OVER () AS above_kept_avg\n  FROM kept\n), ranked AS (\n  SELECT *, RANK() OVER (ORDER BY above_kept_avg DESC) AS result_rank\n  FROM scored\n)\nSELECT transref, avg_anlycount, above_overall, above_kept_avg\nFROM ranked\nWHERE result_rank <= 10\nORDER BY above_kept_avg DESC;",
   "assumptions": [
    {
-    "assumption": "The overall average is the unweighted average of the per-transaction averages; transactions with no non-missing anlycount have a NULL average and are excluded by the above-average filter.",
+    "assumption": "Transactions with no non-NULL anlycount have a NULL average and are excluded; the overall and kept averages are computed across transaction averages, with SQLite AVG ignoring NULLs.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [],
- "seconds": 17.9,
- "chars_out": 976
+ "seconds": 49.0,
+ "chars_out": 1080
 }

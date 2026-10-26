@@ -2,39 +2,35 @@
  "case": "eval12:eval12@01cfbb1e713f-19b51206f0",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH scan_metrics AS (\n  SELECT \n    crewref,\n    CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin != 0 \n         THEN gbsize / spanmin \n         ELSE NULL \n    END as gb_per_min\n  FROM scans\n),\noperator_stats AS (\n  SELECT \n    crewref,\n    COUNT(*) as num_scans,\n    AVG(gb_per_min) as avg_gb_per_min\n  FROM scan_metrics\n  GROUP BY crewref\n),\nglobal_avg AS (\n  SELECT AVG(gb_per_min) as global_avg_gb_per_min\n  FROM scan_metrics\n)\nSELECT \n  AVG(os.num_scans) as avg_num_scans,\n  AVG(os.avg_gb_per_min) as avg_gb_per_min,\n  AVG(os.avg_gb_per_min - ga.global_avg_gb_per_min) as avg_margin\nFROM operator_stats os\nCROSS JOIN global_avg ga\nWHERE os.avg_gb_per_min > ga.global_avg_gb_per_min;",
+  "sql": "WITH operator_stats AS (SELECT crewref, COUNT(*) as num_scans, AVG(gbsize / spanmin) as avg_gb_per_min FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0 GROUP BY crewref), filtered AS (SELECT num_scans, avg_gb_per_min FROM operator_stats WHERE avg_gb_per_min > (SELECT AVG(avg_gb_per_min) FROM operator_stats)) SELECT AVG(num_scans) as avg_num_scans, AVG(avg_gb_per_min) as avg_gb_per_min, AVG(avg_gb_per_min) - (SELECT AVG(avg_gb_per_min) FROM operator_stats) as avg_margin_above FROM filtered",
   "assumptions": [
    {
-    "assumption": "\"Ignore missing values\" means to exclude scans where gbsize or spanmin are NULL, or where spanmin equals 0, from average GB-per-minute calculations. Division by zero is prevented by checking spanmin != 0.",
+    "assumption": "\"The simple average of that figure across all operators\" means the unweighted average of each operator's average GB-per-minute, treating all operators equally. The phrase \"across all operators\" indicates aggregation at the operator level (not the scan level), so each operator contributes one value to the threshold calculation regardless of their scan count.",
     "unresolved": false
-   },
-   {
-    "assumption": "The global average GB per minute is computed as the mean of gb_per_min across all individual scans (rather than as the mean of each operator's average). This weights operators proportionally to their scan volume.",
-    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The phrase \"simple average of that figure across all operators\" means the mean of each operator's average GB per minute, treating each operator equally regardless of scan count. This would be computed as AVG(avg_gb_per_min) over operator_stats rather than AVG(gb_per_min) over raw scans.",
-    "sql": "WITH scan_metrics AS (\n  SELECT \n    crewref,\n    CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin != 0 \n         THEN gbsize / spanmin \n         ELSE NULL \n    END as gb_per_min\n  FROM scans\n),\noperator_stats AS (\n  SELECT \n    crewref,\n    COUNT(*) as num_scans,\n    AVG(gb_per_min) as avg_gb_per_min\n  FROM scan_metrics\n  GROUP BY crewref\n),\nglobal_avg AS (\n  SELECT AVG(avg_gb_per_min) as global_avg_gb_per_min\n  FROM operator_stats\n)\nSELECT \n  AVG(os.num_scans) as avg_num_scans,\n  AVG(os.avg_gb_per_min) as avg_gb_per_min,\n  AVG(os.avg_gb_per_min - ga.global_avg_gb_per_min) as avg_margin\nFROM operator_stats os\nCROSS JOIN global_avg ga\nWHERE os.avg_gb_per_min > ga.global_avg_gb_per_min;"
+    "interpretation": "If \"the simple average of that figure across all operators\" instead means the average of gbsize/spanmin across all valid scans (a scan-level average that weights operators by their scan count), the threshold is computed as AVG(gbsize/spanmin) over the entire scans table.",
+    "sql": "WITH operator_stats AS (SELECT crewref, COUNT(*) as num_scans, AVG(gbsize / spanmin) as avg_gb_per_min FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0 GROUP BY crewref), filtered AS (SELECT num_scans, avg_gb_per_min FROM operator_stats WHERE avg_gb_per_min > (SELECT AVG(gbsize / spanmin) FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0)) SELECT AVG(num_scans) as avg_num_scans, AVG(avg_gb_per_min) as avg_gb_per_min, AVG(avg_gb_per_min) - (SELECT AVG(gbsize / spanmin) FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0) as avg_margin_above FROM filtered"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [],
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [
   {
-   "interpretation": "The phrase \"simple average of that figure across all operators\" means the mean of each operator's average GB per minute, treating each operator equally regardless of scan count. This would be computed as AVG(avg_gb_per_min) over operator_stats rather than AVG(gb_per_min) over raw scans.",
-   "sql": "WITH scan_metrics AS (\n  SELECT \n    crewref,\n    CASE WHEN gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin != 0 \n         THEN gbsize / spanmin \n         ELSE NULL \n    END as gb_per_min\n  FROM scans\n),\noperator_stats AS (\n  SELECT \n    crewref,\n    COUNT(*) as num_scans,\n    AVG(gb_per_min) as avg_gb_per_min\n  FROM scan_metrics\n  GROUP BY crewref\n),\nglobal_avg AS (\n  SELECT AVG(avg_gb_per_min) as global_avg_gb_per_min\n  FROM operator_stats\n)\nSELECT \n  AVG(os.num_scans) as avg_num_scans,\n  AVG(os.avg_gb_per_min) as avg_gb_per_min,\n  AVG(os.avg_gb_per_min - ga.global_avg_gb_per_min) as avg_margin\nFROM operator_stats os\nCROSS JOIN global_avg ga\nWHERE os.avg_gb_per_min > ga.global_avg_gb_per_min;",
+   "interpretation": "If \"the simple average of that figure across all operators\" instead means the average of gbsize/spanmin across all valid scans (a scan-level average that weights operators by their scan count), the threshold is computed as AVG(gbsize/spanmin) over the entire scans table.",
+   "sql": "WITH operator_stats AS (SELECT crewref, COUNT(*) as num_scans, AVG(gbsize / spanmin) as avg_gb_per_min FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0 GROUP BY crewref), filtered AS (SELECT num_scans, avg_gb_per_min FROM operator_stats WHERE avg_gb_per_min > (SELECT AVG(gbsize / spanmin) FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0)) SELECT AVG(num_scans) as avg_num_scans, AVG(avg_gb_per_min) as avg_gb_per_min, AVG(avg_gb_per_min) - (SELECT AVG(gbsize / spanmin) FROM scans WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin > 0) as avg_margin_above FROM filtered",
    "executes": true,
-   "matches": [
-    "B"
-   ]
+   "matches": []
   }
  ],
- "seconds": 115.8,
- "chars_out": 2431
+ "seconds": 83.3,
+ "chars_out": 1986
 }

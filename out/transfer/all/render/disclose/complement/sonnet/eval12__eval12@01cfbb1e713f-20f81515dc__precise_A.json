@@ -2,25 +2,21 @@
  "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / NULLIF(m.geomdeltamm, 0)) AS ratio, COUNT(*) AS mesh_cnt FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), site_cmp AS (SELECT zoneregistry, insurstat, ratio, mesh_cnt, AVG(ratio) OVER (PARTITION BY insurstat) AS status_avg FROM site_ratio WHERE ratio IS NOT NULL) SELECT insurstat, AVG(ratio) AS avg_kept_ratio, SUM(mesh_cnt) AS total_mesh_records, AVG(ratio - status_avg) AS avg_excess FROM site_cmp WHERE ratio > status_avg GROUP BY insurstat",
+  "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / m.geomdeltamm) AS ratio, COUNT(*) AS mesh_count FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_avg AS (SELECT insurstat, AVG(ratio) AS avg_ratio FROM site_ratio WHERE ratio IS NOT NULL GROUP BY insurstat), kept AS (SELECT r.insurstat, r.ratio, r.mesh_count, a.avg_ratio FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.ratio > a.avg_ratio) SELECT insurstat, AVG(ratio) AS avg_kept_ratio, SUM(mesh_count) AS total_mesh_records, AVG(ratio - avg_ratio) AS avg_excess FROM kept GROUP BY insurstat",
   "assumptions": [
    {
-    "assumption": "A zero geomdeltamm gives a missing ratio (NULLIF), so it is ignored like a NULL value.",
+    "assumption": "A site's mesh record count includes all of its scanmesh rows, even those whose ratio is missing (NULL values or zero geomdeltamm, which SQLite divides to NULL).",
     "unresolved": false
    },
    {
-    "assumption": "A site's mesh record count is the count of all its mesh records, including records whose ratio is missing.",
+    "assumption": "Sites with no mesh records are excluded, since only sites with matching mesh records are considered.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A missing insurance status means insurstat IS NULL; empty strings are treated as a real status value.",
     "unresolved": true
-   },
-   {
-    "assumption": "Sites whose ratios are all missing are left out of the status average and cannot be kept.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Only NULL insurstat counts as no recorded insurance status.",
-    "unresolved": false
    }
   ],
   "alternatives": []
@@ -30,5 +26,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 8.1
+ "seconds": 13.9
 }

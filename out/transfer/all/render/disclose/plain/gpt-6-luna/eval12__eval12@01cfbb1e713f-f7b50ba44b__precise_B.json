@@ -3,10 +3,10 @@
  "wording": "precise_B",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH type_counts AS (\n  SELECT o.ordertune, COUNT(DISTINCT o.recordvault) AS order_count\n  FROM orderexecutions AS e\n  JOIN orders AS o ON o.recordvault = e.ordersmark\n  GROUP BY o.ordertune\n), shares AS (\n  SELECT order_count::numeric / SUM(order_count) OVER () AS share,\n         order_count\n  FROM type_counts\n), overall AS (\n  SELECT AVG(share) AS average_share\n  FROM shares\n)\nSELECT SUM(s.order_count) AS sum_counts,\n       AVG(s.share) AS average_share,\n       AVG(s.share - o.average_share) AS average_excess_share\nFROM shares AS s\nCROSS JOIN overall AS o\nWHERE s.share > o.average_share;"
+  "sql": "WITH execution_order_types AS (\n  SELECT DISTINCT o.recordvault, o.ordertune\n  FROM orderexecutions oe\n  JOIN orders o ON o.recordvault = oe.ordersmark\n),\ntype_counts AS (\n  SELECT ordertune, COUNT(*) AS order_count\n  FROM execution_order_types\n  GROUP BY ordertune\n),\ntype_shares AS (\n  SELECT ordertune, order_count,\n         CAST(order_count AS REAL) / SUM(order_count) OVER () AS share\n  FROM type_counts\n),\nabove_average AS (\n  SELECT order_count, share,\n         share - AVG(share) OVER () AS excess_share\n  FROM type_shares\n  WHERE share > (SELECT AVG(share) FROM type_shares)\n)\nSELECT SUM(order_count) AS sum_counts,\n       AVG(share) AS average_share,\n       AVG(excess_share) AS average_excess_share\nFROM above_average;"
  },
- "primary_executes": false,
+ "primary_executes": true,
  "primary_matches": [],
- "seconds": 6.0,
- "chars_out": 624
+ "seconds": 24.1,
+ "chars_out": 763
 }

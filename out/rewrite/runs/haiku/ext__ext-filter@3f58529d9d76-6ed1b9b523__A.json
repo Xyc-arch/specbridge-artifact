@@ -3,38 +3,38 @@
  "model": "haiku",
  "reading": "A",
  "description": "Count races at each circuit using a date window that includes both end dates, 1978-03-04 and 2003-03-09. Then compare each circuit's count with its country's average count per circuit.",
- "a": {
-  "request": "Looking only at races dated from 1978-03-04 through 2003-03-09, with both of those dates included (comparing the `date` text directly), and only at races whose circuit appears in the circuits table: count the races held at each circuit, grouped by circuit ID and the circuit's country. Then, for each country, average these per-circuit race counts. For each circuit, give its circuit ID, its country, its race count, and its race count divided by its country's average (unrounded). Sort by that ratio from highest to lowest, with missing values last, and show the top 10.",
-  "sql": "WITH circuit_counts AS (\n  SELECT c.circuitId, c.country, COUNT(*) AS race_count\n  FROM races r\n  JOIN circuits c ON c.circuitId = r.circuitId\n  WHERE r.date BETWEEN '1978-03-04' AND '2003-03-09'\n  GROUP BY c.circuitId, c.country\n),\ncountry_avg AS (\n  SELECT country, AVG(race_count) AS avg_count\n  FROM circuit_counts\n  GROUP BY country\n)\nSELECT cc.circuitId, cc.country, cc.race_count,\n  cc.race_count / ca.avg_count AS ratio\nFROM circuit_counts cc\nLEFT JOIN country_avg ca ON ca.country IS cc.country\nORDER BY (cc.race_count / ca.avg_count IS NULL), cc.race_count / ca.avg_count DESC\nLIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "d": {
-  "request": "For races dated from 1978-03-04 through 2003-03-09 inclusive (text comparison on `races.date`) that link to a `circuits` row, group by circuitId and country, and output each circuit's ID, country, race count, and that count divided by the unrounded average race count of circuits in the same country, sorted by ratio descending with NULLs last, top 10.",
-  "sql": "SELECT r.circuitId, c.country, COUNT(*) AS race_count, COUNT(*) * 1.0 / AVG(COUNT(*)) OVER (PARTITION BY c.country) AS ratio FROM races r JOIN circuits c ON c.circuitId = r.circuitId WHERE r.date BETWEEN '1978-03-04' AND '2003-03-09' GROUP BY r.circuitId, c.country ORDER BY ratio DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
  "c": {
   "request": "For races held between 1978-03-04 and 2003-03-09 (comparing the `date` text directly), counting only races whose circuit is listed in the circuits table: how many races did each circuit host, grouped by circuit ID and country? For each circuit, show its circuit ID, its country, its race count, and that count divided by the average race count of circuits in the same country (unrounded). Sort by that ratio from highest to lowest, with missing values last, and give the top 10. Count races at each circuit using a date window that includes both end dates, 1978-03-04 and 2003-03-09. Then compare each circuit's count with its country's average count per circuit.",
-  "sql": "SELECT c.circuitId, c.country, COUNT(*) AS race_count, 1.0 * COUNT(*) / AVG(COUNT(*)) OVER (PARTITION BY c.country) AS ratio FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.date BETWEEN '1978-03-04' AND '2003-03-09' GROUP BY c.circuitId, c.country ORDER BY ratio IS NULL, ratio DESC LIMIT 10",
+  "sql": "WITH race_counts AS (SELECT c.circuitId, c.country, COUNT(r.raceId) as race_count FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.date >= '1978-03-04' AND r.date <= '2003-03-09' GROUP BY c.circuitId, c.country), country_averages AS (SELECT country, AVG(race_count) as avg_race_count FROM race_counts GROUP BY country) SELECT rc.circuitId, rc.country, rc.race_count, rc.race_count * 1.0 / ca.avg_race_count as ratio FROM race_counts rc LEFT JOIN country_averages ca ON rc.country = ca.country ORDER BY ratio DESC NULLS LAST LIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "a": {
+  "request": "Looking only at races dated from 1978-03-04 through 2003-03-09, with both of those dates included (comparing the `date` text directly), and only at races whose circuit appears in the circuits table: count the races held at each circuit, grouped by circuit ID and the circuit's country. Then, for each country, average these per-circuit race counts. For each circuit, give its circuit ID, its country, its race count, and its race count divided by its country's average (unrounded). Sort by that ratio from highest to lowest, with missing values last, and show the top 10.",
+  "sql": "WITH race_counts AS (SELECT c.circuitId, c.country, COUNT(*) as race_count FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.date >= '1978-03-04' AND r.date <= '2003-03-09' GROUP BY c.circuitId, c.country), country_averages AS (SELECT country, AVG(race_count) as avg_race_count FROM race_counts GROUP BY country) SELECT rc.circuitId, rc.country, rc.race_count, CAST(rc.race_count AS FLOAT) / ca.avg_race_count as ratio FROM race_counts rc JOIN country_averages ca ON rc.country = ca.country ORDER BY ratio IS NULL, ratio DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "For races dated from 1978-03-04 through 2003-03-09 inclusive (text comparison on `races.date`) at circuits present in `circuits`, return each circuit's `circuitId`, `country`, race count, and that count divided by the unrounded average race count of circuits in the same country, sorted by ratio descending with NULLs last, limited to 10 rows.",
-  "sql": "SELECT c.circuitId, c.country, COUNT(*) AS race_count, 1.0 * COUNT(*) / AVG(COUNT(*)) OVER (PARTITION BY c.country) AS ratio FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.date BETWEEN '1978-03-04' AND '2003-03-09' GROUP BY c.circuitId, c.country ORDER BY ratio DESC NULLS LAST LIMIT 10",
+  "request": "Count races per circuit for dates between 1978-03-04 and 2003-03-09 inclusive, divide each circuit's count by its country's average count per circuit, and display circuit ID, country, race count, and ratio sorted by ratio descending (nulls last), top 10.",
+  "sql": "WITH circuit_race_counts AS (SELECT c.circuitId, c.country, COUNT(*) as race_count FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.date >= '1978-03-04' AND r.date <= '2003-03-09' GROUP BY c.circuitId, c.country) SELECT circuitId, country, race_count, race_count * 1.0 / AVG(race_count) OVER (PARTITION BY country) as ratio FROM circuit_race_counts ORDER BY ratio DESC NULLS LAST LIMIT 10;",
   "executes": true,
   "matches": [
    "A"
   ],
-  "raw": "For races dated from 1978-03-04 through 2003-03-09 inclusive (text comparison on `races.date`) at circuits present in `circuits`, return each circuit's `circuitId`, `country`, race count, and that count divided by the unrounded average race count of circuits in the same country, sorted by ratio descending with NULLs last, limited to 10 rows."
+  "raw": "Count races per circuit for dates between 1978-03-04 and 2003-03-09 inclusive, divide each circuit's count by its country's average count per circuit, and display circuit ID, country, race count, and ratio sorted by ratio descending (nulls last), top 10."
+ },
+ "d": {
+  "request": "Count races hosted by each circuit between 1978-03-04 and 2003-03-09 inclusive, group by circuit ID and country, calculate each circuit's race count divided by its country's average race count per circuit, sort by ratio descending with missing values last, and return top 10 with circuit ID, country, race count, and ratio.",
+  "sql": "WITH circuit_race_counts AS (\n  SELECT \n    c.circuitId,\n    c.country,\n    COUNT(r.raceId) AS race_count\n  FROM races r\n  JOIN circuits c ON r.circuitId = c.circuitId\n  WHERE r.date BETWEEN '1978-03-04' AND '2003-03-09'\n  GROUP BY c.circuitId, c.country\n),\ncountry_stats AS (\n  SELECT \n    country,\n    AVG(CAST(race_count AS REAL)) AS avg_races\n  FROM circuit_race_counts\n  GROUP BY country\n)\nSELECT \n  crc.circuitId,\n  crc.country,\n  crc.race_count,\n  CAST(crc.race_count AS REAL) / cs.avg_races AS ratio\nFROM circuit_race_counts crc\nJOIN country_stats cs ON crc.country = cs.country\nORDER BY ratio IS NULL ASC, ratio DESC\nLIMIT 10",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
  },
  "calls": 6
 }

@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
  "wording": "open",
  "model": "gpt-6-sol",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH transaction_averages AS (SELECT s.transref, t.ordertypedist, AVG(s.shortintrt) AS avg_short_interest, AVG(s.optvolrt) AS avg_option_volume_ratio FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref GROUP BY s.transref, t.ordertypedist), comparisons AS (SELECT transref, ordertypedist, avg_short_interest, avg_option_volume_ratio, avg_short_interest / NULLIF(AVG(avg_short_interest) OVER (PARTITION BY ordertypedist), 0) AS short_interest_ratio FROM transaction_averages) SELECT transref, ordertypedist, avg_short_interest, avg_option_volume_ratio, short_interest_ratio FROM comparisons ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10;",
+  "sql": "WITH transaction_averages AS (SELECT s.transref, t.ordertypedist AS order_type_mix, AVG(s.shortintrt) AS avg_short_interest_days, AVG(s.optvolrt) AS avg_option_volume_ratio FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref GROUP BY s.transref, t.ordertypedist), mix_averages AS (SELECT order_type_mix, AVG(avg_short_interest_days) AS mix_avg_short_interest FROM transaction_averages GROUP BY order_type_mix) SELECT a.transref, a.order_type_mix, a.avg_short_interest_days, a.avg_option_volume_ratio, a.avg_short_interest_days / m.mix_avg_short_interest AS short_interest_ratio FROM transaction_averages AS a JOIN mix_averages AS m ON a.order_type_mix IS m.order_type_mix ORDER BY short_interest_ratio IS NULL, short_interest_ratio DESC, a.transref LIMIT 10",
   "assumptions": [
    {
-    "assumption": "The order type mix average gives each matched transaction equal weight. AVG ignores missing values; a missing or zero comparison average produces a missing ratio.",
+    "assumption": "The order type mix average gives each transaction equal weight, regardless of how many sentiment records it has.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The order type mix average gives each sentiment record equal weight.",
-    "sql": "WITH matched AS (SELECT s.transref, t.ordertypedist, s.shortintrt, s.optvolrt FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref), transaction_averages AS (SELECT transref, ordertypedist, AVG(shortintrt) AS avg_short_interest, AVG(optvolrt) AS avg_option_volume_ratio FROM matched GROUP BY transref, ordertypedist), mix_averages AS (SELECT ordertypedist, AVG(shortintrt) AS mix_avg_short_interest FROM matched GROUP BY ordertypedist) SELECT ta.transref, ta.ordertypedist, ta.avg_short_interest, ta.avg_option_volume_ratio, ta.avg_short_interest / NULLIF(ma.mix_avg_short_interest, 0) AS short_interest_ratio FROM transaction_averages AS ta JOIN mix_averages AS ma ON ta.ordertypedist IS NOT DISTINCT FROM ma.ordertypedist ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10;"
+    "interpretation": "Give each sentiment record equal weight when calculating the order type mix average.",
+    "sql": "WITH transaction_averages AS (SELECT s.transref, t.ordertypedist AS order_type_mix, AVG(s.shortintrt) AS avg_short_interest_days, AVG(s.optvolrt) AS avg_option_volume_ratio FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref GROUP BY s.transref, t.ordertypedist), mix_averages AS (SELECT t.ordertypedist AS order_type_mix, AVG(s.shortintrt) AS mix_avg_short_interest FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref GROUP BY t.ordertypedist) SELECT a.transref, a.order_type_mix, a.avg_short_interest_days, a.avg_option_volume_ratio, a.avg_short_interest_days / m.mix_avg_short_interest AS short_interest_ratio FROM transaction_averages AS a JOIN mix_averages AS m ON a.order_type_mix IS m.order_type_mix ORDER BY short_interest_ratio IS NULL, short_interest_ratio DESC, a.transref LIMIT 10"
    }
   ]
  },
@@ -25,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The order type mix average gives each sentiment record equal weight.",
-   "sql": "WITH matched AS (SELECT s.transref, t.ordertypedist, s.shortintrt, s.optvolrt FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref), transaction_averages AS (SELECT transref, ordertypedist, AVG(shortintrt) AS avg_short_interest, AVG(optvolrt) AS avg_option_volume_ratio FROM matched GROUP BY transref, ordertypedist), mix_averages AS (SELECT ordertypedist, AVG(shortintrt) AS mix_avg_short_interest FROM matched GROUP BY ordertypedist) SELECT ta.transref, ta.ordertypedist, ta.avg_short_interest, ta.avg_option_volume_ratio, ta.avg_short_interest / NULLIF(ma.mix_avg_short_interest, 0) AS short_interest_ratio FROM transaction_averages AS ta JOIN mix_averages AS ma ON ta.ordertypedist IS NOT DISTINCT FROM ma.ordertypedist ORDER BY short_interest_ratio DESC NULLS LAST LIMIT 10;",
+   "interpretation": "Give each sentiment record equal weight when calculating the order type mix average.",
+   "sql": "WITH transaction_averages AS (SELECT s.transref, t.ordertypedist AS order_type_mix, AVG(s.shortintrt) AS avg_short_interest_days, AVG(s.optvolrt) AS avg_option_volume_ratio FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref GROUP BY s.transref, t.ordertypedist), mix_averages AS (SELECT t.ordertypedist AS order_type_mix, AVG(s.shortintrt) AS mix_avg_short_interest FROM sentimentandfundamentals AS s JOIN transactionrecord AS t ON t.transreg = s.transref GROUP BY t.ordertypedist) SELECT a.transref, a.order_type_mix, a.avg_short_interest_days, a.avg_option_volume_ratio, a.avg_short_interest_days / m.mix_avg_short_interest AS short_interest_ratio FROM transaction_averages AS a JOIN mix_averages AS m ON a.order_type_mix IS m.order_type_mix ORDER BY short_interest_ratio IS NULL, short_interest_ratio DESC, a.transref LIMIT 10",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 32.2,
- "chars_out": 1910
+ "seconds": 20.1,
+ "chars_out": 2040
 }

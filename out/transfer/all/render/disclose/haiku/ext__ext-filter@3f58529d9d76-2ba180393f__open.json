@@ -2,35 +2,19 @@
  "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH high_fees AS (\n  SELECT f.orderslink, o.dealedge, f.feerate, f.rebrate\n  FROM fees f\n  JOIN orders o ON o.recordvault = f.orderslink\n  WHERE f.feerate > 0.0009\n),\ngrp AS (\n  SELECT orderslink, dealedge,\n         AVG(feerate - rebrate) AS avg_net_rate,\n         COUNT(*) AS record_count\n  FROM high_fees\n  GROUP BY orderslink, dealedge\n),\nside_avg AS (\n  SELECT dealedge, AVG(avg_net_rate) AS side_avg\n  FROM grp\n  GROUP BY dealedge\n)\nSELECT g.orderslink,\n       g.dealedge AS side,\n       g.avg_net_rate,\n       g.record_count,\n       g.avg_net_rate - s.side_avg AS diff_from_side_avg\nFROM grp g\nJOIN side_avg s ON s.dealedge = g.dealedge\nWHERE g.avg_net_rate > s.side_avg\nORDER BY diff_from_side_avg DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH high_rate_fees AS (\n  SELECT \n    f.orderslink,\n    o.dealedge,\n    (f.feerate - f.rebrate) AS net_fee_rate\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n),\ngroup_stats AS (\n  SELECT \n    orderslink,\n    dealedge,\n    AVG(net_fee_rate) AS group_avg_net_fee,\n    COUNT(*) AS record_count\n  FROM high_rate_fees\n  GROUP BY orderslink, dealedge\n),\nside_averages AS (\n  SELECT \n    dealedge,\n    AVG(group_avg_net_fee) AS side_avg\n  FROM group_stats\n  GROUP BY dealedge\n)\nSELECT \n  g.orderslink,\n  g.dealedge,\n  g.group_avg_net_fee,\n  g.record_count,\n  (g.group_avg_net_fee - s.side_avg) AS difference\nFROM group_stats g\nJOIN side_averages s ON g.dealedge = s.dealedge\nWHERE g.group_avg_net_fee > s.side_avg\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "\"High-rate\" means feerate strictly greater than 0.0009 (the request does not say whether the cutoff is inclusive).",
+    "assumption": "The phrase '0.0009 as the cutoff' for 'high-rate fee records' is interpreted as feerate > 0.0009 (strictly greater than), based on the term 'high-rate' implying records above the threshold.",
     "unresolved": true
-   },
-   {
-    "assumption": "record_count counts all joined high-rate fee records in each group, including records whose net rate is missing (the 'ignore missing values' rule applies only to the average).",
-    "unresolved": true
-   },
-   {
-    "assumption": "orders.recordvault is unique, as the documentation states, so the join does not duplicate fee records.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Side averages are taken over groups with a non-null average net rate, and orders.dealedge is non-null, since NULL sides would not join to their side average.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "record_count counts only records that have a computable net rate (feerate and rebrate both present), matching the records that feed the average.",
-    "sql": "WITH high_fees AS (\n  SELECT f.orderslink, o.dealedge, f.feerate, f.rebrate\n  FROM fees f\n  JOIN orders o ON o.recordvault = f.orderslink\n  WHERE f.feerate > 0.0009\n),\ngrp AS (\n  SELECT orderslink, dealedge,\n         AVG(feerate - rebrate) AS avg_net_rate,\n         COUNT(feerate - rebrate) AS record_count\n  FROM high_fees\n  GROUP BY orderslink, dealedge\n),\nside_avg AS (\n  SELECT dealedge, AVG(avg_net_rate) AS side_avg\n  FROM grp\n  GROUP BY dealedge\n)\nSELECT g.orderslink,\n       g.dealedge AS side,\n       g.avg_net_rate,\n       g.record_count,\n       g.avg_net_rate - s.side_avg AS diff_from_side_avg\nFROM grp g\nJOIN side_avg s ON s.dealedge = g.dealedge\nWHERE g.avg_net_rate > s.side_avg\nORDER BY diff_from_side_avg DESC NULLS LAST\nLIMIT 10;"
-   },
-   {
-    "interpretation": "\"High-rate\" is inclusive, so feerate greater than or equal to 0.0009 is kept.",
-    "sql": "WITH high_fees AS (\n  SELECT f.orderslink, o.dealedge, f.feerate, f.rebrate\n  FROM fees f\n  JOIN orders o ON o.recordvault = f.orderslink\n  WHERE f.feerate >= 0.0009\n),\ngrp AS (\n  SELECT orderslink, dealedge,\n         AVG(feerate - rebrate) AS avg_net_rate,\n         COUNT(*) AS record_count\n  FROM high_fees\n  GROUP BY orderslink, dealedge\n),\nside_avg AS (\n  SELECT dealedge, AVG(avg_net_rate) AS side_avg\n  FROM grp\n  GROUP BY dealedge\n)\nSELECT g.orderslink,\n       g.dealedge AS side,\n       g.avg_net_rate,\n       g.record_count,\n       g.avg_net_rate - s.side_avg AS diff_from_side_avg\nFROM grp g\nJOIN side_avg s ON s.dealedge = g.dealedge\nWHERE g.avg_net_rate > s.side_avg\nORDER BY diff_from_side_avg DESC NULLS LAST\nLIMIT 10;"
+    "interpretation": "The cutoff 0.0009 could be inclusive, meaning feerate >= 0.0009 instead of strictly greater than.",
+    "sql": "WITH high_rate_fees AS (\n  SELECT \n    f.orderslink,\n    o.dealedge,\n    (f.feerate - f.rebrate) AS net_fee_rate\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate >= 0.0009\n),\ngroup_stats AS (\n  SELECT \n    orderslink,\n    dealedge,\n    AVG(net_fee_rate) AS group_avg_net_fee,\n    COUNT(*) AS record_count\n  FROM high_rate_fees\n  GROUP BY orderslink, dealedge\n),\nside_averages AS (\n  SELECT \n    dealedge,\n    AVG(group_avg_net_fee) AS side_avg\n  FROM group_stats\n  GROUP BY dealedge\n)\nSELECT \n  g.orderslink,\n  g.dealedge,\n  g.group_avg_net_fee,\n  g.record_count,\n  (g.group_avg_net_fee - s.side_avg) AS difference\nFROM group_stats g\nJOIN side_averages s ON g.dealedge = s.dealedge\nWHERE g.group_avg_net_fee > s.side_avg\nORDER BY difference DESC NULLS LAST\nLIMIT 10;"
    }
   ]
  },
@@ -41,22 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "record_count counts only records that have a computable net rate (feerate and rebrate both present), matching the records that feed the average.",
-   "sql": "WITH high_fees AS (\n  SELECT f.orderslink, o.dealedge, f.feerate, f.rebrate\n  FROM fees f\n  JOIN orders o ON o.recordvault = f.orderslink\n  WHERE f.feerate > 0.0009\n),\ngrp AS (\n  SELECT orderslink, dealedge,\n         AVG(feerate - rebrate) AS avg_net_rate,\n         COUNT(feerate - rebrate) AS record_count\n  FROM high_fees\n  GROUP BY orderslink, dealedge\n),\nside_avg AS (\n  SELECT dealedge, AVG(avg_net_rate) AS side_avg\n  FROM grp\n  GROUP BY dealedge\n)\nSELECT g.orderslink,\n       g.dealedge AS side,\n       g.avg_net_rate,\n       g.record_count,\n       g.avg_net_rate - s.side_avg AS diff_from_side_avg\nFROM grp g\nJOIN side_avg s ON s.dealedge = g.dealedge\nWHERE g.avg_net_rate > s.side_avg\nORDER BY diff_from_side_avg DESC NULLS LAST\nLIMIT 10;",
-   "executes": true,
-   "matches": [
-    "B"
-   ]
-  },
-  {
-   "interpretation": "\"High-rate\" is inclusive, so feerate greater than or equal to 0.0009 is kept.",
-   "sql": "WITH high_fees AS (\n  SELECT f.orderslink, o.dealedge, f.feerate, f.rebrate\n  FROM fees f\n  JOIN orders o ON o.recordvault = f.orderslink\n  WHERE f.feerate >= 0.0009\n),\ngrp AS (\n  SELECT orderslink, dealedge,\n         AVG(feerate - rebrate) AS avg_net_rate,\n         COUNT(*) AS record_count\n  FROM high_fees\n  GROUP BY orderslink, dealedge\n),\nside_avg AS (\n  SELECT dealedge, AVG(avg_net_rate) AS side_avg\n  FROM grp\n  GROUP BY dealedge\n)\nSELECT g.orderslink,\n       g.dealedge AS side,\n       g.avg_net_rate,\n       g.record_count,\n       g.avg_net_rate - s.side_avg AS diff_from_side_avg\nFROM grp g\nJOIN side_avg s ON s.dealedge = g.dealedge\nWHERE g.avg_net_rate > s.side_avg\nORDER BY diff_from_side_avg DESC NULLS LAST\nLIMIT 10;",
+   "interpretation": "The cutoff 0.0009 could be inclusive, meaning feerate >= 0.0009 instead of strictly greater than.",
+   "sql": "WITH high_rate_fees AS (\n  SELECT \n    f.orderslink,\n    o.dealedge,\n    (f.feerate - f.rebrate) AS net_fee_rate\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate >= 0.0009\n),\ngroup_stats AS (\n  SELECT \n    orderslink,\n    dealedge,\n    AVG(net_fee_rate) AS group_avg_net_fee,\n    COUNT(*) AS record_count\n  FROM high_rate_fees\n  GROUP BY orderslink, dealedge\n),\nside_averages AS (\n  SELECT \n    dealedge,\n    AVG(group_avg_net_fee) AS side_avg\n  FROM group_stats\n  GROUP BY dealedge\n)\nSELECT \n  g.orderslink,\n  g.dealedge,\n  g.group_avg_net_fee,\n  g.record_count,\n  (g.group_avg_net_fee - s.side_avg) AS difference\nFROM group_stats g\nJOIN side_averages s ON g.dealedge = s.dealedge\nWHERE g.group_avg_net_fee > s.side_avg\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 22.5,
- "chars_out": 3354
+ "seconds": 72.7,
+ "chars_out": 2154
 }

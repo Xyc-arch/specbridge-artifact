@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-9e932237ed",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH bucket_counts AS (\n    SELECT o.timespan, COUNT(*) AS record_count\n    FROM riskandmargin AS r\n    JOIN orders AS o\n      ON r.ordervault = o.recordvault\n    GROUP BY o.timespan\n), shares AS (\n    SELECT record_count::numeric / SUM(record_count) OVER () AS share\n    FROM bucket_counts\n), kept AS (\n    SELECT share\n    FROM shares\n    WHERE share > (SELECT AVG(share) FROM shares)\n)\nSELECT\n    COALESCE((SELECT SUM(record_count) FROM bucket_counts WHERE record_count::numeric / (SELECT SUM(record_count) FROM bucket_counts) > (SELECT AVG(share) FROM shares)), 0) AS total_count,\n    AVG(share) AS average_share,\n    AVG(share - (SELECT AVG(share) FROM shares)) AS average_excess\nFROM kept;",
+  "sql": "WITH bucket_counts AS (\n  SELECT o.timespan, COUNT(*) AS record_count\n  FROM riskandmargin AS r\n  JOIN orders AS o ON r.ordervault = o.recordvault\n  GROUP BY o.timespan\n), shares AS (\n  SELECT record_count * 1.0 / SUM(record_count) OVER () AS share\n  FROM bucket_counts\n), kept AS (\n  SELECT share\n  FROM shares\n  WHERE share > (SELECT AVG(share) FROM shares)\n)\nSELECT COALESCE(SUM((SELECT record_count FROM bucket_counts b WHERE b.timespan IS NULL)), 0) AS total_count,\n       AVG(share) AS average_share,\n       AVG(share - (SELECT AVG(share) FROM shares)) AS average_excess\nFROM kept;",
   "assumptions": [
    {
-    "assumption": "The SQL dialect is PostgreSQL; NULL timespan values form one bucket, and numeric division is used to avoid integer truncation.",
+    "assumption": "The request settles NULL timespan as its own bucket; SQLite groups all NULL values together. If no bucket qualifies, the query returns NULL for the two averages and 0 for the count.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
+ "primary_executes": true,
  "primary_matches": [],
- "seconds": 5.3
+ "seconds": 20.4
 }

@@ -2,35 +2,41 @@
  "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS ratio, COUNT(*) AS mesh_count FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), scored AS (SELECT zoneregistry, insurstat, ratio, mesh_count, AVG(ratio) OVER (PARTITION BY insurstat) AS status_avg FROM site_ratio WHERE ratio IS NOT NULL) SELECT insurstat, AVG(ratio) AS avg_ratio_above_avg_sites, COUNT(*) AS site_count, AVG(ratio - status_avg) AS avg_excess_over_status_avg FROM scored WHERE ratio > status_avg GROUP BY insurstat",
+  "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / m.geomdeltamm) AS avg_ratio, COUNT(*) AS mesh_count FROM scanmesh m JOIN sites s ON s.zoneregistry = m.zoneref WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS avg_ratio_above_avg_sites, COUNT(*) AS site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
   "assumptions": [
    {
-    "assumption": "A geomdeltamm of 0 gives a missing ratio (NULLIF avoids division by zero), and missing ratios are ignored in the site averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A site's mesh count includes all its matching mesh records, even those whose ratio is missing.",
+    "assumption": "A site's mesh count is the number of all its matched scanmesh records, including those whose ratio is missing (null facetresmm/geomdeltamm or zero geomdeltamm, which SQLite divides to NULL); only the ratio average ignores missing values.",
     "unresolved": true
    },
    {
-    "assumption": "Sites whose ratios are all missing have no site ratio, so they are left out of the status average and of the above-average comparison.",
+    "assumption": "Sites with no recorded insurance status means insurstat IS NULL; sites with no valid ratio at all have a NULL average and are ignored in the status average and never count as above average.",
     "unresolved": false
-   },
-   {
-    "assumption": "Only NULL insurstat counts as 'no recorded insurance status'.",
-    "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Mesh count only counts mesh records that have a computable (non-null) ratio.",
+    "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / m.geomdeltamm) AS avg_ratio, COUNT(m.facetresmm * 1.0 / m.geomdeltamm) AS mesh_count FROM scanmesh m JOIN sites s ON s.zoneregistry = m.zoneref WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS avg_ratio_above_avg_sites, COUNT(*) AS site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 9.0,
- "chars_out": 1278
+ "alternatives": [
+  {
+   "interpretation": "Mesh count only counts mesh records that have a computable (non-null) ratio.",
+   "sql": "WITH site_ratio AS (SELECT s.zoneregistry, s.insurstat, AVG(m.facetresmm * 1.0 / m.geomdeltamm) AS avg_ratio, COUNT(m.facetresmm * 1.0 / m.geomdeltamm) AS mesh_count FROM scanmesh m JOIN sites s ON s.zoneregistry = m.zoneref WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat), status_avg AS (SELECT insurstat, AVG(avg_ratio) AS status_avg_ratio FROM site_ratio GROUP BY insurstat) SELECT r.insurstat, AVG(r.avg_ratio) AS avg_ratio_above_avg_sites, COUNT(*) AS site_count, AVG(r.avg_ratio - a.status_avg_ratio) AS avg_excess FROM site_ratio r JOIN status_avg a ON a.insurstat = r.insurstat WHERE r.avg_ratio > a.status_avg_ratio GROUP BY r.insurstat",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 12.4,
+ "chars_out": 2019
 }

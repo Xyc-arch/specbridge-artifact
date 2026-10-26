@@ -3,11 +3,11 @@
  "sample": 5,
  "model": "haiku",
  "response": {
-  "sql": "WITH grouped AS (\n  SELECT sp.zoneref AS zoneref,\n         s.insurstat AS insurstat,\n         AVG(sp.remaingb) AS avg_remaininggb,\n         AVG(sp.proccpu - sp.procgpu) AS avg_cpu_gpu_gap\n  FROM scanprocessing sp\n  JOIN sites s ON s.zoneregistry = sp.zoneref\n  GROUP BY sp.zoneref, s.insurstat\n),\noverall AS (\n  SELECT AVG(avg_remaininggb) AS mean_avg_remaininggb\n  FROM grouped\n)\nSELECT g.zoneref,\n       g.insurstat,\n       g.avg_remaininggb,\n       g.avg_cpu_gpu_gap,\n       g.avg_remaininggb / NULLIF(o.mean_avg_remaininggb, 0) AS remaining_ratio\nFROM grouped g\nCROSS JOIN overall o\nWHERE o.mean_avg_remaininggb IS NOT NULL\nORDER BY remaining_ratio DESC NULLS LAST\nLIMIT 10;"
+  "sql": "WITH processing_with_site AS (\n  SELECT \n    sp.zoneref,\n    s.insurstat,\n    sp.remaingb,\n    (sp.proccpu - sp.procgpu) as cpu_gpu_gap\n  FROM scanprocessing sp\n  INNER JOIN sites s ON sp.zoneref = s.zoneregistry\n),\ngroup_stats AS (\n  SELECT \n    zoneref,\n    insurstat,\n    AVG(remaingb) as avg_remaingb,\n    AVG(cpu_gpu_gap) as avg_cpu_gpu_gap\n  FROM processing_with_site\n  GROUP BY zoneref, insurstat\n),\noverall_mean AS (\n  SELECT AVG(avg_remaingb) as mean_remaingb\n  FROM group_stats\n  WHERE avg_remaingb IS NOT NULL\n)\nSELECT \n  gs.zoneref,\n  gs.insurstat,\n  gs.avg_remaingb,\n  gs.avg_cpu_gpu_gap,\n  gs.avg_remaingb / om.mean_remaingb as ratio\nFROM group_stats gs\nCROSS JOIN overall_mean om\nWHERE om.mean_remaingb IS NOT NULL\nORDER BY \n  ratio DESC NULLS LAST\nLIMIT 10"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 8.5
+ "seconds": 36.9
 }

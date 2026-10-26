@@ -3,37 +3,36 @@
  "model": "haiku",
  "reading": "B",
  "description": "A client's region comes from the branch district of the account(s) they are linked to through dispositions.",
+ "a": {
+  "request": "Count clients by region (`district.A3`), placing each client in the region of the branch district of each account they are linked to through `disp` (`account.district_id`), counting a client once per account link, and work out each region's share of the total count. Then return just one row covering the regions whose share is above the average share across regions: the total count for those regions, their average share, and on average how far their share is above the average share. Do not round.",
+  "sql": "WITH client_region_counts AS (SELECT d.A3 as region, COUNT(*) as region_count FROM disp JOIN account a ON disp.account_id = a.account_id JOIN district d ON a.district_id = d.district_id GROUP BY d.A3), region_shares AS (SELECT region, region_count, CAST(region_count AS REAL) / SUM(region_count) OVER () as share, AVG(CAST(region_count AS REAL) / SUM(region_count) OVER ()) OVER () as avg_share FROM client_region_counts) SELECT SUM(region_count) as total_count_above_avg, AVG(share) as average_share, AVG(share - avg_share) as avg_distance_above_avg FROM region_shares WHERE share > avg_share",
+  "executes": false,
+  "matches": []
+ },
  "b": {
-  "request": "For each region (`district.A3`), count distinct clients linked through `disp` to accounts whose branch `account.district_id` falls in that region, with each region's share as its count divided by the total client count. Average those shares across all regions to get the average share. Keep only regions whose share is above that average, and return one unrounded row: the sum of their client counts, the mean of their shares, and the mean of (share \u2212 average share) across them",
-  "sql": "WITH linked AS (SELECT dp.client_id, d.A3 AS region FROM disp dp JOIN account a ON a.account_id = dp.account_id JOIN district d ON d.district_id = a.district_id), region_clients AS (SELECT region, COUNT(DISTINCT client_id) AS cnt FROM linked GROUP BY region), totals AS (SELECT COUNT(DISTINCT client_id) AS total FROM linked), shares AS (SELECT r.region, r.cnt, r.cnt * 1.0 / t.total AS share FROM region_clients r CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.region, s.cnt, s.share FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share) SELECT SUM(above.cnt) AS total_client_count, AVG(above.share) AS mean_share, AVG(above.share - a.avg_share) AS mean_share_above_average FROM above CROSS JOIN avg_share a;",
+  "request": "For each region, count distinct clients with at least one account in that region (determined via dispositions), calculate each region's share of total, and for above-average regions return: summed client count, average share, and average excess above the overall average share.",
+  "sql": "WITH client_regions AS (SELECT DISTINCT d.A3 as region, c.client_id FROM client c JOIN disp dp ON c.client_id = dp.client_id JOIN account a ON dp.account_id = a.account_id JOIN district d ON a.district_id = d.district_id), region_stats AS (SELECT region, COUNT(*) as client_count, CAST(COUNT(*) AS REAL) / (SELECT CAST(COUNT(*) AS REAL) FROM client_regions) as share FROM client_regions GROUP BY region), overall_avg AS (SELECT AVG(share) as avg_share FROM region_stats), above_avg_regions AS (SELECT rs.client_count, rs.share, rs.share - oa.avg_share as excess FROM region_stats rs CROSS JOIN overall_avg oa WHERE rs.share > oa.avg_share) SELECT SUM(client_count) as summed_client_count, AVG(share) as avg_share, AVG(excess) as avg_excess FROM above_avg_regions",
   "executes": true,
   "matches": [
    "B"
-  ]
+  ],
+  "raw": "For each region, count distinct clients with at least one account in that region (determined via dispositions), calculate each region's share of total, and for above-average regions return: summed client count, average share, and average excess above the overall average share."
  },
  "c": {
   "request": "Count clients by the region (`district.A3`) of their branch and work out each region's share of the total. Then return just one row covering the regions whose share is above the average share: the total number of clients in those regions, their average share, and on average how far above the average share they are. Do not round. A client's region comes from the branch district of the account(s) they are linked to through dispositions.",
-  "sql": "WITH region_clients AS (SELECT d.A3 AS region, COUNT(DISTINCT dp.client_id) AS cnt FROM disp dp JOIN account a ON a.account_id = dp.account_id JOIN district d ON d.district_id = a.district_id GROUP BY d.A3), total AS (SELECT COUNT(DISTINCT client_id) AS total FROM disp), shares AS (SELECT r.region, r.cnt, CAST(r.cnt AS REAL) / t.total AS share FROM region_clients r CROSS JOIN total t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT SUM(s.cnt) AS total_clients, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_share FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
+  "sql": "WITH region_data AS (\n  SELECT \n    d.A3 as region,\n    COUNT(DISTINCT c.client_id) as client_count,\n    SUM(COUNT(DISTINCT c.client_id)) OVER () as total_clients\n  FROM client c\n  JOIN disp ON c.client_id = disp.client_id\n  JOIN account a ON disp.account_id = a.account_id\n  JOIN district d ON a.district_id = d.district_id\n  GROUP BY d.A3\n),\nwith_shares AS (\n  SELECT \n    region,\n    client_count,\n    total_clients,\n    CAST(client_count AS REAL) / CAST(total_clients AS REAL) as share,\n    AVG(CAST(client_count AS REAL) / CAST(total_clients AS REAL)) OVER () as avg_share\n  FROM region_data\n),\nabove_avg AS (\n  SELECT \n    client_count,\n    share,\n    avg_share\n  FROM with_shares\n  WHERE share > avg_share\n)\nSELECT \n  SUM(client_count) as total_clients_above_avg,\n  AVG(share) as avg_share_above_avg,\n  AVG(share - avg_share) as avg_distance_above_avg\nFROM above_avg",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "a": {
-  "request": "Count clients by region (`district.A3`), placing each client in the region of the branch district of each account they are linked to through `disp` (`account.district_id`), counting a client once per account link, and work out each region's share of the total count. Then return just one row covering the regions whose share is above the average share across regions: the total count for those regions, their average share, and on average how far their share is above the average share. Do not round.",
-  "sql": "WITH region_counts AS (SELECT d.A3 AS region, COUNT(*) AS cnt FROM disp dp JOIN account a ON dp.account_id = a.account_id JOIN district d ON a.district_id = d.district_id GROUP BY d.A3), totals AS (SELECT SUM(cnt) AS total FROM region_counts), shares AS (SELECT r.region, r.cnt, CAST(r.cnt AS REAL) / t.total AS share FROM region_counts r CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.cnt, s.share, s.share - a.avg_share AS diff FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share) SELECT SUM(cnt) AS total_count, AVG(share) AS avg_share, AVG(diff) AS avg_excess_share FROM above;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
  "d": {
-  "request": "Count clients by region, where each client's region is the `district.A3` of the branch of the account(s) they are linked to through dispositions. Find each region's share of the total client count. Then return a single row covering the regions whose share is above the average share, with the total number of clients in those regions, their average share, and the average amount by which those shares exceed the average share. Do not round.",
-  "sql": "WITH client_region AS (\n  SELECT DISTINCT d.client_id, di.A3 AS region\n  FROM disp d\n  JOIN account a ON a.account_id = d.account_id\n  JOIN district di ON di.district_id = a.district_id\n),\nregion_counts AS (\n  SELECT region, COUNT(*) AS cnt\n  FROM client_region\n  GROUP BY region\n),\ntotal AS (\n  SELECT COUNT(DISTINCT client_id) AS total_clients FROM client_region\n),\nshares AS (\n  SELECT r.region, r.cnt, CAST(r.cnt AS REAL) / t.total_clients AS share\n  FROM region_counts r\n  CROSS JOIN total t\n),\navg_share AS (\n  SELECT AVG(share) AS avg_s FROM shares\n)\nSELECT SUM(s.cnt) AS total_clients,\n       AVG(s.share) AS avg_share,\n       AVG(s.share - a.avg_s) AS avg_excess_over_mean_share\nFROM shares s\nCROSS JOIN avg_share a\nWHERE s.share > a.avg_s;",
+  "request": "For each region identified from clients' accounts via dispositions, count distinct clients and compute their share of the total client count; return one row aggregating regions with above-average share, showing: their combined client count, mean share, and mean excess above the overall average share.",
+  "sql": "WITH region_client_counts AS (\n  SELECT \n    d.A3 AS region,\n    COUNT(DISTINCT c.client_id) AS client_count\n  FROM disp\n  JOIN client c ON disp.client_id = c.client_id\n  JOIN district d ON c.district_id = d.district_id\n  GROUP BY d.A3\n),\ntotal_clients AS (\n  SELECT COUNT(DISTINCT client_id) AS total_count FROM disp\n),\nregion_shares AS (\n  SELECT \n    rcc.region,\n    rcc.client_count,\n    CAST(rcc.client_count AS FLOAT) / tc.total_count AS share\n  FROM region_client_counts rcc\n  CROSS JOIN total_clients tc\n),\navg_share AS (\n  SELECT AVG(share) AS avg_share_val\n  FROM region_shares\n),\nabove_avg_regions AS (\n  SELECT \n    rs.region,\n    rs.client_count,\n    rs.share,\n    rs.share - av.avg_share_val AS excess\n  FROM region_shares rs\n  CROSS JOIN avg_share av\n  WHERE rs.share > av.avg_share_val\n)\nSELECT \n  SUM(client_count) AS combined_client_count,\n  AVG(share) AS mean_share,\n  AVG(excess) AS mean_excess\nFROM above_avg_regions",
   "executes": true,
   "matches": [
-   "B"
+   "A"
   ]
- }
+ },
+ "calls": 6
 }

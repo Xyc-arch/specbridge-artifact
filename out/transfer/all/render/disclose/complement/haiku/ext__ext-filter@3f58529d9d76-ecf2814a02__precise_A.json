@@ -4,23 +4,22 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_type AS (\n  SELECT m.Name AS MediaTypeName,\n         AVG(CAST(t.Bytes AS REAL) / t.Milliseconds) AS AvgBytesPerMs\n  FROM Track t\n  JOIN MediaType m ON m.MediaTypeId = t.MediaTypeId\n  WHERE t.Bytes >= 10323804\n  GROUP BY m.MediaTypeId, m.Name\n),\noverall AS (\n  SELECT AVG(AvgBytesPerMs) AS OverallAvg FROM per_type\n)\nSELECT p.MediaTypeName,\n       p.AvgBytesPerMs,\n       p.AvgBytesPerMs - o.OverallAvg AS AboveOverall\nFROM per_type p\nCROSS JOIN overall o\nWHERE p.AvgBytesPerMs > o.OverallAvg;",
+  "sql": "WITH filtered_tracks AS (\n  SELECT TrackId, MediaTypeId, Bytes, Milliseconds\n  FROM Track\n  WHERE Bytes >= 10323804\n),\nmedia_type_averages AS (\n  SELECT m.Name,\n    AVG(CAST(ft.Bytes AS DECIMAL(20,10)) / CAST(ft.Milliseconds AS DECIMAL(20,10))) as avg_bytes_per_ms\n  FROM filtered_tracks ft\n  JOIN MediaType m ON ft.MediaTypeId = m.MediaTypeId\n  GROUP BY ft.MediaTypeId, m.Name\n),\noverall_average AS (\n  SELECT AVG(avg_bytes_per_ms) as overall_avg\n  FROM media_type_averages\n)\nSELECT mta.Name, mta.avg_bytes_per_ms, mta.avg_bytes_per_ms - oa.overall_avg as above_average\nFROM media_type_averages mta\nCROSS JOIN overall_average oa\nWHERE mta.avg_bytes_per_ms > oa.overall_avg\nORDER BY mta.Name",
   "assumptions": [
    {
-    "assumption": "Tracks with NULL Bytes are excluded by the Bytes >= 10323804 filter, and each media type's average is a simple AVG over its qualifying tracks, with the overall average being the simple AVG of those per-type averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Milliseconds is never 0 for qualifying tracks, since the schema does not prevent it and the query divides by it.",
+    "assumption": "\"The average bytes per millisecond\" for each media type is the arithmetic mean of (Bytes \u00f7 Milliseconds) computed for each individual track, not (SUM(Bytes)) \u00f7 (SUM(Milliseconds)) across all tracks.",
     "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "The average bytes per millisecond for each media type is computed as total bytes divided by total milliseconds (weighted average), rather than averaging the per-track ratios.",
+    "sql": "WITH filtered_tracks AS (\n  SELECT TrackId, MediaTypeId, Bytes, Milliseconds\n  FROM Track\n  WHERE Bytes >= 10323804\n),\nmedia_type_ratios AS (\n  SELECT m.Name,\n    CAST(SUM(ft.Bytes) AS DECIMAL(20,10)) / CAST(SUM(ft.Milliseconds) AS DECIMAL(20,10)) as bytes_per_ms\n  FROM filtered_tracks ft\n  JOIN MediaType m ON ft.MediaTypeId = m.MediaTypeId\n  GROUP BY ft.MediaTypeId, m.Name\n),\noverall_average AS (\n  SELECT AVG(bytes_per_ms) as overall_avg\n  FROM media_type_ratios\n)\nSELECT mtr.Name, mtr.bytes_per_ms, mtr.bytes_per_ms - oa.overall_avg as above_average\nFROM media_type_ratios mtr\nCROSS JOIN overall_average oa\nWHERE mtr.bytes_per_ms > oa.overall_avg\nORDER BY mtr.Name"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "A"
- ],
- "seconds": 7.7
+ "primary_matches": [],
+ "seconds": 69.1
 }

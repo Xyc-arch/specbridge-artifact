@@ -2,21 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-f7b50ba44b",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH order_type_counts AS (\n  SELECT\n    o.ordertune,\n    COUNT(DISTINCT o.recordvault) AS order_count\n  FROM orderexecutions AS e\n  JOIN orders AS o\n    ON o.recordvault = e.ordersmark\n  GROUP BY o.ordertune\n),\ntype_shares AS (\n  SELECT\n    ordertune,\n    order_count,\n    order_count::numeric / SUM(order_count) OVER () AS share\n  FROM order_type_counts\n),\nscored AS (\n  SELECT\n    order_count,\n    share,\n    AVG(share) OVER () AS average_share\n  FROM type_shares\n)\nSELECT\n  SUM(order_count) AS sum_of_counts,\n  AVG(share) AS average_share,\n  AVG(share - average_share) AS average_excess_share\nFROM scored\nWHERE share > average_share;",
+  "sql": "WITH orders_with_executions AS (\n  SELECT DISTINCT o.orderspivot, o.ordertune\n  FROM orderexecutions AS e\n  JOIN orders AS o ON o.recordvault = e.ordersmark\n), type_counts AS (\n  SELECT ordertune, COUNT(*) AS order_count\n  FROM orders_with_executions\n  GROUP BY ordertune\n), shares AS (\n  SELECT ordertune,\n         order_count,\n         CAST(order_count AS REAL) / SUM(order_count) OVER () AS share\n  FROM type_counts\n), overall AS (\n  SELECT AVG(share) AS average_share\n  FROM shares\n)\nSELECT SUM(s.order_count) AS sum_of_counts,\n       AVG(s.share) AS average_share,\n       AVG(s.share - o.average_share) AS average_excess_share\nFROM shares AS s\nCROSS JOIN overall AS o\nWHERE s.share > o.average_share;",
   "assumptions": [
    {
-    "assumption": "The denominator for each share is the total distinct matched orders across all order types, and the overall average share is the unweighted average across order-type groups, including a NULL ordertune group when present.",
+    "assumption": "The total count used for each type\u2019s share is the number of distinct matched orders represented by executions; orders without executions are excluded. NULL ordertune values form one group.",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [],
- "seconds": 15.6,
- "chars_out": 966
+ "seconds": 50.1,
+ "chars_out": 996
 }

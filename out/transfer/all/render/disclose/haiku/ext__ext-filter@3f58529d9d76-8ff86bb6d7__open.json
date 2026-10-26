@@ -4,43 +4,35 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH qualifying AS (SELECT ID FROM Laboratory GROUP BY ID HAVING SUM(CASE WHEN `U-PRO` = '-' THEN 1 ELSE 0 END) > 0 AND SUM(CASE WHEN RA = '-' THEN 1 ELSE 0 END) > 0), per_patient AS (SELECT l.ID, AVG(l.PT) AS avg_pt, AVG(l.TAT - l.TAT2) AS avg_tat_diff FROM Laboratory AS l JOIN qualifying AS q ON l.ID = q.ID GROUP BY l.ID) SELECT AVG(avg_pt) AS avg_pt_of_patients, AVG(avg_tat_diff) AS avg_tat_diff_of_patients FROM per_patient",
+  "sql": "WITH qualifying_patients AS (\n  SELECT DISTINCT ID\n  FROM Laboratory\n  WHERE `U-PRO` = '-' AND RA = '-'\n),\npatient_averages AS (\n  SELECT \n    ID,\n    AVG(PT) as pt_avg,\n    AVG(TAT - TAT2) as tat_diff_avg\n  FROM Laboratory\n  WHERE ID IN (SELECT ID FROM qualifying_patients)\n  GROUP BY ID\n)\nSELECT \n  AVG(pt_avg) as avg_pt,\n  AVG(tat_diff_avg) as avg_tat_diff\nFROM patient_averages;",
   "assumptions": [
    {
-    "assumption": "A patient qualifies if they have at least one lab record with U-PRO = '-' and at least one lab record with RA = '-', not necessarily the same record.",
+    "assumption": "Both U-PRO = '-' and RA = '-' must appear in the same laboratory record for a patient to qualify. The phrase 'laboratory results include' is interpreted as a single examination record.",
     "unresolved": true
-   },
-   {
-    "assumption": "Per-patient averages use all of that patient's lab records. AVG skips NULL PT values, and TAT - TAT2 is NULL unless both TAT and TAT2 are present, so such records are skipped. A patient with no non-null PT drops out of the outer PT average, and one with no complete TAT pair drops out of the TAT average.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Equality with '-' is case-sensitive and exact, as SQLite compares text by default.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Both conditions must hold on the same laboratory record: the patient needs a single lab record where U-PRO is '-' and RA is '-'. Per-patient averages still use all of that patient's records.",
-    "sql": "WITH qualifying AS (SELECT DISTINCT ID FROM Laboratory WHERE `U-PRO` = '-' AND RA = '-'), per_patient AS (SELECT l.ID, AVG(l.PT) AS avg_pt, AVG(l.TAT - l.TAT2) AS avg_tat_diff FROM Laboratory AS l JOIN qualifying AS q ON l.ID = q.ID GROUP BY l.ID) SELECT AVG(avg_pt) AS avg_pt_of_patients, AVG(avg_tat_diff) AS avg_tat_diff_of_patients FROM per_patient"
+    "interpretation": "The patient must have at least one record with U-PRO = '-' and (separately, in possibly different records) at least one record with RA = '-'. The phrase 'laboratory results' refers to the collection of all examinations across all dates for a patient.",
+    "sql": "WITH qualifying_patients AS (\n  SELECT ID FROM Laboratory WHERE `U-PRO` = '-'\n  INTERSECT\n  SELECT ID FROM Laboratory WHERE RA = '-'\n),\npatient_averages AS (\n  SELECT \n    ID,\n    AVG(PT) as pt_avg,\n    AVG(TAT - TAT2) as tat_diff_avg\n  FROM Laboratory\n  WHERE ID IN (SELECT ID FROM qualifying_patients)\n  GROUP BY ID\n)\nSELECT \n  AVG(pt_avg) as avg_pt,\n  AVG(tat_diff_avg) as avg_tat_diff\nFROM patient_averages;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "B"
+  "A"
  ],
  "alternatives": [
   {
-   "interpretation": "Both conditions must hold on the same laboratory record: the patient needs a single lab record where U-PRO is '-' and RA is '-'. Per-patient averages still use all of that patient's records.",
-   "sql": "WITH qualifying AS (SELECT DISTINCT ID FROM Laboratory WHERE `U-PRO` = '-' AND RA = '-'), per_patient AS (SELECT l.ID, AVG(l.PT) AS avg_pt, AVG(l.TAT - l.TAT2) AS avg_tat_diff FROM Laboratory AS l JOIN qualifying AS q ON l.ID = q.ID GROUP BY l.ID) SELECT AVG(avg_pt) AS avg_pt_of_patients, AVG(avg_tat_diff) AS avg_tat_diff_of_patients FROM per_patient",
+   "interpretation": "The patient must have at least one record with U-PRO = '-' and (separately, in possibly different records) at least one record with RA = '-'. The phrase 'laboratory results' refers to the collection of all examinations across all dates for a patient.",
+   "sql": "WITH qualifying_patients AS (\n  SELECT ID FROM Laboratory WHERE `U-PRO` = '-'\n  INTERSECT\n  SELECT ID FROM Laboratory WHERE RA = '-'\n),\npatient_averages AS (\n  SELECT \n    ID,\n    AVG(PT) as pt_avg,\n    AVG(TAT - TAT2) as tat_diff_avg\n  FROM Laboratory\n  WHERE ID IN (SELECT ID FROM qualifying_patients)\n  GROUP BY ID\n)\nSELECT \n  AVG(pt_avg) as avg_pt,\n  AVG(tat_diff_avg) as avg_tat_diff\nFROM patient_averages;",
    "executes": true,
    "matches": [
-    "A"
+    "B"
    ]
   }
  ],
- "seconds": 12.8,
- "chars_out": 1722
+ "seconds": 60.3,
+ "chars_out": 1454
 }

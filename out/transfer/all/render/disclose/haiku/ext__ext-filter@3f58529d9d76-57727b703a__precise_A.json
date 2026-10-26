@@ -2,37 +2,32 @@
  "case": "ext:ext-filter@3f58529d9d76-57727b703a",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_avg AS (\n  SELECT s.zoneregistry, s.entrystat,\n         AVG(p.memusagegb) AS avg_mem,\n         AVG(p.procgpu::numeric / NULLIF(p.proccpu, 0)) AS avg_ratio\n  FROM scanprocessing p\n  JOIN sites s ON s.zoneregistry = p.zoneref\n  WHERE p.memusagegb >= 60.8\n  GROUP BY s.zoneregistry, s.entrystat\n)\nSELECT entrystat,\n       AVG(avg_mem) AS avg_site_memusagegb,\n       AVG(avg_ratio) AS avg_site_gpu_cpu_ratio\nFROM site_avg\nGROUP BY entrystat;",
-  "assumptions": [
-   {
-    "assumption": "The GPU/CPU ratio is computed per processing row by casting procgpu to numeric before dividing, so integer truncation is avoided. Rows with NULL or zero proccpu are excluded from the ratio by NULLIF and AVG ignoring NULLs.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Rows with a NULL memusagegb are excluded by the >= 60.8 filter. A site whose entrystat is NULL forms its own group, which is kept in the output rather than dropped.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH site_stats AS (SELECT sp.zoneref, s.entrystat, AVG(sp.memusagegb) as avg_ram, AVG(CAST(sp.procgpu AS FLOAT) / sp.proccpu) as avg_gpu_cpu_ratio FROM scanprocessing sp JOIN sites s ON sp.zoneref = s.zoneregistry WHERE sp.memusagegb >= 60.8 GROUP BY sp.zoneref, s.entrystat) SELECT entrystat, AVG(avg_ram), AVG(avg_gpu_cpu_ratio) FROM site_stats GROUP BY entrystat",
+  "assumptions": [],
   "alternatives": [
    {
-    "interpretation": "The ratio is taken from the per-site averages instead: for each site and access status, divide the average procgpu by the average proccpu, then average those site-level ratios across each access status.",
-    "sql": "WITH site_avg AS (\n  SELECT s.zoneregistry, s.entrystat,\n         AVG(p.memusagegb) AS avg_mem,\n         AVG(p.procgpu)::numeric / NULLIF(AVG(p.proccpu), 0) AS ratio_of_avgs\n  FROM scanprocessing p\n  JOIN sites s ON s.zoneregistry = p.zoneref\n  WHERE p.memusagegb >= 60.8\n  GROUP BY s.zoneregistry, s.entrystat\n)\nSELECT entrystat,\n       AVG(avg_mem) AS avg_site_memusagegb,\n       AVG(ratio_of_avgs) AS avg_site_gpu_cpu_ratio\nFROM site_avg\nGROUP BY entrystat;"
+    "interpretation": "If 'ignoring missing values' means to exclude records where procgpu or proccpu is NULL (rather than letting AVG() ignore them), then filter these at the WHERE clause. This would restrict the average RAM calculation as well, only including records with valid procgpu/proccpu.",
+    "sql": "WITH site_stats AS (SELECT sp.zoneref, s.entrystat, AVG(sp.memusagegb) as avg_ram, AVG(CAST(sp.procgpu AS FLOAT) / sp.proccpu) as avg_gpu_cpu_ratio FROM scanprocessing sp JOIN sites s ON sp.zoneref = s.zoneregistry WHERE sp.memusagegb >= 60.8 AND sp.procgpu IS NOT NULL AND sp.proccpu IS NOT NULL GROUP BY sp.zoneref, s.entrystat) SELECT entrystat, AVG(avg_ram), AVG(avg_gpu_cpu_ratio) FROM site_stats GROUP BY entrystat"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [
   {
-   "interpretation": "The ratio is taken from the per-site averages instead: for each site and access status, divide the average procgpu by the average proccpu, then average those site-level ratios across each access status.",
-   "sql": "WITH site_avg AS (\n  SELECT s.zoneregistry, s.entrystat,\n         AVG(p.memusagegb) AS avg_mem,\n         AVG(p.procgpu)::numeric / NULLIF(AVG(p.proccpu), 0) AS ratio_of_avgs\n  FROM scanprocessing p\n  JOIN sites s ON s.zoneregistry = p.zoneref\n  WHERE p.memusagegb >= 60.8\n  GROUP BY s.zoneregistry, s.entrystat\n)\nSELECT entrystat,\n       AVG(avg_mem) AS avg_site_memusagegb,\n       AVG(ratio_of_avgs) AS avg_site_gpu_cpu_ratio\nFROM site_avg\nGROUP BY entrystat;",
-   "executes": false,
-   "matches": []
+   "interpretation": "If 'ignoring missing values' means to exclude records where procgpu or proccpu is NULL (rather than letting AVG() ignore them), then filter these at the WHERE clause. This would restrict the average RAM calculation as well, only including records with valid procgpu/proccpu.",
+   "sql": "WITH site_stats AS (SELECT sp.zoneref, s.entrystat, AVG(sp.memusagegb) as avg_ram, AVG(CAST(sp.procgpu AS FLOAT) / sp.proccpu) as avg_gpu_cpu_ratio FROM scanprocessing sp JOIN sites s ON sp.zoneref = s.zoneregistry WHERE sp.memusagegb >= 60.8 AND sp.procgpu IS NOT NULL AND sp.proccpu IS NOT NULL GROUP BY sp.zoneref, s.entrystat) SELECT entrystat, AVG(avg_ram), AVG(avg_gpu_cpu_ratio) FROM site_stats GROUP BY entrystat",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
   }
  ],
- "seconds": 17.5,
- "chars_out": 1684
+ "seconds": 73.5,
+ "chars_out": 1189
 }

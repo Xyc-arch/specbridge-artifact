@@ -3,12 +3,12 @@
  "wording": "precise_B",
  "model": "haiku",
  "response": {
-  "sql": "WITH trans_avgs AS (SELECT transref, AVG(anlycount) as trans_avg FROM sentimentandfundamentals WHERE anlycount IS NOT NULL GROUP BY transref), overall_avg AS (SELECT AVG(trans_avg) as overall_avg FROM trans_avgs), above_avg_trans AS (SELECT ta.transref, ta.trans_avg FROM trans_avgs ta CROSS JOIN overall_avg oa WHERE ta.trans_avg > oa.overall_avg), kept_avg AS (SELECT AVG(trans_avg) as kept_avg FROM above_avg_trans), with_calcs AS (SELECT aat.transref, aat.trans_avg, oa.overall_avg, aat.trans_avg - oa.overall_avg as above_overall, ka.kept_avg, aat.trans_avg - ka.kept_avg as above_kept FROM above_avg_trans aat CROSS JOIN overall_avg oa CROSS JOIN kept_avg ka), ranked AS (SELECT *, ROW_NUMBER() OVER (ORDER BY above_kept DESC NULLS LAST) as rn FROM with_calcs), tenth_val AS (SELECT above_kept FROM ranked WHERE rn = 10) SELECT transref, trans_avg, above_overall, above_kept FROM ranked WHERE rn <= 10 OR (above_kept IS NOT DISTINCT FROM (SELECT above_kept FROM tenth_val)) ORDER BY above_kept DESC NULLS LAST, transref"
+  "sql": "WITH trans_avgs AS (\n  SELECT transref, AVG(anlycount) as trans_avg\n  FROM sentimentandfundamentals\n  WHERE anlycount IS NOT NULL\n  GROUP BY transref\n),\noverall_avg AS (\n  SELECT AVG(trans_avg) as overall_average\n  FROM trans_avgs\n),\nkept_trans AS (\n  SELECT ta.transref, ta.trans_avg\n  FROM trans_avgs ta\n  WHERE ta.trans_avg > (SELECT overall_average FROM overall_avg)\n),\nkept_avg AS (\n  SELECT AVG(trans_avg) as kept_trans_average\n  FROM kept_trans\n),\nwith_diffs AS (\n  SELECT\n    kt.transref,\n    kt.trans_avg,\n    kt.trans_avg - (SELECT overall_average FROM overall_avg) as above_overall,\n    kt.trans_avg - (SELECT kept_trans_average FROM kept_avg) as above_kept\n  FROM kept_trans kt\n),\nranked AS (\n  SELECT\n    transref,\n    trans_avg,\n    above_overall,\n    above_kept,\n    ROW_NUMBER() OVER (ORDER BY above_kept DESC) as rn\n  FROM with_diffs\n)\nSELECT transref, trans_avg, above_overall, above_kept\nFROM ranked\nWHERE rn <= 10 \n   OR above_kept = (SELECT above_kept FROM ranked WHERE rn = 10)\nORDER BY above_kept DESC"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 64.0,
- "chars_out": 1052
+ "seconds": 100.2,
+ "chars_out": 1091
 }

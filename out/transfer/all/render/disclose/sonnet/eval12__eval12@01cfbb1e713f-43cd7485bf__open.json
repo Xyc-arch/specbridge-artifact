@@ -2,23 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-43cd7485bf",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH j AS (SELECT o.orderbase, f.feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL), overall AS (SELECT AVG(feerate) AS a FROM j), ch AS (SELECT orderbase, AVG(feerate) AS ca FROM j GROUP BY orderbase) SELECT AVG(ch.ca) AS mean_channel_avg_feerate, AVG(ch.ca - overall.a) AS mean_excess_over_average FROM ch CROSS JOIN overall WHERE ch.ca > overall.a",
+  "sql": "WITH j AS (SELECT o.orderbase AS ch, f.feerate AS r FROM fees f JOIN orders o ON o.recordvault = f.orderslink WHERE f.feerate IS NOT NULL), overall AS (SELECT AVG(r) AS oa FROM j), chan AS (SELECT ch, AVG(r) AS ca FROM j WHERE ch IS NOT NULL GROUP BY ch) SELECT AVG(chan.ca) AS mean_channel_avg_fee_rate, AVG(chan.ca - overall.oa) AS mean_excess_over_overall_avg FROM chan, overall WHERE chan.ca > overall.oa",
   "assumptions": [
    {
-    "assumption": "'Average' is the overall mean feerate across all fee rows linked to orders (row-level, non-null feerate). A channel is above average if its own mean feerate exceeds that. Orders with a NULL orderbase are excluded.",
+    "assumption": "The 'average' benchmark is the overall mean feerate across all fee rows linked to an order (not the mean of the channel means). Each channel's average is the mean of its fee rows' feerate.",
     "unresolved": true
    },
    {
-    "assumption": "The 'mean average fee rate' is the mean of the qualifying channels' per-channel average feerates, and the 'how far above' figure is the mean of (channel average minus overall average), with no rounding.",
+    "assumption": "Fees with no matching order are excluded (inner join), null feerates are ignored, and orders with a null orderbase are not counted as a channel.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "'Average' is the mean of the per-channel average feerates (each channel weighted equally) rather than the row-level mean.",
-    "sql": "WITH j AS (SELECT o.orderbase, f.feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL), ch AS (SELECT orderbase, AVG(feerate) AS ca FROM j GROUP BY orderbase), overall AS (SELECT AVG(ca) AS a FROM ch) SELECT AVG(ch.ca) AS mean_channel_avg_feerate, AVG(ch.ca - overall.a) AS mean_excess_over_average FROM ch CROSS JOIN overall WHERE ch.ca > overall.a"
+    "interpretation": "The benchmark is the mean of the per-channel average fee rates, so each channel counts equally, instead of the mean over fee rows.",
+    "sql": "WITH j AS (SELECT o.orderbase AS ch, f.feerate AS r FROM fees f JOIN orders o ON o.recordvault = f.orderslink WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL), chan AS (SELECT ch, AVG(r) AS ca FROM j GROUP BY ch), overall AS (SELECT AVG(ca) AS oa FROM chan) SELECT AVG(chan.ca) AS mean_channel_avg_fee_rate, AVG(chan.ca - overall.oa) AS mean_excess_over_overall_avg FROM chan, overall WHERE chan.ca > overall.oa"
    }
   ]
  },
@@ -29,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "'Average' is the mean of the per-channel average feerates (each channel weighted equally) rather than the row-level mean.",
-   "sql": "WITH j AS (SELECT o.orderbase, f.feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL), ch AS (SELECT orderbase, AVG(feerate) AS ca FROM j GROUP BY orderbase), overall AS (SELECT AVG(ca) AS a FROM ch) SELECT AVG(ch.ca) AS mean_channel_avg_feerate, AVG(ch.ca - overall.a) AS mean_excess_over_average FROM ch CROSS JOIN overall WHERE ch.ca > overall.a",
+   "interpretation": "The benchmark is the mean of the per-channel average fee rates, so each channel counts equally, instead of the mean over fee rows.",
+   "sql": "WITH j AS (SELECT o.orderbase AS ch, f.feerate AS r FROM fees f JOIN orders o ON o.recordvault = f.orderslink WHERE f.feerate IS NOT NULL AND o.orderbase IS NOT NULL), chan AS (SELECT ch, AVG(r) AS ca FROM j GROUP BY ch), overall AS (SELECT AVG(ca) AS oa FROM chan) SELECT AVG(chan.ca) AS mean_channel_avg_fee_rate, AVG(chan.ca - overall.oa) AS mean_excess_over_overall_avg FROM chan, overall WHERE chan.ca > overall.oa",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 7.9,
- "chars_out": 1523
+ "seconds": 9.5,
+ "chars_out": 1509
 }

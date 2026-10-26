@@ -3,12 +3,12 @@
  "wording": "open",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH operator_rates AS (\n  SELECT\n    crewref,\n    AVG(gbsize / NULLIF(spanmin, 0)) AS avg_gb_per_minute\n  FROM scans\n  GROUP BY crewref\n),\nall_operator_average AS (\n  SELECT AVG(avg_gb_per_minute) AS avg_gb_per_minute\n  FROM operator_rates\n),\nabove_average_operators AS (\n  SELECT crewref, avg_gb_per_minute\n  FROM operator_rates\n  WHERE avg_gb_per_minute > (SELECT avg_gb_per_minute FROM all_operator_average)\n)\nSELECT\n  AVG(scan_counts.scan_count) AS avg_scans_per_operator,\n  AVG(above_average_operators.avg_gb_per_minute) AS avg_gb_per_minute,\n  AVG(above_average_operators.avg_gb_per_minute) - (SELECT avg_gb_per_minute FROM all_operator_average) AS avg_excess_gb_per_minute\nFROM above_average_operators\nJOIN (\n  SELECT crewref, COUNT(*) AS scan_count\n  FROM scans\n  GROUP BY crewref\n) AS scan_counts USING (crewref);"
+  "sql": "WITH operator_rates AS (\n  SELECT crewref, AVG(gbsize / spanmin) AS avg_gb_per_min\n  FROM scans\n  WHERE gbsize IS NOT NULL AND spanmin IS NOT NULL AND spanmin <> 0\n  GROUP BY crewref\n), overall_rate AS (\n  SELECT AVG(avg_gb_per_min) AS avg_gb_per_min\n  FROM operator_rates\n), qualifying_operators AS (\n  SELECT crewref, avg_gb_per_min\n  FROM operator_rates\n  WHERE avg_gb_per_min > (SELECT avg_gb_per_min FROM overall_rate)\n), operator_scan_counts AS (\n  SELECT crewref, COUNT(*) AS scan_count\n  FROM scans\n  GROUP BY crewref\n)\nSELECT AVG(osc.scan_count) AS average_scans,\n       AVG(qo.avg_gb_per_min) AS average_gb_per_min,\n       AVG(qo.avg_gb_per_min) - (SELECT avg_gb_per_min FROM overall_rate) AS average_excess_gb_per_min\nFROM qualifying_operators qo\nJOIN operator_scan_counts osc ON osc.crewref = qo.crewref;"
  },
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 9.3,
- "chars_out": 858
+ "seconds": 4.8,
+ "chars_out": 847
 }

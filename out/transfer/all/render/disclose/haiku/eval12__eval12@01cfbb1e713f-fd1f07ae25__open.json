@@ -2,12 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-fd1f07ae25",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH combined_data AS (\n  SELECT \n    f.orderslink,\n    o.ordertune,\n    f.rebtotal,\n    f.rebrate,\n    f.feerate\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\ngroup_stats AS (\n  SELECT \n    orderslink,\n    ordertune,\n    AVG(rebtotal) as avg_rebate,\n    AVG((rebrate - feerate) / feerate) as avg_relative_gap\n  FROM combined_data\n  GROUP BY orderslink, ordertune\n),\noverall_stats AS (\n  SELECT AVG(rebtotal) as overall_avg_rebate\n  FROM combined_data\n),\nranked_results AS (\n  SELECT \n    gs.orderslink,\n    gs.ordertune,\n    gs.avg_rebate,\n    gs.avg_relative_gap,\n    gs.avg_rebate - os.overall_avg_rebate as margin_above_overall\n  FROM group_stats gs\n  CROSS JOIN overall_stats os\n  WHERE gs.avg_rebate > os.overall_avg_rebate\n)\nSELECT \n  orderslink,\n  ordertune,\n  avg_rebate,\n  avg_relative_gap,\n  margin_above_overall\nFROM ranked_results\nORDER BY margin_above_overall DESC\nLIMIT 10;",
+  "sql": "WITH overall_avg AS (\n  SELECT AVG(f.rebtotal) as overall_avg_rebate\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\ngroup_stats AS (\n  SELECT \n    f.orderslink,\n    o.ordertune,\n    AVG(f.rebtotal) as avg_rebate,\n    AVG((f.rebrate - f.feerate) / f.feerate) as avg_relative_gap\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  GROUP BY f.orderslink, o.ordertune\n)\nSELECT \n  gs.orderslink,\n  gs.ordertune,\n  gs.avg_rebate,\n  gs.avg_relative_gap,\n  (gs.avg_rebate - oa.overall_avg_rebate) as margin_above_overall\nFROM group_stats gs\nCROSS JOIN overall_avg oa\nWHERE gs.avg_rebate > oa.overall_avg_rebate\nORDER BY margin_above_overall DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "feerate is non-zero for all records; division by zero in the relative gap calculation (rebrate - feerate) / feerate is not possible",
+    "assumption": "All feerate values are non-zero and positive, avoiding division-by-zero in the gap ratio calculation",
+    "unresolved": false
+   },
+   {
+    "assumption": "The 'average relative gap' means the arithmetic mean of individual gap ratios\u2014AVG((rebrate - feerate) / feerate)\u2014rather than the gap of aggregated rates",
     "unresolved": false
    }
   ],
@@ -19,6 +23,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 38.2,
- "chars_out": 1221
+ "seconds": 45.7,
+ "chars_out": 1165
 }

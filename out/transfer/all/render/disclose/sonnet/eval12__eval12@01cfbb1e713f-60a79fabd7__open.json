@@ -2,35 +2,31 @@
  "case": "eval12:eval12@01cfbb1e713f-60a79fabd7",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH r AS (SELECT st.healtheval AS h, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate, COUNT(sc.gbsize / NULLIF(sc.spanmin, 0)) AS cnt FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry GROUP BY st.healtheval), o AS (SELECT AVG(rate) AS a FROM r) SELECT AVG(r.rate) AS avg_rate, AVG(r.cnt * 1.0) AS avg_count, AVG(r.rate - o.a) AS avg_excess FROM r CROSS JOIN o WHERE r.rate > o.a",
+  "sql": "WITH s AS (SELECT si.healtheval AS st, sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0) AS r FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry WHERE si.healtheval IS NOT NULL), g AS (SELECT st, AVG(r) AS a, COUNT(r) AS n FROM s GROUP BY st HAVING COUNT(r) > 0), o AS (SELECT AVG(a) AS oa FROM g) SELECT AVG(g.a) AS avg_rate, AVG(g.n) AS avg_count, AVG(g.a - o.oa) AS avg_excess FROM g, o WHERE g.a > o.oa",
   "assumptions": [
    {
-    "assumption": "A status's rate is the mean of per-scan gbsize/spanmin. Scans with a NULL gbsize or NULL/zero spanmin are ignored; zero spanmin is treated as missing to avoid division by zero.",
+    "assumption": "A status's rate is the mean of the per-scan gbsize/spanmin ratios. Scans with a missing gbsize or spanmin, or a zero spanmin (which gives NULL), are ignored.",
     "unresolved": false
    },
    {
-    "assumption": "The all-status average is the unweighted mean of the per-status average rates, not the mean over all scans.",
-    "unresolved": true
+    "assumption": "The all-status average is the unweighted mean of the per-status average rates, so each status counts once regardless of how many scans it has.",
+    "unresolved": false
    },
    {
-    "assumption": "The 'count' for a status is the number of its scans with a valid rate. Scans without one are not counted.",
-    "unresolved": true
+    "assumption": "Scans whose site has a NULL healtheval are excluded, since NULL is not a status. Statuses with no valid rate are also excluded.",
+    "unresolved": false
    },
    {
-    "assumption": "A NULL healtheval, if present, forms its own group, since the request says to group by that column.",
+    "assumption": "'Average count' means the average number of scans with a valid rate across the qualifying statuses.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The all-status average is the mean rate over all matched scans, so statuses with more scans weigh more.",
-    "sql": "WITH r AS (SELECT st.healtheval AS h, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate, COUNT(sc.gbsize / NULLIF(sc.spanmin, 0)) AS cnt FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry GROUP BY st.healtheval), o AS (SELECT AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS a FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry) SELECT AVG(r.rate) AS avg_rate, AVG(r.cnt * 1.0) AS avg_count, AVG(r.rate - o.a) AS avg_excess FROM r CROSS JOIN o WHERE r.rate > o.a"
-   },
-   {
-    "interpretation": "The 'count' for a status is its total number of matched scans, including those with a missing rate.",
-    "sql": "WITH r AS (SELECT st.healtheval AS h, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate, COUNT(*) AS cnt FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry GROUP BY st.healtheval), o AS (SELECT AVG(rate) AS a FROM r) SELECT AVG(r.rate) AS avg_rate, AVG(r.cnt * 1.0) AS avg_count, AVG(r.rate - o.a) AS avg_excess FROM r CROSS JOIN o WHERE r.rate > o.a"
+    "interpretation": "The all-status average is the pooled average of every valid scan ratio across all statuses (scan-weighted), not the mean of status averages.",
+    "sql": "WITH s AS (SELECT si.healtheval AS st, sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0) AS r FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry WHERE si.healtheval IS NOT NULL), g AS (SELECT st, AVG(r) AS a, COUNT(r) AS n FROM s GROUP BY st HAVING COUNT(r) > 0), o AS (SELECT AVG(r) AS oa FROM s) SELECT AVG(g.a) AS avg_rate, AVG(g.n) AS avg_count, AVG(g.a - o.oa) AS avg_excess FROM g, o WHERE g.a > o.oa"
    }
   ]
  },
@@ -41,20 +37,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The all-status average is the mean rate over all matched scans, so statuses with more scans weigh more.",
-   "sql": "WITH r AS (SELECT st.healtheval AS h, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate, COUNT(sc.gbsize / NULLIF(sc.spanmin, 0)) AS cnt FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry GROUP BY st.healtheval), o AS (SELECT AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS a FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry) SELECT AVG(r.rate) AS avg_rate, AVG(r.cnt * 1.0) AS avg_count, AVG(r.rate - o.a) AS avg_excess FROM r CROSS JOIN o WHERE r.rate > o.a",
+   "interpretation": "The all-status average is the pooled average of every valid scan ratio across all statuses (scan-weighted), not the mean of status averages.",
+   "sql": "WITH s AS (SELECT si.healtheval AS st, sc.gbsize * 1.0 / NULLIF(sc.spanmin, 0) AS r FROM scans sc JOIN sites si ON sc.zoneref = si.zoneregistry WHERE si.healtheval IS NOT NULL), g AS (SELECT st, AVG(r) AS a, COUNT(r) AS n FROM s GROUP BY st HAVING COUNT(r) > 0), o AS (SELECT AVG(r) AS oa FROM s) SELECT AVG(g.a) AS avg_rate, AVG(g.n) AS avg_count, AVG(g.a - o.oa) AS avg_excess FROM g, o WHERE g.a > o.oa",
    "executes": true,
    "matches": []
-  },
-  {
-   "interpretation": "The 'count' for a status is its total number of matched scans, including those with a missing rate.",
-   "sql": "WITH r AS (SELECT st.healtheval AS h, AVG(sc.gbsize / NULLIF(sc.spanmin, 0)) AS rate, COUNT(*) AS cnt FROM scans sc JOIN sites st ON sc.zoneref = st.zoneregistry GROUP BY st.healtheval), o AS (SELECT AVG(rate) AS a FROM r) SELECT AVG(r.rate) AS avg_rate, AVG(r.cnt * 1.0) AS avg_count, AVG(r.rate - o.a) AS avg_excess FROM r CROSS JOIN o WHERE r.rate > o.a",
-   "executes": true,
-   "matches": [
-    "A"
-   ]
   }
  ],
- "seconds": 13.4,
- "chars_out": 2268
+ "seconds": 14.6,
+ "chars_out": 1708
 }

@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-fd1f07ae25",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH group_averages AS (\n  SELECT\n    f.orderslink AS orderslink,\n    o.ordertune AS order_type,\n    AVG(f.rebtotal) AS average_rebate,\n    AVG((f.rebrate - f.feerate) / NULLIF(f.feerate, 0)) AS average_relative_gap\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  GROUP BY f.orderslink, o.ordertune\n),\nbaseline AS (\n  SELECT AVG(average_rebate) AS average_group_rebate\n  FROM group_averages\n)\nSELECT\n  g.orderslink,\n  g.order_type,\n  g.average_rebate,\n  g.average_relative_gap,\n  g.average_rebate - b.average_group_rebate AS excess_over_baseline\nFROM group_averages AS g\nCROSS JOIN baseline AS b\nWHERE g.average_rebate > b.average_group_rebate\nORDER BY excess_over_baseline DESC\nLIMIT 10;",
+  "sql": "WITH group_averages AS (\n  SELECT\n    f.orderslink AS orderslink,\n    o.ordertune AS order_type,\n    AVG(f.rebtotal) AS avg_rebate,\n    AVG((f.rebrate - f.feerate) / f.feerate) AS avg_relative_gap\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  GROUP BY f.orderslink, o.ordertune\n),\nbaseline AS (\n  SELECT AVG(avg_rebate) AS avg_group_rebate\n  FROM group_averages\n)\nSELECT\n  g.orderslink,\n  g.order_type,\n  g.avg_rebate,\n  g.avg_relative_gap,\n  g.avg_rebate - b.avg_group_rebate AS excess_over_baseline\nFROM group_averages AS g\nCROSS JOIN baseline AS b\nWHERE g.avg_rebate > b.avg_group_rebate\nORDER BY excess_over_baseline DESC\nLIMIT 10",
   "assumptions": [
    {
-    "assumption": "A relative gap with a zero fee rate is undefined, so those rows are excluded from that group's AVG via NULLIF; other rows in the group still contribute.",
+    "assumption": "Rows with a NULL fee rate produce a NULL relative gap and are excluded from that group's AVG; a zero fee rate also yields NULL for the division in SQLite. The rebate baseline averages all matched groups' average rebates, including groups whose rebate is NULL only insofar as AVG ignores those NULL values.",
     "unresolved": true
    }
   ],
@@ -18,5 +18,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 5.3
+ "seconds": 7.9
 }

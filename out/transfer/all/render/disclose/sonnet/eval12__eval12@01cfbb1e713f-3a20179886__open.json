@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-3a20179886",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_type AS (SELECT t.tradekind, COUNT(*) AS n FROM advancedbehavior a JOIN transactionrecord r ON r.transreg = a.translink JOIN trader t ON t.tradereg = r.trdref GROUP BY t.tradekind), tot AS (SELECT SUM(n) AS total, AVG(n * 1.0) AS avg_n FROM per_type), shares AS (SELECT p.tradekind, p.n, p.n * 1.0 / tot.total AS share, tot.avg_n FROM per_type p CROSS JOIN tot) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_average FROM shares WHERE n > avg_n",
+  "sql": "WITH base AS (SELECT t.tradekind, COUNT(*) AS n FROM advancedbehavior a JOIN transactionrecord r ON r.transreg = a.translink JOIN trader t ON t.tradereg = r.trdref WHERE t.tradekind IS NOT NULL GROUP BY t.tradekind), s AS (SELECT tradekind, n, n * 1.0 / SUM(n) OVER () AS share, AVG(n * 1.0) OVER () AS avg_n FROM base) SELECT SUM(n) AS combined_count, AVG(share) AS avg_share, AVG(n - avg_n) AS avg_excess_over_mean FROM s WHERE n > avg_n;",
   "assumptions": [
    {
-    "assumption": "An 'analysed trade record' is one advancedbehavior row that joins (inner) to an existing transactionrecord and its trader. Each such row counts once toward its trader's tradekind.",
+    "assumption": "An analysed trade record is one advancedbehavior row, counted once, that joins through translink to a transactionrecord and then through trdref to a trader. Rows without a matching trade or trader are excluded.",
     "unresolved": false
    },
    {
-    "assumption": "The average across trader types is the mean of the per-type counts, taken only over types that appear in the joined data. The overall total is the sum of those counts.",
-    "unresolved": false
+    "assumption": "Traders with a NULL tradekind are left out, so they are not treated as a trader type. The overall total and the average across types are both computed without them.",
+    "unresolved": true
    },
    {
-    "assumption": "Share is each type's count divided by the overall total, as an unrounded fraction between 0 and 1 rather than a percentage.",
+    "assumption": "Share is a type's count divided by the total count over all types, as a fraction between 0 and 1 rather than a percentage. The average across types is the mean of the per-type counts. 'How far above' is the average of (count minus that mean) over the qualifying types. Nothing is rounded.",
     "unresolved": false
    }
   ],
@@ -27,6 +27,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 9.0,
- "chars_out": 1174
+ "seconds": 9.7,
+ "chars_out": 1256
 }

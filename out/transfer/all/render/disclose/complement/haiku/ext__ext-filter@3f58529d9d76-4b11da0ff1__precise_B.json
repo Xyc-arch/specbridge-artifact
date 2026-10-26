@@ -4,29 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH gender_counts AS (\n  SELECT c.gender AS gender, COUNT(*) AS order_count\n  FROM Orders o\n  JOIN Customers c ON c.customer_id = o.customer_id\n  WHERE o.date_order_placed > '2013-10-25 17:40:25'\n    AND o.date_order_placed < '2017-05-24 19:26:44'\n  GROUP BY c.gender\n),\navg_count AS (\n  SELECT AVG(order_count) AS avg_orders FROM gender_counts\n)\nSELECT g.gender, g.order_count, g.order_count - a.avg_orders AS above_average\nFROM gender_counts g\nCROSS JOIN avg_count a\nWHERE g.order_count > a.avg_orders;",
+  "sql": "WITH orders_in_range AS (SELECT o.order_id, o.customer_id, c.gender FROM Orders o INNER JOIN Customers c ON o.customer_id = c.customer_id WHERE o.date_order_placed > '2013-10-25 17:40:25' AND o.date_order_placed < '2017-05-24 19:26:44'), gender_counts AS (SELECT gender, COUNT(*) as order_count FROM orders_in_range GROUP BY gender), average_count AS (SELECT AVG(order_count) as avg_count FROM gender_counts) SELECT gc.gender, gc.order_count, gc.order_count - ac.avg_count as above_average FROM gender_counts gc CROSS JOIN average_count ac WHERE gc.order_count > ac.avg_count ORDER BY gc.gender",
   "assumptions": [
    {
-    "assumption": "date_order_placed is stored as text in 'YYYY-MM-DD HH:MM:SS' form, so string comparison matches chronological order.",
+    "assumption": "Text comparison directive: The request specifies 'comparing date_order_placed as text', but the column is DATETIME. The primary query uses standard datetime comparison with > and <, which databases handle natively for DATETIME values compared to ISO 8601 timestamp strings. This produces correct chronological ordering.",
     "unresolved": true
-   },
-   {
-    "assumption": "The inner join to Customers keeps only orders whose customer_id exists in Customers.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL customer gender forms its own group and is included in both the per-gender counts and the average.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The average is taken over the per-gender counts (one value per gender group), not over individual orders.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Exclude customers with a NULL gender, so only genders 'M', 'F', or other non-null values are compared and averaged.",
-    "sql": "WITH gender_counts AS (\n  SELECT c.gender AS gender, COUNT(*) AS order_count\n  FROM Orders o\n  JOIN Customers c ON c.customer_id = o.customer_id\n  WHERE o.date_order_placed > '2013-10-25 17:40:25'\n    AND o.date_order_placed < '2017-05-24 19:26:44'\n    AND c.gender IS NOT NULL\n  GROUP BY c.gender\n),\navg_count AS (\n  SELECT AVG(order_count) AS avg_orders FROM gender_counts\n)\nSELECT g.gender, g.order_count, g.order_count - a.avg_orders AS above_average\nFROM gender_counts g\nCROSS JOIN avg_count a\nWHERE g.order_count > a.avg_orders;"
+    "interpretation": "If literal text/lexicographic comparison is required despite the DATETIME column type, explicitly cast the column to character before comparison.",
+    "sql": "WITH orders_in_range AS (SELECT o.order_id, o.customer_id, c.gender FROM Orders o INNER JOIN Customers c ON o.customer_id = c.customer_id WHERE CAST(o.date_order_placed AS CHAR) > '2013-10-25 17:40:25' AND CAST(o.date_order_placed AS CHAR) < '2017-05-24 19:26:44'), gender_counts AS (SELECT gender, COUNT(*) as order_count FROM orders_in_range GROUP BY gender), average_count AS (SELECT AVG(order_count) as avg_count FROM gender_counts) SELECT gc.gender, gc.order_count, gc.order_count - ac.avg_count as above_average FROM gender_counts gc CROSS JOIN average_count ac WHERE gc.order_count > ac.avg_count ORDER BY gc.gender"
    }
   ]
  },
@@ -35,5 +23,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 8.3
+ "seconds": 38.7
 }

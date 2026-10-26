@@ -3,12 +3,12 @@
  "wording": "open",
  "model": "haiku",
  "response": {
-  "sql": "WITH spatial_projects AS (\n  SELECT \n    p.fundflux,\n    sp.boxy,\n    sp.boxx,\n    sp.aream2,\n    sp.volm3\n  FROM scanspatial sp\n  JOIN projects p ON sp.arcref = p.arcregistry\n  WHERE sp.boxy IS NOT NULL \n    AND sp.boxx IS NOT NULL \n    AND sp.boxx != 0\n    AND sp.aream2 IS NOT NULL \n    AND sp.volm3 IS NOT NULL\n    AND sp.volm3 != 0\n),\nfunding_stats AS (\n  SELECT \n    fundflux,\n    AVG((boxy - boxx) / boxx) AS avg_y_vs_x_diff,\n    AVG(aream2 / volm3) AS area_volume_ratio\n  FROM spatial_projects\n  GROUP BY fundflux\n),\noverall_avg AS (\n  SELECT AVG(area_volume_ratio) AS overall_avg_ratio\n  FROM funding_stats\n)\nSELECT \n  fs.fundflux,\n  fs.avg_y_vs_x_diff,\n  fs.area_volume_ratio,\n  fs.area_volume_ratio - oa.overall_avg_ratio AS above_average\nFROM funding_stats fs\nCROSS JOIN overall_avg oa\nWHERE fs.area_volume_ratio > oa.overall_avg_ratio\nORDER BY fs.area_volume_ratio DESC;"
+  "sql": "WITH spatial_projects AS (\n  SELECT \n    sp.aream2,\n    sp.volm3,\n    sp.boxx,\n    sp.boxy,\n    p.fundflux\n  FROM scanspatial sp\n  JOIN projects p ON sp.arcref = p.arcregistry\n),\nfunding_metrics AS (\n  SELECT \n    fundflux,\n    AVG(CASE \n      WHEN boxx IS NOT NULL AND boxy IS NOT NULL AND boxx <> 0 \n      THEN (boxy - boxx) / CAST(boxx AS REAL) \n    END) as avg_y_vs_x_diff,\n    AVG(CASE \n      WHEN aream2 IS NOT NULL AND volm3 IS NOT NULL AND volm3 <> 0\n      THEN aream2 / CAST(volm3 AS REAL)\n    END) as area_volume_ratio\n  FROM spatial_projects\n  GROUP BY fundflux\n),\noverall_avg AS (\n  SELECT AVG(area_volume_ratio) as overall_avg_ratio\n  FROM funding_metrics\n  WHERE area_volume_ratio IS NOT NULL\n)\nSELECT \n  fm.fundflux,\n  fm.avg_y_vs_x_diff,\n  fm.area_volume_ratio,\n  fm.area_volume_ratio - oa.overall_avg_ratio as ratio_above_average\nFROM funding_metrics fm\nCROSS JOIN overall_avg oa\nWHERE fm.area_volume_ratio > oa.overall_avg_ratio\nORDER BY fm.fundflux;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 22.8,
- "chars_out": 946
+ "seconds": 34.1,
+ "chars_out": 1032
 }

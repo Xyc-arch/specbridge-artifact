@@ -2,25 +2,30 @@
  "case": "eval12:eval12@01cfbb1e713f-55907567ca",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS cnt FROM telescopes GROUP BY observstation), s AS (SELECT observstation, cnt, 100.0 * cnt / SUM(cnt) OVER () AS share FROM c), a AS (SELECT observstation, cnt, share, AVG(share) OVER () AS avg_share FROM s) SELECT SUM(cnt) AS total_telescopes, AVG(share) AS avg_share_above_avg, AVG(share - avg_share) AS avg_excess_over_avg_share FROM a WHERE share > avg_share;",
+  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS n FROM telescopes GROUP BY observstation), s AS (SELECT observstation, n, 100.0 * n / (SELECT SUM(n) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.n) AS total_telescopes, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s, a WHERE s.share > a.avg_share",
   "assumptions": [
    {
-    "assumption": "The observatories are the distinct observstation values in the telescopes table. Observatories with no telescopes are not counted, so the average share is 100 divided by the number of observatories that have telescopes.",
+    "assumption": "The average share is the unweighted mean of per-observatory shares across observatories that have at least one telescope (observatories with no telescopes do not appear in the telescopes table and are excluded).",
     "unresolved": false
    },
    {
-    "assumption": "Observatories whose share equals the average are excluded, because the request says 'above' the average.",
+    "assumption": "Each row in telescopes is one telescope, so counting rows per observstation gives the telescope count.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "The average share is taken across all observatories in the observatories table, including those with zero telescopes (share 0), so the threshold is 100/number of observatories.",
+    "sql": "WITH c AS (SELECT o.observstation, COUNT(t.telescregistry) AS n FROM observatories o LEFT JOIN telescopes t ON t.observstation = o.observstation GROUP BY o.observstation), s AS (SELECT observstation, n, 100.0 * n / (SELECT SUM(n) FROM c) AS share FROM c), a AS (SELECT AVG(share) AS avg_share FROM s) SELECT SUM(s.n) AS total_telescopes, AVG(s.share) AS avg_share, AVG(s.share - a.avg_share) AS avg_excess_over_avg_share FROM s, a WHERE s.share > a.avg_share"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 7.7
+ "seconds": 6.4
 }

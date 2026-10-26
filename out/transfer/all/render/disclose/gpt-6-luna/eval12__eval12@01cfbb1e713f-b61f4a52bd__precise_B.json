@@ -2,13 +2,13 @@
  "case": "eval12:eval12@01cfbb1e713f-b61f4a52bd",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(fillcount) AS avg_fill\n  FROM orderexecutions\n  WHERE fillcount IS NOT NULL AND fillcount <> 0\n  GROUP BY ordersmark\n), first_excess AS (\n  SELECT ordersmark, avg_fill,\n         avg_fill - AVG(avg_fill) OVER () AS excess1\n  FROM per_order\n), first_kept AS (\n  SELECT ordersmark, avg_fill, excess1\n  FROM first_excess\n  WHERE excess1 > 0\n), second_excess AS (\n  SELECT ordersmark, avg_fill, excess1,\n         avg_fill - AVG(avg_fill) OVER () AS excess2\n  FROM first_kept\n), final_kept AS (\n  SELECT avg_fill, excess1, excess2\n  FROM second_excess\n  WHERE excess2 > 0\n)\nSELECT AVG(avg_fill) AS avg_final_order_fill,\n       AVG(excess1) AS avg_first_excess,\n       AVG(excess2) AS avg_second_excess\nFROM final_kept;",
+  "sql": "WITH per_order AS (\n  SELECT ordersmark, AVG(fillcount) AS avg_fill_quantity\n  FROM orderexecutions\n  WHERE fillcount IS NOT NULL AND fillcount <> 0\n  GROUP BY ordersmark\n), first_benchmark AS (\n  SELECT AVG(avg_fill_quantity) AS benchmark\n  FROM per_order\n), first_kept AS (\n  SELECT p.ordersmark, p.avg_fill_quantity,\n         p.avg_fill_quantity - b.benchmark AS first_excess\n  FROM per_order AS p\n  CROSS JOIN first_benchmark AS b\n  WHERE p.avg_fill_quantity > b.benchmark\n), second_benchmark AS (\n  SELECT AVG(avg_fill_quantity) AS benchmark\n  FROM first_kept\n), final_kept AS (\n  SELECT f.avg_fill_quantity, f.first_excess,\n         f.avg_fill_quantity - b.benchmark AS second_excess\n  FROM first_kept AS f\n  CROSS JOIN second_benchmark AS b\n  WHERE f.avg_fill_quantity > b.benchmark\n)\nSELECT AVG(avg_fill_quantity) AS avg_final_fill_quantity,\n       AVG(first_excess) AS avg_first_excess,\n       AVG(second_excess) AS avg_second_excess\nFROM final_kept;",
   "assumptions": [
    {
-    "assumption": "Executions with NULL or zero fillcount are excluded before calculating each group's average; groups with no remaining positive or nonzero quantity are omitted. All NULL ordersmark values form one group, as SQL GROUP BY naturally does.",
-    "unresolved": true
+    "assumption": "Executions with NULL ordersmark are grouped together as one order, as requested. Zero and missing fillcount values are excluded from each order's average; an order with no remaining quantities is omitted because it has no per-order average.",
+    "unresolved": false
    }
   ],
   "alternatives": []
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.0,
- "chars_out": 1096
+ "seconds": 7.2,
+ "chars_out": 1307
 }

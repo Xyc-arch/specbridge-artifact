@@ -2,31 +2,49 @@
  "case": "eval12:eval12@01cfbb1e713f-6a53a32ddd",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_source AS (SELECT p.fundflux AS funding_source, AVG((s.boxy - s.boxx) / NULLIF(s.boxx, 0)) AS avg_y_vs_x_diff, SUM(s.aream2) / NULLIF(SUM(s.volm3), 0) AS area_to_volume FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref GROUP BY p.fundflux), overall AS (SELECT AVG(area_to_volume) AS avg_atv FROM per_source) SELECT ps.funding_source, ps.avg_y_vs_x_diff, ps.area_to_volume, ps.area_to_volume - o.avg_atv AS above_average_by FROM per_source ps CROSS JOIN overall o WHERE ps.area_to_volume > o.avg_atv",
+  "sql": "WITH per_source AS (SELECT p.fundflux AS funding_source, AVG((s.boxy - s.boxx) / s.boxx) AS avg_y_vs_x_diff, SUM(s.aream2) / SUM(s.volm3) AS area_to_volume FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), overall AS (SELECT AVG(area_to_volume) AS avg_av FROM per_source WHERE area_to_volume IS NOT NULL) SELECT ps.funding_source, ps.avg_y_vs_x_diff, ps.area_to_volume, ps.area_to_volume - o.avg_av AS above_average_by FROM per_source ps CROSS JOIN overall o WHERE ps.area_to_volume > o.avg_av ORDER BY ps.funding_source",
   "assumptions": [
    {
-    "assumption": "The inner join on arcref = arcregistry drops spatial records with no matching project, as the request says.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Records with a missing or zero boxx are left out of the Y-vs-X average (a zero boxx gives NULL, not an error). SUM ignores NULLs, so the area and volume totals are taken independently over all matched records.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL fundflux, if present, forms its own group and counts as one funding source in the cross-source average. Funding sources whose area-to-volume figure is NULL (no volume) are excluded from that average.",
+    "assumption": "The area-to-volume figure is SUM(aream2) / SUM(volm3) per funding source. Each sum skips NULLs on its own, so a record with only one of the two values still counts toward that sum.",
     "unresolved": true
+   },
+   {
+    "assumption": "The average Y-vs-X difference uses only records where boxx and boxy are both non-NULL and boxx is non-zero. A zero boxx gives NULL in SQLite, and AVG skips it.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Projects with a NULL funding source are left out. Spatial records that match no project are dropped by the inner join. Funding sources with no usable ratio are excluded from the cross-source average.",
+    "unresolved": false
+   },
+   {
+    "assumption": "The cross-source average is the unweighted mean of the per-source area-to-volume figures, and 'above average' means strictly greater than it.",
+    "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Compute the area and volume totals only over records where both aream2 and volm3 are non-NULL, so the two sums cover the same records.",
+    "sql": "WITH per_source AS (SELECT p.fundflux AS funding_source, AVG((s.boxy - s.boxx) / s.boxx) AS avg_y_vs_x_diff, SUM(CASE WHEN s.volm3 IS NOT NULL THEN s.aream2 END) / SUM(CASE WHEN s.aream2 IS NOT NULL THEN s.volm3 END) AS area_to_volume FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), overall AS (SELECT AVG(area_to_volume) AS avg_av FROM per_source WHERE area_to_volume IS NOT NULL) SELECT ps.funding_source, ps.avg_y_vs_x_diff, ps.area_to_volume, ps.area_to_volume - o.avg_av AS above_average_by FROM per_source ps CROSS JOIN overall o WHERE ps.area_to_volume > o.avg_av ORDER BY ps.funding_source"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 7.3,
- "chars_out": 1248
+ "alternatives": [
+  {
+   "interpretation": "Compute the area and volume totals only over records where both aream2 and volm3 are non-NULL, so the two sums cover the same records.",
+   "sql": "WITH per_source AS (SELECT p.fundflux AS funding_source, AVG((s.boxy - s.boxx) / s.boxx) AS avg_y_vs_x_diff, SUM(CASE WHEN s.volm3 IS NOT NULL THEN s.aream2 END) / SUM(CASE WHEN s.aream2 IS NOT NULL THEN s.volm3 END) AS area_to_volume FROM scanspatial s JOIN projects p ON p.arcregistry = s.arcref WHERE p.fundflux IS NOT NULL GROUP BY p.fundflux), overall AS (SELECT AVG(area_to_volume) AS avg_av FROM per_source WHERE area_to_volume IS NOT NULL) SELECT ps.funding_source, ps.avg_y_vs_x_diff, ps.area_to_volume, ps.area_to_volume - o.avg_av AS above_average_by FROM per_source ps CROSS JOIN overall o WHERE ps.area_to_volume > o.avg_av ORDER BY ps.funding_source",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 13.4,
+ "chars_out": 2357
 }

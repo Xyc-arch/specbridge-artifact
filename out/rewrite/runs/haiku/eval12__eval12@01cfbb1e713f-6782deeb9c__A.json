@@ -3,37 +3,36 @@
  "model": "haiku",
  "reading": "A",
  "description": "For each batting hand, count the award records won by players with that hand. Compute each hand's share of all matched award records. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
- "b": {
-  "request": "For each batting hand (`player.bats`, with blank or NULL as its own group), count `player_award` rows whose `player_id` matches a `player` row, compute each hand's share of all matched award rows, keep hands whose share exceeds the unweighted mean of the per-hand shares, and output hand, count, share, and share minus that mean, unrounded",
-  "sql": "WITH matched AS (\n  SELECT COALESCE(NULLIF(TRIM(p.bats), ''), '') AS hand\n  FROM player_award pa\n  JOIN player p ON p.player_id = pa.player_id\n),\nby_hand AS (\n  SELECT hand, COUNT(*) AS cnt\n  FROM matched\n  GROUP BY hand\n),\nshares AS (\n  SELECT hand, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM by_hand) AS share\n  FROM by_hand\n),\nmean_share AS (\n  SELECT AVG(share) AS m FROM shares\n)\nSELECT s.hand, s.cnt AS count, s.share, s.share - ms.m AS share_minus_mean\nFROM shares s\nCROSS JOIN mean_share ms\nWHERE s.share > ms.m;",
+ "c": {
+  "request": "How do player award winners break down by batting hand (`bats`), counting awards matched to a known player and treating a blank or missing hand as its own group? For each hand, give the tally and its share of the overall total. Keep only the hands whose share is above the simple average share across hands, and show the hand, the tally, the share, and how much the share exceeds that average (no rounding). For each batting hand, count the award records won by players with that hand. Compute each hand's share of all matched award records. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
+  "sql": "WITH award_hand_counts AS (\n  SELECT \n    COALESCE(p.bats, '') as bats,\n    COUNT(*) as tally\n  FROM player_award pa\n  JOIN player p ON pa.player_id = p.player_id\n  GROUP BY COALESCE(p.bats, '')\n),\nwith_totals AS (\n  SELECT \n    bats,\n    tally,\n    SUM(tally) OVER () as total_awards,\n    COUNT(*) OVER () as num_hands\n  FROM award_hand_counts\n),\nwith_calculations AS (\n  SELECT \n    bats,\n    tally,\n    tally / CAST(total_awards AS FLOAT) as share,\n    1.0 / CAST(num_hands AS FLOAT) as avg_share\n  FROM with_totals\n)\nSELECT \n  bats,\n  tally,\n  share,\n  share - avg_share as excess\nFROM with_calculations\nWHERE share > avg_share\nORDER BY bats",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "c": {
-  "request": "How do player award winners break down by batting hand (`bats`), counting awards matched to a known player and treating a blank or missing hand as its own group? For each hand, give the tally and its share of the overall total. Keep only the hands whose share is above the simple average share across hands, and show the hand, the tally, the share, and how much the share exceeds that average (no rounding). For each batting hand, count the award records won by players with that hand. Compute each hand's share of all matched award records. Keep the hands whose share is above the average share across hands, and report hand, count, share and the excess over the average.",
-  "sql": "WITH hand_counts AS (SELECT COALESCE(NULLIF(TRIM(p.bats), ''), '(blank)') AS hand, COUNT(*) AS cnt FROM player_award pa JOIN player p ON p.player_id = pa.player_id GROUP BY 1), totals AS (SELECT SUM(cnt) AS total FROM hand_counts), shares AS (SELECT h.hand, h.cnt AS tally, h.cnt * 1.0 / t.total AS share FROM hand_counts h CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.hand, s.tally, s.share, s.share - a.avg_share AS excess FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
+ "b": {
+  "request": "For each batting hand value (including blank/NULL as a distinct group), count the player award records where the player's hand matches that value, calculate that hand's share of all matched awards, retain only hands whose share exceeds the arithmetic mean share across hand groups, and report the hand, the count, the share, and the amount by which the share exceeds the mean.",
+  "sql": "WITH hand_award_counts AS (\n  SELECT \n    p.bats,\n    COUNT(*) as award_count\n  FROM player p\n  JOIN player_award pa ON p.player_id = pa.player_id\n  GROUP BY p.bats\n),\ntotal_count AS (\n  SELECT SUM(award_count) as total FROM hand_award_counts\n),\nhand_stats AS (\n  SELECT \n    hac.bats,\n    hac.award_count,\n    CAST(hac.award_count AS FLOAT) / tc.total as share\n  FROM hand_award_counts hac\n  CROSS JOIN total_count tc\n),\nmean_share AS (\n  SELECT AVG(share) as mean_share FROM hand_stats\n)\nSELECT \n  hs.bats as hand,\n  hs.award_count as count,\n  hs.share,\n  hs.share - ms.mean_share as excess_over_mean\nFROM hand_stats hs\nCROSS JOIN mean_share ms\nWHERE hs.share > ms.mean_share\nORDER BY hs.bats",
   "executes": true,
   "matches": [
    "A"
-  ]
+  ],
+  "raw": "For each batting hand value (including blank/NULL as a distinct group), count the player award records where the player's hand matches that value, calculate that hand's share of all matched awards, retain only hands whose share exceeds the arithmetic mean share across hand groups, and report the hand, the count, the share, and the amount by which the share exceeds the mean."
+ },
+ "d": {
+  "request": "Count award records for each player batting hand (including missing/blank as a distinct category), calculate each hand's proportion of all matched award records, retain only hands whose proportion exceeds the mean proportion, and report the hand, record count, proportion, and the excess above the average proportion.",
+  "sql": "WITH award_hand_counts AS (\n    SELECT \n        COALESCE(NULLIF(p.bats, ''), 'Unknown') as hand,\n        COUNT(*) as record_count\n    FROM player_award pa\n    JOIN player p ON pa.player_id = p.player_id\n    GROUP BY COALESCE(NULLIF(p.bats, ''), 'Unknown')\n),\ntotal_records AS (\n    SELECT SUM(record_count) as total FROM award_hand_counts\n),\nhand_proportions AS (\n    SELECT \n        hand,\n        record_count,\n        record_count::NUMERIC / (SELECT total FROM total_records) as proportion\n    FROM award_hand_counts\n),\naverage_proportion AS (\n    SELECT AVG(proportion) as mean_prop FROM hand_proportions\n)\nSELECT \n    hp.hand,\n    hp.record_count,\n    hp.proportion,\n    hp.proportion - ap.mean_prop as excess\nFROM hand_proportions hp\nCROSS JOIN average_proportion ap\nWHERE hp.proportion > ap.mean_prop\nORDER BY hp.proportion DESC",
+  "executes": false,
+  "matches": []
  },
  "a": {
   "request": "Using player award records matched to their players by `player_id` (dropping awards with no matching player), group by the winner's batting hand (`bats`), with a blank or missing hand as its own group. For each hand, count the award records won by players with that hand and work out that count's share of the total award records across all hands. List only the hands whose share is above the simple average of the shares across hands. Show the batting hand, the award count, the share, and how far the share is above that average, with no rounding.",
-  "sql": "WITH hand_counts AS (SELECT COALESCE(NULLIF(TRIM(p.bats), ''), 'Unknown') AS bats, COUNT(*) AS award_count FROM player_award pa JOIN player p ON p.player_id = pa.player_id GROUP BY 1), shares AS (SELECT bats, award_count, award_count * 1.0 / SUM(award_count) OVER () AS share FROM hand_counts), ranked AS (SELECT bats, award_count, share, share - AVG(share) OVER () AS above_avg FROM shares) SELECT bats, award_count, share, above_avg FROM ranked WHERE above_avg > 0;",
+  "sql": "WITH award_data AS (\n  SELECT COALESCE(p.bats, '') AS batting_hand\n  FROM player_award pa\n  JOIN player p ON pa.player_id = p.player_id\n),\nhand_counts AS (\n  SELECT \n    batting_hand,\n    COUNT(*) AS award_count\n  FROM award_data\n  GROUP BY batting_hand\n),\ntotal_count AS (\n  SELECT COUNT(*) AS total FROM award_data\n),\nhand_shares AS (\n  SELECT \n    batting_hand,\n    award_count,\n    CAST(award_count AS FLOAT) / (SELECT total FROM total_count) AS share\n  FROM hand_counts\n),\navg_share_value AS (\n  SELECT AVG(share) AS avg_share FROM hand_shares\n)\nSELECT \n  batting_hand,\n  award_count,\n  share,\n  share - (SELECT avg_share FROM avg_share_value) AS above_average\nFROM hand_shares\nWHERE share > (SELECT avg_share FROM avg_share_value)",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "For each batting hand, how many award records were won by players with that hand, and what is each hand's share of all matched award records? Keep only the hands whose share is above the average share across hands, and report each hand's count, share, and how much its share exceeds that average (unrounded).",
-  "sql": "WITH matched AS (SELECT p.bats AS hand, pa.player_id FROM player_award pa JOIN player p ON p.player_id = pa.player_id WHERE p.bats IS NOT NULL), by_hand AS (SELECT hand, COUNT(*) AS cnt FROM matched GROUP BY hand), totals AS (SELECT SUM(cnt) AS total FROM by_hand), shares AS (SELECT b.hand, b.cnt, 1.0 * b.cnt / t.total AS share FROM by_hand b CROSS JOIN totals t), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.hand, s.cnt AS count, s.share, s.share - a.avg_share AS excess_over_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share ORDER BY s.hand;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "calls": 6
 }

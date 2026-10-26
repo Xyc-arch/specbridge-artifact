@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-4aa1861890",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (SELECT u.acctscope, COUNT(DISTINCT o.orderspivot) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share_of_total, order_count * 1.0 / AVG(order_count * 1.0) OVER () AS ratio_to_avg_per_scope FROM matched",
+  "sql": "WITH matched AS (SELECT DISTINCT o.orderspivot, u.acctscope FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault JOIN users u ON o.userlink = u.userstamp), c AS (SELECT acctscope, COUNT(*) AS order_count FROM matched GROUP BY acctscope) SELECT acctscope, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share_of_total, order_count / AVG(order_count * 1.0) OVER () AS ratio_to_avg_per_scope FROM c",
   "assumptions": [
    {
-    "assumption": "Each order is counted once per scope (COUNT DISTINCT on orders), even if it has several risk/margin records.",
+    "assumption": "Each order is counted once even if it has several risk/margin records (COUNT DISTINCT orders), since the request asks for the number of orders.",
     "unresolved": true
    },
    {
-    "assumption": "Scopes with no matched orders do not appear. The average count per scope is taken over the scopes that do appear.",
+    "assumption": "The average count per scope is taken over scopes that have at least one matched order. Scopes with no matches do not appear in the result.",
     "unresolved": false
    },
    {
-    "assumption": "Share and ratio are unrounded decimals (share is a fraction of 1, not a percentage).",
+    "assumption": "users.userstamp is unique, so the user join does not duplicate orders.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count each matched risk/margin-to-order-to-user row instead of distinct orders, so an order with several risk records counts several times.",
-    "sql": "WITH matched AS (SELECT u.acctscope, COUNT(*) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share_of_total, order_count * 1.0 / AVG(order_count * 1.0) OVER () AS ratio_to_avg_per_scope FROM matched"
+    "interpretation": "Count matched risk/margin records (rows) per scope instead of distinct orders. An order with several risk records counts several times.",
+    "sql": "WITH c AS (SELECT u.acctscope, COUNT(*) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share_of_total, order_count / AVG(order_count * 1.0) OVER () AS ratio_to_avg_per_scope FROM c"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count each matched risk/margin-to-order-to-user row instead of distinct orders, so an order with several risk records counts several times.",
-   "sql": "WITH matched AS (SELECT u.acctscope, COUNT(*) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share_of_total, order_count * 1.0 / AVG(order_count * 1.0) OVER () AS ratio_to_avg_per_scope FROM matched",
+   "interpretation": "Count matched risk/margin records (rows) per scope instead of distinct orders. An order with several risk records counts several times.",
+   "sql": "WITH c AS (SELECT u.acctscope, COUNT(*) AS order_count FROM riskandmargin r JOIN orders o ON r.ordervault = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY u.acctscope) SELECT acctscope, order_count, order_count * 1.0 / SUM(order_count) OVER () AS share_of_total, order_count / AVG(order_count * 1.0) OVER () AS ratio_to_avg_per_scope FROM c",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 7.0,
- "chars_out": 1480
+ "seconds": 8.5,
+ "chars_out": 1531
 }

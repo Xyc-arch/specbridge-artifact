@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-d52cbe42aa",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH g AS (SELECT ordersmark, COUNT(*) AS exec_count FROM orderexecutions GROUP BY ordersmark), s AS (SELECT ordersmark, exec_count, exec_count * 1.0 / SUM(exec_count) OVER () AS share FROM g), d AS (SELECT ordersmark, exec_count, share, share - AVG(share) OVER () AS share_minus_avg FROM s), r AS (SELECT d.*, RANK() OVER (ORDER BY share_minus_avg DESC NULLS LAST) AS rnk FROM d) SELECT ordersmark AS order_reference, exec_count, share, share_minus_avg FROM r WHERE rnk <= 10 ORDER BY share_minus_avg DESC NULLS LAST",
+  "sql": "WITH g AS (SELECT ordersmark, COUNT(*) AS cnt FROM orderexecutions GROUP BY ordersmark), s AS (SELECT ordersmark, cnt, CAST(cnt AS REAL) / (SELECT COUNT(*) FROM orderexecutions) AS share FROM g), d AS (SELECT ordersmark, cnt, share, share - (SELECT AVG(share) FROM s) AS diff FROM s), r AS (SELECT ordersmark, cnt, share, diff, RANK() OVER (ORDER BY diff DESC) AS rnk FROM d) SELECT ordersmark AS order_reference, cnt AS execution_count, share, diff AS share_minus_avg_share FROM r WHERE rnk <= 10 ORDER BY diff DESC",
   "assumptions": [
    {
-    "assumption": "Executions with a NULL ordersmark form one group, which counts as one order reference in the average share. The total number of execution records includes them.",
+    "assumption": "Executions with NULL ordersmark form a single group (GROUP BY puts NULLs together), and that group counts as one order reference row in the average share.",
     "unresolved": false
    },
    {
-    "assumption": "Share is computed with decimal division, not integer division, and is left unrounded.",
+    "assumption": "The average share is the unweighted mean over the groups (including the NULL group), computed from the per-group shares.",
     "unresolved": false
    },
    {
-    "assumption": "The average share is the unweighted mean over order-reference groups, including the NULL group. It equals 1 divided by the number of groups.",
+    "assumption": "Ranking is by difference descending using RANK() so ties share a rank and later ranks skip; shares are not rounded.",
     "unresolved": false
    }
   ],
@@ -26,5 +26,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 6.6
+ "seconds": 6.8
 }

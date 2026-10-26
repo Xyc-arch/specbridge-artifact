@@ -4,32 +4,19 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH total AS (SELECT COUNT(*) AS total_members FROM member), major_counts AS (SELECT m.major_id, m.department, COUNT(mb.member_id) AS member_count FROM major m JOIN member mb ON mb.link_to_major = m.major_id GROUP BY m.major_id, m.department), shares AS (SELECT mc.major_id, mc.department, mc.member_count, 1.0 * mc.member_count / t.total_members AS share FROM major_counts mc CROSS JOIN total t), dept_avg AS (SELECT department, AVG(share) AS dept_avg_share FROM shares GROUP BY department) SELECT s.major_id, s.department, s.member_count, s.share, s.share - d.dept_avg_share AS share_above_dept_avg FROM shares s JOIN dept_avg d ON d.department IS s.department WHERE s.share > d.dept_avg_share ORDER BY share_above_dept_avg DESC NULLS LAST LIMIT 10",
+  "sql": "WITH total_members AS (\n  SELECT COUNT(*) AS total FROM member\n),\nmajor_counts AS (\n  SELECT \n    major.major_id,\n    major.department,\n    COUNT(member.member_id) AS member_count\n  FROM major\n  INNER JOIN member ON major.major_id = member.link_to_major\n  GROUP BY major.major_id, major.department\n),\nmajor_shares AS (\n  SELECT \n    major_id,\n    department,\n    member_count,\n    CAST(member_count AS REAL) / (SELECT total FROM total_members) AS share\n  FROM major_counts\n),\ndepartment_averages AS (\n  SELECT \n    department,\n    AVG(share) AS avg_share\n  FROM major_shares\n  GROUP BY department\n)\nSELECT \n  ms.major_id,\n  ms.department,\n  ms.member_count,\n  ms.share,\n  ms.share - da.avg_share AS difference_above_average\nFROM major_shares ms\nJOIN department_averages da ON ms.department = da.department\nWHERE ms.share > da.avg_share\nORDER BY difference_above_average DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The denominator for each share is every row in the member table (COUNT(*)), including members with a NULL or unmatched link_to_major, as the request specifies.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The department average is taken only over majors that have at least one matched member, because the inner join omits majors with zero members. Majors with no members do not count toward their department's average.",
-    "unresolved": true
-   },
-   {
-    "assumption": "Share is a fraction between 0 and 1 (not a percentage), and the difference is in the same fractional units. Majors with a NULL department form their own group, via IS in the join.",
+    "assumption": "Members where link_to_major is NULL are excluded from major/member counting but included in the total club member count used for share calculation",
     "unresolved": false
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "Every major in the department counts toward the department average, including majors with zero members (share 0). This uses a LEFT JOIN from major so zero-member majors pull the average down.",
-    "sql": "WITH total AS (SELECT COUNT(*) AS total_members FROM member), major_counts AS (SELECT m.major_id, m.department, COUNT(mb.member_id) AS member_count FROM major m LEFT JOIN member mb ON mb.link_to_major = m.major_id GROUP BY m.major_id, m.department), shares AS (SELECT mc.major_id, mc.department, mc.member_count, 1.0 * mc.member_count / t.total_members AS share FROM major_counts mc CROSS JOIN total t), dept_avg AS (SELECT department, AVG(share) AS dept_avg_share FROM shares GROUP BY department) SELECT s.major_id, s.department, s.member_count, s.share, s.share - d.dept_avg_share AS share_above_dept_avg FROM shares s JOIN dept_avg d ON d.department IS s.department WHERE s.share > d.dept_avg_share ORDER BY share_above_dept_avg DESC NULLS LAST LIMIT 10"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 13.3
+ "seconds": 57.1
 }

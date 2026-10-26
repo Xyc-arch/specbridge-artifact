@@ -3,9 +3,22 @@
  "model": "haiku",
  "reading": "B",
  "description": "Cut the sorted list at the 10th row's value and keep every row tied with it.",
+ "b": {
+  "request": "For each district, calculate account count and share, then return all districts that rank in the top 10 by difference (share minus average share), including all districts with a value equal to the 10th-highest difference, sorted descending.",
+  "sql": "WITH all_districts AS (\n  SELECT CAST(COUNT(*) AS FLOAT) as num_districts\n  FROM district\n),\ndistrict_accounts AS (\n  SELECT \n    d.district_id,\n    COALESCE(COUNT(a.account_id), 0) as account_count\n  FROM district d\n  LEFT JOIN account a ON d.district_id = a.district_id\n  GROUP BY d.district_id\n),\ntotals AS (\n  SELECT SUM(account_count) as total_accounts\n  FROM district_accounts\n),\ndistrict_stats AS (\n  SELECT \n    da.district_id,\n    da.account_count,\n    CAST(da.account_count AS FLOAT) / t.total_accounts as share,\n    CAST(da.account_count AS FLOAT) / t.total_accounts - (1.0 / ad.num_districts) as difference\n  FROM district_accounts da\n  CROSS JOIN totals t\n  CROSS JOIN all_districts ad\n),\nranked AS (\n  SELECT \n    *,\n    RANK() OVER (ORDER BY difference DESC) as rnk\n  FROM district_stats\n),\nthreshold AS (\n  SELECT difference\n  FROM ranked\n  WHERE rnk = 10\n)\nSELECT \n  d.district_id,\n  d.A2 as district_name,\n  r.account_count,\n  r.share,\n  r.difference\nFROM ranked r\nJOIN district d ON r.district_id = d.district_id\nWHERE r.difference >= (SELECT difference FROM threshold)\nORDER BY r.difference DESC",
+  "executes": true,
+  "matches": [],
+  "raw": "For each district, calculate account count and share, then return all districts that rank in the top 10 by difference (share minus average share), including all districts with a value equal to the 10th-highest difference, sorted descending."
+ },
  "a": {
   "request": "For each branch district (`account.district_id`), count its accounts and work out its share of all accounts (its count divided by the total number of accounts). Show the district id, the account count, the share, and how far the share is above the average share across districts (share minus that average). Sort by that difference from highest to lowest and return the top 10, plus any other districts tied with the 10th. Don't round anything.",
-  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS account_count FROM account GROUP BY district_id), shares AS (SELECT district_id, account_count, CAST(account_count AS REAL) / (SELECT COUNT(*) FROM account) AS share FROM counts), diffs AS (SELECT district_id, account_count, share, share - AVG(share) OVER () AS share_diff FROM shares), ranked AS (SELECT district_id, account_count, share, share_diff, RANK() OVER (ORDER BY share_diff DESC) AS rnk FROM diffs) SELECT district_id, account_count, share, share_diff FROM ranked WHERE rnk <= 10 ORDER BY share_diff DESC;",
+  "sql": "WITH total_accounts AS (SELECT COUNT(*)::REAL as total FROM account), district_accounts AS (SELECT district_id, COUNT(*) as account_count FROM account GROUP BY district_id), num_districts AS (SELECT COUNT(*) as num FROM district_accounts), with_difference AS (SELECT da.district_id, da.account_count, da.account_count::REAL / ta.total as share, da.account_count::REAL / ta.total - 1.0 / nd.num as difference FROM district_accounts da CROSS JOIN total_accounts ta CROSS JOIN num_districts nd) SELECT district_id, account_count, share, difference FROM with_difference WHERE difference >= (SELECT MIN(difference) FROM (SELECT difference FROM with_difference ORDER BY difference DESC LIMIT 10) as top_10) ORDER BY difference DESC",
+  "executes": false,
+  "matches": []
+ },
+ "d": {
+  "request": "For each branch district, count accounts, calculate share and difference from average share, order by difference descending, and return all districts whose difference value is at least as large as the 10th-ranked difference value.",
+  "sql": "WITH account_counts AS (\n  SELECT \n    district_id,\n    COUNT(*) as account_count\n  FROM account\n  GROUP BY district_id\n),\ntotals AS (\n  SELECT \n    COUNT(*) as total_accounts,\n    COUNT(DISTINCT district_id) as num_districts\n  FROM account\n),\nwith_shares AS (\n  SELECT \n    ac.district_id,\n    ac.account_count,\n    CAST(ac.account_count AS FLOAT) / t.total_accounts as share,\n    CAST(ac.account_count AS FLOAT) / t.total_accounts - 1.0 / t.num_districts as difference\n  FROM account_counts ac\n  CROSS JOIN totals t\n),\nranked AS (\n  SELECT \n    district_id,\n    account_count,\n    share,\n    difference,\n    ROW_NUMBER() OVER (ORDER BY difference DESC) as rn\n  FROM with_shares\n),\ntenth_threshold AS (\n  SELECT COALESCE(\n    (SELECT difference FROM ranked WHERE rn = 10),\n    (SELECT MIN(difference) FROM ranked)\n  ) as threshold\n)\nSELECT \n  district_id,\n  account_count,\n  share,\n  difference\nFROM ranked\nWHERE difference >= (SELECT threshold FROM tenth_threshold)\nORDER BY difference DESC",
   "executes": true,
   "matches": [
    "B"
@@ -13,25 +26,11 @@
  },
  "c": {
   "request": "For each branch district (`account.district_id`), count its accounts and work out its share of all accounts (its count divided by the total number of accounts). Show the district id, the account count, the share, and how far the share is above the average share across districts (share minus that average). Which are the top 10 districts by that difference, from highest to lowest? Don't round anything. Cut the sorted list at the 10th row's value and keep every row tied with it.",
-  "sql": "WITH counts AS (SELECT district_id, COUNT(*) AS account_count FROM account GROUP BY district_id), shares AS (SELECT district_id, account_count, CAST(account_count AS REAL) / (SELECT COUNT(*) FROM account) AS share FROM counts), diffs AS (SELECT district_id, account_count, share, share - AVG(share) OVER () AS diff FROM shares), ranked AS (SELECT district_id, account_count, share, diff, RANK() OVER (ORDER BY diff DESC) AS rnk FROM diffs) SELECT district_id, account_count, share, diff FROM ranked WHERE rnk <= 10 ORDER BY diff DESC;",
+  "sql": "WITH district_accounts AS (\n  SELECT \n    account.district_id,\n    COUNT(*) as account_count\n  FROM account\n  GROUP BY account.district_id\n),\ntotal_count AS (\n  SELECT COUNT(*) as total FROM account\n),\nwith_shares AS (\n  SELECT \n    da.district_id,\n    da.account_count,\n    da.account_count / CAST(tc.total AS FLOAT) as share\n  FROM district_accounts da\n  CROSS JOIN total_count tc\n),\nwith_avg_diff AS (\n  SELECT \n    district_id,\n    account_count,\n    share,\n    share - AVG(share) OVER () as difference\n  FROM with_shares\n),\nranked AS (\n  SELECT \n    district_id,\n    account_count,\n    share,\n    difference,\n    ROW_NUMBER() OVER (ORDER BY difference DESC) as row_num\n  FROM with_avg_diff\n),\nthreshold AS (\n  SELECT \n    COALESCE(\n      (SELECT difference FROM ranked WHERE row_num = 10),\n      (SELECT MIN(difference) FROM ranked)\n    ) as cutoff\n)\nSELECT \n  district_id,\n  account_count,\n  share,\n  difference\nFROM ranked\nWHERE difference >= (SELECT cutoff FROM threshold)\nORDER BY difference DESC, district_id",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "b": {
-  "request": "Group `account` rows by `district_id` to get each district's count and share of all accounts, subtract the mean share across districts, sort the differences descending, and return every district whose difference is greater than or equal to the 10th-highest difference, keeping ties, with no rounding",
-  "sql": "WITH dist AS (SELECT district_id, COUNT(*) AS cnt FROM account GROUP BY district_id), tot AS (SELECT SUM(cnt) AS total FROM dist), shares AS (SELECT d.district_id, d.cnt, 1.0 * d.cnt / t.total AS share FROM dist d CROSS JOIN tot t), diffs AS (SELECT district_id, cnt, share, share - AVG(share) OVER () AS diff FROM shares), threshold AS (SELECT diff FROM diffs ORDER BY diff DESC LIMIT 1 OFFSET 9) SELECT df.district_id, df.cnt, df.share, df.diff FROM diffs df CROSS JOIN threshold th WHERE df.diff >= th.diff ORDER BY df.diff DESC;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Cut the sorted list at the 10th-ranked district's difference value and keep every district whose difference equals that value, so that ties with the 10th row are included.",
-  "sql": "-- Assumes 'difference' means the 1996-minus-1995 unemployment rate change (A13 - A12); rows with NULL A12 are excluded.\nWITH d AS (\n  SELECT district_id, A13 - A12 AS diff\n  FROM district\n  WHERE A12 IS NOT NULL\n),\nt AS (\n  SELECT diff FROM d ORDER BY diff DESC LIMIT 1 OFFSET 9\n)\nSELECT d.district_id, d.diff\nFROM d\nWHERE d.diff >= (SELECT diff FROM t)\nORDER BY d.diff DESC;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

@@ -2,24 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-11c73410e6",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH tel AS (SELECT t.telescregistry, t.equipstatus, AVG(s.pulsepersec) AS tavg FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry GROUP BY t.telescregistry, t.equipstatus), st AS (SELECT equipstatus, AVG(tavg) AS savg FROM tel WHERE tavg IS NOT NULL GROUP BY equipstatus), m1 AS (SELECT AVG(savg) AS mean1 FROM st), k1 AS (SELECT st.equipstatus, st.savg, st.savg - m1.mean1 AS ex1 FROM st CROSS JOIN m1 WHERE st.savg > m1.mean1), m2 AS (SELECT AVG(savg) AS mean2 FROM k1), k2 AS (SELECT k1.savg, k1.ex1, k1.savg - m2.mean2 AS ex2 FROM k1 CROSS JOIN m2 WHERE k1.savg > m2.mean2) SELECT AVG(savg) AS avg_pulse_rate, AVG(ex1) AS avg_excess_over_first_mean, AVG(ex2) AS avg_excess_over_second_mean FROM k2;",
+  "sql": "WITH tel AS (SELECT t.telescregistry, t.equipstatus, AVG(s.pulsepersec) AS tavg FROM signals s JOIN telescopes t ON s.telescref = t.telescregistry GROUP BY t.telescregistry, t.equipstatus HAVING AVG(s.pulsepersec) IS NOT NULL), st AS (SELECT equipstatus, AVG(tavg) AS savg FROM tel GROUP BY equipstatus), m1 AS (SELECT AVG(savg) AS mean1 FROM st), k1 AS (SELECT st.equipstatus, st.savg, st.savg - m1.mean1 AS exc1 FROM st, m1 WHERE st.savg > m1.mean1), m2 AS (SELECT AVG(savg) AS mean2 FROM k1), k2 AS (SELECT k1.equipstatus, k1.savg, k1.exc1, k1.savg - m2.mean2 AS exc2 FROM k1, m2 WHERE k1.savg > m2.mean2) SELECT AVG(savg) AS avg_pulse_rate, AVG(exc1) AS avg_excess_over_first_mean, AVG(exc2) AS avg_excess_over_second_mean FROM k2",
   "assumptions": [
    {
-    "assumption": "Telescopes whose signals all have NULL pulse rate have no telescope average and are left out of their status's average. A status with no non-null telescope averages is dropped.",
+    "assumption": "Telescopes whose signals all have NULL pulse rates have no telescope average and are excluded, so they do not count toward their status.",
     "unresolved": false
    },
    {
-    "assumption": "A NULL equipstatus, if present, would form its own group and be treated like any other status.",
+    "assumption": "The mean of status averages is the unweighted mean across statuses. A NULL equipstatus, if present, is treated as its own group.",
     "unresolved": false
    },
    {
-    "assumption": "The 'first mean' is the unweighted mean of the per-status averages across all statuses. The 'second mean' is the unweighted mean of the statuses kept after the first filter.",
-    "unresolved": false
-   },
-   {
-    "assumption": "If no status survives both filters, the query returns NULLs.",
+    "assumption": "The 'remaining statuses' are those that pass both filters, meaning above the first mean and then above the second mean.",
     "unresolved": false
    }
   ],
@@ -31,6 +27,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.7,
- "chars_out": 1426
+ "seconds": 10.0,
+ "chars_out": 1284
 }

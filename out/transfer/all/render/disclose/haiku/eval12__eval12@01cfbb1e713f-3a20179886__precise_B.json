@@ -2,21 +2,18 @@
  "case": "eval12:eval12@01cfbb1e713f-3a20179886",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH trader_counts AS (\n  SELECT\n    t.tradekind,\n    COUNT(DISTINCT tr.transreg) as cnt\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n  INNER JOIN trader t ON tr.trdref = t.tradereg\n  GROUP BY t.tradekind\n),\nwith_share_and_avg AS (\n  SELECT\n    tradekind,\n    cnt,\n    cnt::FLOAT / SUM(cnt::FLOAT) OVER () as shr,\n    AVG(cnt::FLOAT) OVER () as avg_cnt\n  FROM trader_counts\n),\nfiltered AS (\n  SELECT\n    cnt,\n    shr,\n    (cnt::FLOAT - avg_cnt) as excess\n  FROM with_share_and_avg\n  WHERE cnt > avg_cnt\n)\nSELECT\n  SUM(cnt) as sum_of_counts,\n  AVG(shr) as avg_of_shares,\n  AVG(excess) as avg_excess\nFROM filtered;",
-  "assumptions": [
-   {
-    "assumption": "The average count is calculated across only trader types represented in the filtered data (those with at least one advanced behaviour record linked to valid transaction and trader), not including trader types with zero linked records.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH distinct_transactions AS (\n  SELECT t.tradekind, tr.transreg\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON ab.translink = tr.transreg\n  INNER JOIN trader t ON tr.trdref = t.tradereg\n),\ncounts_by_type AS (\n  SELECT tradekind, COUNT(DISTINCT transreg) as count_\n  FROM distinct_transactions\n  GROUP BY tradekind\n),\nstats AS (\n  SELECT \n    AVG(count_ * 1.0) as avg_count,\n    SUM(count_) as total_count\n  FROM counts_by_type\n),\nwith_metrics AS (\n  SELECT \n    cb.tradekind,\n    cb.count_,\n    cb.count_ * 1.0 / s.total_count as share,\n    s.avg_count\n  FROM counts_by_type cb\n  CROSS JOIN stats s\n),\nfiltered AS (\n  SELECT \n    count_, share, avg_count,\n    count_ - avg_count as excess\n  FROM with_metrics\n  WHERE count_ > avg_count\n)\nSELECT \n  SUM(count_) as sum_counts,\n  AVG(share) as avg_shares,\n  AVG(excess) as avg_excess\nFROM filtered",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
  "alternatives": [],
- "seconds": 100.9,
- "chars_out": 1056
+ "seconds": 69.4,
+ "chars_out": 970
 }

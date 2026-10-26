@@ -2,41 +2,37 @@
  "case": "ext:ext-filter@3f58529d9d76-f892edf28a",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (\n  SELECT ab.translink, tr.ordertypedist\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON tr.transreg = ab.translink\n  WHERE ab.peercorr >= 0.149\n),\ncounts AS (\n  SELECT translink, ordertypedist, COUNT(*) AS cnt\n  FROM matched\n  WHERE ordertypedist IS NOT NULL\n  GROUP BY translink, ordertypedist\n)\nSELECT translink,\n       ordertypedist,\n       cnt,\n       cnt::numeric / SUM(cnt) OVER (PARTITION BY ordertypedist) AS frac\nFROM counts\nORDER BY frac DESC, translink, ordertypedist\nLIMIT 10;",
+  "sql": "WITH filtered_ab AS ( SELECT translink FROM advancedbehavior WHERE peercorr >= 0.149 ), matched_records AS ( SELECT fab.translink, tr.ordertypedist FROM filtered_ab fab INNER JOIN transactionrecord tr ON fab.translink = tr.transreg WHERE tr.ordertypedist IS NOT NULL ), combination_counts AS ( SELECT translink, ordertypedist, COUNT(*) as cnt FROM matched_records GROUP BY translink, ordertypedist ), ordertypedist_totals AS ( SELECT ordertypedist, SUM(cnt) as total_cnt FROM combination_counts GROUP BY ordertypedist ) SELECT cc.translink, cc.ordertypedist, cc.cnt as \"count\", CAST(cc.cnt AS REAL) / ott.total_cnt as fraction FROM combination_counts cc JOIN ordertypedist_totals ott ON cc.ordertypedist = ott.ordertypedist ORDER BY fraction DESC LIMIT 10;",
   "assumptions": [
    {
-    "assumption": "'High peer correlation' means peercorr is greater than or equal to the 0.149 cutoff (inclusive). The request does not say whether the cutoff itself qualifies.",
-    "unresolved": true
-   },
-   {
-    "assumption": "Each advancedbehavior row matches at most one transactionrecord, because transreg is the primary key. The inner join therefore drops rows with no matching transaction record, as requested.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The fraction is count divided by the sum of counts across all translink values that share the same ordertypedist. It is computed as numeric division, so it is not rounded.",
+    "assumption": "The phrase 'Using 0.149 as the peer correlation cutoff' is interpreted as peercorr >= 0.149 (inclusive threshold). In standard usage, a cutoff value includes the threshold itself; records with peercorr equal to 0.149 are considered to have 'high peer correlation'.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "'High' means strictly greater than the 0.149 cutoff, so records exactly equal to 0.149 are excluded.",
-    "sql": "WITH matched AS (\n  SELECT ab.translink, tr.ordertypedist\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON tr.transreg = ab.translink\n  WHERE ab.peercorr > 0.149\n),\ncounts AS (\n  SELECT translink, ordertypedist, COUNT(*) AS cnt\n  FROM matched\n  WHERE ordertypedist IS NOT NULL\n  GROUP BY translink, ordertypedist\n)\nSELECT translink,\n       ordertypedist,\n       cnt,\n       cnt::numeric / SUM(cnt) OVER (PARTITION BY ordertypedist) AS frac\nFROM counts\nORDER BY frac DESC, translink, ordertypedist\nLIMIT 10;"
+    "interpretation": "The cutoff is a strict lower bound (peercorr > 0.149), excluding records with exactly 0.149 peer correlation.",
+    "sql": "WITH filtered_ab AS ( SELECT translink FROM advancedbehavior WHERE peercorr > 0.149 ), matched_records AS ( SELECT fab.translink, tr.ordertypedist FROM filtered_ab fab INNER JOIN transactionrecord tr ON fab.translink = tr.transreg WHERE tr.ordertypedist IS NOT NULL ), combination_counts AS ( SELECT translink, ordertypedist, COUNT(*) as cnt FROM matched_records GROUP BY translink, ordertypedist ), ordertypedist_totals AS ( SELECT ordertypedist, SUM(cnt) as total_cnt FROM combination_counts GROUP BY ordertypedist ) SELECT cc.translink, cc.ordertypedist, cc.cnt as \"count\", CAST(cc.cnt AS REAL) / ott.total_cnt as fraction FROM combination_counts cc JOIN ordertypedist_totals ott ON cc.ordertypedist = ott.ordertypedist ORDER BY fraction DESC LIMIT 10;"
    }
   ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
  "alternatives": [
   {
-   "interpretation": "'High' means strictly greater than the 0.149 cutoff, so records exactly equal to 0.149 are excluded.",
-   "sql": "WITH matched AS (\n  SELECT ab.translink, tr.ordertypedist\n  FROM advancedbehavior ab\n  JOIN transactionrecord tr ON tr.transreg = ab.translink\n  WHERE ab.peercorr > 0.149\n),\ncounts AS (\n  SELECT translink, ordertypedist, COUNT(*) AS cnt\n  FROM matched\n  WHERE ordertypedist IS NOT NULL\n  GROUP BY translink, ordertypedist\n)\nSELECT translink,\n       ordertypedist,\n       cnt,\n       cnt::numeric / SUM(cnt) OVER (PARTITION BY ordertypedist) AS frac\nFROM counts\nORDER BY frac DESC, translink, ordertypedist\nLIMIT 10;",
-   "executes": false,
-   "matches": []
+   "interpretation": "The cutoff is a strict lower bound (peercorr > 0.149), excluding records with exactly 0.149 peer correlation.",
+   "sql": "WITH filtered_ab AS ( SELECT translink FROM advancedbehavior WHERE peercorr > 0.149 ), matched_records AS ( SELECT fab.translink, tr.ordertypedist FROM filtered_ab fab INNER JOIN transactionrecord tr ON fab.translink = tr.transreg WHERE tr.ordertypedist IS NOT NULL ), combination_counts AS ( SELECT translink, ordertypedist, COUNT(*) as cnt FROM matched_records GROUP BY translink, ordertypedist ), ordertypedist_totals AS ( SELECT ordertypedist, SUM(cnt) as total_cnt FROM combination_counts GROUP BY ordertypedist ) SELECT cc.translink, cc.ordertypedist, cc.cnt as \"count\", CAST(cc.cnt AS REAL) / ott.total_cnt as fraction FROM combination_counts cc JOIN ordertypedist_totals ott ON cc.ordertypedist = ott.ordertypedist ORDER BY fraction DESC LIMIT 10;",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
   }
  ],
- "seconds": 11.2,
- "chars_out": 1887
+ "seconds": 96.1,
+ "chars_out": 2082
 }

@@ -3,10 +3,10 @@
  "wording": "precise_B",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH totals AS (\n  SELECT SUM(articount) AS artifact_total\n  FROM scanfeatures\n), unit_shares AS (\n  SELECT\n    sf.zoneref,\n    sf.articount,\n    sf.articount::numeric / NULLIF(t.artifact_total, 0) AS share\n  FROM scanfeatures AS sf\n  CROSS JOIN totals AS t\n  WHERE t.artifact_total IS NOT NULL\n), average_share AS (\n  SELECT AVG(share) AS avg_share\n  FROM unit_shares\n)\nSELECT\n  us.zoneref AS site_code,\n  us.articount AS artifact_count,\n  us.share,\n  us.share - a.avg_share AS share_minus_average\nFROM unit_shares AS us\nCROSS JOIN average_share AS a\nWHERE a.avg_share IS NOT NULL\nORDER BY share_minus_average DESC NULLS LAST\nLIMIT 10"
+  "sql": "WITH totals AS (\n  SELECT SUM(articount) AS overall_total,\n         AVG(1.0 * articount / NULLIF(SUM(articount) OVER (), 0)) AS avg_share\n  FROM scanfeatures\n), units AS (\n  SELECT zoneref,\n         articount,\n         1.0 * articount / NULLIF((SELECT overall_total FROM totals), 0) AS share\n  FROM scanfeatures\n)\nSELECT zoneref AS site_code,\n       articount AS artifact_count,\n       share,\n       share - (SELECT avg_share FROM totals) AS share_minus_average\nFROM units\nWHERE (SELECT overall_total FROM totals) IS NOT NULL\n  AND (SELECT avg_share FROM totals) IS NOT NULL\nORDER BY share_minus_average DESC NULLS LAST\nLIMIT 10;"
  },
  "primary_executes": false,
  "primary_matches": [],
- "seconds": 6.7,
- "chars_out": 669
+ "seconds": 15.2,
+ "chars_out": 657
 }

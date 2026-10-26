@@ -3,38 +3,36 @@
  "model": "haiku",
  "reading": "A",
  "description": "Only teams that have `manager_half` records are included.",
+ "c": {
+  "request": "For each team, what is its average half-season win rate (wins `w` divided by games managed `g` for each `manager_half` record, averaged and ignoring missing values) and how many `manager_half` records does it have? Also show how far its average is above the mean of all the team averages (ignoring missing ones, and only if that mean exists). List `team_id`, average win rate, record count and the difference, sorted by the difference from highest to lowest with missing values last, top 10. Only teams that have `manager_half` records are included.",
+  "sql": "WITH team_win_rates AS (\n  SELECT \n    team_id,\n    AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 THEN CAST(w AS FLOAT) / g ELSE NULL END) as avg_win_rate,\n    COUNT(*) as record_count\n  FROM manager_half\n  GROUP BY team_id\n),\noverall_mean AS (\n  SELECT AVG(avg_win_rate) as mean_value\n  FROM team_win_rates\n  WHERE avg_win_rate IS NOT NULL\n)\nSELECT \n  t.team_id,\n  t.avg_win_rate,\n  t.record_count,\n  t.avg_win_rate - o.mean_value as difference\nFROM team_win_rates t\nCROSS JOIN overall_mean o\nORDER BY \n  CASE WHEN difference IS NULL THEN 1 ELSE 0 END,\n  difference DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
  "b": {
-  "request": "For each team with at least one `manager_half` record, compute the mean of `w / g` across its `manager_half` rows (skipping NULL `w` or `g`), count its `manager_half` rows, and report the difference between that team average and the mean of all team averages (only when that mean exists), sorted by difference descending with NULLs last, limited to 10 rows.",
-  "sql": "WITH team_stats AS (SELECT team_id, AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL THEN w * 1.0 / g END) AS team_avg, COUNT(*) AS manager_half_count FROM manager_half GROUP BY team_id), overall AS (SELECT AVG(team_avg) AS mean_avg FROM team_stats) SELECT t.team_id, t.team_avg, t.manager_half_count, t.team_avg - o.mean_avg AS difference FROM team_stats t CROSS JOIN overall o WHERE o.mean_avg IS NOT NULL ORDER BY (t.team_avg - o.mean_avg) IS NULL, (t.team_avg - o.mean_avg) DESC LIMIT 10;",
+  "request": "For each team_id in manager_half, compute average win rate (mean of w/g across its records), count of manager_half records, and how much this average exceeds the mean of all team averages, sorted by this difference descending (top 10).",
+  "sql": "WITH team_win_rates AS (\n  SELECT \n    team_id,\n    COUNT(*) as record_count,\n    AVG(CASE WHEN g > 0 THEN CAST(w AS FLOAT) / g ELSE NULL END) as avg_win_rate\n  FROM manager_half\n  GROUP BY team_id\n),\noverall_mean AS (\n  SELECT AVG(avg_win_rate) as mean_win_rate\n  FROM team_win_rates\n)\nSELECT \n  twr.team_id,\n  twr.avg_win_rate,\n  twr.record_count,\n  (twr.avg_win_rate - om.mean_win_rate) as difference\nFROM team_win_rates twr\nCROSS JOIN overall_mean om\nORDER BY difference DESC\nLIMIT 10;",
   "executes": true,
   "matches": [
    "A"
   ],
-  "raw": "For each team with at least one `manager_half` record, compute the mean of `w / g` across its `manager_half` rows (skipping NULL `w` or `g`), count its `manager_half` rows, and report the difference between that team average and the mean of all team averages (only when that mean exists), sorted by difference descending with NULLs last, limited to 10 rows."
+  "raw": "For each team_id in manager_half, compute average win rate (mean of w/g across its records), count of manager_half records, and how much this average exceeds the mean of all team averages, sorted by this difference descending (top 10)."
  },
- "c": {
-  "request": "For each team, what is its average half-season win rate (wins `w` divided by games managed `g` for each `manager_half` record, averaged and ignoring missing values) and how many `manager_half` records does it have? Also show how far its average is above the mean of all the team averages (ignoring missing ones, and only if that mean exists). List `team_id`, average win rate, record count and the difference, sorted by the difference from highest to lowest with missing values last, top 10. Only teams that have `manager_half` records are included.",
-  "sql": "WITH team_avg AS (SELECT team_id, AVG(1.0 * w / NULLIF(g, 0)) AS avg_win_rate, COUNT(*) AS record_count FROM manager_half GROUP BY team_id) SELECT team_id, avg_win_rate, record_count, avg_win_rate - AVG(avg_win_rate) OVER () AS diff FROM team_avg ORDER BY diff DESC NULLS LAST LIMIT 10;",
+ "a": {
+  "request": "For each team that appears in `manager_half`, compute its average win rate (wins `w` divided by games managed `g` for each `manager_half` record, averaged and ignoring missing values) and its number of `manager_half` records. Then take the mean of those team averages across teams (ignoring missing ones), and, provided that mean exists, show each team's `team_id`, average win rate, record count, and its average minus that mean, sorted by the difference from highest to lowest with missing values last, top 10.",
+  "sql": "WITH team_stats AS (\n  SELECT \n    team_id,\n    COUNT(*) AS record_count,\n    AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL AND g > 0 \n             THEN CAST(w AS FLOAT) / CAST(g AS FLOAT) \n             ELSE NULL END) AS avg_win_rate\n  FROM manager_half\n  GROUP BY team_id\n),\noverall_mean AS (\n  SELECT AVG(avg_win_rate) AS mean_avg_win_rate\n  FROM team_stats\n  WHERE avg_win_rate IS NOT NULL\n)\nSELECT \n  ts.team_id,\n  ts.avg_win_rate,\n  ts.record_count,\n  ts.avg_win_rate - om.mean_avg_win_rate AS diff_from_mean\nFROM team_stats ts\nCROSS JOIN overall_mean om\nWHERE om.mean_avg_win_rate IS NOT NULL\nORDER BY \n  CASE WHEN ts.avg_win_rate IS NULL THEN 1 ELSE 0 END,\n  ts.avg_win_rate - om.mean_avg_win_rate DESC\nLIMIT 10;",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "d": {
-  "request": "For each team_id that has at least one manager_half record, compute the average of w/g across its manager_half rows (skipping rows where w or g is missing), count its manager_half rows, and compute its average minus the mean of all team averages, returning the top 10 teams by that difference in descending order with nulls last.",
-  "sql": "WITH team_stats AS (SELECT team_id, AVG(CASE WHEN w IS NOT NULL AND g IS NOT NULL THEN w * 1.0 / NULLIF(g, 0) END) AS avg_wg, COUNT(*) AS row_count FROM manager_half GROUP BY team_id), overall AS (SELECT AVG(avg_wg) AS mean_avg FROM team_stats) SELECT t.team_id, t.avg_wg, t.row_count, t.avg_wg - o.mean_avg AS diff FROM team_stats t CROSS JOIN overall o ORDER BY diff DESC NULLS LAST LIMIT 10;",
+  "request": "For each team with manager_half records, calculate the average of (wins divided by games) for all its non-null manager_half records, count those records, find the difference between each team's average and the overall mean of all team averages, and return team_id, average win rate, record count, and difference sorted by difference descending with missing values last for the top 10.",
+  "sql": "WITH team_stats AS (\n  SELECT \n    team_id,\n    AVG(CAST(w AS NUMERIC) / CAST(g AS NUMERIC)) as avg_win_rate,\n    COUNT(*) as record_count\n  FROM manager_half\n  WHERE w IS NOT NULL AND g IS NOT NULL AND g > 0\n  GROUP BY team_id\n),\noverall_mean AS (\n  SELECT AVG(avg_win_rate) as mean_win_rate\n  FROM team_stats\n)\nSELECT \n  ts.team_id,\n  ts.avg_win_rate,\n  ts.record_count,\n  ts.avg_win_rate - om.mean_win_rate as difference\nFROM team_stats ts\nCROSS JOIN overall_mean om\nORDER BY difference DESC NULLS LAST\nLIMIT 10",
   "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "a": {
-  "request": "For each team that appears in `manager_half`, compute its average win rate (wins `w` divided by games managed `g` for each `manager_half` record, averaged and ignoring missing values) and its number of `manager_half` records. Then take the mean of those team averages across teams (ignoring missing ones), and, provided that mean exists, show each team's `team_id`, average win rate, record count, and its average minus that mean, sorted by the difference from highest to lowest with missing values last, top 10.",
-  "sql": "WITH rec AS (\n  SELECT team_id, CAST(w AS REAL) / NULLIF(g, 0) AS win_rate\n  FROM manager_half\n),\nteam_avg AS (\n  SELECT team_id, AVG(win_rate) AS avg_win_rate, COUNT(*) AS record_count\n  FROM rec\n  WHERE team_id IS NOT NULL\n  GROUP BY team_id\n),\noverall AS (\n  SELECT AVG(avg_win_rate) AS mean_avg FROM team_avg\n)\nSELECT t.team_id, t.avg_win_rate, t.record_count, t.avg_win_rate - o.mean_avg AS diff\nFROM team_avg t\nCROSS JOIN overall o\nWHERE o.mean_avg IS NOT NULL\nORDER BY diff DESC NULLS LAST\nLIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
  },
  "calls": 6
 }

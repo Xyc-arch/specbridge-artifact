@@ -3,11 +3,9 @@
  "sample": 2,
  "model": "haiku",
  "response": {
-  "sql": "WITH rep_counts AS (SELECT e.EmployeeId, e.City, COUNT(c.CustomerId) AS cnt FROM Employee e JOIN Customer c ON c.SupportRepId = e.EmployeeId GROUP BY e.EmployeeId, e.City), city_avg AS (SELECT City, AVG(cnt) AS city_avg FROM rep_counts GROUP BY City), kept AS (SELECT r.EmployeeId, r.City, r.cnt, a.city_avg FROM rep_counts r JOIN city_avg a ON a.City IS r.City WHERE r.cnt > a.city_avg), total AS (SELECT SUM(cnt) AS total_cnt FROM rep_counts) SELECT k.City AS city, SUM(k.cnt) AS total_customers, AVG(k.cnt - k.city_avg) AS avg_above_city_avg, AVG(1.0 * k.cnt / t.total_cnt) AS avg_share_of_total FROM kept k CROSS JOIN total t GROUP BY k.City;"
+  "sql": "WITH rep_counts AS (\n  SELECT \n    e.EmployeeId,\n    e.City,\n    COUNT(c.CustomerId) as customer_count\n  FROM Employee e\n  LEFT JOIN Customer c ON e.EmployeeId = c.SupportRepId\n  WHERE c.CustomerId IS NOT NULL\n  GROUP BY e.EmployeeId, e.City\n),\ncity_averages AS (\n  SELECT \n    City,\n    AVG(customer_count) as avg_count\n  FROM rep_counts\n  GROUP BY City\n),\nfiltered_reps AS (\n  SELECT \n    rc.EmployeeId,\n    rc.City,\n    rc.customer_count,\n    ca.avg_count\n  FROM rep_counts rc\n  JOIN city_averages ca ON (rc.City = ca.City OR (rc.City IS NULL AND ca.City IS NULL))\n  WHERE rc.customer_count > ca.avg_count\n),\noverall_total AS (\n  SELECT SUM(customer_count) as total FROM rep_counts\n)\nSELECT \n  fr.City,\n  SUM(fr.customer_count) as total_customers,\n  AVG(fr.customer_count - fr.avg_count) as avg_above_city_average,\n  AVG(fr.customer_count / ot.total) as avg_rep_share\nFROM filtered_reps fr\nCROSS JOIN overall_total ot\nGROUP BY fr.City\nORDER BY fr.City"
  },
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 7.6
+ "primary_matches": [],
+ "seconds": 44.7
 }

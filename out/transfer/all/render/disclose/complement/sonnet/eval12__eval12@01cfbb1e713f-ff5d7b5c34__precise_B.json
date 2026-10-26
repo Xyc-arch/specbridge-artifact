@@ -2,16 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH pair_avg AS (SELECT f.orderslink AS orderslink, u.acctscope AS acctscope, AVG(f.feerate) AS avg_feerate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY f.orderslink, u.acctscope), overall AS (SELECT AVG(avg_feerate) AS mean_avg FROM pair_avg WHERE avg_feerate IS NOT NULL), kept AS (SELECT p.orderslink, p.acctscope, p.avg_feerate, p.avg_feerate - o.mean_avg AS excess FROM pair_avg p CROSS JOIN overall o WHERE p.avg_feerate > o.mean_avg), ranked AS (SELECT orderslink, acctscope, avg_feerate, excess, ROW_NUMBER() OVER (PARTITION BY acctscope ORDER BY excess DESC, orderslink ASC) AS rnk FROM kept) SELECT orderslink, acctscope, avg_feerate, excess, rnk FROM ranked WHERE rnk <= 3 ORDER BY acctscope, rnk",
+  "sql": "WITH pairs AS (SELECT f.orderslink AS orderslink, u.acctscope AS acctscope, AVG(f.feerate) AS avg_rate FROM fees f JOIN orders o ON f.orderslink = o.recordvault JOIN users u ON o.userlink = u.userstamp GROUP BY f.orderslink, u.acctscope HAVING AVG(f.feerate) IS NOT NULL), overall AS (SELECT AVG(avg_rate) AS mean_avg FROM pairs), kept AS (SELECT p.orderslink, p.acctscope, p.avg_rate, p.avg_rate - o.mean_avg AS excess FROM pairs p CROSS JOIN overall o WHERE p.avg_rate > o.mean_avg), ranked AS (SELECT orderslink, acctscope, avg_rate, excess, ROW_NUMBER() OVER (PARTITION BY acctscope ORDER BY excess DESC, orderslink ASC) AS rnk FROM kept) SELECT orderslink, acctscope, avg_rate, excess, rnk FROM ranked WHERE rnk <= 3 ORDER BY acctscope, rnk",
   "assumptions": [
    {
-    "assumption": "The mean of all pair averages is an unweighted mean over pairs (each pair counts once), computed across all scopes together, excluding pairs whose average is NULL (all feerate values missing).",
+    "assumption": "Pairs whose feerate values are all NULL have no average and are excluded from the pair set, so they do not count toward the overall mean of pair averages.",
     "unresolved": false
    },
    {
-    "assumption": "Ranking uses ROW_NUMBER (1,2,3,...) with ties broken by orderslink ascending, as the request specifies.",
+    "assumption": "The overall mean is the unweighted mean of the pair averages (each pair counts once), computed over all pairs before filtering.",
+    "unresolved": false
+   },
+   {
+    "assumption": "If orders.recordvault or users.userstamp has duplicates, joined rows are all kept and contribute to the averages.",
     "unresolved": false
    }
   ],
@@ -22,5 +26,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 5.6
+ "seconds": 6.4
 }

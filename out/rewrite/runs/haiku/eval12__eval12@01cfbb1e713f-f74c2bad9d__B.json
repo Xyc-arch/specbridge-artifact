@@ -3,37 +3,36 @@
  "model": "haiku",
  "reading": "B",
  "description": "Average the points won per death country, leaving out players with no recorded death country. Compare each country's average with the plain average of the remaining countries' averages.",
- "a": {
-  "request": "For award vote records matched to their players by `player_id` (dropping votes with no matching player), group by the player's death country (`death_country`), leaving out players with a blank death country. For each group, show the death country, the average `points_won` (ignoring missing values), and how far that average is from the simple average of the group averages across the remaining groups. Don't round.",
-  "sql": "WITH grp AS (SELECT p.death_country AS death_country, AVG(v.points_won) AS avg_points FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - AVG(avg_points) OVER () AS diff_from_mean_of_averages FROM grp;",
+ "b": {
+  "request": "For players with award votes and recorded death countries, group by death_country, calculate the average points_won per country (excluding NULL values), compute the mean of these country-level averages, and display each death_country with its average points_won and its deviation from the overall mean of the country averages.",
+  "sql": "WITH country_averages AS (SELECT p.death_country, AVG(pav.points_won) as avg_points_won FROM player p INNER JOIN player_award_vote pav ON p.player_id = pav.player_id WHERE p.death_country IS NOT NULL AND pav.points_won IS NOT NULL GROUP BY p.death_country), overall_mean AS (SELECT AVG(avg_points_won) as mean_of_averages FROM country_averages) SELECT ca.death_country, ca.avg_points_won, ca.avg_points_won - om.mean_of_averages as deviation FROM country_averages ca CROSS JOIN overall_mean om ORDER BY ca.death_country",
   "executes": true,
   "matches": [
-   "B"
-  ]
+   "A"
+  ],
+  "raw": "For players with award votes and recorded death countries, group by death_country, calculate the average points_won per country (excluding NULL values), compute the mean of these country-level averages, and display each death_country with its average points_won and its deviation from the overall mean of the country averages."
+ },
+ "a": {
+  "request": "For award vote records matched to their players by `player_id` (dropping votes with no matching player), group by the player's death country (`death_country`), leaving out players with a blank death country. For each group, show the death country, the average `points_won` (ignoring missing values), and how far that average is from the simple average of the group averages across the remaining groups. Don't round.",
+  "sql": "WITH player_votes AS (\n  SELECT \n    pav.player_id,\n    pav.points_won,\n    p.death_country\n  FROM player_award_vote pav\n  INNER JOIN player p ON pav.player_id = p.player_id\n  WHERE p.death_country IS NOT NULL AND p.death_country != ''\n),\ngroup_averages AS (\n  SELECT \n    death_country,\n    AVG(points_won) as avg_points_won\n  FROM player_votes\n  WHERE points_won IS NOT NULL\n  GROUP BY death_country\n)\nSELECT \n  ga.death_country,\n  ga.avg_points_won,\n  ga.avg_points_won - (\n    SELECT AVG(avg_points_won) \n    FROM group_averages ga2 \n    WHERE ga2.death_country != ga.death_country\n  ) as difference_from_other_groups_average\nFROM group_averages ga\nORDER BY ga.death_country",
+  "executes": true,
+  "matches": []
  },
  "c": {
   "request": "For players who received award votes (matched to `player` by `player_id`), what is the average `points_won` for each death country (ignoring missing points)? Show each death country, its average, and how far it is from the simple average of those per-country averages, without rounding. Average the points won per death country, leaving out players with no recorded death country. Compare each country's average with the plain average of the remaining countries' averages.",
-  "sql": "WITH country_avg AS (SELECT p.death_country, AVG(v.points_won) AS avg_points FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND p.death_country <> '' GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - (SELECT AVG(avg_points) FROM country_avg) AS difference_from_avg_of_averages FROM country_avg ORDER BY death_country;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "b": {
-  "request": "Average `points_won` per `player.death_country` for players with a non-null death country (joining `player_award_vote` to `player` on `player_id`, excluding null `points_won`), reporting each country's average unrounded and its difference from the unweighted mean of those per-country averages",
-  "sql": "WITH country_avg AS (SELECT p.death_country, AVG(pav.points_won) AS avg_points FROM player_award_vote pav JOIN player p ON pav.player_id = p.player_id WHERE p.death_country IS NOT NULL AND pav.points_won IS NOT NULL GROUP BY p.death_country) SELECT death_country, avg_points, avg_points - AVG(avg_points) OVER () AS diff_from_mean FROM country_avg;",
+  "sql": "WITH country_averages AS (SELECT p.death_country, AVG(pav.points_won) as avg_points_won FROM player_award_vote pav JOIN player p ON pav.player_id = p.player_id WHERE p.death_country IS NOT NULL GROUP BY p.death_country), overall_avg AS (SELECT AVG(avg_points_won) as avg_of_avgs FROM country_averages) SELECT ca.death_country, ca.avg_points_won, ca.avg_points_won - oa.avg_of_avgs as distance_from_overall_avg FROM country_averages ca CROSS JOIN overall_avg oa ORDER BY ca.death_country",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
  "d": {
-  "request": "Among players with award votes (matched to `player` by `player_id`), what is the average `points_won` for each death country, excluding players with no recorded death country and missing points? Show each country, its average, and its difference from the simple average of those per-country averages, without rounding.",
-  "sql": "WITH country_avg AS (SELECT p.death_country AS country, AVG(v.points_won) AS avg_points FROM player_award_vote v JOIN player p ON p.player_id = v.player_id WHERE p.death_country IS NOT NULL AND TRIM(p.death_country) <> '' AND v.points_won IS NOT NULL GROUP BY p.death_country) SELECT country, avg_points, avg_points - (SELECT AVG(avg_points) FROM country_avg) AS diff_from_simple_avg FROM country_avg ORDER BY country;",
+  "request": "For players with award votes and non-null death countries, calculate the mean points_won per death country and display each death country's average alongside its difference from the mean of all per-country averages.",
+  "sql": "WITH country_averages AS (SELECT p.death_country, AVG(pav.points_won) as avg_points_won FROM player_award_vote pav JOIN player p ON pav.player_id = p.player_id WHERE p.death_country IS NOT NULL GROUP BY p.death_country), overall_mean AS (SELECT AVG(avg_points_won) as mean_of_averages FROM country_averages) SELECT ca.death_country, ca.avg_points_won, ca.avg_points_won - om.mean_of_averages as difference_from_mean FROM country_averages ca CROSS JOIN overall_mean om ORDER BY ca.death_country;",
   "executes": true,
   "matches": [
-   "B"
+   "A"
   ]
- }
+ },
+ "calls": 6
 }

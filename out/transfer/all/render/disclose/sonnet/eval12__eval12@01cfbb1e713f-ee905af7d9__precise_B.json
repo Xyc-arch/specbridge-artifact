@@ -2,21 +2,21 @@
  "case": "eval12:eval12@01cfbb1e713f-ee905af7d9",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH linked AS (SELECT t.ordertypedist AS ordertypedist, COUNT(DISTINCT t.transreg) AS txn_count FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg GROUP BY t.ordertypedist), shares AS (SELECT ordertypedist, txn_count, txn_count * 1.0 / SUM(txn_count) OVER () AS share FROM linked), base AS (SELECT ordertypedist, txn_count, share, AVG(share) OVER () AS baseline FROM shares) SELECT ordertypedist AS order_type_mix, txn_count AS distinct_transaction_count, share, share - baseline AS share_above_baseline FROM base WHERE share > baseline ORDER BY share DESC",
+  "sql": "WITH j AS (SELECT t.transreg, t.ordertypedist FROM advancedbehavior a JOIN transactionrecord t ON a.translink = t.transreg), g AS (SELECT ordertypedist, COUNT(DISTINCT transreg) AS txn_count FROM j GROUP BY ordertypedist), s AS (SELECT ordertypedist, txn_count, txn_count * 1.0 / SUM(txn_count) OVER () AS share FROM g), b AS (SELECT ordertypedist, txn_count, share, AVG(share) OVER () AS baseline_share FROM s) SELECT ordertypedist, txn_count, share, share - baseline_share AS share_above_baseline FROM b WHERE share > baseline_share ORDER BY share DESC",
   "assumptions": [
    {
-    "assumption": "Records with a NULL ordertypedist form their own group (GROUP BY keeps NULL as one group), and that group counts as a mix in the total and in the baseline average.",
+    "assumption": "Share is a fraction between 0 and 1 (count divided by the total of the per-mix distinct counts), not a percentage, and the 'above baseline' difference is in the same fraction units.",
     "unresolved": false
    },
    {
-    "assumption": "The share's denominator is the sum of the per-mix distinct transaction counts. A transaction appears under only one mix, so this equals the total number of distinct linked transactions.",
+    "assumption": "Records with a NULL ordertypedist form their own group (shown as NULL) and count as one mix in the total and the baseline average. Empty-string values are not treated as missing.",
     "unresolved": false
    },
    {
-    "assumption": "The share is a fraction between 0 and 1, not a percentage.",
-    "unresolved": true
+    "assumption": "The total across all mixes is taken over the matched (inner-joined) transactions only. Each transaction has one mix, so the sum of per-mix distinct counts equals the distinct total.",
+    "unresolved": false
    }
   ],
   "alternatives": []
@@ -27,6 +27,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 4.9,
- "chars_out": 1195
+ "seconds": 8.6,
+ "chars_out": 1249
 }

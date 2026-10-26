@@ -3,11 +3,9 @@
  "sample": 3,
  "model": "haiku",
  "response": {
-  "sql": "WITH gender_counts AS (SELECT c.gender AS gender, COUNT(DISTINCT o.order_id) AS order_count FROM Invoices i JOIN Orders o ON o.order_id = i.order_id JOIN Customers c ON c.customer_id = o.customer_id GROUP BY c.gender), avg_fig AS (SELECT AVG(order_count) AS avg_count FROM gender_counts) SELECT AVG(g.order_count) AS avg_order_count, AVG(g.order_count - a.avg_count) AS avg_excess FROM gender_counts g CROSS JOIN avg_fig a WHERE g.order_count > a.avg_count;"
+  "sql": "WITH all_customers_with_gender AS (\n  SELECT \n    customer_id,\n    COALESCE(gender, 'Unknown') as gender\n  FROM Customers\n),\ncustomer_invoice_counts AS (\n  SELECT \n    acwg.customer_id,\n    acwg.gender,\n    COUNT(DISTINCT CASE WHEN i.invoice_number IS NOT NULL THEN i.invoice_number END) as num_invoiced_orders\n  FROM all_customers_with_gender acwg\n  LEFT JOIN Orders o ON acwg.customer_id = o.customer_id\n  LEFT JOIN Invoices i ON o.order_id = i.order_id\n  GROUP BY acwg.customer_id, acwg.gender\n),\ngender_averages AS (\n  SELECT \n    gender,\n    AVG(num_invoiced_orders) as avg_invoiced_orders\n  FROM customer_invoice_counts\n  GROUP BY gender\n),\noverall_average AS (\n  SELECT AVG(avg_invoiced_orders) as overall_avg\n  FROM gender_averages\n)\nSELECT \n  ga.gender,\n  ga.avg_invoiced_orders,\n  ga.avg_invoiced_orders - oa.overall_avg as excess_over_average\nFROM gender_averages ga\nCROSS JOIN overall_average oa\nWHERE ga.avg_invoiced_orders > oa.overall_avg\nORDER BY ga.gender"
  },
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 6.4
+ "primary_matches": [],
+ "seconds": 64.3
 }

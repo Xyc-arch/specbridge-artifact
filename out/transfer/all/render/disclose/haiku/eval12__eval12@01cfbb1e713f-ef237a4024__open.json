@@ -2,27 +2,27 @@
  "case": "eval12:eval12@01cfbb1e713f-ef237a4024",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH project_rates AS (SELECT s.arcref, p.fundflux, SUM(s.gbsize) / SUM(s.spanmin) AS rate FROM scans s INNER JOIN projects p ON s.arcref = p.arcregistry WHERE s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin > 0 GROUP BY s.arcref, p.fundflux), benchmark AS (SELECT AVG(rate) AS avg_rate FROM project_rates) SELECT pr.arcref AS project_reference, pr.fundflux AS funding_source, pr.rate, pr.rate - b.avg_rate AS gap_above_benchmark FROM project_rates pr CROSS JOIN benchmark b WHERE pr.rate > b.avg_rate ORDER BY gap_above_benchmark DESC LIMIT 10;",
+  "sql": "WITH project_rates AS (\n  SELECT \n    s.arcref,\n    p.fundflux,\n    SUM(s.gbsize) / SUM(s.spanmin) AS rate\n  FROM scans s\n  JOIN projects p ON s.arcref = p.arcregistry\n  WHERE s.arcref IS NOT NULL\n    AND s.gbsize IS NOT NULL\n    AND s.spanmin IS NOT NULL\n    AND s.spanmin > 0\n  GROUP BY s.arcref, p.fundflux\n),\nbenchmark AS (\n  SELECT AVG(rate) AS bench_value\n  FROM project_rates\n)\nSELECT \n  pr.arcref,\n  pr.fundflux,\n  pr.rate,\n  pr.rate - b.bench_value AS gap\nFROM project_rates pr\nCROSS JOIN benchmark b\nWHERE pr.rate > b.bench_value\nORDER BY gap DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "A project's size-per-minute rate is computed as total gbsize \u00f7 total spanmin across all its scans (not the average of per-scan rates)",
+    "assumption": "A project's size-per-minute rate is calculated as total file size divided by total scan duration (SUM(gbsize) / SUM(spanmin)), representing overall throughput rather than an average of individual scan rates",
     "unresolved": false
    },
    {
-    "assumption": "Scans with NULL or missing gbsize or spanmin values are excluded from rate calculations",
+    "assumption": "Scans with NULL or zero values in gbsize, spanmin, or arcref are excluded from calculations",
     "unresolved": false
    },
    {
-    "assumption": "Scans with spanmin \u2264 0 are excluded to avoid division by zero or nonsensical rates",
+    "assumption": "The benchmark is a simple arithmetic mean of all per-project rates, treating each unique project (arcref, fundflux) pair equally",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Each project's rate is the average of its per-scan rates: AVG(gbsize / spanmin) instead of SUM(gbsize) / SUM(spanmin)",
-    "sql": "WITH project_rates AS (SELECT s.arcref, p.fundflux, AVG(s.gbsize / s.spanmin) AS rate FROM scans s INNER JOIN projects p ON s.arcref = p.arcregistry WHERE s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin > 0 GROUP BY s.arcref, p.fundflux), benchmark AS (SELECT AVG(rate) AS avg_rate FROM project_rates) SELECT pr.arcref AS project_reference, pr.fundflux AS funding_source, pr.rate, pr.rate - b.avg_rate AS gap_above_benchmark FROM project_rates pr CROSS JOIN benchmark b WHERE pr.rate > b.avg_rate ORDER BY gap_above_benchmark DESC LIMIT 10;"
+    "interpretation": "Each project's rate could instead be the average of individual scan rates (AVG(gbsize / spanmin)) rather than aggregate throughput. This weights each scan equally regardless of size, whereas SUM/SUM weights larger scans proportionally higher in the project's final rate.",
+    "sql": "WITH project_rates AS (\n  SELECT \n    s.arcref,\n    p.fundflux,\n    AVG(s.gbsize / s.spanmin) AS rate\n  FROM scans s\n  JOIN projects p ON s.arcref = p.arcregistry\n  WHERE s.arcref IS NOT NULL\n    AND s.gbsize IS NOT NULL\n    AND s.spanmin IS NOT NULL\n    AND s.spanmin > 0\n  GROUP BY s.arcref, p.fundflux\n),\nbenchmark AS (\n  SELECT AVG(rate) AS bench_value\n  FROM project_rates\n)\nSELECT \n  pr.arcref,\n  pr.fundflux,\n  pr.rate,\n  pr.rate - b.bench_value AS gap\nFROM project_rates pr\nCROSS JOIN benchmark b\nWHERE pr.rate > b.bench_value\nORDER BY gap DESC\nLIMIT 10;"
    }
   ]
  },
@@ -33,14 +33,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Each project's rate is the average of its per-scan rates: AVG(gbsize / spanmin) instead of SUM(gbsize) / SUM(spanmin)",
-   "sql": "WITH project_rates AS (SELECT s.arcref, p.fundflux, AVG(s.gbsize / s.spanmin) AS rate FROM scans s INNER JOIN projects p ON s.arcref = p.arcregistry WHERE s.gbsize IS NOT NULL AND s.spanmin IS NOT NULL AND s.spanmin > 0 GROUP BY s.arcref, p.fundflux), benchmark AS (SELECT AVG(rate) AS avg_rate FROM project_rates) SELECT pr.arcref AS project_reference, pr.fundflux AS funding_source, pr.rate, pr.rate - b.avg_rate AS gap_above_benchmark FROM project_rates pr CROSS JOIN benchmark b WHERE pr.rate > b.avg_rate ORDER BY gap_above_benchmark DESC LIMIT 10;",
+   "interpretation": "Each project's rate could instead be the average of individual scan rates (AVG(gbsize / spanmin)) rather than aggregate throughput. This weights each scan equally regardless of size, whereas SUM/SUM weights larger scans proportionally higher in the project's final rate.",
+   "sql": "WITH project_rates AS (\n  SELECT \n    s.arcref,\n    p.fundflux,\n    AVG(s.gbsize / s.spanmin) AS rate\n  FROM scans s\n  JOIN projects p ON s.arcref = p.arcregistry\n  WHERE s.arcref IS NOT NULL\n    AND s.gbsize IS NOT NULL\n    AND s.spanmin IS NOT NULL\n    AND s.spanmin > 0\n  GROUP BY s.arcref, p.fundflux\n),\nbenchmark AS (\n  SELECT AVG(rate) AS bench_value\n  FROM project_rates\n)\nSELECT \n  pr.arcref,\n  pr.fundflux,\n  pr.rate,\n  pr.rate - b.bench_value AS gap\nFROM project_rates pr\nCROSS JOIN benchmark b\nWHERE pr.rate > b.bench_value\nORDER BY gap DESC\nLIMIT 10;",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 33.3,
- "chars_out": 1850
+ "seconds": 56.9,
+ "chars_out": 2196
 }

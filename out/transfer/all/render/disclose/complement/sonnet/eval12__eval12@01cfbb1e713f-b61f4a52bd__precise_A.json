@@ -2,20 +2,20 @@
  "case": "eval12:eval12@01cfbb1e713f-b61f4a52bd",
  "wording": "precise_A",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_order AS (SELECT ordersmark, AVG(fillcount) AS a FROM orderexecutions GROUP BY ordersmark HAVING AVG(fillcount) IS NOT NULL), b1 AS (SELECT AVG(a) AS m FROM per_order), k1 AS (SELECT p.ordersmark, p.a, p.a - b1.m AS e1 FROM per_order p CROSS JOIN b1 WHERE p.a > b1.m), b2 AS (SELECT AVG(a) AS m FROM k1), k2 AS (SELECT k1.a, k1.e1, k1.a - b2.m AS e2 FROM k1 CROSS JOIN b2 WHERE k1.a > b2.m) SELECT AVG(a) AS avg_fill_quantity, AVG(e1) AS avg_first_excess, AVG(e2) AS avg_second_excess FROM k2",
+  "sql": "WITH per AS (SELECT ordersmark, AVG(fillcount) AS a FROM orderexecutions GROUP BY ordersmark), b1 AS (SELECT AVG(a) AS m FROM per WHERE a IS NOT NULL), k1 AS (SELECT a, a - (SELECT m FROM b1) AS e1 FROM per WHERE a > (SELECT m FROM b1)), b2 AS (SELECT AVG(a) AS m FROM k1), k2 AS (SELECT a, e1, a - (SELECT m FROM b2) AS e2 FROM k1 WHERE a > (SELECT m FROM b2)) SELECT AVG(a) AS avg_fill_quantity, AVG(e1) AS avg_first_excess, AVG(e2) AS avg_second_excess FROM k2",
   "assumptions": [
    {
-    "assumption": "Executions with NULL ordersmark form a single group, which is treated like one order. This follows from the request and from GROUP BY semantics.",
+    "assumption": "Orders are grouped by orderexecutions.ordersmark alone, so executions with a NULL reference form a single group. Per-order averages are not restricted to ordersmark values that exist in orders.",
     "unresolved": false
    },
    {
-    "assumption": "Groups whose fillcount values are all NULL have no average, so they are left out of the benchmark and the comparisons.",
+    "assumption": "Orders whose fillcount values are all NULL have a NULL average. They are left out of the benchmarks and cannot be kept, because a NULL never passes the 'above' comparison.",
     "unresolved": false
    },
    {
-    "assumption": "The second excess is each kept order's average minus the second benchmark, which is the mean of the first-round kept orders' averages. Comparisons are strict (>).",
+    "assumption": "'Above' means strictly greater than the benchmark. Orders equal to it are dropped.",
     "unresolved": false
    }
   ],
@@ -26,5 +26,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 7.5
+ "seconds": 9.1
 }

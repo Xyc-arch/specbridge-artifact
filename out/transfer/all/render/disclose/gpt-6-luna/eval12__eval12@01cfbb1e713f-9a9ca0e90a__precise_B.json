@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-9a9ca0e90a",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH order_averages AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) AS avg_rebate,\n    AVG(feerate - rebrate) AS avg_net_fee_rate\n  FROM fees\n  GROUP BY orderslink\n),\nbenchmark AS (\n  SELECT AVG(feerate - rebrate) AS avg_net_fee_rate\n  FROM fees\n),\nabove_benchmark AS (\n  SELECT oa.*,\n         b.avg_net_fee_rate AS benchmark_rate\n  FROM order_averages oa\n  CROSS JOIN benchmark b\n  WHERE oa.avg_net_fee_rate > b.avg_net_fee_rate\n)\nSELECT\n  AVG(avg_rebate) AS avg_order_avg_rebate,\n  AVG(avg_net_fee_rate) AS avg_order_avg_net_fee_rate,\n  AVG(avg_net_fee_rate - benchmark_rate) AS avg_excess_net_fee_rate\nFROM above_benchmark;",
+  "sql": "WITH per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_total_rebate, AVG(feerate - rebrate) AS avg_net_fee_rate FROM fees GROUP BY orderslink), benchmark AS (SELECT AVG(feerate - rebrate) AS avg_net_fee_rate FROM fees), above_benchmark AS (SELECT p.avg_total_rebate, p.avg_net_fee_rate, p.avg_net_fee_rate - b.avg_net_fee_rate AS excess_net_fee_rate FROM per_order AS p CROSS JOIN benchmark AS b WHERE p.avg_net_fee_rate > b.avg_net_fee_rate) SELECT AVG(avg_total_rebate) AS avg_of_order_avg_total_rebates, AVG(avg_net_fee_rate) AS avg_of_order_avg_net_fee_rates, AVG(excess_net_fee_rate) AS avg_excess_over_benchmark FROM above_benchmark;",
   "assumptions": [
    {
-    "assumption": "Orders are grouped by orderslink as specified; NULL orderslink values are grouped together as one no-order group. Each final average skips NULL order-level values, and the benchmark averages non-NULL fee-level net rates.",
+    "assumption": "Rows with NULL orderslink are grouped together as the single no-order group; SQLite AVG skips NULL inputs, and NULL net fee rates do not qualify as above the benchmark.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 7.5,
- "chars_out": 950
+ "seconds": 16.4,
+ "chars_out": 892
 }

@@ -2,31 +2,23 @@
  "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH station AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bw, COUNT(*) AS n_tel FROM telescopes t JOIN observatories o ON o.observstation = t.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(avg_bw) AS avg_bandwidth_usage_pct, SUM(n_tel) AS telescope_count, SUM(n_tel) * 1.0 / SUM(SUM(n_tel)) OVER () AS share_of_total FROM station GROUP BY lunarstage",
+  "sql": "WITH s AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_avg, COUNT(*) AS n FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(station_avg) AS avg_bandwidth_usage_pct, SUM(n) AS telescope_count, 1.0 * SUM(n) / SUM(SUM(n)) OVER () AS share_of_total FROM s GROUP BY lunarstage",
   "assumptions": [
    {
-    "assumption": "'How many there are with that phase' counts matched telescopes (rows after the inner join), not stations.",
+    "assumption": "'How many there are with that phase' counts matched telescopes, since telescopes are the entities being matched. The share is that count divided by the total number of matched telescopes. It is returned as a fraction between 0 and 1, not a percentage.",
     "unresolved": true
    },
    {
-    "assumption": "Share is a fraction between 0 and 1 (not a percentage), unrounded, of the total matched telescopes across all phase groups including the NULL group.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Telescopes with a NULL bandusagepct still count toward the telescope total, but they are ignored in the averages. A station whose telescopes all have NULL bandwidth has a NULL average, which AVG then skips.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL lunarstage forms its own group.",
+    "assumption": "Stations whose telescopes all have a missing bandusagepct have a NULL station average. They are ignored in the cross-station average, but their telescopes still count toward the count and share.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Count distinct observatory stations per phase, and take the share of the total number of stations.",
-    "sql": "WITH station AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bw FROM telescopes t JOIN observatories o ON o.observstation = t.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(avg_bw) AS avg_bandwidth_usage_pct, COUNT(*) AS station_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share_of_total FROM station GROUP BY lunarstage"
+    "interpretation": "The count is the number of distinct observatory stations (with at least one matching telescope) per phase, and the share is of the total number of such stations.",
+    "sql": "WITH s AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_avg FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(station_avg) AS avg_bandwidth_usage_pct, COUNT(*) AS station_count, 1.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share_of_total FROM s GROUP BY lunarstage"
    }
   ]
  },
@@ -37,14 +29,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Count distinct observatory stations per phase, and take the share of the total number of stations.",
-   "sql": "WITH station AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bw FROM telescopes t JOIN observatories o ON o.observstation = t.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(avg_bw) AS avg_bandwidth_usage_pct, COUNT(*) AS station_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share_of_total FROM station GROUP BY lunarstage",
+   "interpretation": "The count is the number of distinct observatory stations (with at least one matching telescope) per phase, and the share is of the total number of such stations.",
+   "sql": "WITH s AS (SELECT o.observstation, o.lunarstage, AVG(t.bandusagepct) AS station_avg FROM telescopes t JOIN observatories o ON t.observstation = o.observstation GROUP BY o.observstation, o.lunarstage) SELECT lunarstage, AVG(station_avg) AS avg_bandwidth_usage_pct, COUNT(*) AS station_count, 1.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS share_of_total FROM s GROUP BY lunarstage",
    "executes": true,
    "matches": [
     "B"
    ]
   }
  ],
- "seconds": 9.0,
- "chars_out": 1684
+ "seconds": 10.3,
+ "chars_out": 1512
 }

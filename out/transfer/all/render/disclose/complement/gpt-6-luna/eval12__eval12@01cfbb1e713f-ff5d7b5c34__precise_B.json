@@ -2,10 +2,15 @@
  "case": "eval12:eval12@01cfbb1e713f-ff5d7b5c34",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH pair_averages AS (\n  SELECT\n    f.orderslink AS orderslink,\n    u.acctscope AS account_scope,\n    AVG(f.feerate) AS average_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  JOIN users AS u ON o.userlink = u.userstamp\n  GROUP BY f.orderslink, u.acctscope\n),\nmean_average AS (\n  SELECT AVG(average_fee_rate) AS mean_fee_rate\n  FROM pair_averages\n),\nranked_pairs AS (\n  SELECT\n    p.orderslink,\n    p.account_scope,\n    p.average_fee_rate,\n    p.average_fee_rate - m.mean_fee_rate AS excess,\n    ROW_NUMBER() OVER (\n      PARTITION BY p.account_scope\n      ORDER BY p.average_fee_rate - m.mean_fee_rate DESC, p.orderslink ASC\n    ) AS rank\n  FROM pair_averages AS p\n  CROSS JOIN mean_average AS m\n  WHERE p.average_fee_rate > m.mean_fee_rate\n)\nSELECT orderslink, account_scope, average_fee_rate, excess, rank\nFROM ranked_pairs\nWHERE rank <= 3\nORDER BY account_scope, rank;",
-  "assumptions": [],
+  "sql": "WITH pair_averages AS (\n  SELECT f.orderslink, u.acctscope, AVG(f.feerate) AS avg_fee_rate\n  FROM fees AS f\n  JOIN orders AS o ON f.orderslink = o.recordvault\n  JOIN users AS u ON o.userlink = u.userstamp\n  GROUP BY f.orderslink, u.acctscope\n),\nmean_and_excess AS (\n  SELECT orderslink, acctscope, avg_fee_rate,\n         AVG(avg_fee_rate) OVER () AS mean_pair_average,\n         avg_fee_rate - AVG(avg_fee_rate) OVER () AS excess\n  FROM pair_averages\n),\nranked AS (\n  SELECT orderslink, acctscope, avg_fee_rate, excess,\n         ROW_NUMBER() OVER (\n           PARTITION BY acctscope\n           ORDER BY excess DESC, orderslink ASC\n         ) AS rank\n  FROM mean_and_excess\n  WHERE avg_fee_rate > mean_pair_average\n)\nSELECT orderslink, acctscope, avg_fee_rate, excess, rank\nFROM ranked\nWHERE rank <= 3\nORDER BY acctscope, rank;",
+  "assumptions": [
+   {
+    "assumption": "The mean is the unweighted arithmetic mean across all matched (orderslink, account scope) pair averages; pairs whose average fee rate is NULL are excluded from that mean, as SQLite AVG ignores NULL.",
+    "unresolved": false
+   }
+  ],
   "alternatives": []
  },
  "raw": null,
@@ -13,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 7.1
+ "seconds": 5.9
 }

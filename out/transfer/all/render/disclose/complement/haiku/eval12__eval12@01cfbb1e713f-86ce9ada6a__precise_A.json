@@ -2,20 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-86ce9ada6a",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH snap AS (\n  SELECT t.transreg, t.ordertypedist, AVG(s.instownpct) AS own\n  FROM sentimentandfundamentals s\n  JOIN transactionrecord t ON t.transreg = s.transref\n  WHERE t.ordertypedist IS NOT NULL\n  GROUP BY t.transreg, t.ordertypedist\n),\nunits AS (\n  SELECT transreg, ordertypedist, own,\n    AVG(own) OVER (PARTITION BY ordertypedist) AS mix_base,\n    AVG(own) OVER () AS overall\n  FROM snap\n  WHERE own IS NOT NULL\n),\nkept AS (\n  SELECT * FROM units WHERE own > overall\n)\nSELECT AVG(own) AS avg_kept_ownership,\n  AVG(own / mix_base) AS avg_ratio_to_mix_baseline,\n  AVG(own - overall) AS avg_excess_over_overall\nFROM kept;",
+  "sql": "WITH units AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.instownpct) as unit_ownership\n  FROM sentimentandfundamentals sf\n  INNER JOIN transactionrecord tr ON sf.transref = tr.transreg\n  WHERE tr.ordertypedist IS NOT NULL\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nmix_baselines AS (\n  SELECT \n    ordertypedist,\n    AVG(unit_ownership) as mix_baseline\n  FROM units\n  GROUP BY ordertypedist\n),\noverall_avg AS (\n  SELECT AVG(unit_ownership) as overall_average\n  FROM units\n),\nkept_units AS (\n  SELECT \n    u.unit_ownership,\n    m.mix_baseline,\n    (SELECT overall_average FROM overall_avg) as overall_average\n  FROM units u\n  INNER JOIN mix_baselines m ON u.ordertypedist = m.ordertypedist\n  WHERE u.unit_ownership > (SELECT overall_average FROM overall_avg)\n)\nSELECT\n  AVG(unit_ownership) as avg_kept_ownership,\n  AVG(unit_ownership / mix_baseline) as avg_ratio_to_baseline,\n  AVG(unit_ownership - overall_average) as avg_excess_over_overall\nFROM kept_units",
   "assumptions": [
    {
-    "assumption": "Each transaction has a single ordertypedist value (it is a column on transactionrecord), so one unit corresponds to one transaction, and snapshots are linked by an inner join so unmatched snapshots drop out.",
+    "assumption": "instownpct NULL values are ignored when averaging unit ownership (standard SQL AVG behavior).",
     "unresolved": false
    },
    {
-    "assumption": "Units whose snapshots all lack instownpct have no ownership value and are excluded before computing the mix baselines and overall average, since AVG ignores NULLs and such units cannot be compared.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Mix baselines and the overall average are computed over all units (before the strict-above filter), as the request states, and the overall average is over units rather than over raw snapshots.",
+    "assumption": "If all units fall at or below the overall average, kept_units is empty and the output metrics are NULL.",
     "unresolved": false
    }
   ],
@@ -26,5 +22,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 13.0
+ "seconds": 54.7
 }

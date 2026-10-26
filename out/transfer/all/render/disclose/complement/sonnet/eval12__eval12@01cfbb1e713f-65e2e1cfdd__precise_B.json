@@ -2,20 +2,16 @@
  "case": "eval12:eval12@01cfbb1e713f-65e2e1cfdd",
  "wording": "precise_B",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH s AS (SELECT observstation, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS share FROM telescopes GROUP BY observstation), r AS (SELECT observstation, telescope_count, share, RANK() OVER (ORDER BY share DESC) AS rnk FROM s) SELECT observstation, telescope_count, share FROM r WHERE rnk <= 10 ORDER BY share DESC, observstation",
+  "sql": "WITH c AS (SELECT observstation, COUNT(*) AS telescope_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM telescopes) AS share FROM telescopes GROUP BY observstation), r AS (SELECT observstation, telescope_count, share, DENSE_RANK() OVER (ORDER BY share DESC) AS rnk, ROW_NUMBER() OVER (ORDER BY share DESC) AS rn FROM c) SELECT observstation, telescope_count, share FROM r WHERE rn <= 10 OR share = (SELECT share FROM r WHERE rn = 10) ORDER BY share DESC, observstation",
   "assumptions": [
    {
-    "assumption": "Only stations that have at least one telescope in the telescopes table are listed (stations with zero telescopes are not included).",
+    "assumption": "The total number of telescopes is the row count of the telescopes table, and each telescope belongs to exactly one station. Stations with no telescopes are not listed because the count is taken from telescopes.",
     "unresolved": false
    },
    {
-    "assumption": "The 'top 10 plus ties' is implemented with RANK() <= 10 on share, so all stations tied with the 10th-ranked share are included.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The total number of telescopes is the row count of the telescopes table; share is a fraction (0-1), not a percentage.",
+    "assumption": "Ties are handled by keeping the top 10 rows plus every row whose share equals the 10th row's share. If there are fewer than 10 stations, all of them are returned.",
     "unresolved": false
    }
   ],
@@ -26,5 +22,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 5.2
+ "seconds": 9.8
 }

@@ -4,31 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH g AS (SELECT CENTROMEA AS status, AVG(HGB) AS avg_hgb, AVG(`T-BIL` / CRE) AS avg_ratio FROM Laboratory WHERE Date > '1985-04-22' AND Date < '1994-03-14' GROUP BY CENTROMEA), o AS (SELECT AVG(avg_ratio) AS overall_mean FROM g) SELECT g.status, g.avg_hgb, g.avg_ratio, g.avg_ratio / o.overall_mean AS ratio_to_overall_mean FROM g CROSS JOIN o WHERE o.overall_mean IS NOT NULL;",
+  "sql": "WITH status_stats AS (\n  SELECT \n    CENTROMEA,\n    AVG(HGB) AS avg_hemoglobin,\n    AVG(CASE WHEN T_BIL IS NOT NULL AND CRE IS NOT NULL THEN T_BIL / CRE END) AS avg_ratio\n  FROM Laboratory\n  WHERE Date > '1985-04-22' AND Date < '1994-03-14'\n  GROUP BY CENTROMEA\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) AS mean_ratio\n  FROM status_stats\n)\nSELECT \n  s.CENTROMEA,\n  s.avg_hemoglobin,\n  s.avg_ratio,\n  s.avg_ratio / o.mean_ratio AS normalized_ratio\nFROM status_stats s\nCROSS JOIN overall_mean o\nWHERE o.mean_ratio IS NOT NULL\nORDER BY s.CENTROMEA;",
   "assumptions": [
    {
-    "assumption": "Laboratory.Date is stored as ISO text (YYYY-MM-DD), so the string comparisons against '1985-04-22' and '1994-03-14' order dates correctly. The documentation says YYMMDD, which would make these comparisons wrong.",
+    "assumption": "Comparison of the Date column with YYYY-MM-DD string literals ('1985-04-22' and '1994-03-14') applies correct chronological filtering despite the schema documentation suggesting YYMMDD format.",
     "unresolved": true
-   },
-   {
-    "assumption": "Each row's ratio is T-BIL / CRE, with NULL when either value is missing or CRE is zero (SQLite returns NULL for division by zero). Each group's average ratio is the mean of these per-row ratios, not the ratio of averages.",
-    "unresolved": false
-   },
-   {
-    "assumption": "A NULL CENTROMEA forms its own group through GROUP BY, and it is returned with a NULL status. Empty-string statuses are not treated as missing.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The overall mean is the unweighted AVG of the group-level average ratios, skipping any group whose average ratio is NULL. If that overall mean is NULL, no rows are returned.",
-    "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 10.7
+ "primary_executes": false,
+ "primary_matches": [],
+ "seconds": 71.7
 }

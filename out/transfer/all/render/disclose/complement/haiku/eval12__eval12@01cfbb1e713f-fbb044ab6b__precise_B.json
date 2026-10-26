@@ -4,32 +4,19 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH inv AS (SELECT invoice_number, AVG(derived_product_cost) AS avg_cost, SUM(derived_total_cost) * 1.0 / SUM(product_price) AS ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(ratio) AS avg_ratio FROM inv), kept AS (SELECT i.avg_cost, i.ratio FROM inv i CROSS JOIN overall o WHERE i.ratio > o.avg_ratio) SELECT AVG(k.avg_cost) AS avg_line_product_cost, AVG(k.ratio) AS avg_ratio, AVG(k.ratio - o.avg_ratio) AS avg_ratio_excess FROM kept k CROSS JOIN overall o;",
+  "sql": "WITH invoice_metrics AS (SELECT invoice_number, AVG(derived_product_cost) as avg_line_product_cost, SUM(derived_total_cost) / SUM(product_price) as ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall_avg_ratio AS (SELECT AVG(ratio) as overall_avg_ratio FROM invoice_metrics) SELECT AVG(im.avg_line_product_cost) as avg_line_product_cost, AVG(im.ratio) as avg_ratio, AVG(im.ratio) - oar.overall_avg_ratio as ratio_exceeds_overall_average FROM invoice_metrics im CROSS JOIN overall_avg_ratio oar WHERE im.ratio > oar.overall_avg_ratio",
   "assumptions": [
    {
-    "assumption": "Each invoice's ratio is SUM(derived_total_cost) / SUM(product_price), with each column's NULLs skipped independently. An invoice whose price sum is zero or NULL gets a NULL ratio, so it is left out of the overall average and the filter.",
+    "assumption": "No invoices have all NULL or zero-summing product_price values. The ratio calculation (SUM(derived_total_cost) / SUM(product_price)) produces a valid numeric result for each invoice.",
     "unresolved": true
-   },
-   {
-    "assumption": "Each invoice counts once in the averages, and the average line product cost per invoice ignores NULL derived_product_cost values.",
-    "unresolved": false
-   },
-   {
-    "assumption": "'How far their ratio exceeds the overall average ratio' is the plain difference (kept ratio minus overall average ratio), not a percentage.",
-    "unresolved": false
    }
   ],
-  "alternatives": [
-   {
-    "interpretation": "The ratio uses only lines where both derived_total_cost and product_price are present, so the numerator and denominator cover the same set of lines.",
-    "sql": "WITH inv AS (SELECT invoice_number, AVG(derived_product_cost) AS avg_cost, SUM(CASE WHEN derived_total_cost IS NOT NULL AND product_price IS NOT NULL THEN derived_total_cost END) * 1.0 / SUM(CASE WHEN derived_total_cost IS NOT NULL AND product_price IS NOT NULL THEN product_price END) AS ratio FROM Invoice_Line_Items GROUP BY invoice_number), overall AS (SELECT AVG(ratio) AS avg_ratio FROM inv), kept AS (SELECT i.avg_cost, i.ratio FROM inv i CROSS JOIN overall o WHERE i.ratio > o.avg_ratio) SELECT AVG(k.avg_cost) AS avg_line_product_cost, AVG(k.ratio) AS avg_ratio, AVG(k.ratio - o.avg_ratio) AS avg_ratio_excess FROM kept k CROSS JOIN overall o;"
-   }
-  ]
+  "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "seconds": 12.8
+ "seconds": 33.9
 }

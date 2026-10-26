@@ -3,31 +3,34 @@
  "model": "haiku",
  "reading": "B",
  "description": "Each city's count is its number of distinct races with qualifying data (qualifying sessions), and its share is its share of all such sessions.",
+ "b": {
+  "request": "For each circuit city, identify the number of distinct races with qualifying data, calculate that count as a share of total qualifying sessions across all cities, and return only cities whose share exceeds the average share per city, showing: city name, qualifying session count, that count as a percentage of all qualifying sessions, and the percentage-point difference above the average city share.",
+  "sql": "WITH city_race_counts AS (\n  SELECT \n    c.location,\n    COUNT(DISTINCT q.raceId) AS race_count\n  FROM circuits c\n  JOIN races r ON c.circuitId = r.circuitId\n  JOIN qualifying q ON r.raceId = q.raceId\n  GROUP BY c.location\n),\nsummary AS (\n  SELECT \n    SUM(race_count) AS total_races,\n    COUNT(*) AS num_cities,\n    100.0 / COUNT(*) AS avg_percentage\n  FROM city_race_counts\n)\nSELECT \n  crc.location,\n  crc.race_count,\n  ROUND(100.0 * crc.race_count / s.total_races, 2) AS percentage,\n  ROUND(100.0 * crc.race_count / s.total_races - s.avg_percentage, 2) AS percentage_point_diff\nFROM city_race_counts crc\nCROSS JOIN summary s\nWHERE 100.0 * crc.race_count / s.total_races > s.avg_percentage\nORDER BY percentage DESC;",
+  "executes": true,
+  "matches": [],
+  "raw": "For each circuit city, identify the number of distinct races with qualifying data, calculate that count as a share of total qualifying sessions across all cities, and return only cities whose share exceeds the average share per city, showing: city name, qualifying session count, that count as a percentage of all qualifying sessions, and the percentage-point difference above the average city share."
+ },
  "c": {
   "request": "Which circuit cities have an above-average share of qualifying? For each, show the city, its qualifying count, that count as a share of the total across all cities, and how far its share is above the average city share (all unrounded). Each city's count is its number of distinct races with qualifying data (qualifying sessions), and its share is its share of all such sessions.",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(DISTINCT q.raceId) AS cnt FROM qualifying q JOIN races r ON r.raceId = q.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY c.location), shares AS (SELECT city, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM city_counts) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.city, s.cnt AS qualifying_count, s.share AS share, s.share - a.avg_share AS above_average_by FROM shares s, avg_share a WHERE s.share > a.avg_share ORDER BY above_average_by DESC;",
+  "sql": "WITH qualifying_races_by_city AS (SELECT c.location as city, COUNT(DISTINCT q.raceId) as qualifying_count FROM qualifying q JOIN races r ON q.raceId = r.raceId JOIN circuits c ON r.circuitId = c.circuitId GROUP BY c.location), totals AS (SELECT SUM(qualifying_count) as total_count, COUNT(*) as num_cities FROM qualifying_races_by_city) SELECT qrc.city, qrc.qualifying_count, CAST(qrc.qualifying_count AS FLOAT) / t.total_count as share, CAST(qrc.qualifying_count AS FLOAT) / t.total_count - 1.0 / t.num_cities as above_average FROM qualifying_races_by_city qrc CROSS JOIN totals t WHERE CAST(qrc.qualifying_count AS FLOAT) / t.total_count > 1.0 / t.num_cities ORDER BY above_average DESC",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "b": {
-  "request": "For each circuit city (circuits.location), count the distinct races with qualifying data (COUNT DISTINCT qualifying.raceId via races.circuitId), divide by the total across all cities, and return only cities whose share exceeds the mean city share, with the unrounded city share and its unrounded excess over that mean",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(DISTINCT q.raceId) AS race_count FROM circuits c JOIN races r ON r.circuitId = c.circuitId JOIN qualifying q ON q.raceId = r.raceId GROUP BY c.location), totals AS (SELECT SUM(race_count) AS total FROM city_counts), shares AS (SELECT city, CAST(race_count AS REAL) / (SELECT total FROM totals) AS share FROM city_counts), mean_share AS (SELECT AVG(share) AS mean_share FROM shares) SELECT s.city, s.share, s.share - m.mean_share AS excess FROM shares s CROSS JOIN mean_share m WHERE s.share > m.mean_share;",
+ "d": {
+  "request": "For each circuit city, count the distinct races with qualifying records, express that count as a share (percentage) of the total qualifying sessions across all cities, and report the percentage point difference between this city's share and the average city share (all unrounded).",
+  "sql": "WITH city_qualifying AS (\n  SELECT \n    c.location,\n    COUNT(DISTINCT r.raceId) as race_count\n  FROM circuits c\n  JOIN races r ON c.circuitId = r.circuitId\n  JOIN qualifying q ON r.raceId = q.raceId\n  GROUP BY c.location\n),\ntotals AS (\n  SELECT SUM(race_count) as total_races FROM city_qualifying\n),\ncity_shares AS (\n  SELECT \n    cq.location,\n    cq.race_count,\n    100.0 * cq.race_count / t.total_races as percentage_share\n  FROM city_qualifying cq\n  CROSS JOIN totals t\n),\naverage_share AS (\n  SELECT AVG(percentage_share) as avg_share FROM city_shares\n)\nSELECT \n  cs.location,\n  cs.race_count,\n  cs.percentage_share,\n  cs.percentage_share - ashr.avg_share as percentage_point_difference\nFROM city_shares cs\nCROSS JOIN average_share ashr\nORDER BY cs.location",
   "executes": true,
   "matches": []
  },
  "a": {
   "request": "For each circuit city (`circuits.location`), count the distinct races held there that have qualifying data, and work out the city's share as that count divided by the total across all cities. List the cities whose share is above the average share across cities, showing the city, the count, the share, and how far the share is above the average share, all unrounded.",
-  "sql": "WITH city_counts AS (SELECT c.location AS city, COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM qualifying q WHERE q.raceId = r.raceId) THEN r.raceId END) AS cnt FROM circuits c LEFT JOIN races r ON r.circuitId = c.circuitId WHERE c.location IS NOT NULL GROUP BY c.location), shares AS (SELECT city, cnt, cnt * 1.0 / (SELECT SUM(cnt) FROM city_counts) AS share FROM city_counts), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT s.city, s.cnt AS count, s.share, s.share - a.avg_share AS diff_above_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share ORDER BY s.share DESC;",
+  "sql": "WITH distinct_qualifying_races AS (\n  SELECT DISTINCT raceId\n  FROM qualifying\n),\ncity_counts AS (\n  SELECT \n    c.location,\n    COUNT(*) as race_count\n  FROM distinct_qualifying_races q\n  INNER JOIN races r ON q.raceId = r.raceId\n  INNER JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY c.location\n),\ntotal_races AS (\n  SELECT SUM(race_count) as total FROM city_counts\n),\ncity_shares AS (\n  SELECT \n    cc.location,\n    cc.race_count,\n    CAST(cc.race_count AS FLOAT) / tr.total as share\n  FROM city_counts cc\n  CROSS JOIN total_races tr\n),\nstats AS (\n  SELECT AVG(share) as average_share FROM city_shares\n)\nSELECT \n  cs.location as city,\n  cs.race_count as count,\n  cs.share,\n  cs.share - s.average_share as above_average\nFROM city_shares cs\nCROSS JOIN stats s\nWHERE cs.share > s.average_share\nORDER BY cs.share DESC",
   "executes": true,
-  "matches": []
+  "matches": [
+   "B"
+  ]
  },
- "calls": 6,
- "d": {
-  "request": "Among circuit cities with an above-average share of qualifying sessions, which ones have a qualifying count above the average city count? For each, show the city, its count of distinct races with qualifying data, that count as a share of all qualifying sessions across cities, and how far that share sits above the average city share, all unrounded.",
-  "sql": "WITH q AS (SELECT c.location AS city, qu.raceId AS raceId FROM qualifying qu JOIN races r ON r.raceId = qu.raceId JOIN circuits c ON c.circuitId = r.circuitId), city_stats AS (SELECT city, COUNT(*) AS qual_count, COUNT(DISTINCT raceId) AS race_count FROM q GROUP BY city), totals AS (SELECT COUNT(DISTINCT raceId) AS total_races FROM q), shares AS (SELECT s.city, s.qual_count, s.race_count, 1.0 * s.race_count / t.total_races AS share FROM city_stats s CROSS JOIN totals t), avgs AS (SELECT AVG(share) AS avg_share, AVG(qual_count) AS avg_count FROM shares) SELECT sh.city, sh.race_count, sh.share, sh.share - a.avg_share AS share_above_avg FROM shares sh CROSS JOIN avgs a WHERE sh.share > a.avg_share AND sh.qual_count > a.avg_count;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

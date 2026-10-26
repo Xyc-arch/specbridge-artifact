@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-43cd7485bf",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH overall_avg AS (\n  SELECT AVG(fees.feerate) as overall_avg_rate\n  FROM fees\n  WHERE fees.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    orders.orderbase,\n    AVG(fees.feerate) as channel_avg_rate\n  FROM fees\n  JOIN orders ON fees.orderslink = orders.recordvault\n  WHERE fees.feerate IS NOT NULL\n  GROUP BY orders.orderbase\n),\nabove_avg_channels AS (\n  SELECT \n    cs.channel_avg_rate,\n    (cs.channel_avg_rate - oa.overall_avg_rate) as difference_above_avg\n  FROM channel_stats cs\n  CROSS JOIN overall_avg oa\n  WHERE cs.channel_avg_rate > oa.overall_avg_rate\n)\nSELECT \n  AVG(channel_avg_rate) as mean_fee_rate_of_above_avg_channels,\n  AVG(difference_above_avg) as avg_distance_above_overall_average\nFROM above_avg_channels;",
+  "sql": "WITH global_avg AS (\n  SELECT AVG(f.feerate) as avg_feerate\n  FROM fees f\n  WHERE f.feerate IS NOT NULL\n),\nchannel_avgs AS (\n  SELECT o.orderbase, AVG(f.feerate) as channel_avg\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL\n  GROUP BY o.orderbase\n)\nSELECT \n  AVG(ca.channel_avg) as mean_avg_feerate,\n  AVG(ca.channel_avg) - (SELECT avg_feerate FROM global_avg) as above_average\nFROM channel_avgs ca\nWHERE ca.channel_avg > (SELECT avg_feerate FROM global_avg);",
   "assumptions": [
    {
-    "assumption": "Above-average means strictly greater than (>) the overall average, not including equal values",
-    "unresolved": true
+    "assumption": "A channel \"has an above-average fee rate\" if its average fee rate (across all its fees) exceeds the global average, not merely if it contains at least one above-average fee.",
+    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Calculate the weighted average fee rate across all individual fees in above-average channels (rather than the unweighted mean of each channel's average)",
-    "sql": "WITH overall_avg AS (\n  SELECT AVG(fees.feerate) as overall_avg_rate\n  FROM fees\n  WHERE fees.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    orders.orderbase,\n    AVG(fees.feerate) as channel_avg_rate\n  FROM fees\n  JOIN orders ON fees.orderslink = orders.recordvault\n  WHERE fees.feerate IS NOT NULL\n  GROUP BY orders.orderbase\n),\nabove_avg_channel_list AS (\n  SELECT cs.orderbase\n  FROM channel_stats cs\n  CROSS JOIN overall_avg oa\n  WHERE cs.channel_avg_rate > oa.overall_avg_rate\n)\nSELECT \n  AVG(fees.feerate) as mean_fee_rate_of_above_avg_channels,\n  AVG(fees.feerate) - (SELECT overall_avg_rate FROM overall_avg) as avg_distance_above_overall_average\nFROM fees\nJOIN orders ON fees.orderslink = orders.recordvault\nWHERE fees.feerate IS NOT NULL\nAND orders.orderbase IN (SELECT orderbase FROM above_avg_channel_list);"
+    "interpretation": "A channel \"has an above-average fee rate\" if it contains at least one fee with a rate above the global average. Report the mean of all fees from such channels and how far above average they are.",
+    "sql": "WITH global_avg AS (\n  SELECT AVG(f.feerate) as avg_feerate\n  FROM fees f\n  WHERE f.feerate IS NOT NULL\n),\nchannels_with_above_avg_fees AS (\n  SELECT DISTINCT o.orderbase\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL\n  AND f.feerate > (SELECT avg_feerate FROM global_avg)\n)\nSELECT \n  AVG(f.feerate) as mean_avg_feerate,\n  AVG(f.feerate) - (SELECT avg_feerate FROM global_avg) as above_average\nFROM fees f\nINNER JOIN orders o ON f.orderslink = o.recordvault\nWHERE f.feerate IS NOT NULL\nAND o.orderbase IN (SELECT orderbase FROM channels_with_above_avg_fees);"
    }
   ]
  },
@@ -25,12 +25,12 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Calculate the weighted average fee rate across all individual fees in above-average channels (rather than the unweighted mean of each channel's average)",
-   "sql": "WITH overall_avg AS (\n  SELECT AVG(fees.feerate) as overall_avg_rate\n  FROM fees\n  WHERE fees.feerate IS NOT NULL\n),\nchannel_stats AS (\n  SELECT \n    orders.orderbase,\n    AVG(fees.feerate) as channel_avg_rate\n  FROM fees\n  JOIN orders ON fees.orderslink = orders.recordvault\n  WHERE fees.feerate IS NOT NULL\n  GROUP BY orders.orderbase\n),\nabove_avg_channel_list AS (\n  SELECT cs.orderbase\n  FROM channel_stats cs\n  CROSS JOIN overall_avg oa\n  WHERE cs.channel_avg_rate > oa.overall_avg_rate\n)\nSELECT \n  AVG(fees.feerate) as mean_fee_rate_of_above_avg_channels,\n  AVG(fees.feerate) - (SELECT overall_avg_rate FROM overall_avg) as avg_distance_above_overall_average\nFROM fees\nJOIN orders ON fees.orderslink = orders.recordvault\nWHERE fees.feerate IS NOT NULL\nAND orders.orderbase IN (SELECT orderbase FROM above_avg_channel_list);",
+   "interpretation": "A channel \"has an above-average fee rate\" if it contains at least one fee with a rate above the global average. Report the mean of all fees from such channels and how far above average they are.",
+   "sql": "WITH global_avg AS (\n  SELECT AVG(f.feerate) as avg_feerate\n  FROM fees f\n  WHERE f.feerate IS NOT NULL\n),\nchannels_with_above_avg_fees AS (\n  SELECT DISTINCT o.orderbase\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n  WHERE f.feerate IS NOT NULL\n  AND f.feerate > (SELECT avg_feerate FROM global_avg)\n)\nSELECT \n  AVG(f.feerate) as mean_avg_feerate,\n  AVG(f.feerate) - (SELECT avg_feerate FROM global_avg) as above_average\nFROM fees f\nINNER JOIN orders o ON f.orderslink = o.recordvault\nWHERE f.feerate IS NOT NULL\nAND o.orderbase IN (SELECT orderbase FROM channels_with_above_avg_fees);",
    "executes": true,
    "matches": []
   }
  ],
- "seconds": 77.2,
- "chars_out": 2055
+ "seconds": 75.2,
+ "chars_out": 1718
 }

@@ -3,12 +3,12 @@
  "wording": "precise_A",
  "model": "haiku",
  "response": {
-  "sql": "WITH project_ratios AS (\n  SELECT \n    ss.arcref,\n    p.fundflux,\n    CASE \n      WHEN ss.boxx IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0\n      THEN ss.boxx / ss.boxz \n      ELSE NULL \n    END AS record_ratio\n  FROM scanspatial ss\n  INNER JOIN projects p ON ss.arcref = p.arcregistry\n),\nproject_avg_ratios AS (\n  SELECT \n    arcref,\n    fundflux,\n    AVG(record_ratio) AS project_ratio\n  FROM project_ratios\n  GROUP BY arcref, fundflux\n),\nfunding_source_avg AS (\n  SELECT \n    fundflux,\n    AVG(project_ratio) AS funding_avg\n  FROM project_avg_ratios\n  WHERE project_ratio IS NOT NULL\n  GROUP BY fundflux\n),\nproject_excess AS (\n  SELECT \n    par.arcref,\n    par.fundflux,\n    par.project_ratio,\n    par.project_ratio - fsa.funding_avg AS excess\n  FROM project_avg_ratios par\n  INNER JOIN funding_source_avg fsa ON par.fundflux = fsa.fundflux\n  WHERE par.project_ratio IS NOT NULL\n)\nSELECT \n  arcref AS project_id,\n  fundflux AS funding_source,\n  project_ratio AS ratio,\n  excess\nFROM project_excess\nORDER BY excess DESC NULLS LAST\nLIMIT 10;"
+  "sql": "WITH spatial_with_projects AS (\n  SELECT \n    ss.arcref,\n    ss.boxx,\n    ss.boxz,\n    p.fundflux,\n    CASE \n      WHEN ss.boxx IS NOT NULL AND ss.boxz IS NOT NULL AND ss.boxz != 0\n      THEN ss.boxx / ss.boxz \n      ELSE NULL \n    END AS ratio\n  FROM scanspatial ss\n  INNER JOIN projects p ON ss.arcref = p.arcregistry\n),\nproject_ratios AS (\n  SELECT \n    arcref,\n    fundflux,\n    AVG(ratio) AS project_ratio\n  FROM spatial_with_projects\n  WHERE ratio IS NOT NULL\n  GROUP BY arcref, fundflux\n),\nfunding_source_averages AS (\n  SELECT \n    fundflux,\n    AVG(project_ratio) AS funding_avg\n  FROM project_ratios\n  GROUP BY fundflux\n),\nexcess_calculated AS (\n  SELECT \n    pr.arcref,\n    pr.fundflux,\n    pr.project_ratio,\n    pr.project_ratio - fsa.funding_avg AS excess\n  FROM project_ratios pr\n  INNER JOIN funding_source_averages fsa ON pr.fundflux = fsa.fundflux\n)\nSELECT \n  arcref,\n  fundflux,\n  project_ratio,\n  excess\nFROM excess_calculated\nORDER BY excess IS NULL, excess DESC\nLIMIT 10;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 48.5,
- "chars_out": 1122
+ "seconds": 23.3,
+ "chars_out": 1065
 }

@@ -4,55 +4,31 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH filtered AS (\n  SELECT COALESCE(NULLIF(TRIM(CENTROMEA), ''), '(missing)') AS status,\n         GOT - GPT AS ast_alt,\n         APTT - PT AS aptt_pt\n  FROM Laboratory\n  WHERE WBC > 6.5\n),\nper_status AS (\n  SELECT status,\n         AVG(ast_alt) AS avg_ast_alt,\n         AVG(aptt_pt) AS avg_aptt_pt\n  FROM filtered\n  GROUP BY status\n)\nSELECT AVG(avg_ast_alt) AS avg_ast_minus_alt,\n       AVG(avg_aptt_pt) AS avg_aptt_minus_pt\nFROM per_status;",
+  "sql": "WITH filtered_labs AS (\n  SELECT *\n  FROM Laboratory\n  WHERE WBC > 6.5\n),\ngot_gpt_stats AS (\n  SELECT\n    CENTROMEA,\n    AVG(GOT - GPT) as status_avg\n  FROM filtered_labs\n  WHERE GOT IS NOT NULL AND GPT IS NOT NULL\n  GROUP BY CENTROMEA\n),\nappt_pt_stats AS (\n  SELECT\n    CENTROMEA,\n    AVG(APPT - PT) as status_avg\n  FROM filtered_labs\n  WHERE APPT IS NOT NULL AND PT IS NOT NULL\n  GROUP BY CENTROMEA\n)\nSELECT\n  (SELECT AVG(status_avg) FROM got_gpt_stats) as avg_got_gpt,\n  (SELECT AVG(status_avg) FROM appt_pt_stats) as avg_appt_pt",
   "assumptions": [
    {
-    "assumption": "The WBC cutoff is a filter that keeps only lab records with WBC strictly greater than 6.5; records with NULL WBC are excluded.",
+    "assumption": "WBC > 6.5 (strict greater-than) is the correct interpretation of 'using 6.5 as the cutoff'. The cutoff could alternatively be interpreted as inclusive (WBC >= 6.5).",
     "unresolved": true
-   },
-   {
-    "assumption": "A missing anti-centromere status means NULL or a blank/whitespace-only string; both are grouped together as '(missing)'.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Each row of Laboratory is one individual lab record. AST\u2212ALT and APTT\u2212PT are computed per row, and rows with a NULL in either input are dropped from that metric's average (AVG ignores NULLs). A status with no computable values for a metric is ignored in the final average for that metric.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The final figures are plain AVG results with no ROUND, so they are unrounded (SQLite returns REAL values).",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The WBC cutoff is a grouping split rather than a filter: each anti-centromere status is subdivided into WBC above 6.5 and WBC at or below 6.5, and each resulting combined group counts as one status in the final average. Records with NULL WBC are excluded.",
-    "sql": "WITH filtered AS (\n  SELECT COALESCE(NULLIF(TRIM(CENTROMEA), ''), '(missing)') || ' | WBC ' || CASE WHEN WBC > 6.5 THEN '> 6.5' ELSE '<= 6.5' END AS status,\n         GOT - GPT AS ast_alt,\n         APTT - PT AS aptt_pt\n  FROM Laboratory\n  WHERE WBC IS NOT NULL\n),\nper_status AS (\n  SELECT status,\n         AVG(ast_alt) AS avg_ast_alt,\n         AVG(aptt_pt) AS avg_aptt_pt\n  FROM filtered\n  GROUP BY status\n)\nSELECT AVG(avg_ast_alt) AS avg_ast_minus_alt,\n       AVG(avg_aptt_pt) AS avg_aptt_minus_pt\nFROM per_status;"
-   },
-   {
-    "interpretation": "The WBC cutoff is ignored and all lab records are used, grouped only by anti-centromere status.",
-    "sql": "WITH filtered AS (\n  SELECT COALESCE(NULLIF(TRIM(CENTROMEA), ''), '(missing)') AS status,\n         GOT - GPT AS ast_alt,\n         APTT - PT AS aptt_pt\n  FROM Laboratory\n),\nper_status AS (\n  SELECT status,\n         AVG(ast_alt) AS avg_ast_alt,\n         AVG(aptt_pt) AS avg_aptt_pt\n  FROM filtered\n  GROUP BY status\n)\nSELECT AVG(avg_ast_alt) AS avg_ast_minus_alt,\n       AVG(avg_aptt_pt) AS avg_aptt_minus_pt\nFROM per_status;"
+    "interpretation": "The cutoff is inclusive: records where WBC >= 6.5 are included rather than WBC > 6.5.",
+    "sql": "WITH filtered_labs AS (\n  SELECT *\n  FROM Laboratory\n  WHERE WBC >= 6.5\n),\ngot_gpt_stats AS (\n  SELECT\n    CENTROMEA,\n    AVG(GOT - GPT) as status_avg\n  FROM filtered_labs\n  WHERE GOT IS NOT NULL AND GPT IS NOT NULL\n  GROUP BY CENTROMEA\n),\nappt_pt_stats AS (\n  SELECT\n    CENTROMEA,\n    AVG(APPT - PT) as status_avg\n  FROM filtered_labs\n  WHERE APPT IS NOT NULL AND PT IS NOT NULL\n  GROUP BY CENTROMEA\n)\nSELECT\n  (SELECT AVG(status_avg) FROM got_gpt_stats) as avg_got_gpt,\n  (SELECT AVG(status_avg) FROM appt_pt_stats) as avg_appt_pt"
    }
   ]
  },
  "raw": null,
- "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
+ "primary_executes": false,
+ "primary_matches": [],
  "alternatives": [
   {
-   "interpretation": "The WBC cutoff is a grouping split rather than a filter: each anti-centromere status is subdivided into WBC above 6.5 and WBC at or below 6.5, and each resulting combined group counts as one status in the final average. Records with NULL WBC are excluded.",
-   "sql": "WITH filtered AS (\n  SELECT COALESCE(NULLIF(TRIM(CENTROMEA), ''), '(missing)') || ' | WBC ' || CASE WHEN WBC > 6.5 THEN '> 6.5' ELSE '<= 6.5' END AS status,\n         GOT - GPT AS ast_alt,\n         APTT - PT AS aptt_pt\n  FROM Laboratory\n  WHERE WBC IS NOT NULL\n),\nper_status AS (\n  SELECT status,\n         AVG(ast_alt) AS avg_ast_alt,\n         AVG(aptt_pt) AS avg_aptt_pt\n  FROM filtered\n  GROUP BY status\n)\nSELECT AVG(avg_ast_alt) AS avg_ast_minus_alt,\n       AVG(avg_aptt_pt) AS avg_aptt_minus_pt\nFROM per_status;",
-   "executes": true,
-   "matches": []
-  },
-  {
-   "interpretation": "The WBC cutoff is ignored and all lab records are used, grouped only by anti-centromere status.",
-   "sql": "WITH filtered AS (\n  SELECT COALESCE(NULLIF(TRIM(CENTROMEA), ''), '(missing)') AS status,\n         GOT - GPT AS ast_alt,\n         APTT - PT AS aptt_pt\n  FROM Laboratory\n),\nper_status AS (\n  SELECT status,\n         AVG(ast_alt) AS avg_ast_alt,\n         AVG(aptt_pt) AS avg_aptt_pt\n  FROM filtered\n  GROUP BY status\n)\nSELECT AVG(avg_ast_alt) AS avg_ast_minus_alt,\n       AVG(avg_aptt_pt) AS avg_aptt_minus_pt\nFROM per_status;",
-   "executes": true,
+   "interpretation": "The cutoff is inclusive: records where WBC >= 6.5 are included rather than WBC > 6.5.",
+   "sql": "WITH filtered_labs AS (\n  SELECT *\n  FROM Laboratory\n  WHERE WBC >= 6.5\n),\ngot_gpt_stats AS (\n  SELECT\n    CENTROMEA,\n    AVG(GOT - GPT) as status_avg\n  FROM filtered_labs\n  WHERE GOT IS NOT NULL AND GPT IS NOT NULL\n  GROUP BY CENTROMEA\n),\nappt_pt_stats AS (\n  SELECT\n    CENTROMEA,\n    AVG(APPT - PT) as status_avg\n  FROM filtered_labs\n  WHERE APPT IS NOT NULL AND PT IS NOT NULL\n  GROUP BY CENTROMEA\n)\nSELECT\n  (SELECT AVG(status_avg) FROM got_gpt_stats) as avg_got_gpt,\n  (SELECT AVG(status_avg) FROM appt_pt_stats) as avg_appt_pt",
+   "executes": false,
    "matches": []
   }
  ],
- "seconds": 21.7,
- "chars_out": 2694
+ "seconds": 41.6,
+ "chars_out": 1553
 }

@@ -3,12 +3,12 @@
  "wording": "precise_A",
  "model": "gpt-6-luna",
  "response": {
-  "sql": "WITH order_avg AS (\n  SELECT\n    oe.ordersmark,\n    o.timespan,\n    AVG(oe.fillcount) AS avg_fill\n  FROM orderexecutions AS oe\n  JOIN orders AS o\n    ON oe.ordersmark = o.recordvault\n  GROUP BY oe.ordersmark, o.timespan\n),\ntime_in_force_avg AS (\n  SELECT timespan, AVG(avg_fill) AS avg_of_order_avg_fills\n  FROM order_avg\n  GROUP BY timespan\n),\nranked_orders AS (\n  SELECT\n    oa.ordersmark,\n    oa.timespan,\n    oa.avg_fill,\n    oa.avg_fill - tif.avg_of_order_avg_fills AS excess_over_time_in_force_avg,\n    RANK() OVER (\n      PARTITION BY oa.timespan\n      ORDER BY oa.avg_fill DESC NULLS LAST\n    ) AS fill_rank\n  FROM order_avg AS oa\n  JOIN time_in_force_avg AS tif\n    ON oa.timespan IS NOT DISTINCT FROM tif.timespan\n  WHERE oa.avg_fill > tif.avg_of_order_avg_fills\n)\nSELECT ordersmark, timespan, avg_fill, excess_over_time_in_force_avg, fill_rank\nFROM ranked_orders\nWHERE fill_rank <= 3;"
+  "sql": "WITH order_fills AS (\n  SELECT oe.ordersmark,\n         o.timespan,\n         AVG(oe.fillcount) AS avg_fill\n  FROM orderexecutions AS oe\n  JOIN orders AS o ON oe.ordersmark = o.recordvault\n  GROUP BY oe.ordersmark, o.timespan\n),\ntime_in_force_means AS (\n  SELECT timespan, AVG(avg_fill) AS mean_avg_fill\n  FROM order_fills\n  GROUP BY timespan\n),\nranked_orders AS (\n  SELECT f.ordersmark,\n         f.timespan,\n         f.avg_fill,\n         f.avg_fill - m.mean_avg_fill AS excess_fill,\n         RANK() OVER (\n           PARTITION BY f.timespan\n           ORDER BY f.avg_fill DESC NULLS LAST\n         ) AS fill_rank\n  FROM order_fills AS f\n  JOIN time_in_force_means AS m ON f.timespan IS m.timespan\n  WHERE f.avg_fill > m.mean_avg_fill\n)\nSELECT ordersmark, timespan, avg_fill, excess_fill, fill_rank\nFROM ranked_orders\nWHERE fill_rank <= 3;"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 7.5,
- "chars_out": 937
+ "seconds": 45.1,
+ "chars_out": 874
 }

@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched_snapshots AS (\n  SELECT\n    tr.transreg AS transaction_reference,\n    tr.ordertypedist AS order_type_mix,\n    sf.shortintrt,\n    sf.optvolrt\n  FROM transactionrecord AS tr\n  JOIN sentimentandfundamentals AS sf\n    ON sf.transref = tr.transreg\n), transaction_averages AS (\n  SELECT\n    transaction_reference,\n    order_type_mix,\n    AVG(shortintrt) AS avg_short_interest,\n    AVG(optvolrt) AS avg_option_volume_ratio\n  FROM matched_snapshots\n  GROUP BY transaction_reference, order_type_mix\n), mix_baselines AS (\n  SELECT\n    order_type_mix,\n    AVG(shortintrt) AS baseline_short_interest\n  FROM matched_snapshots\n  GROUP BY order_type_mix\n)\nSELECT\n  ta.transaction_reference,\n  ta.order_type_mix,\n  ta.avg_short_interest,\n  ta.avg_option_volume_ratio,\n  ta.avg_short_interest / NULLIF(mb.baseline_short_interest, 0) AS short_interest_ratio_to_baseline\nFROM transaction_averages AS ta\nJOIN mix_baselines AS mb\n  ON mb.order_type_mix IS NOT DISTINCT FROM ta.order_type_mix\nORDER BY short_interest_ratio_to_baseline DESC NULLS LAST\nLIMIT 10;",
+  "sql": "WITH matched_snapshots AS (\n  SELECT tr.transreg, tr.ordertypedist, sf.shortintrt, sf.optvolrt\n  FROM transactionrecord AS tr\n  JOIN sentimentandfundamentals AS sf\n    ON sf.transref = tr.transreg\n), transaction_avgs AS (\n  SELECT transreg, ordertypedist,\n         AVG(shortintrt) AS avg_shortintrt,\n         AVG(optvolrt) AS avg_optvolrt\n  FROM matched_snapshots\n  GROUP BY transreg, ordertypedist\n), mix_baselines AS (\n  SELECT ordertypedist, AVG(shortintrt) AS baseline_shortintrt\n  FROM matched_snapshots\n  GROUP BY ordertypedist\n)\nSELECT ta.transreg AS transaction_reference,\n       ta.ordertypedist AS order_type_mix,\n       ta.avg_shortintrt AS average_short_interest_days_to_cover,\n       ta.avg_optvolrt AS average_option_volume_ratio,\n       ta.avg_shortintrt / mb.baseline_shortintrt AS short_interest_to_mix_baseline_ratio\nFROM transaction_avgs AS ta\nJOIN mix_baselines AS mb\n  ON ta.ordertypedist = mb.ordertypedist\n  OR (ta.ordertypedist IS NULL AND mb.ordertypedist IS NULL)\nORDER BY short_interest_to_mix_baseline_ratio DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The order-type baseline uses all matched sentiment snapshots in that mix, with each snapshot counted once; SQL AVG ignores null short-interest values, and a zero or missing baseline yields a missing ratio.",
+    "assumption": "Each matched sentiment row is one snapshot; SQLite AVG ignores NULL values. A NULL order type is treated as its own mix, and division by a zero or NULL baseline yields a missing ratio, sorted last.",
     "unresolved": false
    }
   ],
@@ -18,5 +18,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 6.9
+ "seconds": 5.9
 }

@@ -4,39 +4,39 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH station_stats AS (\n  SELECT observstation,\n         AVG(bandusagepct) AS avg_bandusage_pct,\n         COUNT(*) AS telescope_count\n  FROM telescopes\n  GROUP BY observstation\n),\navg_count AS (\n  SELECT AVG(telescope_count) AS avg_telescopes\n  FROM station_stats\n)\nSELECT s.observstation,\n       s.avg_bandusage_pct,\n       s.telescope_count,\n       s.telescope_count / a.avg_telescopes AS telescope_count_ratio\nFROM station_stats s\nCROSS JOIN avg_count a\nORDER BY telescope_count_ratio DESC\nLIMIT 10;",
+  "sql": "WITH station_stats AS (\n  SELECT \n    o.observstation,\n    AVG(t.bandusagepct) as avg_bandwidth,\n    COUNT(t.telescregistry) as telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n),\nglobal_avg AS (\n  SELECT AVG(CAST(telescope_count AS DECIMAL)) as avg_telescope_count\n  FROM station_stats\n)\nSELECT \n  ss.observstation,\n  ss.avg_bandwidth,\n  ss.telescope_count,\n  CAST(ss.telescope_count AS DECIMAL) / gac.avg_telescope_count as telescope_ratio\nFROM station_stats ss\nCROSS JOIN global_avg gac\nORDER BY telescope_ratio DESC\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The average telescope count per station is taken over stations that have at least one telescope, since the calculation groups the telescopes table; observatories with no telescopes are excluded from the denominator.",
-    "unresolved": true
+    "assumption": "Stations with zero telescopes are included in the calculation of the global average telescope count per station. These stations appear in results with ratio = 0 \u00f7 global_average.",
+    "unresolved": false
    },
    {
-    "assumption": "AVG(bandusagepct) skips NULL values, so missing bandwidth readings are ignored, while COUNT(*) counts every telescope at the station, including those with a NULL bandwidth value.",
+    "assumption": "Missing values (NULL) in bandusagepct are ignored when computing the average, using SQL's standard AVG() behavior.",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The average telescope count per station is taken over all observatories, including those with zero telescopes, so stations without telescopes lower the average.",
-    "sql": "WITH station_stats AS (\n  SELECT o.observstation,\n         AVG(t.bandusagepct) AS avg_bandusage_pct,\n         COUNT(t.telescregistry) AS telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON t.observstation = o.observstation\n  GROUP BY o.observstation\n),\navg_count AS (\n  SELECT AVG(telescope_count) AS avg_telescopes\n  FROM station_stats\n)\nSELECT s.observstation,\n       s.avg_bandusage_pct,\n       s.telescope_count,\n       s.telescope_count / a.avg_telescopes AS telescope_count_ratio\nFROM station_stats s\nCROSS JOIN avg_count a\nORDER BY telescope_count_ratio DESC\nLIMIT 10;"
+    "interpretation": "Exclude observatory stations that operate no telescopes from both the results and the global average denominator, limiting the ranking to stations with active telescope fleets.",
+    "sql": "WITH station_stats AS (\n  SELECT \n    o.observstation,\n    AVG(t.bandusagepct) as avg_bandwidth,\n    COUNT(t.telescregistry) as telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n  HAVING COUNT(t.telescregistry) > 0\n),\nglobal_avg AS (\n  SELECT AVG(CAST(telescope_count AS DECIMAL)) as avg_telescope_count\n  FROM station_stats\n)\nSELECT \n  ss.observstation,\n  ss.avg_bandwidth,\n  ss.telescope_count,\n  CAST(ss.telescope_count AS DECIMAL) / gac.avg_telescope_count as telescope_ratio\nFROM station_stats ss\nCROSS JOIN global_avg gac\nORDER BY telescope_ratio DESC\nLIMIT 10;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
-  "A"
+  "B"
  ],
  "alternatives": [
   {
-   "interpretation": "The average telescope count per station is taken over all observatories, including those with zero telescopes, so stations without telescopes lower the average.",
-   "sql": "WITH station_stats AS (\n  SELECT o.observstation,\n         AVG(t.bandusagepct) AS avg_bandusage_pct,\n         COUNT(t.telescregistry) AS telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON t.observstation = o.observstation\n  GROUP BY o.observstation\n),\navg_count AS (\n  SELECT AVG(telescope_count) AS avg_telescopes\n  FROM station_stats\n)\nSELECT s.observstation,\n       s.avg_bandusage_pct,\n       s.telescope_count,\n       s.telescope_count / a.avg_telescopes AS telescope_count_ratio\nFROM station_stats s\nCROSS JOIN avg_count a\nORDER BY telescope_count_ratio DESC\nLIMIT 10;",
+   "interpretation": "Exclude observatory stations that operate no telescopes from both the results and the global average denominator, limiting the ranking to stations with active telescope fleets.",
+   "sql": "WITH station_stats AS (\n  SELECT \n    o.observstation,\n    AVG(t.bandusagepct) as avg_bandwidth,\n    COUNT(t.telescregistry) as telescope_count\n  FROM observatories o\n  LEFT JOIN telescopes t ON o.observstation = t.observstation\n  GROUP BY o.observstation\n  HAVING COUNT(t.telescregistry) > 0\n),\nglobal_avg AS (\n  SELECT AVG(CAST(telescope_count AS DECIMAL)) as avg_telescope_count\n  FROM station_stats\n)\nSELECT \n  ss.observstation,\n  ss.avg_bandwidth,\n  ss.telescope_count,\n  CAST(ss.telescope_count AS DECIMAL) / gac.avg_telescope_count as telescope_ratio\nFROM station_stats ss\nCROSS JOIN global_avg gac\nORDER BY telescope_ratio DESC\nLIMIT 10;",
    "executes": true,
    "matches": [
-    "B"
+    "A"
    ]
   }
  ],
- "seconds": 12.1,
- "chars_out": 1844
+ "seconds": 52.4,
+ "chars_out": 2021
 }

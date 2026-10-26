@@ -2,35 +2,29 @@
  "case": "ext:ext-filter@3f58529d9d76-57727b703a",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_avgs AS (SELECT s.entrystat, sp.zoneref, AVG(sp.memusagegb) AS avg_ram, AVG(sp.procgpu::numeric / NULLIF(sp.proccpu, 0)) AS avg_gpu_cpu FROM scanprocessing sp JOIN sites s ON s.zoneregistry = sp.zoneref WHERE sp.memusagegb > 60.8 GROUP BY s.entrystat, sp.zoneref) SELECT entrystat, AVG(avg_ram) AS avg_site_ram_gb, AVG(avg_gpu_cpu) AS avg_site_gpu_cpu_ratio FROM site_avgs GROUP BY entrystat;",
+  "sql": "WITH filtered_processing AS (\n  SELECT \n    sp.zoneref,\n    sp.memusagegb,\n    sp.procgpu,\n    sp.proccpu,\n    s.entrystat\n  FROM scanprocessing sp\n  JOIN sites s ON sp.zoneref = s.zoneregistry\n  WHERE sp.memusagegb > 60.8\n),\nper_site_avg AS (\n  SELECT \n    zoneref,\n    entrystat,\n    AVG(memusagegb) as avg_ram,\n    AVG(\n      CASE \n        WHEN procgpu IS NOT NULL AND proccpu IS NOT NULL AND proccpu > 0\n        THEN CAST(procgpu AS REAL) / CAST(proccpu AS REAL)\n        ELSE NULL\n      END\n    ) as avg_gpu_cpu_ratio\n  FROM filtered_processing\n  GROUP BY zoneref, entrystat\n)\nSELECT \n  entrystat,\n  AVG(avg_ram) as avg_of_site_avg_ram,\n  AVG(avg_gpu_cpu_ratio) as avg_of_site_avg_gpu_cpu\nFROM per_site_avg\nGROUP BY entrystat\nORDER BY entrystat;",
   "assumptions": [
    {
-    "assumption": "The database is PostgreSQL, so `::` casts and NULLIF are valid. The GPU/CPU ratio is computed as numeric to avoid integer truncation.",
+    "assumption": "\"whose site code matches a site\" means zoneref must exist as a zoneregistry in the sites table",
     "unresolved": false
    },
    {
-    "assumption": "A zero proccpu is treated as a missing value (NULLIF), so the ratio is skipped instead of raising a division-by-zero error.",
+    "assumption": "Rows with proccpu = 0 are excluded from GPU-to-CPU ratio calculations (division by zero prevention)",
     "unresolved": false
    },
    {
-    "assumption": "Processing runs are linked to a site only through scanprocessing.zoneref = sites.zoneregistry, with an inner join so unmatched site codes are dropped.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Sites with a NULL entrystat form their own NULL group in the output rather than being excluded.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The per-site averages are averaged with equal weight per site (AVG over site averages), as the request specifies, not weighted by run count.",
+    "assumption": "Two-stage aggregation: first compute per-site averages grouped by (zoneref, entrystat), then average those site-level values by entrystat alone",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "seconds": 10.5
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 76.4
 }

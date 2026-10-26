@@ -2,12 +2,12 @@
  "case": "eval12:eval12@01cfbb1e713f-43277f1d9e",
  "wording": "precise_A",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH per_pair AS (\n  SELECT\n    o.mktnote,\n    AVG(f.feerate - f.rebrate) AS avg_net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON o.recordvault = f.orderslink\n  GROUP BY o.mktnote\n), benchmark AS (\n  SELECT AVG(avg_net_fee_rate) AS benchmark_rate\n  FROM per_pair\n), above_benchmark AS (\n  SELECT p.avg_net_fee_rate, b.benchmark_rate\n  FROM per_pair AS p\n  CROSS JOIN benchmark AS b\n  WHERE b.benchmark_rate IS NOT NULL\n    AND p.avg_net_fee_rate > b.benchmark_rate\n)\nSELECT\n  AVG(avg_net_fee_rate) AS average_pair_net_fee_rate,\n  AVG(avg_net_fee_rate - benchmark_rate) AS average_excess_over_benchmark\nFROM above_benchmark;",
+  "sql": "WITH matched AS (\n  SELECT o.mktnote, f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON o.recordvault = f.orderslink COLLATE BINARY\n), per_pair AS (\n  SELECT mktnote, AVG(net_fee_rate) AS avg_net_fee_rate\n  FROM matched\n  GROUP BY mktnote\n), benchmark AS (\n  SELECT AVG(avg_net_fee_rate) AS mean_pair_rate\n  FROM per_pair\n), above AS (\n  SELECT p.avg_net_fee_rate, b.mean_pair_rate\n  FROM per_pair AS p\n  CROSS JOIN benchmark AS b\n  WHERE p.avg_net_fee_rate > b.mean_pair_rate\n)\nSELECT AVG(avg_net_fee_rate) AS average_pair_net_fee_rate,\n       AVG(avg_net_fee_rate - mean_pair_rate) AS average_excess_over_benchmark\nFROM above;",
   "assumptions": [
    {
-    "assumption": "SQL NULL represents a missing value; grouping by mktnote therefore puts all missing trading pairs into one group, and AVG skips missing net rates.",
+    "assumption": "SQLite's BINARY collation is used to enforce exact, case-sensitive text comparison of recordvault and orderslink; NULL values are skipped by AVG, including when either rate is missing.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 7.3,
- "chars_out": 878
+ "seconds": 5.2,
+ "chars_out": 944
 }

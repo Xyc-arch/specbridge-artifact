@@ -4,31 +4,29 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH joined AS (\n  SELECT o.recordvault AS ordervault, o.orderflow, COUNT(*) AS cnt\n  FROM riskandmargin r\n  JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY o.recordvault, o.orderflow\n),\nshares AS (\n  SELECT ordervault, orderflow, cnt,\n         cnt * 1.0 / SUM(cnt) OVER (PARTITION BY orderflow) AS share\n  FROM joined\n),\ndiffs AS (\n  SELECT ordervault, orderflow, cnt, share,\n         share - AVG(share) OVER (PARTITION BY orderflow) AS share_minus_avg\n  FROM shares\n),\nabove AS (\n  SELECT * FROM diffs WHERE share_minus_avg > 0\n),\nranked AS (\n  SELECT *, RANK() OVER (ORDER BY share_minus_avg DESC) AS rk FROM above\n)\nSELECT ordervault, orderflow, cnt AS record_count, share, share_minus_avg\nFROM ranked\nWHERE rk <= 10\nORDER BY share_minus_avg DESC;",
+  "sql": "WITH counted AS (\n  SELECT \n    r.ordervault,\n    o.orderflow,\n    COUNT(*) as cnt\n  FROM riskandmargin r\n  INNER JOIN orders o ON r.ordervault = o.recordvault\n  GROUP BY r.ordervault, o.orderflow\n),\nstatus_totals AS (\n  SELECT\n    orderflow,\n    SUM(cnt) as status_total_count\n  FROM counted\n  GROUP BY orderflow\n),\nwith_shares AS (\n  SELECT\n    c.ordervault,\n    c.orderflow,\n    c.cnt,\n    c.cnt::float / st.status_total_count as share\n  FROM counted c\n  JOIN status_totals st ON c.orderflow = st.orderflow\n),\nstatus_averages AS (\n  SELECT\n    orderflow,\n    AVG(share) as avg_share\n  FROM with_shares\n  GROUP BY orderflow\n),\nfiltered AS (\n  SELECT\n    ws.ordervault,\n    ws.orderflow,\n    ws.cnt,\n    ws.share,\n    ws.share - sa.avg_share as difference\n  FROM with_shares ws\n  JOIN status_averages sa ON ws.orderflow = sa.orderflow\n  WHERE ws.share > sa.avg_share\n),\nranked AS (\n  SELECT\n    ordervault,\n    orderflow,\n    cnt,\n    share,\n    difference,\n    ROW_NUMBER() OVER (ORDER BY difference DESC) as rn\n  FROM filtered\n),\nresult_set AS (\n  SELECT\n    ordervault,\n    orderflow,\n    cnt,\n    share,\n    difference\n  FROM ranked\n  WHERE rn <= 10\n)\nSELECT\n  ordervault,\n  orderflow,\n  cnt,\n  share,\n  difference\nFROM ranked\nWHERE rn <= 10 OR difference = (SELECT MIN(difference) FROM result_set)\nORDER BY difference DESC",
   "assumptions": [
    {
-    "assumption": "Each orders.recordvault matches at most one order row (the docs call it a unique order reference, but the schema does not declare it UNIQUE), so the join does not duplicate risk/margin records.",
+    "assumption": "Share is calculated as (count for this ordervault/orderflow combination) / (total count across all combinations for that orderflow), yielding a decimal proportion.",
     "unresolved": false
    },
    {
-    "assumption": "The average share for a status is taken over all of that status's combinations before the above-average filter is applied, and the top-10 cutoff is applied after filtering.",
+    "assumption": "Average share per status is the arithmetic mean of share values across all combinations with that status.",
     "unresolved": false
    },
    {
-    "assumption": "Records whose order has a NULL orderflow form their own status group rather than being dropped.",
-    "unresolved": true
+    "assumption": "\"Dropping records with no matching order\" means INNER JOIN: exclude any riskandmargin records lacking a corresponding orders row.",
+    "unresolved": false
    },
    {
-    "assumption": "Shares are computed as decimal division (cnt * 1.0), so the result is not truncated to integer division.",
+    "assumption": "\"Without rounding\" preserves full floating-point precision in the output (share and difference columns).",
     "unresolved": false
    }
   ],
   "alternatives": []
  },
  "raw": null,
- "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 11.5
+ "primary_executes": false,
+ "primary_matches": [],
+ "seconds": 103.5
 }

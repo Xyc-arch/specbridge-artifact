@@ -2,16 +2,24 @@
  "case": "eval12:eval12@01cfbb1e713f-43277f1d9e",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH j AS (SELECT o.mktnote AS mktnote, (f.feerate - f.rebrate) AS net FROM fees f JOIN orders o ON o.recordvault = f.orderslink), overall AS (SELECT AVG(net) AS avg_net FROM j), pairs AS (SELECT mktnote, AVG(net) AS pair_avg FROM j GROUP BY mktnote) SELECT AVG(p.pair_avg) AS mean_pair_avg_net_fee_rate, AVG(p.pair_avg - ov.avg_net) AS mean_excess_over_overall FROM pairs p CROSS JOIN overall ov WHERE p.pair_avg > ov.avg_net;",
+  "sql": "WITH m AS (SELECT o.mktnote AS mktnote, f.feerate - f.rebrate AS net FROM fees f JOIN orders o ON o.recordvault = f.orderslink), overall AS (SELECT AVG(net) AS a FROM m), g AS (SELECT mktnote, AVG(net) AS a FROM m GROUP BY mktnote) SELECT AVG(g.a) AS mean_pair_avg_net_fee_rate, AVG(g.a - overall.a) AS mean_excess_over_overall FROM g CROSS JOIN overall WHERE g.a > overall.a",
   "assumptions": [
    {
-    "assumption": "The overall average net fee rate is the average of (feerate - rebrate) over all matched fee records, not an average of the per-pair averages. A fee with a NULL feerate or rebrate has a NULL net rate and is skipped.",
+    "assumption": "orders.recordvault is unique per order, so the join does not duplicate fee rows. The overall average is taken over all matched fee rows (fee-row weighted), not over the pair averages.",
     "unresolved": false
    },
    {
-    "assumption": "The result is the unweighted mean across the qualifying pairs of each pair's average net fee rate and of its excess over the overall average. Fees that lack a pair share one NULL group via GROUP BY. If no pair qualifies or the overall average is NULL, the single row contains NULLs.",
+    "assumption": "Rows with NULL mktnote form one group. An empty-string mktnote is treated as its own distinct pair, not as missing.",
+    "unresolved": false
+   },
+   {
+    "assumption": "A fee row with a NULL feerate or NULL rebrate has a NULL net rate and is skipped in the averages. Skipped rows are not treated as a zero rebate.",
+    "unresolved": false
+   },
+   {
+    "assumption": "If no pair exceeds the overall average, or the overall average is NULL, the query returns one row of NULLs.",
     "unresolved": false
    }
   ],
@@ -23,6 +31,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 8.3,
- "chars_out": 1121
+ "seconds": 9.7,
+ "chars_out": 1136
 }

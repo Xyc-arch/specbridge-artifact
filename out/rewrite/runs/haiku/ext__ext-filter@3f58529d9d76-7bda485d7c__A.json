@@ -4,25 +4,17 @@
  "reading": "A",
  "description": "Average over only the order items that have invoice line items.",
  "b": {
-  "request": "Restrict to order items with at least one invoice line item (inner join). For each, average `derived_product_cost / derived_total_cost` over its non-NULL ratios and count its invoice line items. Then return the average of those per-item ratios and the average count across those items, in one row.",
-  "sql": "WITH item_stats AS (SELECT oi.order_item_id, AVG(CAST(ili.derived_product_cost AS REAL) / ili.derived_total_cost) AS avg_ratio, COUNT(*) AS line_count FROM Order_Items oi INNER JOIN Invoice_Line_Items ili ON ili.order_item_id = oi.order_item_id GROUP BY oi.order_item_id) SELECT AVG(avg_ratio) AS avg_ratio, AVG(line_count) AS avg_line_count FROM item_stats;",
+  "request": "For order items that have at least one invoice line item, calculate the average of derived_product_cost \u00f7 derived_total_cost across their invoice line items (excluding nulls) and count their invoice line items; return one row with the overall average of those per-item ratios and the average count of invoice line items per order item.",
+  "sql": "SELECT AVG(ratio_avg) as overall_average_ratio, AVG(line_item_count) as average_count_per_item FROM (SELECT order_item_id, AVG(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL AND derived_total_cost != 0 THEN derived_product_cost / derived_total_cost ELSE NULL END) as ratio_avg, COUNT(*) as line_item_count FROM Invoice_Line_Items GROUP BY order_item_id) per_item_stats",
   "executes": true,
   "matches": [
    "A"
   ],
-  "raw": "Restrict to order items with at least one invoice line item (inner join). For each, average `derived_product_cost / derived_total_cost` over its non-NULL ratios and count its invoice line items. Then return the average of those per-item ratios and the average count across those items, in one row."
- },
- "c": {
-  "request": "Per order item, work out the average of `derived_product_cost` \u00f7 `derived_total_cost` over its invoice line items (skipping missing ratios) and how many invoice line items it has. In a single row, what are the overall average of those per-item ratios (ignoring missing ones) and the average number of invoice line items per order item? Average over only the order items that have invoice line items.",
-  "sql": "WITH per_item AS (SELECT order_item_id, AVG(CASE WHEN derived_total_cost IS NOT NULL AND derived_total_cost <> 0 THEN derived_product_cost * 1.0 / derived_total_cost END) AS avg_ratio, COUNT(*) AS line_count FROM Invoice_Line_Items GROUP BY order_item_id) SELECT AVG(avg_ratio) AS overall_avg_ratio, AVG(line_count) AS avg_line_items_per_order_item FROM per_item;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
+  "raw": "For order items that have at least one invoice line item, calculate the average of derived_product_cost \u00f7 derived_total_cost across their invoice line items (excluding nulls) and count their invoice line items; return one row with the overall average of those per-item ratios and the average count of invoice line items per order item."
  },
  "d": {
-  "request": "Per order item that has at least one invoice line item, compute AVG(derived_product_cost / derived_total_cost) over its Invoice_Line_Items rows (excluding NULL ratios) and COUNT of its Invoice_Line_Items rows; then return in one row the AVG of those per-item ratio averages (ignoring NULLs) and the AVG of the per-item invoice line item counts, restricted to order items with invoice line items.",
-  "sql": "WITH item_stats AS (SELECT order_item_id, AVG(derived_product_cost * 1.0 / derived_total_cost) AS avg_ratio, COUNT(*) AS line_count FROM Invoice_Line_Items GROUP BY order_item_id) SELECT AVG(avg_ratio) AS avg_of_item_avg_ratios, AVG(line_count) AS avg_invoice_line_item_count FROM item_stats;",
+  "request": "For each order item with at least one invoice line item, calculate the average of derived_product_cost \u00f7 derived_total_cost (skipping invalid ratios) and the count of associated invoice line items; then report the overall average ratio and overall average count across all such order items.",
+  "sql": "SELECT AVG(avg_ratio) AS overall_average_ratio, AVG(item_count) AS overall_average_count FROM (SELECT oi.order_item_id, AVG(CASE WHEN ili.derived_product_cost IS NOT NULL AND ili.derived_total_cost IS NOT NULL AND ili.derived_total_cost != 0 THEN ili.derived_product_cost / ili.derived_total_cost ELSE NULL END) AS avg_ratio, COUNT(*) AS item_count FROM Order_Items oi INNER JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id GROUP BY oi.order_item_id) subquery",
   "executes": true,
   "matches": [
    "A"
@@ -30,7 +22,15 @@
  },
  "a": {
   "request": "For each order item that appears in the invoice line items, take the average of `derived_product_cost` divided by `derived_total_cost` across its invoice line items (skipping missing ratios), and count its invoice line items. Then return one row with the average of those per-item average ratios (ignoring missing ones) and the average of those per-item line-item counts.",
-  "sql": "SELECT AVG(item_avg_ratio) AS avg_of_item_avg_ratios, AVG(line_item_count) AS avg_of_item_line_item_counts FROM (SELECT order_item_id, AVG(CAST(derived_product_cost AS REAL) / derived_total_cost) AS item_avg_ratio, COUNT(*) AS line_item_count FROM Invoice_Line_Items GROUP BY order_item_id);",
+  "sql": "SELECT AVG(per_item_avg_ratio) AS avg_of_ratios, AVG(per_item_count) AS avg_of_counts FROM (SELECT order_item_id, AVG(CASE WHEN derived_product_cost IS NOT NULL AND derived_total_cost IS NOT NULL AND derived_total_cost != 0 THEN derived_product_cost / derived_total_cost ELSE NULL END) AS per_item_avg_ratio, COUNT(*) AS per_item_count FROM Invoice_Line_Items GROUP BY order_item_id) subquery",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
+ },
+ "c": {
+  "request": "Per order item, work out the average of `derived_product_cost` \u00f7 `derived_total_cost` over its invoice line items (skipping missing ratios) and how many invoice line items it has. In a single row, what are the overall average of those per-item ratios (ignoring missing ones) and the average number of invoice line items per order item? Average over only the order items that have invoice line items.",
+  "sql": "SELECT AVG(per_item_avg_ratio) as overall_avg_ratio, AVG(invoice_line_item_count) as avg_invoice_line_items_per_order_item FROM (SELECT oi.order_item_id, AVG(CASE WHEN ili.derived_product_cost IS NOT NULL AND ili.derived_total_cost IS NOT NULL AND ili.derived_total_cost != 0 THEN ili.derived_product_cost / ili.derived_total_cost ELSE NULL END) as per_item_avg_ratio, COUNT(*) as invoice_line_item_count FROM Order_Items oi JOIN Invoice_Line_Items ili ON oi.order_item_id = ili.order_item_id GROUP BY oi.order_item_id) subquery WHERE per_item_avg_ratio IS NOT NULL",
   "executes": true,
   "matches": [
    "A"

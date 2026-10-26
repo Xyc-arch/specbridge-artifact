@@ -1,0 +1,22 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-ee6b268047",
+ "wording": "precise_B",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH signal_counts AS (\n  SELECT \n    telescref,\n    COUNT(*) as signal_count\n  FROM signals\n  GROUP BY telescref\n),\nwith_fractions AS (\n  SELECT \n    telescref,\n    signal_count,\n    CAST(signal_count AS FLOAT) / (SELECT COUNT(*) FROM signals) as fraction,\n    ROW_NUMBER() OVER (ORDER BY signal_count DESC) as row_num\n  FROM signal_counts\n)\nSELECT \n  telescref,\n  signal_count,\n  fraction\nFROM with_fractions\nWHERE signal_count >= (\n  SELECT signal_count FROM with_fractions WHERE row_num = 10\n)\nORDER BY fraction DESC;",
+  "assumptions": [],
+  "alternatives": [
+   {
+    "interpretation": "Using DENSE_RANK() to include all value groups within the top 10 ranks (rather than all rows tied with position 10). This treats \"top 10\" as the top 10 distinct signal-count values, and could return significantly more than 10 rows if many telescopes tie at early ranks.",
+    "sql": "WITH signal_counts AS (\n  SELECT \n    telescref,\n    COUNT(*) as signal_count\n  FROM signals\n  GROUP BY telescref\n),\nwith_fractions AS (\n  SELECT \n    telescref,\n    signal_count,\n    CAST(signal_count AS FLOAT) / (SELECT COUNT(*) FROM signals) as fraction,\n    DENSE_RANK() OVER (ORDER BY signal_count DESC) as dense_rank\n  FROM signal_counts\n)\nSELECT \n  telescref,\n  signal_count,\n  fraction\nFROM with_fractions\nWHERE dense_rank <= 10\nORDER BY fraction DESC;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 87.8
+}

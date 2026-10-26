@@ -2,27 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-20f81515dc",
  "wording": "precise_A",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH site_stats AS (SELECT s.zoneregistry, s.insurstat, COUNT(*) AS mesh_count, AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS site_ratio FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat HAVING AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) IS NOT NULL), status_avg AS (SELECT insurstat, AVG(site_ratio) AS status_ratio FROM site_stats GROUP BY insurstat), kept AS (SELECT ss.insurstat, ss.site_ratio, ss.mesh_count, sa.status_ratio FROM site_stats ss JOIN status_avg sa ON sa.insurstat = ss.insurstat WHERE ss.site_ratio > sa.status_ratio) SELECT insurstat, AVG(site_ratio) AS avg_kept_ratio, SUM(mesh_count) AS total_mesh_records, AVG(site_ratio - status_ratio) AS avg_excess_over_status FROM kept GROUP BY insurstat;",
+  "sql": "WITH site_ratios AS (\n  SELECT \n    s.zoneregistry,\n    s.insurstat,\n    AVG(CAST(sm.facetresmm AS REAL) / CAST(sm.geomdeltamm AS REAL)) as site_ratio,\n    COUNT(*) as site_mesh_count\n  FROM scanmesh sm\n  JOIN sites s ON s.zoneregistry = sm.zoneref\n  WHERE s.insurstat IS NOT NULL\n    AND sm.facetresmm IS NOT NULL \n    AND sm.geomdeltamm IS NOT NULL \n    AND sm.geomdeltamm != 0\n  GROUP BY s.zoneregistry, s.insurstat\n),\nstatus_averages AS (\n  SELECT \n    insurstat,\n    AVG(site_ratio) as status_avg_ratio\n  FROM site_ratios\n  GROUP BY insurstat\n),\nfiltered_sites AS (\n  SELECT \n    sr.zoneregistry,\n    sr.insurstat,\n    sr.site_ratio,\n    sr.site_mesh_count,\n    sa.status_avg_ratio\n  FROM site_ratios sr\n  JOIN status_averages sa ON sr.insurstat = sa.insurstat\n  WHERE sr.site_ratio > sa.status_avg_ratio\n)\nSELECT \n  insurstat,\n  AVG(site_ratio) as avg_ratio_of_kept_sites,\n  SUM(site_mesh_count) as total_mesh_records,\n  AVG(site_ratio - status_avg_ratio) as avg_excess_over_status\nFROM filtered_sites\nGROUP BY insurstat",
   "assumptions": [
    {
-    "assumption": "A site's number of mesh records counts all scanmesh rows linked to the site, including rows whose ratio is missing. The request does not say whether it means all records or only those with a usable ratio.",
+    "assumption": "\"that site's number of mesh records\" refers to the count of mesh records used in the site's average ratio calculation\u2014that is, records with non-null facetresmm, non-null geomdeltamm, and non-zero geomdeltamm. This interpretation aligns with \"ignoring missing ratios.\"",
     "unresolved": true
-   },
-   {
-    "assumption": "A per-record ratio is facetresmm / geomdeltamm. It is treated as missing when either value is NULL or geomdeltamm is 0, since division by zero is undefined.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Sites with a NULL insurstat are excluded. Sites with no computable ratio are excluded, because they cannot be compared to a status average.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The site's number of mesh records counts only the mesh records that have a computable ratio, so the count matches the records that contribute to the average.",
-    "sql": "WITH site_stats AS (SELECT s.zoneregistry, s.insurstat, COUNT(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS mesh_count, AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) AS site_ratio FROM sites s JOIN scanmesh m ON m.zoneref = s.zoneregistry WHERE s.insurstat IS NOT NULL GROUP BY s.zoneregistry, s.insurstat HAVING AVG(m.facetresmm / NULLIF(m.geomdeltamm, 0)) IS NOT NULL), status_avg AS (SELECT insurstat, AVG(site_ratio) AS status_ratio FROM site_stats GROUP BY insurstat), kept AS (SELECT ss.insurstat, ss.site_ratio, ss.mesh_count, sa.status_ratio FROM site_stats ss JOIN status_avg sa ON sa.insurstat = ss.insurstat WHERE ss.site_ratio > sa.status_ratio) SELECT insurstat, AVG(site_ratio) AS avg_kept_ratio, SUM(mesh_count) AS total_mesh_records, AVG(site_ratio - status_ratio) AS avg_excess_over_status FROM kept GROUP BY insurstat;"
+    "interpretation": "\"that site's number of mesh records\" could mean the total count of all mesh records for the site (including those without valid facetresmm or geomdeltamm values), rather than only those used in the ratio.",
+    "sql": "WITH all_site_mesh_counts AS (\n  SELECT \n    s.zoneregistry,\n    s.insurstat,\n    COUNT(*) as total_mesh_count\n  FROM scanmesh sm\n  JOIN sites s ON s.zoneregistry = sm.zoneref\n  WHERE s.insurstat IS NOT NULL\n  GROUP BY s.zoneregistry, s.insurstat\n),\nsite_ratios AS (\n  SELECT \n    s.zoneregistry,\n    s.insurstat,\n    AVG(CAST(sm.facetresmm AS REAL) / CAST(sm.geomdeltamm AS REAL)) as site_ratio\n  FROM scanmesh sm\n  JOIN sites s ON s.zoneregistry = sm.zoneref\n  WHERE s.insurstat IS NOT NULL\n    AND sm.facetresmm IS NOT NULL \n    AND sm.geomdeltamm IS NOT NULL \n    AND sm.geomdeltamm != 0\n  GROUP BY s.zoneregistry, s.insurstat\n),\nsite_data AS (\n  SELECT \n    sr.zoneregistry,\n    sr.insurstat,\n    sr.site_ratio,\n    asmc.total_mesh_count\n  FROM site_ratios sr\n  JOIN all_site_mesh_counts asmc ON sr.zoneregistry = asmc.zoneregistry AND sr.insurstat = asmc.insurstat\n),\nstatus_averages AS (\n  SELECT \n    insurstat,\n    AVG(site_ratio) as status_avg_ratio\n  FROM site_data\n  GROUP BY insurstat\n),\nfiltered_sites AS (\n  SELECT \n    sd.zoneregistry,\n    sd.insurstat,\n    sd.site_ratio,\n    sd.total_mesh_count,\n    sa.status_avg_ratio\n  FROM site_data sd\n  JOIN status_averages sa ON sd.insurstat = sa.insurstat\n  WHERE sd.site_ratio > sa.status_avg_ratio\n)\nSELECT \n  insurstat,\n  AVG(site_ratio) as avg_ratio_of_kept_sites,\n  SUM(total_mesh_count) as total_mesh_records,\n  AVG(site_ratio - status_avg_ratio) as avg_excess_over_status\nFROM filtered_sites\nGROUP BY insurstat"
    }
   ]
  },
@@ -31,5 +23,5 @@
  "primary_matches": [
   "A"
  ],
- "seconds": 15.6
+ "seconds": 74.5
 }

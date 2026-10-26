@@ -2,23 +2,39 @@
  "case": "eval12:eval12@01cfbb1e713f-30b46b4254",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH group_rates AS (\n  SELECT \n    st.riskeval,\n    AVG(s.gbsize / s.spanmin) as group_avg_rate\n  FROM scans s\n  JOIN sites st ON s.zoneref = st.zoneregistry\n  WHERE s.spanmin > 0\n  GROUP BY st.riskeval\n),\nbenchmark_calc AS (\n  SELECT AVG(group_avg_rate) as benchmark_rate\n  FROM group_rates\n),\nabove_benchmark_groups AS (\n  SELECT \n    gr.group_avg_rate,\n    bc.benchmark_rate,\n    gr.group_avg_rate - bc.benchmark_rate as margin\n  FROM group_rates gr\n  CROSS JOIN benchmark_calc bc\n  WHERE gr.group_avg_rate > bc.benchmark_rate\n)\nSELECT \n  AVG(group_avg_rate) as avg_rate,\n  AVG(margin) as avg_margin\nFROM above_benchmark_groups",
+  "sql": "WITH scan_rates AS (SELECT s.riskeval, sc.gbsize / sc.spanmin AS rate FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin > 0), group_averages AS (SELECT riskeval, AVG(rate) AS group_avg_rate FROM scan_rates GROUP BY riskeval), benchmark AS (SELECT AVG(group_avg_rate) AS benchmark_value FROM group_averages), above_benchmark AS (SELECT ga.group_avg_rate, (ga.group_avg_rate - b.benchmark_value) AS margin FROM group_averages ga CROSS JOIN benchmark b WHERE ga.group_avg_rate > b.benchmark_value) SELECT AVG(group_avg_rate) AS average_rate, AVG(margin) AS average_margin FROM above_benchmark",
   "assumptions": [
    {
-    "assumption": "Only scans with spanmin > 0 are included in rate calculations, to avoid division by zero and invalid (zero or negative) scan durations.",
+    "assumption": "Scans with NULL or non-positive spanmin, or NULL gbsize, are excluded from the rate calculation, since these would produce invalid or undefined rates.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Multiple groups with average rates strictly above the benchmark are aggregated into a single result row showing their combined average rate and average margin, rather than returning one row per group.",
     "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Return one row per group with average rate strictly above the benchmark, each row containing the group's riskeval, its average rate, and its margin above the benchmark.",
+    "sql": "WITH scan_rates AS (SELECT s.riskeval, sc.gbsize / sc.spanmin AS rate FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin > 0), group_averages AS (SELECT riskeval, AVG(rate) AS group_avg_rate FROM scan_rates GROUP BY riskeval), benchmark AS (SELECT AVG(group_avg_rate) AS benchmark_value FROM group_averages) SELECT ga.riskeval, ga.group_avg_rate AS average_rate, (ga.group_avg_rate - b.benchmark_value) AS average_margin FROM group_averages ga CROSS JOIN benchmark b WHERE ga.group_avg_rate > b.benchmark_value ORDER BY ga.group_avg_rate DESC"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "alternatives": [],
- "seconds": 70.9,
- "chars_out": 925
+ "alternatives": [
+  {
+   "interpretation": "Return one row per group with average rate strictly above the benchmark, each row containing the group's riskeval, its average rate, and its margin above the benchmark.",
+   "sql": "WITH scan_rates AS (SELECT s.riskeval, sc.gbsize / sc.spanmin AS rate FROM scans sc JOIN sites s ON sc.zoneref = s.zoneregistry WHERE sc.gbsize IS NOT NULL AND sc.spanmin IS NOT NULL AND sc.spanmin > 0), group_averages AS (SELECT riskeval, AVG(rate) AS group_avg_rate FROM scan_rates GROUP BY riskeval), benchmark AS (SELECT AVG(group_avg_rate) AS benchmark_value FROM group_averages) SELECT ga.riskeval, ga.group_avg_rate AS average_rate, (ga.group_avg_rate - b.benchmark_value) AS average_margin FROM group_averages ga CROSS JOIN benchmark b WHERE ga.group_avg_rate > b.benchmark_value ORDER BY ga.group_avg_rate DESC",
+   "executes": true,
+   "matches": []
+  }
+ ],
+ "seconds": 91.9,
+ "chars_out": 2059
 }

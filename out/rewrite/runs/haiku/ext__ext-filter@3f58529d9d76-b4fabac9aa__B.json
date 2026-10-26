@@ -4,8 +4,25 @@
  "reading": "B",
  "description": "Executions whose expiry time is exactly equal to either the start or the end bound of the window are excluded, so only expiry times strictly between the two bounds count.",
  "d": {
-  "request": "For executions joined to orders on `recordvault = ordersmark` (unmatched dropped), keep those whose `expirespot` text is strictly greater than '2025-02-28 08:29:46.10496' and strictly less than '2025-03-13 08:29:46.068533', group by `ordersmark` and `orderflow`, average `fillcount` per group ignoring NULLs, then average those group averages ignoring NULLs, unrounded.",
-  "sql": "SELECT AVG(g.group_avg) AS result\nFROM (\n  SELECT AVG(e.fillcount) AS group_avg\n  FROM orderexecutions e\n  INNER JOIN orders o ON o.recordvault = e.ordersmark\n  WHERE e.expirespot > '2025-02-28 08:29:46.10496'\n    AND e.expirespot < '2025-03-13 08:29:46.068533'\n  GROUP BY e.ordersmark, o.orderflow\n) g;",
+  "request": "For order executions with matching orders where expirespot is strictly between '2025-02-28 08:29:46.10496' and '2025-03-13 08:29:46.068533' (text comparison, excluding exact boundary value matches), grouped by ordersmark and orderflow, the average of the per-group average fillcounts (ignoring NULLs at both levels, unrounded).",
+  "sql": "SELECT AVG(avg_fillcount) FROM (SELECT oe.ordersmark, o.orderflow, AVG(oe.fillcount) as avg_fillcount FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault WHERE oe.expirespot > '2025-02-28 08:29:46.10496' AND oe.expirespot < '2025-03-13 08:29:46.068533' AND oe.fillcount IS NOT NULL GROUP BY oe.ordersmark, o.orderflow) subquery",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "b": {
+  "request": "For executions with matching orders and expirespot strictly between '2025-02-28 08:29:46.10496' and '2025-03-13 08:29:46.068533' (excluding exact boundary values), grouped by ordersmark and orderflow, calculate the average of per-group average fillcounts (excluding nulls) without rounding.",
+  "sql": "SELECT AVG(group_avg_fillcount) FROM (SELECT oe.ordersmark, o.orderflow, AVG(oe.fillcount) as group_avg_fillcount FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault WHERE oe.expirespot > '2025-02-28 08:29:46.10496' AND oe.expirespot < '2025-03-13 08:29:46.068533' GROUP BY oe.ordersmark, o.orderflow) subquery",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For executions with matching orders and expirespot strictly between '2025-02-28 08:29:46.10496' and '2025-03-13 08:29:46.068533' (excluding exact boundary values), grouped by ordersmark and orderflow, calculate the average of per-group average fillcounts (excluding nulls) without rounding."
+ },
+ "c": {
+  "request": "For order executions that have a matching order (where the order's `recordvault` equals the execution's `ordersmark`; drop executions with no match) and an expiry time (`expirespot`) between '2025-02-28 08:29:46.10496' and '2025-03-13 08:29:46.068533' (comparing the values as text), group them by order reference (`ordersmark`) and order status (`orderflow`), and work out each group's average filled quantity (`fillcount`, ignoring missing values). What is the average of those per-group averages (ignoring missing ones), without rounding? Executions whose expiry time is exactly equal to either the start or the end bound of the window are excluded, so only expiry times strictly between the two bounds count.",
+  "sql": "WITH grouped_averages AS (SELECT oe.ordersmark, o.orderflow, AVG(oe.fillcount) as group_avg FROM orderexecutions oe INNER JOIN orders o ON oe.ordersmark = o.recordvault WHERE oe.expirespot > '2025-02-28 08:29:46.10496' AND oe.expirespot < '2025-03-13 08:29:46.068533' GROUP BY oe.ordersmark, o.orderflow) SELECT AVG(group_avg) FROM grouped_averages;",
   "executes": true,
   "matches": [
    "B"
@@ -13,28 +30,11 @@
  },
  "a": {
   "request": "Match each order execution to its order (where the order's `recordvault` equals the execution's `ordersmark`, and executions without a matching order are dropped). Keep only executions whose expiry time (`expirespot`) falls between '2025-02-28 08:29:46.10496' and '2025-03-13 08:29:46.068533', with both endpoints excluded (comparing the values as text). Group them by order reference (`ordersmark`) and order status (`orderflow`), and compute each group's average filled quantity (`fillcount`, ignoring missing values). Then give me a single value: the average of those per-group averages (ignoring missing ones), without rounding.",
-  "sql": "SELECT AVG(g.avg_fill) AS result FROM (SELECT e.ordersmark, o.orderflow, AVG(e.fillcount) AS avg_fill FROM orderexecutions e JOIN orders o ON o.recordvault = e.ordersmark WHERE e.expirespot > '2025-02-28 08:29:46.10496' AND e.expirespot < '2025-03-13 08:29:46.068533' GROUP BY e.ordersmark, o.orderflow) g;",
+  "sql": "SELECT AVG(group_avg) FROM (SELECT AVG(oe.fillcount) as group_avg FROM orderexecutions oe INNER JOIN orders o ON o.recordvault = oe.ordersmark WHERE oe.expirespot > '2025-02-28 08:29:46.10496' AND oe.expirespot < '2025-03-13 08:29:46.068533' GROUP BY oe.ordersmark, o.orderflow) subquery",
   "executes": true,
   "matches": [
    "B"
   ]
- },
- "c": {
-  "request": "For order executions that have a matching order (where the order's `recordvault` equals the execution's `ordersmark`; drop executions with no match) and an expiry time (`expirespot`) between '2025-02-28 08:29:46.10496' and '2025-03-13 08:29:46.068533' (comparing the values as text), group them by order reference (`ordersmark`) and order status (`orderflow`), and work out each group's average filled quantity (`fillcount`, ignoring missing values). What is the average of those per-group averages (ignoring missing ones), without rounding? Executions whose expiry time is exactly equal to either the start or the end bound of the window are excluded, so only expiry times strictly between the two bounds count.",
-  "sql": "SELECT AVG(g.avg_fill) AS avg_of_group_averages FROM (SELECT e.ordersmark, o.orderflow, AVG(e.fillcount) AS avg_fill FROM orderexecutions e INNER JOIN orders o ON o.recordvault = e.ordersmark WHERE e.expirespot > '2025-02-28 08:29:46.10496' AND e.expirespot < '2025-03-13 08:29:46.068533' GROUP BY e.ordersmark, o.orderflow) g",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "b": {
-  "request": "Average of the per-group averages of `fillcount` over `orderexecutions` rows joined to `orders` on `ordersmark = recordvault`, keeping only rows where `expirespot` is strictly greater than '2025-02-28 08:29:46.10496' and strictly less than '2025-03-13 08:29:46.068533' as text, grouped by `ordersmark` and `orderflow`, with NULL `fillcount` values ignored, and the result left unrounded.",
-  "sql": "SELECT AVG(g.avg_fill) AS avg_of_group_avgs FROM (SELECT oe.ordersmark, o.orderflow, AVG(oe.fillcount) AS avg_fill FROM orderexecutions oe JOIN orders o ON oe.ordersmark = o.recordvault WHERE oe.fillcount IS NOT NULL AND oe.expirespot > '2025-02-28 08:29:46.10496' AND oe.expirespot < '2025-03-13 08:29:46.068533' GROUP BY oe.ordersmark, o.orderflow) g;",
-  "executes": true,
-  "matches": [
-   "B"
-  ],
-  "raw": "Average of the per-group averages of `fillcount` over `orderexecutions` rows joined to `orders` on `ordersmark = recordvault`, keeping only rows where `expirespot` is strictly greater than '2025-02-28 08:29:46.10496' and strictly less than '2025-03-13 08:29:46.068533' as text, grouped by `ordersmark` and `orderflow`, with NULL `fillcount` values ignored, and the result left unrounded."
  },
  "calls": 6
 }

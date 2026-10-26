@@ -4,29 +4,31 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_status AS (SELECT COALESCE(CENTROMEA, 'missing') AS status, AVG(GOT - GPT) AS avg_ast_minus_alt, AVG(APTT - PT) AS avg_aptt_minus_pt FROM Laboratory WHERE WBC > 6.5 GROUP BY COALESCE(CENTROMEA, 'missing')) SELECT AVG(avg_ast_minus_alt) AS avg_ast_minus_alt, AVG(avg_aptt_minus_pt) AS avg_aptt_minus_pt FROM per_status;",
+  "sql": "WITH filtered_labs AS (SELECT CENTROMEA, GOT, GPT, APPT, PT FROM Laboratory WHERE WBC > 6.5), by_status AS (SELECT CENTROMEA, AVG(CASE WHEN GOT IS NOT NULL AND GPT IS NOT NULL THEN GOT - GPT END) as avg_got_minus_gpt, AVG(CASE WHEN APPT IS NOT NULL AND PT IS NOT NULL THEN APPT - PT END) as avg_appt_minus_pt FROM filtered_labs GROUP BY CENTROMEA) SELECT AVG(avg_got_minus_gpt), AVG(avg_appt_minus_pt) FROM by_status",
   "assumptions": [
    {
-    "assumption": "Only SQL NULL in CENTROMEA marks a missing status; empty or whitespace-only strings are treated as their own status, not as missing.",
-    "unresolved": true
-   },
-   {
-    "assumption": "Each record's differences are computed row by row. AVG ignores NULL differences, so records missing GOT, GPT, APTT, or PT are skipped for the relevant average, and a status whose average is NULL is dropped from the final average.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Lab rows are used as-is; the (ID, Date) primary key means each row is one lab record, so no deduplication is applied.",
+    "assumption": "Records are filtered separately for each difference: a record missing GOT or GPT is excluded from the GOT\u2212GPT average, while a record missing APPT or PT is excluded from the APPT\u2212PT average. A single record may contribute to one average but not the other.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "All four values (GOT, GPT, APPT, PT) must be non-NULL to include a record at all; both averages are then computed over the same filtered set.",
+    "sql": "WITH filtered_labs AS (SELECT CENTROMEA, GOT, GPT, APPT, PT FROM Laboratory WHERE WBC > 6.5 AND GOT IS NOT NULL AND GPT IS NOT NULL AND APPT IS NOT NULL AND PT IS NOT NULL), by_status AS (SELECT CENTROMEA, AVG(GOT - GPT) as avg_got_minus_gpt, AVG(APPT - PT) as avg_appt_minus_pt FROM filtered_labs GROUP BY CENTROMEA) SELECT AVG(avg_got_minus_gpt), AVG(avg_appt_minus_pt) FROM by_status"
+   }
+  ]
  },
  "raw": null,
- "primary_executes": true,
- "primary_matches": [
-  "B"
+ "primary_executes": false,
+ "primary_matches": [],
+ "alternatives": [
+  {
+   "interpretation": "All four values (GOT, GPT, APPT, PT) must be non-NULL to include a record at all; both averages are then computed over the same filtered set.",
+   "sql": "WITH filtered_labs AS (SELECT CENTROMEA, GOT, GPT, APPT, PT FROM Laboratory WHERE WBC > 6.5 AND GOT IS NOT NULL AND GPT IS NOT NULL AND APPT IS NOT NULL AND PT IS NOT NULL), by_status AS (SELECT CENTROMEA, AVG(GOT - GPT) as avg_got_minus_gpt, AVG(APPT - PT) as avg_appt_minus_pt FROM filtered_labs GROUP BY CENTROMEA) SELECT AVG(avg_got_minus_gpt), AVG(avg_appt_minus_pt) FROM by_status",
+   "executes": false,
+   "matches": []
+  }
  ],
- "alternatives": [],
- "seconds": 9.5,
- "chars_out": 975
+ "seconds": 74.4,
+ "chars_out": 1392
 }

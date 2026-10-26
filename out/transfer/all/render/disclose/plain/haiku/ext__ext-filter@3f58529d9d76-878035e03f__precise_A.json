@@ -3,12 +3,12 @@
  "wording": "precise_A",
  "model": "haiku",
  "response": {
-  "sql": "WITH per_order AS (SELECT orderslink, AVG(rebtotal) AS avg_rebtotal, AVG(rebrate / NULLIF(feerate, 0)) AS avg_ratio FROM fees WHERE rebrate >= 0.0005 GROUP BY orderslink), overall AS (SELECT AVG(avg_ratio) AS mean_ratio FROM per_order) SELECT p.orderslink, p.avg_rebtotal, p.avg_ratio, CASE WHEN o.mean_ratio IS NOT NULL THEN p.avg_ratio / NULLIF(o.mean_ratio, 0) END AS relative_ratio FROM per_order p CROSS JOIN overall o ORDER BY relative_ratio DESC NULLS LAST LIMIT 10;"
+  "sql": "WITH filtered_fees AS (\n  SELECT *\n  FROM fees\n  WHERE rebrate >= 0.0005\n),\norder_stats AS (\n  SELECT\n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(CASE WHEN feerate IS NOT NULL AND feerate != 0 THEN rebrate / feerate ELSE NULL END) as avg_ratio\n  FROM filtered_fees\n  GROUP BY orderslink\n),\noverall_mean AS (\n  SELECT AVG(avg_ratio) as mean_ratio\n  FROM order_stats\n  WHERE avg_ratio IS NOT NULL\n),\nwith_relative AS (\n  SELECT\n    os.orderslink,\n    os.avg_rebtotal,\n    os.avg_ratio,\n    CASE\n      WHEN om.mean_ratio IS NOT NULL AND os.avg_ratio IS NOT NULL\n      THEN os.avg_ratio / om.mean_ratio\n      ELSE NULL\n    END as relative_ratio\n  FROM order_stats os\n  CROSS JOIN overall_mean om\n)\nSELECT\n  orderslink,\n  avg_rebtotal,\n  avg_ratio,\n  relative_ratio\nFROM with_relative\nORDER BY\n  CASE WHEN relative_ratio IS NULL THEN 1 ELSE 0 END,\n  relative_ratio DESC\nLIMIT 10"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 6.5,
- "chars_out": 484
+ "seconds": 11.5,
+ "chars_out": 955
 }

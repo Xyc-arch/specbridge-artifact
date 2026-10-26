@@ -2,45 +2,33 @@
  "case": "eval12:eval12@01cfbb1e713f-13e92662d1",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH trans_sentiment AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.shortintrt) AS trans_avg_shortint,\n    AVG(sf.optvolrt) AS trans_avg_optvolrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nordertype_avg AS (\n  SELECT \n    tr.ordertypedist,\n    AVG(sf.shortintrt) AS ordertype_avg_shortint\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.ordertypedist\n)\nSELECT \n  ts.transreg,\n  ts.ordertypedist,\n  ts.trans_avg_shortint,\n  ts.trans_avg_optvolrt,\n  CASE \n    WHEN oa.ordertype_avg_shortint IS NULL OR oa.ordertype_avg_shortint = 0 THEN NULL\n    ELSE ts.trans_avg_shortint / oa.ordertype_avg_shortint\n  END AS shortint_ratio\nFROM trans_sentiment ts\nLEFT JOIN ordertype_avg oa ON ts.ordertypedist = oa.ordertypedist\nORDER BY \n  shortint_ratio IS NULL,\n  shortint_ratio DESC\nLIMIT 10;",
+  "sql": "WITH transaction_sentiment AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.shortintrt) as avg_shortintrt,\n    AVG(sf.optvolrt) as avg_optvolrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nordertypemix_averages AS (\n  SELECT \n    tr.ordertypedist,\n    AVG(sf.shortintrt) as ordertypemix_avg_shortintrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.ordertypedist\n)\nSELECT \n  ts.transreg,\n  ts.ordertypedist,\n  ts.avg_shortintrt,\n  ts.avg_optvolrt,\n  CASE \n    WHEN ota.ordertypemix_avg_shortintrt IS NOT NULL AND ota.ordertypemix_avg_shortintrt != 0\n    THEN ts.avg_shortintrt / ota.ordertypemix_avg_shortintrt\n    ELSE NULL\n  END as shortintrt_ratio\nFROM transaction_sentiment ts\nLEFT JOIN ordertypemix_averages ota ON ts.ordertypedist = ota.ordertypedist\nORDER BY \n  CASE WHEN shortintrt_ratio IS NULL THEN 1 ELSE 0 END ASC,\n  shortintrt_ratio DESC;",
   "assumptions": [
    {
-    "assumption": "A transaction may have multiple sentiment records; I compute one average per transaction (aggregating shortintrt and optvolrt across all sentiment records for that transaction), then compare to the order type average.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The \"average short interest for its order type mix\" is computed across all sentiment records for all transactions sharing that order type (not averaging per-transaction values separately).",
-    "unresolved": false
-   },
-   {
-    "assumption": "The ratio expresses the transaction's average short interest relative to its order type: transaction_avg / ordertype_avg.",
-    "unresolved": false
+    "assumption": "\"Average short interest for its order type mix\" means the average of shortintrt across all sentiment records for transactions with that ordertypedist, not the average of per-transaction short-interest averages.",
+    "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Compute one ratio per sentiment record, rather than aggregating to one row per transaction. This would result in one output row per sentiment record, with the ratio comparing that record's shortintrt value (not an aggregated average) to the order type average.",
-    "sql": "WITH ordertype_avg AS (\n  SELECT \n    tr.ordertypedist,\n    AVG(sf.shortintrt) AS ordertype_avg_shortint\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.ordertypedist\n)\nSELECT \n  sf.transref,\n  tr.ordertypedist,\n  sf.shortintrt,\n  sf.optvolrt,\n  CASE \n    WHEN oa.ordertype_avg_shortint IS NULL OR oa.ordertype_avg_shortint = 0 THEN NULL\n    ELSE sf.shortintrt / oa.ordertype_avg_shortint\n  END AS shortint_ratio\nFROM transactionrecord tr\nINNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\nLEFT JOIN ordertype_avg oa ON tr.ordertypedist = oa.ordertypedist\nORDER BY \n  shortint_ratio IS NULL,\n  shortint_ratio DESC\nLIMIT 10;"
+    "interpretation": "\"Average short interest for its order type mix\" is calculated as the average of the transaction-level averages (i.e., equal weighting per transaction rather than per sentiment record).",
+    "sql": "WITH transaction_sentiment AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.shortintrt) as avg_shortintrt,\n    AVG(sf.optvolrt) as avg_optvolrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nordertypemix_averages AS (\n  SELECT \n    ordertypedist,\n    AVG(avg_shortintrt) as ordertypemix_avg_shortintrt\n  FROM transaction_sentiment\n  GROUP BY ordertypedist\n)\nSELECT \n  ts.transreg,\n  ts.ordertypedist,\n  ts.avg_shortintrt,\n  ts.avg_optvolrt,\n  CASE \n    WHEN ota.ordertypemix_avg_shortintrt IS NOT NULL AND ota.ordertypemix_avg_shortintrt != 0\n    THEN ts.avg_shortintrt / ota.ordertypemix_avg_shortintrt\n    ELSE NULL\n  END as shortintrt_ratio\nFROM transaction_sentiment ts\nLEFT JOIN ordertypemix_averages ota ON ts.ordertypedist = ota.ordertypedist\nORDER BY \n  CASE WHEN shortintrt_ratio IS NULL THEN 1 ELSE 0 END ASC,\n  shortintrt_ratio DESC;"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
+ "primary_matches": [],
  "alternatives": [
   {
-   "interpretation": "Compute one ratio per sentiment record, rather than aggregating to one row per transaction. This would result in one output row per sentiment record, with the ratio comparing that record's shortintrt value (not an aggregated average) to the order type average.",
-   "sql": "WITH ordertype_avg AS (\n  SELECT \n    tr.ordertypedist,\n    AVG(sf.shortintrt) AS ordertype_avg_shortint\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.ordertypedist\n)\nSELECT \n  sf.transref,\n  tr.ordertypedist,\n  sf.shortintrt,\n  sf.optvolrt,\n  CASE \n    WHEN oa.ordertype_avg_shortint IS NULL OR oa.ordertype_avg_shortint = 0 THEN NULL\n    ELSE sf.shortintrt / oa.ordertype_avg_shortint\n  END AS shortint_ratio\nFROM transactionrecord tr\nINNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\nLEFT JOIN ordertype_avg oa ON tr.ordertypedist = oa.ordertypedist\nORDER BY \n  shortint_ratio IS NULL,\n  shortint_ratio DESC\nLIMIT 10;",
+   "interpretation": "\"Average short interest for its order type mix\" is calculated as the average of the transaction-level averages (i.e., equal weighting per transaction rather than per sentiment record).",
+   "sql": "WITH transaction_sentiment AS (\n  SELECT \n    tr.transreg,\n    tr.ordertypedist,\n    AVG(sf.shortintrt) as avg_shortintrt,\n    AVG(sf.optvolrt) as avg_optvolrt\n  FROM transactionrecord tr\n  INNER JOIN sentimentandfundamentals sf ON tr.transreg = sf.transref\n  GROUP BY tr.transreg, tr.ordertypedist\n),\nordertypemix_averages AS (\n  SELECT \n    ordertypedist,\n    AVG(avg_shortintrt) as ordertypemix_avg_shortintrt\n  FROM transaction_sentiment\n  GROUP BY ordertypedist\n)\nSELECT \n  ts.transreg,\n  ts.ordertypedist,\n  ts.avg_shortintrt,\n  ts.avg_optvolrt,\n  CASE \n    WHEN ota.ordertypemix_avg_shortintrt IS NOT NULL AND ota.ordertypemix_avg_shortintrt != 0\n    THEN ts.avg_shortintrt / ota.ordertypemix_avg_shortintrt\n    ELSE NULL\n  END as shortintrt_ratio\nFROM transaction_sentiment ts\nLEFT JOIN ordertypemix_averages ota ON ts.ordertypedist = ota.ordertypedist\nORDER BY \n  CASE WHEN shortintrt_ratio IS NULL THEN 1 ELSE 0 END ASC,\n  shortintrt_ratio DESC;",
    "executes": true,
-   "matches": [
-    "B"
-   ]
+   "matches": []
   }
  ],
- "seconds": 108.2,
- "chars_out": 2828
+ "seconds": 97.3,
+ "chars_out": 2638
 }

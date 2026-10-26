@@ -4,31 +4,22 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH owner_pairs AS (\n  SELECT DISTINCT d.client_id, d.account_id, a.district_id\n  FROM disp d\n  JOIN account a ON a.account_id = d.account_id\n  WHERE d.type = 'OWNER'\n),\ndist_counts AS (\n  SELECT district_id, COUNT(*) AS cnt\n  FROM owner_pairs\n  GROUP BY district_id\n),\ntotal AS (\n  SELECT SUM(cnt) AS total_cnt FROM dist_counts\n)\nSELECT ds.A3 AS region,\n       AVG(dc.cnt) AS avg_clients_per_district,\n       AVG(1.0 * dc.cnt / t.total_cnt) AS avg_client_share\nFROM dist_counts dc\nJOIN district ds ON ds.district_id = dc.district_id\nCROSS JOIN total t\nGROUP BY ds.A3;",
+  "sql": "WITH ownership_by_district AS (\n  SELECT \n    d.A3 as region,\n    a.district_id,\n    COUNT(*) as client_count\n  FROM disp\n  INNER JOIN account a ON disp.account_id = a.account_id\n  INNER JOIN district d ON a.district_id = d.district_id\n  WHERE disp.type = 'OWNER'\n  GROUP BY d.A3, a.district_id\n),\nregion_totals AS (\n  SELECT \n    region,\n    SUM(client_count) as total_clients\n  FROM ownership_by_district\n  GROUP BY region\n)\nSELECT \n  obd.region,\n  AVG(obd.client_count) as avg_clients_per_district,\n  AVG(CAST(obd.client_count AS REAL) / rt.total_clients) as avg_share_per_district\nFROM ownership_by_district obd\nINNER JOIN region_totals rt ON obd.region = rt.region\nGROUP BY obd.region\nORDER BY obd.region;",
   "assumptions": [
    {
-    "assumption": "A client is counted once per owned account: the query takes distinct (client_id, account_id) pairs from disp rows with type = 'OWNER', and each pair is attributed to account.district_id (the branch district). A client who owns two accounts in the same district therefore counts twice there.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Only districts with at least one owner-client appear in dist_counts, so the region averages run over those districts only, as the request specifies.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The share denominator is the sum of per-district counts over all districts with clients. Districts with zero clients contribute nothing to that sum, so it equals the total number of distinct owner pairs.",
-    "unresolved": false
-   },
-   {
-    "assumption": "disp.type is matched exactly to 'OWNER' as documented, and AVG returns a floating-point result (SQLite AVG always does), so no integer truncation occurs; the share uses 1.0 * cnt to force real division.",
+    "assumption": "\"Counting a client once per owned account\" means counting ownership instances (rows in the disp table with multiplicity). If a client owns multiple accounts in the same district, each ownership is counted separately. The count is the number of (client, account) pairs per district, not the number of unique clients.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "If the request intends to count unique clients per district (the number of distinct clients who own at least one account there, not multiplied by account count), replace COUNT(*) with COUNT(DISTINCT disp.client_id) in the ownership_by_district CTE. This counts each client once per district regardless of account count.",
+    "sql": "WITH ownership_by_district AS (\n  SELECT \n    d.A3 as region,\n    a.district_id,\n    COUNT(DISTINCT disp.client_id) as client_count\n  FROM disp\n  INNER JOIN account a ON disp.account_id = a.account_id\n  INNER JOIN district d ON a.district_id = d.district_id\n  WHERE disp.type = 'OWNER'\n  GROUP BY d.A3, a.district_id\n),\nregion_totals AS (\n  SELECT \n    region,\n    SUM(client_count) as total_clients\n  FROM ownership_by_district\n  GROUP BY region\n)\nSELECT \n  obd.region,\n  AVG(obd.client_count) as avg_clients_per_district,\n  AVG(CAST(obd.client_count AS REAL) / rt.total_clients) as avg_share_per_district\nFROM ownership_by_district obd\nINNER JOIN region_totals rt ON obd.region = rt.region\nGROUP BY obd.region\nORDER BY obd.region;"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 11.5
+ "primary_matches": [],
+ "seconds": 54.3
 }

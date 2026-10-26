@@ -4,29 +4,17 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "SELECT t.observstation AS station, o.lunarstage AS moon_phase, AVG(t.bandusagepct) AS avg_bandusage_pct, COUNT(t.telescregistry) AS telescope_count FROM telescopes t JOIN observatories o ON o.observstation = t.observstation WHERE t.observstation NOT IN (SELECT observstation FROM telescopes WHERE equipstatus = 'Maintenance') GROUP BY t.observstation, o.lunarstage ORDER BY telescope_count DESC, station, moon_phase LIMIT 10;",
+  "sql": "SELECT t.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bandwidth_usage, COUNT(*) AS telescope_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation WHERE t.observstation NOT IN (SELECT DISTINCT t2.observstation FROM telescopes t2 WHERE t2.equipstatus = 'Maintenance') GROUP BY t.observstation, o.lunarstage ORDER BY telescope_count DESC LIMIT 10;",
   "assumptions": [
    {
-    "assumption": "Telescopes with a NULL lunarstage in their observatory form their own moon-phase group, so they appear in the results as a NULL moon phase. The request only says to ignore missing values for bandusagepct.",
-    "unresolved": true
-   },
-   {
-    "assumption": "The maintenance exclusion uses every telescope at a station. Telescopes without a matching observatory cannot affect the result because the inner join drops them anyway.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Each telescope matches at most one observatory, since observatories.observstation is the primary key, so COUNT of telescregistry counts telescopes and not duplicate join rows.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Ties in telescope_count are broken by station and then moon phase, which the request does not specify.",
+    "assumption": "equipstatus value 'Maintenance' uses case-sensitive exact matching as specified in documentation (not 'maintenance' or 'MAINTENANCE')",
     "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Drop moon-phase groups whose lunarstage is missing, so only stations with a recorded moon phase are reported.",
-    "sql": "SELECT t.observstation AS station, o.lunarstage AS moon_phase, AVG(t.bandusagepct) AS avg_bandusage_pct, COUNT(t.telescregistry) AS telescope_count FROM telescopes t JOIN observatories o ON o.observstation = t.observstation WHERE o.lunarstage IS NOT NULL AND t.observstation NOT IN (SELECT observstation FROM telescopes WHERE equipstatus = 'Maintenance') GROUP BY t.observstation, o.lunarstage ORDER BY telescope_count DESC, station, moon_phase LIMIT 10;"
+    "interpretation": "Filter individual telescopes rather than entire stations: exclude only telescopes with equipstatus='Maintenance', and report stations that have at least one remaining telescope",
+    "sql": "SELECT t.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bandwidth_usage, COUNT(*) AS telescope_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation WHERE t.equipstatus != 'Maintenance' GROUP BY t.observstation, o.lunarstage ORDER BY telescope_count DESC LIMIT 10;"
    }
   ]
  },
@@ -37,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "Drop moon-phase groups whose lunarstage is missing, so only stations with a recorded moon phase are reported.",
-   "sql": "SELECT t.observstation AS station, o.lunarstage AS moon_phase, AVG(t.bandusagepct) AS avg_bandusage_pct, COUNT(t.telescregistry) AS telescope_count FROM telescopes t JOIN observatories o ON o.observstation = t.observstation WHERE o.lunarstage IS NOT NULL AND t.observstation NOT IN (SELECT observstation FROM telescopes WHERE equipstatus = 'Maintenance') GROUP BY t.observstation, o.lunarstage ORDER BY telescope_count DESC, station, moon_phase LIMIT 10;",
+   "interpretation": "Filter individual telescopes rather than entire stations: exclude only telescopes with equipstatus='Maintenance', and report stations that have at least one remaining telescope",
+   "sql": "SELECT t.observstation, o.lunarstage, AVG(t.bandusagepct) AS avg_bandwidth_usage, COUNT(*) AS telescope_count FROM telescopes t INNER JOIN observatories o ON t.observstation = o.observstation WHERE t.equipstatus != 'Maintenance' GROUP BY t.observstation, o.lunarstage ORDER BY telescope_count DESC LIMIT 10;",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 11.4,
- "chars_out": 1882
+ "seconds": 71.9,
+ "chars_out": 1200
 }

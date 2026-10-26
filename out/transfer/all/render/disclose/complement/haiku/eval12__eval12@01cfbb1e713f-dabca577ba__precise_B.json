@@ -4,40 +4,22 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH race_entries AS (SELECT cr.raceId, c.country, COUNT(*) AS entry_count, SUM(cr.points) AS total_points FROM constructorResults cr JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY cr.raceId, c.country), stats AS (SELECT AVG(entry_count) AS avg_entries FROM race_entries), cutoff AS (SELECT entry_count AS cutoff_count FROM race_entries ORDER BY entry_count DESC LIMIT 1 OFFSET 9) SELECT re.raceId, re.country, re.total_points, re.entry_count, re.entry_count - s.avg_entries AS above_avg_by FROM race_entries re CROSS JOIN stats s CROSS JOIN cutoff co WHERE re.entry_count > s.avg_entries AND re.entry_count >= co.cutoff_count ORDER BY above_avg_by DESC",
+  "sql": "WITH race_stats AS (\n  SELECT \n    r.raceId,\n    c.country,\n    COUNT(*) as entry_count,\n    SUM(cr.points) as total_points\n  FROM constructorResults cr\n  JOIN races r ON cr.raceId = r.raceId\n  JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY r.raceId, c.country\n),\navg_entries AS (\n  SELECT AVG(entry_count) as avg_count\n  FROM race_stats\n),\nabove_average AS (\n  SELECT rs.*, ae.avg_count\n  FROM race_stats rs, avg_entries ae\n  WHERE rs.entry_count > ae.avg_count\n),\nranked_above_avg AS (\n  SELECT \n    *,\n    DENSE_RANK() OVER (ORDER BY entry_count DESC) as dr\n  FROM above_average\n)\nSELECT \n  raa.raceId,\n  raa.country,\n  raa.total_points,\n  raa.entry_count,\n  (raa.entry_count - raa.avg_count) as difference_from_average\nFROM ranked_above_avg raa\nWHERE raa.dr <= 10\nORDER BY difference_from_average DESC",
   "assumptions": [
    {
-    "assumption": "The average and the 10th-highest cutoff are computed only over races that have at least one constructorResults row. Races with no constructor results are excluded from both, rather than counted as zero entries.",
+    "assumption": "If fewer than 10 distinct entry counts exist among races above average, no races are selected (empty result). The request does not specify this edge case.",
     "unresolved": true
-   },
-   {
-    "assumption": "The 10th-highest entry count is the value in position 10 when all race entry counts are sorted descending, with ties occupying positions. Every race whose count equals that value is therefore included, as the request requires.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Entry count is every constructorResults row for the race, including rows whose points are NULL. total_points is SUM(points), which skips NULLs.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Country comes from the circuit linked through races.circuitId. Each race has one circuit, so each race appears as one group.",
-    "unresolved": false
    }
   ],
   "alternatives": [
    {
-    "interpretation": "Average entry count taken across all races in the races table, so races with no constructor results count as zero. The 10th-highest cutoff is still taken over races with results.",
-    "sql": "WITH race_entries AS (SELECT cr.raceId, c.country, COUNT(*) AS entry_count, SUM(cr.points) AS total_points FROM constructorResults cr JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY cr.raceId, c.country), stats AS (SELECT SUM(entry_count) * 1.0 / (SELECT COUNT(*) FROM races) AS avg_entries FROM race_entries), cutoff AS (SELECT entry_count AS cutoff_count FROM race_entries ORDER BY entry_count DESC LIMIT 1 OFFSET 9) SELECT re.raceId, re.country, re.total_points, re.entry_count, re.entry_count - s.avg_entries AS above_avg_by FROM race_entries re CROSS JOIN stats s CROSS JOIN cutoff co WHERE re.entry_count > s.avg_entries AND re.entry_count >= co.cutoff_count ORDER BY above_avg_by DESC"
-   },
-   {
-    "interpretation": "The 10th-highest cutoff is taken only among the above-average races, not across all races with results.",
-    "sql": "WITH race_entries AS (SELECT cr.raceId, c.country, COUNT(*) AS entry_count, SUM(cr.points) AS total_points FROM constructorResults cr JOIN races r ON r.raceId = cr.raceId JOIN circuits c ON c.circuitId = r.circuitId GROUP BY cr.raceId, c.country), stats AS (SELECT AVG(entry_count) AS avg_entries FROM race_entries), cutoff AS (SELECT re.entry_count AS cutoff_count FROM race_entries re CROSS JOIN stats s WHERE re.entry_count > s.avg_entries ORDER BY re.entry_count DESC LIMIT 1 OFFSET 9) SELECT re.raceId, re.country, re.total_points, re.entry_count, re.entry_count - s.avg_entries AS above_avg_by FROM race_entries re CROSS JOIN stats s CROSS JOIN cutoff co WHERE re.entry_count > s.avg_entries AND re.entry_count >= co.cutoff_count ORDER BY above_avg_by DESC"
+    "interpretation": "Use ROW_NUMBER to rank races by position rather than distinct value. With ROW_NUMBER, the '10th-highest' is the entry count at the 10th row position when sorted by count descending (treating tied races as separate rows), which may differ from the 10th distinct value when there are multiple races tied at certain counts.",
+    "sql": "WITH race_stats AS (\n  SELECT r.raceId, c.country, COUNT(*) as entry_count, SUM(cr.points) as total_points\n  FROM constructorResults cr\n  JOIN races r ON cr.raceId = r.raceId\n  JOIN circuits c ON r.circuitId = c.circuitId\n  GROUP BY r.raceId, c.country\n),\navg_entries AS (SELECT AVG(entry_count) as avg_count FROM race_stats),\nabove_average AS (SELECT rs.*, ae.avg_count FROM race_stats rs, avg_entries ae WHERE rs.entry_count > ae.avg_count),\nranked_above_avg AS (SELECT *, ROW_NUMBER() OVER (ORDER BY entry_count DESC) as rn FROM above_average),\ncutoff_value AS (SELECT entry_count FROM ranked_above_avg WHERE rn = 10)\nSELECT raa.raceId, raa.country, raa.total_points, raa.entry_count, (raa.entry_count - raa.avg_count) as difference_from_average\nFROM above_average raa\nWHERE raa.entry_count >= (SELECT entry_count FROM cutoff_value)\nORDER BY difference_from_average DESC"
    }
   ]
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [
-  "B"
- ],
- "seconds": 20.0
+ "primary_matches": [],
+ "seconds": 68.4
 }

@@ -2,12 +2,12 @@
  "case": "ext:ext-filter@3f58529d9d76-2ba180393f",
  "wording": "precise_B",
  "model": "gpt-6-luna",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH eligible AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n), grouped AS (\n  SELECT\n    orderslink,\n    side,\n    AVG(net_fee_rate) AS group_avg_net_fee_rate,\n    COUNT(*) AS record_count\n  FROM eligible\n  GROUP BY orderslink, side\n), scored AS (\n  SELECT\n    orderslink,\n    side,\n    group_avg_net_fee_rate,\n    record_count,\n    group_avg_net_fee_rate - AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS difference_from_side_avg,\n    AVG(group_avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg\n  FROM grouped\n)\nSELECT\n  orderslink,\n  side,\n  group_avg_net_fee_rate,\n  record_count,\n  difference_from_side_avg\nFROM scored\nWHERE group_avg_net_fee_rate > side_avg\nORDER BY difference_from_side_avg DESC NULLS LAST\nLIMIT 10",
+  "sql": "WITH matched AS (\n  SELECT\n    f.orderslink,\n    o.dealedge AS side,\n    f.feerate - f.rebrate AS net_fee_rate\n  FROM fees AS f\n  JOIN orders AS o\n    ON f.orderslink = o.recordvault\n  WHERE f.feerate > 0.0009\n),\ngroups AS (\n  SELECT\n    orderslink,\n    side,\n    AVG(net_fee_rate) AS avg_net_fee_rate,\n    COUNT(*) AS record_count\n  FROM matched\n  GROUP BY orderslink, side\n),\nwith_side_avg AS (\n  SELECT\n    *,\n    AVG(avg_net_fee_rate) OVER (PARTITION BY side) AS side_avg_net_fee_rate\n  FROM groups\n)\nSELECT\n  orderslink,\n  side,\n  avg_net_fee_rate,\n  record_count,\n  avg_net_fee_rate - side_avg_net_fee_rate AS difference\nFROM with_side_avg\nWHERE avg_net_fee_rate > side_avg_net_fee_rate\nORDER BY difference DESC NULLS LAST\nLIMIT 10;",
   "assumptions": [
    {
-    "assumption": "The record count counts eligible fee rows, including rows whose rebate is missing; AVG ignores their NULL net fee rates, as requested.",
+    "assumption": "Missing fee rates or rebates yield a NULL net rate and are ignored by AVG; COUNT(*) still counts each qualifying matched fee record in its group, including records with a NULL net rate.",
     "unresolved": false
    }
   ],
@@ -19,6 +19,6 @@
   "B"
  ],
  "alternatives": [],
- "seconds": 17.6,
- "chars_out": 1136
+ "seconds": 8.5,
+ "chars_out": 1038
 }

@@ -2,27 +2,16 @@
  "case": "ext:ext-filter@3f58529d9d76-f892edf28a",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH matched AS (SELECT ab.translink, tr.ordertypedist, COUNT(*) AS cnt FROM advancedbehavior ab JOIN transactionrecord tr ON tr.transreg = ab.translink WHERE ab.peercorr > 0.149 AND tr.ordertypedist IS NOT NULL GROUP BY ab.translink, tr.ordertypedist), totals AS (SELECT ordertypedist, SUM(cnt) AS total_cnt FROM matched GROUP BY ordertypedist) SELECT m.translink, m.ordertypedist, m.cnt, CAST(m.cnt AS NUMERIC) / t.total_cnt AS fraction FROM matched m JOIN totals t ON t.ordertypedist = m.ordertypedist ORDER BY fraction DESC, m.translink, m.ordertypedist LIMIT 10;",
-  "assumptions": [
-   {
-    "assumption": "Each advancedbehavior row matches at most one transactionrecord, because transactionrecord.transreg is the primary key, so COUNT(*) per (translink, ordertypedist) equals the number of matched advanced behaviour records.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The denominator for each fraction is the sum of counts across all translink groups that share the same ordertypedist, after the peercorr filter and the NULL exclusion have been applied.",
-    "unresolved": false
-   },
-   {
-    "assumption": "The request does not say how to order ties in the fraction, so ties are broken by translink and then ordertypedist to keep the output deterministic.",
-    "unresolved": true
-   }
-  ],
+  "sql": "WITH filtered_behavior AS (\n  SELECT ab.translink, tr.ordertypedist\n  FROM advancedbehavior ab\n  INNER JOIN transactionrecord tr ON tr.transreg = ab.translink\n  WHERE ab.peercorr > 0.149 AND tr.ordertypedist IS NOT NULL\n),\ncombination_counts AS (\n  SELECT \n    translink,\n    ordertypedist,\n    COUNT(*) as count\n  FROM filtered_behavior\n  GROUP BY translink, ordertypedist\n),\ntotals_per_type AS (\n  SELECT \n    ordertypedist,\n    SUM(count) as total_count\n  FROM combination_counts\n  GROUP BY ordertypedist\n)\nSELECT \n  cc.translink,\n  cc.ordertypedist,\n  cc.count,\n  CAST(cc.count AS FLOAT) / tpt.total_count as fraction\nFROM combination_counts cc\nJOIN totals_per_type tpt ON cc.ordertypedist = tpt.ordertypedist\nORDER BY fraction DESC\nLIMIT 10;",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
  "primary_executes": true,
- "primary_matches": [],
- "seconds": 10.5
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 45.9
 }

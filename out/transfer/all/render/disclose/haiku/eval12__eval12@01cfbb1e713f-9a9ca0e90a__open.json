@@ -2,19 +2,19 @@
  "case": "eval12:eval12@01cfbb1e713f-9a9ca0e90a",
  "wording": "open",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH order_stats AS (\n  SELECT \n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(feerate - rebrate) as avg_net_fee_rate\n  FROM fees\n  GROUP BY orderslink\n),\noverall_avg_net_fee AS (\n  SELECT \n    AVG(feerate - rebrate) as overall_avg_net_fee_rate\n  FROM fees\n),\nabove_average_orders AS (\n  SELECT \n    os.avg_rebtotal,\n    os.avg_net_fee_rate,\n    (os.avg_net_fee_rate - oaf.overall_avg_net_fee_rate) as excess\n  FROM order_stats os\n  CROSS JOIN overall_avg_net_fee oaf\n  WHERE os.avg_net_fee_rate > oaf.overall_avg_net_fee_rate\n)\nSELECT \n  AVG(avg_rebtotal) as mean_avg_rebtotal,\n  AVG(avg_net_fee_rate) as mean_avg_net_fee_rate,\n  AVG(excess) as mean_excess\nFROM above_average_orders",
+  "sql": "WITH net_fee_data AS (\n  SELECT \n    orderslink,\n    feerate - rebrate AS net_fee_rate,\n    rebtotal\n  FROM fees\n),\nper_order_stats AS (\n  SELECT \n    orderslink,\n    AVG(net_fee_rate) AS avg_net_fee_rate,\n    AVG(rebtotal) AS avg_rebtotal\n  FROM net_fee_data\n  GROUP BY orderslink\n),\noverall_avg_net_fee AS (\n  SELECT \n    AVG(net_fee_rate) AS overall_avg_net_fee_rate\n  FROM net_fee_data\n),\nexceeding_orders AS (\n  SELECT \n    pos.avg_net_fee_rate,\n    pos.avg_rebtotal,\n    (pos.avg_net_fee_rate - oaf.overall_avg_net_fee_rate) AS exceedance\n  FROM per_order_stats pos\n  CROSS JOIN overall_avg_net_fee oaf\n  WHERE pos.avg_net_fee_rate > oaf.overall_avg_net_fee_rate\n)\nSELECT \n  AVG(avg_rebtotal) AS mean_avg_rebtotal,\n  AVG(avg_net_fee_rate) AS mean_avg_net_fee_rate,\n  AVG(exceedance) AS mean_exceedance\nFROM exceeding_orders",
   "assumptions": [
    {
-    "assumption": "The 'overall average net fee rate' is calculated from all individual fee records' net fee rates (AVG(feerate - rebrate) across all rows), not from the average of order-level average net fee rates",
+    "assumption": "\"Overall average net fee rate\" is computed as the average of (feerate - rebrate) across all individual fee records in the fees table, treating each record equally. This provides a global baseline against which each order's average is compared.",
     "unresolved": true
    }
   ],
   "alternatives": [
    {
-    "interpretation": "The 'overall average net fee rate' is the average of all orders' average net fee rates, weighting each order equally rather than by its fee count",
-    "sql": "WITH order_stats AS (\n  SELECT \n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(feerate - rebrate) as avg_net_fee_rate\n  FROM fees\n  GROUP BY orderslink\n),\noverall_avg_net_fee AS (\n  SELECT \n    AVG(avg_net_fee_rate) as overall_avg_net_fee_rate\n  FROM order_stats\n),\nabove_average_orders AS (\n  SELECT \n    os.avg_rebtotal,\n    os.avg_net_fee_rate,\n    (os.avg_net_fee_rate - oaf.overall_avg_net_fee_rate) as excess\n  FROM order_stats os\n  CROSS JOIN overall_avg_net_fee oaf\n  WHERE os.avg_net_fee_rate > oaf.overall_avg_net_fee_rate\n)\nSELECT \n  AVG(avg_rebtotal) as mean_avg_rebtotal,\n  AVG(avg_net_fee_rate) as mean_avg_net_fee_rate,\n  AVG(excess) as mean_excess\nFROM above_average_orders"
+    "interpretation": "\"Overall average net fee rate\" is computed as the average of the per-order average net fee rates, giving each order/group equal weight regardless of how many fee records it has.",
+    "sql": "WITH net_fee_data AS (\n  SELECT \n    orderslink,\n    feerate - rebrate AS net_fee_rate,\n    rebtotal\n  FROM fees\n),\nper_order_stats AS (\n  SELECT \n    orderslink,\n    AVG(net_fee_rate) AS avg_net_fee_rate,\n    AVG(rebtotal) AS avg_rebtotal\n  FROM net_fee_data\n  GROUP BY orderslink\n),\noverall_avg_net_fee AS (\n  SELECT \n    AVG(avg_net_fee_rate) AS overall_avg_net_fee_rate\n  FROM per_order_stats\n),\nexceeding_orders AS (\n  SELECT \n    pos.avg_net_fee_rate,\n    pos.avg_rebtotal,\n    (pos.avg_net_fee_rate - oaf.overall_avg_net_fee_rate) AS exceedance\n  FROM per_order_stats pos\n  CROSS JOIN overall_avg_net_fee oaf\n  WHERE pos.avg_net_fee_rate > oaf.overall_avg_net_fee_rate\n)\nSELECT \n  AVG(avg_rebtotal) AS mean_avg_rebtotal,\n  AVG(avg_net_fee_rate) AS mean_avg_net_fee_rate,\n  AVG(exceedance) AS mean_exceedance\nFROM exceeding_orders"
    }
   ]
  },
@@ -25,14 +25,14 @@
  ],
  "alternatives": [
   {
-   "interpretation": "The 'overall average net fee rate' is the average of all orders' average net fee rates, weighting each order equally rather than by its fee count",
-   "sql": "WITH order_stats AS (\n  SELECT \n    orderslink,\n    AVG(rebtotal) as avg_rebtotal,\n    AVG(feerate - rebrate) as avg_net_fee_rate\n  FROM fees\n  GROUP BY orderslink\n),\noverall_avg_net_fee AS (\n  SELECT \n    AVG(avg_net_fee_rate) as overall_avg_net_fee_rate\n  FROM order_stats\n),\nabove_average_orders AS (\n  SELECT \n    os.avg_rebtotal,\n    os.avg_net_fee_rate,\n    (os.avg_net_fee_rate - oaf.overall_avg_net_fee_rate) as excess\n  FROM order_stats os\n  CROSS JOIN overall_avg_net_fee oaf\n  WHERE os.avg_net_fee_rate > oaf.overall_avg_net_fee_rate\n)\nSELECT \n  AVG(avg_rebtotal) as mean_avg_rebtotal,\n  AVG(avg_net_fee_rate) as mean_avg_net_fee_rate,\n  AVG(excess) as mean_excess\nFROM above_average_orders",
+   "interpretation": "\"Overall average net fee rate\" is computed as the average of the per-order average net fee rates, giving each order/group equal weight regardless of how many fee records it has.",
+   "sql": "WITH net_fee_data AS (\n  SELECT \n    orderslink,\n    feerate - rebrate AS net_fee_rate,\n    rebtotal\n  FROM fees\n),\nper_order_stats AS (\n  SELECT \n    orderslink,\n    AVG(net_fee_rate) AS avg_net_fee_rate,\n    AVG(rebtotal) AS avg_rebtotal\n  FROM net_fee_data\n  GROUP BY orderslink\n),\noverall_avg_net_fee AS (\n  SELECT \n    AVG(avg_net_fee_rate) AS overall_avg_net_fee_rate\n  FROM per_order_stats\n),\nexceeding_orders AS (\n  SELECT \n    pos.avg_net_fee_rate,\n    pos.avg_rebtotal,\n    (pos.avg_net_fee_rate - oaf.overall_avg_net_fee_rate) AS exceedance\n  FROM per_order_stats pos\n  CROSS JOIN overall_avg_net_fee oaf\n  WHERE pos.avg_net_fee_rate > oaf.overall_avg_net_fee_rate\n)\nSELECT \n  AVG(avg_rebtotal) AS mean_avg_rebtotal,\n  AVG(avg_net_fee_rate) AS mean_avg_net_fee_rate,\n  AVG(exceedance) AS mean_exceedance\nFROM exceeding_orders",
    "executes": true,
    "matches": [
     "A"
    ]
   }
  ],
- "seconds": 72.2,
- "chars_out": 1981
+ "seconds": 36.8,
+ "chars_out": 2348
 }

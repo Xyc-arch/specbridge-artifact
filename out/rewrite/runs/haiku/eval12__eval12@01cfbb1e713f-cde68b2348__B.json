@@ -4,8 +4,25 @@
  "reading": "B",
  "description": "Compare each station's average bandwidth usage with the mean bandwidth usage over all individual telescopes.",
  "b": {
-  "request": "Return one row for stations whose average `bandusagepct` (non-null, per telescope) exceeds the mean `bandusagepct` across all non-null telescope rows: the mean of those stations' averages, and the mean of each station's average minus that global mean, both unrounded",
-  "sql": "WITH global AS (SELECT AVG(bandusagepct) AS gmean FROM telescopes WHERE bandusagepct IS NOT NULL), station_avgs AS (SELECT observstation, AVG(bandusagepct) AS savg FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation) SELECT AVG(s.savg) AS mean_station_avg, AVG(s.savg - g.gmean) AS mean_diff_from_global FROM station_avgs s CROSS JOIN global g WHERE s.savg > g.gmean;",
+  "request": "For observatory stations whose average telescope bandwidth usage exceeds the global mean bandwidth usage across all telescopes, report the mean bandwidth usage of those stations and the mean excess above the global average for those stations, both unrounded.",
+  "sql": "WITH global_avg AS (\n  SELECT AVG(bandusagepct) as global_mean\n  FROM telescopes\n),\nstation_avg AS (\n  SELECT observstation, AVG(bandusagepct) as station_mean\n  FROM telescopes\n  GROUP BY observstation\n),\nabove_global AS (\n  SELECT \n    sa.station_mean,\n    sa.station_mean - ga.global_mean as excess\n  FROM station_avg sa, global_avg ga\n  WHERE sa.station_mean > ga.global_mean\n)\nSELECT \n  AVG(station_mean) as mean_bandwidth_usage,\n  AVG(excess) as mean_excess\nFROM above_global",
+  "executes": true,
+  "matches": [
+   "B"
+  ],
+  "raw": "For observatory stations whose average telescope bandwidth usage exceeds the global mean bandwidth usage across all telescopes, report the mean bandwidth usage of those stations and the mean excess above the global average for those stations, both unrounded."
+ },
+ "c": {
+  "request": "For observatory stations whose average telescope bandwidth usage (`bandusagepct`) is above average, what is their mean bandwidth usage, and how far above average are they on average? Ignore missing usage values, and give both figures unrounded in a single row. Compare each station's average bandwidth usage with the mean bandwidth usage over all individual telescopes.",
+  "sql": "WITH overall_avg AS (SELECT AVG(bandusagepct) as overall_mean FROM telescopes WHERE bandusagepct IS NOT NULL),station_avg AS (SELECT observstation, AVG(bandusagepct) as station_mean FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation),above_avg_stations AS (SELECT sa.station_mean FROM station_avg sa CROSS JOIN overall_avg oa WHERE sa.station_mean > oa.overall_mean)SELECT AVG(station_mean) as mean_bandwidth_usage, AVG(station_mean) - (SELECT overall_mean FROM overall_avg) as above_average_amount FROM above_avg_stations;",
+  "executes": true,
+  "matches": [
+   "B"
+  ]
+ },
+ "d": {
+  "request": "For observatory stations whose mean bandwidth usage (averaged from their constituent telescopes) exceeds the global mean bandwidth usage across all telescopes, report the mean bandwidth usage of those stations and the mean amount by which they exceed the global mean, both unrounded.",
+  "sql": "WITH global_mean AS (\n  SELECT AVG(bandusagepct) as global_avg\n  FROM telescopes\n),\nstation_means AS (\n  SELECT observstation, AVG(bandusagepct) as station_avg\n  FROM telescopes\n  GROUP BY observstation\n)\nSELECT \n  AVG(sm.station_avg) as mean_bandwidth_of_exceeding_stations,\n  AVG(sm.station_avg - gm.global_avg) as mean_excess_amount\nFROM station_means sm, global_mean gm\nWHERE sm.station_avg > gm.global_avg",
   "executes": true,
   "matches": [
    "B"
@@ -13,25 +30,11 @@
  },
  "a": {
   "request": "Average the bandwidth usage (`bandusagepct`) of the telescopes at each observatory station, ignoring missing values. Take as the baseline the average bandwidth usage over all telescopes (each telescope counting once). For the stations whose average is above that baseline, return one row with two unrounded values: the mean of those stations' averages, and the mean amount by which they exceed the baseline.",
-  "sql": "WITH station_avg AS (SELECT observstation, AVG(bandusagepct) AS avg_bw FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation), baseline AS (SELECT AVG(bandusagepct) AS base_bw FROM telescopes WHERE bandusagepct IS NOT NULL), above AS (SELECT s.avg_bw, s.avg_bw - b.base_bw AS excess FROM station_avg s CROSS JOIN baseline b WHERE s.avg_bw > b.base_bw) SELECT AVG(avg_bw) AS mean_above_station_avg, AVG(excess) AS mean_excess_over_baseline FROM above;",
+  "sql": "WITH station_avgs AS (\n  SELECT observstation, AVG(bandusagepct) as station_avg\n  FROM telescopes\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation\n),\nbaseline AS (\n  SELECT AVG(bandusagepct) as baseline_val\n  FROM telescopes\n  WHERE bandusagepct IS NOT NULL\n),\nabove_baseline AS (\n  SELECT sa.station_avg, sa.station_avg - b.baseline_val as excess\n  FROM station_avgs sa\n  CROSS JOIN baseline b\n  WHERE sa.station_avg > b.baseline_val\n)\nSELECT \n  AVG(station_avg) as mean_of_station_averages,\n  AVG(excess) as mean_excess\nFROM above_baseline",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "c": {
-  "request": "For observatory stations whose average telescope bandwidth usage (`bandusagepct`) is above average, what is their mean bandwidth usage, and how far above average are they on average? Ignore missing usage values, and give both figures unrounded in a single row. Compare each station's average bandwidth usage with the mean bandwidth usage over all individual telescopes.",
-  "sql": "WITH station_avg AS (SELECT observstation, AVG(bandusagepct) AS avg_usage FROM telescopes WHERE bandusagepct IS NOT NULL GROUP BY observstation), overall AS (SELECT AVG(bandusagepct) AS overall_avg FROM telescopes WHERE bandusagepct IS NOT NULL) SELECT AVG(s.avg_usage) AS mean_bandwidth_usage, AVG(s.avg_usage - o.overall_avg) AS mean_excess_above_average FROM station_avg s CROSS JOIN overall o WHERE s.avg_usage > o.overall_avg;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Compare each observatory station's average telescope bandwidth usage (`bandusagepct`, ignoring missing values) with the mean bandwidth usage across all individual telescopes.",
-  "sql": "SELECT t.observstation, AVG(t.bandusagepct) AS station_avg_bandusagepct, (SELECT AVG(t2.bandusagepct) FROM telescopes t2 WHERE t2.bandusagepct IS NOT NULL) AS overall_avg_bandusagepct, AVG(t.bandusagepct) - (SELECT AVG(t2.bandusagepct) FROM telescopes t2 WHERE t2.bandusagepct IS NOT NULL) AS diff_from_overall FROM telescopes t WHERE t.bandusagepct IS NOT NULL GROUP BY t.observstation;",
-  "executes": true,
-  "matches": []
- }
+ "calls": 6
 }

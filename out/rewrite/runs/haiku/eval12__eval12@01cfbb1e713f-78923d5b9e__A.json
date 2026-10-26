@@ -3,33 +3,34 @@
  "model": "haiku",
  "reading": "A",
  "description": "List the 10 site/insurance-status groups with the largest share of conservation records. Return exactly 10, breaking ties at the cutoff arbitrarily.",
- "c": {
-  "request": "Matching conservation records (`scanconservation`) to their sites on `zoneref` = `sites.zoneregistry` and dropping any without a site, which are the top 10 site reference and insurance status (`insurstat`) combinations by share of conservation records? Treat a missing status as its own value. Show the site reference, the insurance status, the record count, and the count as a fraction of all matched conservation records (unrounded), sorted by that fraction from highest to lowest with missing values last. List the 10 site/insurance-status groups with the largest share of conservation records. Return exactly 10, breaking ties at the cutoff arbitrarily.",
-  "sql": "WITH matched AS (SELECT sc.zoneref, s.insurstat FROM scanconservation sc INNER JOIN sites s ON sc.zoneref = s.zoneregistry), totals AS (SELECT COUNT(*) AS total_matched FROM matched), grouped AS (SELECT zoneref, insurstat, COUNT(*) AS record_count FROM matched GROUP BY zoneref, insurstat) SELECT g.zoneref AS site_reference, g.insurstat AS insurance_status, g.record_count, g.record_count::double precision / t.total_matched AS share FROM grouped g CROSS JOIN totals t ORDER BY share DESC NULLS LAST LIMIT 10;",
+ "b": {
+  "request": "Rank site-insurance status combinations by their share of conservation records and return the top 10, treating missing insurance status as a distinct category, sorted by share descending with nulls last.",
+  "sql": "SELECT COALESCE(s.insurstat, 'Missing') as insurstat, COUNT(sc.cureregistry) as record_count, CAST(COUNT(sc.cureregistry) as FLOAT) / (SELECT COUNT(*) FROM scanconservation) as share FROM scanconservation sc JOIN sites s ON sc.zoneref = s.zoneregistry GROUP BY s.insurstat ORDER BY share DESC, s.insurstat IS NOT NULL DESC LIMIT 10",
+  "executes": true,
+  "matches": [],
+  "raw": "Rank site-insurance status combinations by their share of conservation records and return the top 10, treating missing insurance status as a distinct category, sorted by share descending with nulls last."
+ },
+ "d": {
+  "request": "Return the 10 site-code and insurance-status combinations with the largest share of conservation records, showing site code, insurance status, record count, and the unrounded fraction of total matched conservation records for each, sorted by fraction in descending order with null insurance statuses ranked last.",
+  "sql": "WITH conservation_totals AS (\n  SELECT COUNT(*) as total_count\n  FROM scanconservation\n)\nSELECT \n  s.zoneregistry as site_code,\n  s.insurstat as insurance_status,\n  COUNT(sc.cureregistry) as record_count,\n  COUNT(sc.cureregistry)::float / (SELECT total_count FROM conservation_totals) as fraction\nFROM sites s\nINNER JOIN scanconservation sc ON s.zoneregistry = sc.zoneref\nGROUP BY s.zoneregistry, s.insurstat\nORDER BY \n  fraction DESC,\n  (s.insurstat IS NOT NULL) DESC\nLIMIT 10;",
   "executes": false,
   "matches": []
+ },
+ "c": {
+  "request": "Matching conservation records (`scanconservation`) to their sites on `zoneref` = `sites.zoneregistry` and dropping any without a site, which are the top 10 site reference and insurance status (`insurstat`) combinations by share of conservation records? Treat a missing status as its own value. Show the site reference, the insurance status, the record count, and the count as a fraction of all matched conservation records (unrounded), sorted by that fraction from highest to lowest with missing values last. List the 10 site/insurance-status groups with the largest share of conservation records. Return exactly 10, breaking ties at the cutoff arbitrarily.",
+  "sql": "WITH total_matched AS (\n    SELECT COUNT(*) as total_count\n    FROM scanconservation sc\n    JOIN sites s ON sc.zoneref = s.zoneregistry\n)\nSELECT \n    sc.zoneref,\n    s.insurstat,\n    COUNT(*) as record_count,\n    COUNT(*) * 1.0 / tm.total_count as fraction\nFROM scanconservation sc\nJOIN sites s ON sc.zoneref = s.zoneregistry\nCROSS JOIN total_matched tm\nGROUP BY sc.zoneref, s.insurstat, tm.total_count\nORDER BY fraction DESC, s.insurstat IS NULL\nLIMIT 10;",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
  },
  "a": {
   "request": "Match each conservation record (`scanconservation`) to its site where `sites.zoneregistry` equals `scanconservation.zoneref`, and drop records with no matching site. For each combination of site reference (`zoneref`) and insurance status (`insurstat`), with a missing status kept as its own value, show the site reference, the insurance status, the number of conservation records, and that number as a fraction of all matched conservation records, unrounded. Sort by that fraction from highest to lowest (missing last) and return exactly 10 rows, breaking any ties at 10th place arbitrarily.",
-  "sql": "SELECT c.zoneref AS site_reference, s.insurstat AS insurance_status, COUNT(*) AS record_count, COUNT(*)::numeric / SUM(COUNT(*)) OVER () AS fraction FROM scanconservation c JOIN sites s ON s.zoneregistry = c.zoneref GROUP BY c.zoneref, s.insurstat ORDER BY fraction DESC NULLS LAST LIMIT 10;",
-  "executes": false,
-  "matches": []
- },
- "b": {
-  "request": "Top 10 (zoneref\u2192sites.zoneregistry inner-joined) site_reference \u00d7 insurstat groups, ranked by count / total matched scanconservation rows (NULL insurstat kept as its own group, unrounded fraction, NULLS LAST, ties at position 10 broken arbitrarily)",
-  "sql": "WITH matched AS (SELECT sc.zoneref, s.insurstat FROM scanconservation sc INNER JOIN sites s ON sc.zoneref = s.zoneregistry), total AS (SELECT COUNT(*) AS n FROM matched), grouped AS (SELECT zoneref AS site_reference, insurstat, COUNT(*) AS cnt FROM matched GROUP BY zoneref, insurstat) SELECT g.site_reference, g.insurstat, g.cnt, g.cnt * 1.0 / t.n AS fraction FROM grouped g CROSS JOIN total t ORDER BY fraction DESC NULLS LAST LIMIT 10;",
+  "sql": "WITH matched AS (SELECT sc.zoneref, s.insurstat FROM scanconservation sc INNER JOIN sites s ON s.zoneregistry = sc.zoneref), totals AS (SELECT COUNT(*) as total_count FROM matched), grouped AS (SELECT zoneref, insurstat, COUNT(*) as record_count FROM matched GROUP BY zoneref, insurstat) SELECT zoneref, insurstat, record_count, CAST(record_count AS FLOAT) / (SELECT total_count FROM totals) as fraction FROM grouped ORDER BY fraction DESC, insurstat IS NULL, zoneref, insurstat LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Among the site reference and insurance status combinations from matched conservation records (`scanconservation` joined to `sites` on `zoneref` = `sites.zoneregistry`, with unmatched records dropped and a missing insurance status treated as its own value), which 10 groups have the largest share of conservation records? Return exactly 10, breaking ties at the cutoff arbitrarily, and show the site reference, insurance status, record count, and unrounded fraction of all matched conservation records for each, sorted from highest to lowest fraction with missing values last.",
-  "sql": "SELECT s.zoneregistry AS site_reference, s.insurstat AS insurance_status, COUNT(*) AS record_count, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS fraction FROM scanconservation c JOIN sites s ON c.zoneref = s.zoneregistry GROUP BY s.zoneregistry, s.insurstat ORDER BY fraction DESC NULLS LAST LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "calls": 6
 }

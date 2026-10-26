@@ -5,35 +5,36 @@
  "description": "Average aCL IgG and ANA over all matched examination records within each sex. Each examination counts once.",
  "a": {
   "request": "For each patient sex (`Patient.SEX`), use every examination record that matches a patient (drop examinations with no matching patient), with each examination counting once even when a patient has several. Give the sex, the average `aCL IgG`, the average `ANA`, and that sex's average ANA divided by the mean of the per-sex average ANA values. Ignore missing values in all averages and don't round.",
-  "sql": "WITH sex_stats AS (SELECT p.SEX AS sex, AVG(e.`aCL IgG`) AS avg_acl_igg, AVG(e.ANA) AS avg_ana FROM Examination e INNER JOIN Patient p ON e.ID = p.ID GROUP BY p.SEX) SELECT sex, avg_acl_igg, avg_ana, avg_ana / (SELECT AVG(avg_ana) FROM sex_stats) AS ana_ratio FROM sex_stats;",
+  "sql": "WITH sex_stats AS (SELECT p.SEX, AVG(e.`aCL IgG`) as avg_aCL_IgG, AVG(e.ANA) as avg_ANA FROM Examination e INNER JOIN Patient p ON e.ID = p.ID GROUP BY p.SEX), overall_mean AS (SELECT AVG(avg_ANA) as mean_avg_ANA FROM sex_stats) SELECT s.SEX, s.avg_aCL_IgG, s.avg_ANA, s.avg_ANA / o.mean_avg_ANA as ana_ratio FROM sex_stats s CROSS JOIN overall_mean o",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "c": {
-  "request": "By patient sex, what are the average aCL IgG and ANA values in the examination data (only examinations linked to a patient, missing values ignored)? Also give each sex's average ANA as a ratio of the mean of the per-sex ANA averages, unrounded. Average aCL IgG and ANA over all matched examination records within each sex. Each examination counts once.",
-  "sql": "WITH sex_avg AS (SELECT p.SEX AS sex, AVG(e.`aCL IgG`) AS avg_acl_igg, AVG(e.ANA) AS avg_ana FROM Examination e INNER JOIN Patient p ON p.ID = e.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX) SELECT sex, avg_acl_igg, avg_ana, avg_ana / (SELECT AVG(avg_ana) FROM sex_avg) AS ana_ratio FROM sex_avg;",
+ "d": {
+  "request": "For each patient sex, compute the mean aCL IgG and mean ANA across all examinations with non-null values, then express each sex's mean ANA as a ratio to the mean of those two per-sex ANA averages.",
+  "sql": "WITH sex_stats AS (\n    SELECT \n        p.SEX,\n        AVG(e.`aCL IgG`) as mean_aCL_IgG,\n        AVG(e.ANA) as mean_ANA\n    FROM Patient p\n    JOIN Examination e ON p.ID = e.ID\n    GROUP BY p.SEX\n)\nSELECT \n    SEX,\n    mean_aCL_IgG,\n    mean_ANA,\n    mean_ANA / (SELECT AVG(mean_ANA) FROM sex_stats) as ANA_ratio\nFROM sex_stats",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "For each SEX in Patient, compute the average aCL IgG and average ANA over Examination rows inner-joined to Patient on ID (one row per examination, NULLs ignored), and report each sex's average ANA divided by the unrounded mean of the two per-sex average ANA values",
-  "sql": "WITH sex_avg AS (SELECT p.SEX AS sex, AVG(e.`aCL IgG`) AS avg_acl_igg, AVG(e.ANA) AS avg_ana FROM Examination e INNER JOIN Patient p ON e.ID = p.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX) SELECT sex, avg_acl_igg, avg_ana, avg_ana / (SELECT AVG(avg_ana) FROM sex_avg) AS ana_ratio FROM sex_avg",
+  "request": "Calculate average aCL IgG and average ANA grouped by patient sex from examination records (each examination counted once), and express each sex's average ANA as a ratio of the mean of the per-sex ANA averages.",
+  "sql": "SELECT p.SEX, AVG(e.`aCL IgG`) as avg_aCL_IgG, AVG(e.ANA) as avg_ANA, AVG(e.ANA) / (SELECT AVG(sex_avg_ANA) FROM (SELECT AVG(e2.ANA) as sex_avg_ANA FROM Examination e2 JOIN Patient p2 ON e2.ID = p2.ID GROUP BY p2.SEX) inner_query) as ANA_ratio FROM Examination e JOIN Patient p ON e.ID = p.ID GROUP BY p.SEX",
+  "executes": true,
+  "matches": [
+   "A"
+  ],
+  "raw": "Calculate average aCL IgG and average ANA grouped by patient sex from examination records (each examination counted once), and express each sex's average ANA as a ratio of the mean of the per-sex ANA averages."
+ },
+ "c": {
+  "request": "By patient sex, what are the average aCL IgG and ANA values in the examination data (only examinations linked to a patient, missing values ignored)? Also give each sex's average ANA as a ratio of the mean of the per-sex ANA averages, unrounded. Average aCL IgG and ANA over all matched examination records within each sex. Each examination counts once.",
+  "sql": "WITH sex_averages AS (\n  SELECT \n    p.SEX,\n    AVG(e.`aCL IgG`) as avg_acl_igg,\n    AVG(e.ANA) as avg_ana\n  FROM Examination e\n  JOIN Patient p ON e.ID = p.ID\n  GROUP BY p.SEX\n),\nana_mean AS (\n  SELECT AVG(avg_ana) as mean_ana\n  FROM sex_averages\n)\nSELECT \n  s.SEX,\n  s.avg_acl_igg,\n  s.avg_ana,\n  s.avg_ana / m.mean_ana as ana_ratio\nFROM sex_averages s\nCROSS JOIN ana_mean m\nORDER BY s.SEX;",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Across all matched examination records, what are the average aCL IgG and average ANA for each patient sex (each examination counted once, missing values ignored)? Also, what is each sex's average ANA as a ratio of the mean of the per-sex ANA averages, unrounded?",
-  "sql": "WITH per_sex AS (SELECT p.SEX AS sex, AVG(e.`aCL IgG`) AS avg_acl_igg, AVG(e.ANA) AS avg_ana FROM Examination e JOIN Patient p ON e.ID = p.ID WHERE p.SEX IS NOT NULL GROUP BY p.SEX), overall AS (SELECT AVG(avg_ana) AS mean_ana FROM per_sex) SELECT per_sex.sex, per_sex.avg_acl_igg, per_sex.avg_ana, per_sex.avg_ana / overall.mean_ana AS ana_ratio FROM per_sex, overall;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- }
+ "calls": 6
 }

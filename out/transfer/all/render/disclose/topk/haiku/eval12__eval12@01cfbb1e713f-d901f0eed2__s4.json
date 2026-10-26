@@ -3,11 +3,11 @@
  "sample": 4,
  "model": "haiku",
  "response": {
-  "sql": "WITH cust AS (SELECT c.CustomerId, COALESCE(SUM(i.Total), 0) AS total FROM Customer c LEFT JOIN Invoice i ON i.CustomerId = c.CustomerId GROUP BY c.CustomerId), shares AS (SELECT CustomerId, total, total * 1.0 / (SELECT SUM(total) FROM cust) AS share FROM cust), avg_share AS (SELECT AVG(share) AS a FROM shares), kept AS (SELECT s.total, s.share FROM shares s, avg_share v WHERE s.share > v.a) SELECT AVG(k.total) AS avg_spent, AVG(k.share) AS avg_share, AVG(k.share - v.a) AS avg_share_above_average FROM kept k, avg_share v;"
+  "sql": "WITH customer_totals AS (\n  SELECT SUM(Total) as customer_total\n  FROM Invoice\n  GROUP BY CustomerId\n),\ntotal_revenue AS (\n  SELECT SUM(customer_total) as total_rev FROM customer_totals\n),\ncustomer_shares AS (\n  SELECT \n    ct.customer_total,\n    ct.customer_total / (SELECT total_rev FROM total_revenue) as customer_share\n  FROM customer_totals ct\n),\naverage_share_calc AS (\n  SELECT AVG(customer_share) as overall_avg_share FROM customer_shares\n),\nabove_average AS (\n  SELECT \n    cs.customer_total,\n    cs.customer_share\n  FROM customer_shares cs\n  WHERE cs.customer_share > (SELECT overall_avg_share FROM average_share_calc)\n)\nSELECT \n  AVG(aa.customer_total) as avg_amount_spent,\n  AVG(aa.customer_share) as avg_share,\n  AVG(aa.customer_share) - (SELECT overall_avg_share FROM average_share_calc) as share_beat_avg\nFROM above_average aa"
  },
  "primary_executes": true,
  "primary_matches": [
   "A"
  ],
- "seconds": 5.7
+ "seconds": 19.8
 }

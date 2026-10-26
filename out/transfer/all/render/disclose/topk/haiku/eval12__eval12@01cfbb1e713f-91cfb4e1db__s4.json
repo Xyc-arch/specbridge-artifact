@@ -3,9 +3,11 @@
  "sample": 4,
  "model": "haiku",
  "response": {
-  "sql": "WITH base AS (SELECT s.transref, t.trdref, tr.tradekind, s.optvolrt FROM sentimentandfundamentals s JOIN transactionrecord t ON s.transref = t.transreg JOIN trader tr ON t.trdref = tr.tradereg), overall AS (SELECT AVG(optvolrt) AS overall_avg FROM base), pairs AS (SELECT transref, tradekind, AVG(optvolrt) AS pair_avg FROM base GROUP BY transref, tradekind), devs AS (SELECT p.transref, p.tradekind, p.pair_avg, ABS(p.pair_avg - o.overall_avg) AS dev FROM pairs p CROSS JOIN overall o WHERE o.overall_avg IS NOT NULL AND p.tradekind IS NOT NULL), typed AS (SELECT d.tradekind, d.pair_avg, d.dev, AVG(d.dev) OVER (PARTITION BY d.tradekind) AS type_avg_dev FROM devs d), kept AS (SELECT tradekind, pair_avg, dev, dev - type_avg_dev AS excess FROM typed WHERE dev > type_avg_dev) SELECT tradekind, AVG(pair_avg) AS avg_optvolrt, AVG(dev) AS avg_deviation, AVG(excess) AS avg_excess FROM kept GROUP BY tradekind"
+  "sql": "WITH base_data AS (SELECT s.transref, t.tradekind, s.optvolrt FROM sentimentandfundamentals s INNER JOIN transactionrecord tr ON s.transref = tr.transreg INNER JOIN trader t ON tr.trdref = t.tradereg), overall_avg AS (SELECT AVG(optvolrt) as overall_avg_optvolrt FROM base_data WHERE optvolrt IS NOT NULL), pair_averages AS (SELECT transref, tradekind, AVG(optvolrt) as avg_optvolrt FROM base_data WHERE optvolrt IS NOT NULL GROUP BY transref, tradekind), with_deviation AS (SELECT pa.transref, pa.tradekind, pa.avg_optvolrt, (pa.avg_optvolrt - oa.overall_avg_optvolrt) as deviation FROM pair_averages pa CROSS JOIN overall_avg oa WHERE pa.tradekind IS NOT NULL AND oa.overall_avg_optvolrt IS NOT NULL), type_avg_deviation AS (SELECT tradekind, AVG(deviation) as avg_deviation_per_type FROM with_deviation GROUP BY tradekind), filtered_pairs AS (SELECT wd.tradekind, wd.avg_optvolrt, wd.deviation, (wd.deviation - tad.avg_deviation_per_type) as excess FROM with_deviation wd JOIN type_avg_deviation tad ON wd.tradekind = tad.tradekind WHERE wd.deviation > tad.avg_deviation_per_type) SELECT tradekind, AVG(avg_optvolrt) as avg_optvolrt, AVG(deviation) as avg_deviation, AVG(excess) as avg_excess FROM filtered_pairs GROUP BY tradekind ORDER BY tradekind"
  },
  "primary_executes": true,
- "primary_matches": [],
- "seconds": 13.3
+ "primary_matches": [
+  "B"
+ ],
+ "seconds": 69.6
 }

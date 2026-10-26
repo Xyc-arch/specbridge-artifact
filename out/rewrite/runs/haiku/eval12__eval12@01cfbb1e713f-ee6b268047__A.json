@@ -3,37 +3,34 @@
  "model": "haiku",
  "reading": "A",
  "description": "Rank telescopes by their share of all signals and return exactly 10 rows, choosing arbitrarily among telescopes tied at the 10th place.",
- "a": {
-  "request": "For each telescope reference (`telescref`) in the signals table, count its signals and compute that count as an unrounded fraction of all signals. Show the telescope reference, the signal count and the fraction, sorted by fraction from highest to lowest, and return exactly 10 rows, choosing arbitrarily among telescopes tied at the cutoff.",
-  "sql": "SELECT telescref, COUNT(*) AS signal_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM signals) AS fraction FROM signals GROUP BY telescref ORDER BY fraction DESC LIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
  "b": {
-  "request": "Rank telescopes by `telescref` on the `signals` table, with each telescope's signal count and its unrounded share of all signals (count divided by total signal count), sorted descending, returning exactly 10 rows and breaking any tie at 10th place arbitrarily",
-  "sql": "SELECT telescref, COUNT(*) AS signal_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM signals) AS share FROM signals GROUP BY telescref ORDER BY signal_count DESC LIMIT 10;",
+  "request": "Rank telescopes by their share of detected signals in descending order, return exactly 10 rows, breaking ties arbitrarily at the 10th position.",
+  "sql": "SELECT t.telescregistry, COUNT(s.signalregistry) as detected_signals, ROUND(100.0 * COUNT(s.signalregistry) / (SELECT COUNT(*) FROM signals), 2) as share_percentage FROM telescopes t LEFT JOIN signals s ON t.telescregistry = s.telescref GROUP BY t.telescregistry ORDER BY COUNT(s.signalregistry) DESC, t.telescregistry LIMIT 10;",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": [],
+  "raw": "Rank telescopes by their share of detected signals in descending order, return exactly 10 rows, breaking ties arbitrarily at the 10th position."
  },
  "c": {
   "request": "What are the top 10 telescopes by share of detected signals? For each telescope reference (`telescref`), show how many signals it detected and what fraction of all signals that is (unrounded), from the largest share down. Rank telescopes by their share of all signals and return exactly 10 rows, choosing arbitrarily among telescopes tied at the 10th place.",
-  "sql": "SELECT telescref, COUNT(*) AS signal_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM signals) AS share FROM signals GROUP BY telescref ORDER BY share DESC LIMIT 10;",
+  "sql": "SELECT s.telescref, COUNT(*) as signal_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM signals) as signal_share FROM signals s GROUP BY s.telescref ORDER BY signal_share DESC LIMIT 10;",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "calls": 6,
- "d": {
-  "request": "Rank telescopes by their share of all signals (`telescref`, with signal count and unrounded fraction of total signals, largest share first), and return exactly 10 rows, breaking ties at 10th place arbitrarily.",
-  "sql": "SELECT telescref, COUNT(*) AS signal_count, COUNT(*) * 1.0 / (SELECT COUNT(*) FROM signals) AS signal_fraction FROM signals GROUP BY telescref ORDER BY signal_count DESC LIMIT 10;",
+ "a": {
+  "request": "For each telescope reference (`telescref`) in the signals table, count its signals and compute that count as an unrounded fraction of all signals. Show the telescope reference, the signal count and the fraction, sorted by fraction from highest to lowest, and return exactly 10 rows, choosing arbitrarily among telescopes tied at the cutoff.",
+  "sql": "SELECT telescref, COUNT(*) as signal_count, CAST(COUNT(*) AS FLOAT) / (SELECT COUNT(*) FROM signals) as fraction FROM signals GROUP BY telescref ORDER BY fraction DESC LIMIT 10",
   "executes": true,
   "matches": [
    "A"
   ]
- }
+ },
+ "d": {
+  "request": "Rank telescopes by their share of all signals in descending order and return exactly 10 rows, arbitrarily selecting among telescopes tied at the 10th rank.",
+  "sql": "WITH signal_counts AS (\n  SELECT \n    t.telescregistry,\n    COUNT(s.signalregistry) as signal_count\n  FROM telescopes t\n  LEFT JOIN signals s ON t.telescregistry = s.telescref\n  GROUP BY t.telescregistry\n),\ntotal_signals AS (\n  SELECT COUNT(*) as total FROM signals\n),\nranked AS (\n  SELECT \n    sc.telescregistry,\n    sc.signal_count,\n    sc.signal_count::FLOAT / ts.total as signal_share,\n    ROW_NUMBER() OVER (ORDER BY sc.signal_count DESC) as rank\n  FROM signal_counts sc\n  CROSS JOIN total_signals ts\n)\nSELECT \n  telescregistry,\n  signal_count,\n  signal_share,\n  rank\nFROM ranked\nLIMIT 10",
+  "executes": false,
+  "matches": []
+ },
+ "calls": 6
 }

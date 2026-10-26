@@ -1,0 +1,30 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-43277f1d9e",
+ "model": "haiku",
+ "response": {
+  "sql": "WITH matched_fees_orders AS (\n  SELECT \n    f.feerate - f.rebrate AS net_fee_rate,\n    o.mktnote\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\noverall_benchmark AS (\n  SELECT AVG(net_fee_rate) AS benchmark_value\n  FROM matched_fees_orders\n),\npair_averages AS (\n  SELECT \n    mktnote,\n    AVG(net_fee_rate) AS pair_avg_net_fee_rate\n  FROM matched_fees_orders\n  GROUP BY mktnote\n),\nkept_pairs AS (\n  SELECT \n    pa.pair_avg_net_fee_rate,\n    ob.benchmark_value\n  FROM pair_averages pa\n  CROSS JOIN overall_benchmark ob\n  WHERE pa.pair_avg_net_fee_rate > ob.benchmark_value\n)\nSELECT \n  AVG(pair_avg_net_fee_rate),\n  AVG(pair_avg_net_fee_rate - benchmark_value)\nFROM kept_pairs",
+  "assumptions": [
+   {
+    "assumption": "The benchmark is the overall average net fee rate (feerate \u2212 rebrate) calculated across all matched fees, before any grouping. When this aggregate is NULL (no matched fees or all net rates are NULL), no pairs are kept and the result returns NULL values.",
+    "unresolved": true
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "The benchmark is the average net fee rate of the group with NULL (missing) mktnote, and only non-NULL mktnote pairs exceeding this benchmark are kept.",
+    "sql": "WITH matched_fees_orders AS (\n  SELECT \n    f.feerate - f.rebrate AS net_fee_rate,\n    o.mktnote\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\npair_averages AS (\n  SELECT \n    mktnote,\n    AVG(net_fee_rate) AS pair_avg_net_fee_rate\n  FROM matched_fees_orders\n  GROUP BY mktnote\n),\nkept_pairs AS (\n  SELECT \n    pa.pair_avg_net_fee_rate,\n    (SELECT pair_avg_net_fee_rate FROM pair_averages WHERE mktnote IS NULL) AS benchmark_value\n  FROM pair_averages pa\n  WHERE mktnote IS NOT NULL\n    AND pa.pair_avg_net_fee_rate > (SELECT pair_avg_net_fee_rate FROM pair_averages WHERE mktnote IS NULL)\n)\nSELECT \n  AVG(pair_avg_net_fee_rate),\n  AVG(pair_avg_net_fee_rate - benchmark_value)\nFROM kept_pairs"
+   }
+  ]
+ },
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "The benchmark is the average net fee rate of the group with NULL (missing) mktnote, and only non-NULL mktnote pairs exceeding this benchmark are kept.",
+   "sql": "WITH matched_fees_orders AS (\n  SELECT \n    f.feerate - f.rebrate AS net_fee_rate,\n    o.mktnote\n  FROM fees f\n  INNER JOIN orders o ON f.orderslink = o.recordvault\n),\npair_averages AS (\n  SELECT \n    mktnote,\n    AVG(net_fee_rate) AS pair_avg_net_fee_rate\n  FROM matched_fees_orders\n  GROUP BY mktnote\n),\nkept_pairs AS (\n  SELECT \n    pa.pair_avg_net_fee_rate,\n    (SELECT pair_avg_net_fee_rate FROM pair_averages WHERE mktnote IS NULL) AS benchmark_value\n  FROM pair_averages pa\n  WHERE mktnote IS NOT NULL\n    AND pa.pair_avg_net_fee_rate > (SELECT pair_avg_net_fee_rate FROM pair_averages WHERE mktnote IS NULL)\n)\nSELECT \n  AVG(pair_avg_net_fee_rate),\n  AVG(pair_avg_net_fee_rate - benchmark_value)\nFROM kept_pairs",
+   "matches": []
+  }
+ ]
+}

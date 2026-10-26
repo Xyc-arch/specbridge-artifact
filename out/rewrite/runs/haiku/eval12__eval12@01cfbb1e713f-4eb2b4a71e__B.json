@@ -3,37 +3,32 @@
  "model": "haiku",
  "reading": "B",
  "description": "Drop unlinked income, group the rest by linked member, then compute shares, the average share, and summarise the above-average groups.",
- "b": {
-  "request": "Among all income rows with a non-null `link_to_member`, sum `amount` per `link_to_member`, compute each member's total divided by the grand total of those member totals, and return one row (SUM of member totals for members whose share > average share, AVG of their shares, AVG of (share \u2212 average share) for those members) using unrounded values",
-  "sql": "WITH member_totals AS (SELECT link_to_member, SUM(amount) AS total FROM income WHERE link_to_member IS NOT NULL GROUP BY link_to_member), shares AS (SELECT link_to_member, total, total * 1.0 / SUM(total) OVER () AS share FROM member_totals), stats AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.total, s.share, s.share - st.avg_share AS diff FROM shares s CROSS JOIN stats st WHERE s.share > st.avg_share) SELECT SUM(total) AS sum_member_totals_above_avg, AVG(share) AS avg_share_above_avg, AVG(diff) AS avg_diff_above_avg FROM above;",
+ "c": {
+  "request": "Total up income `amount` by member (`link_to_member`) and work out each total's share of the sum of all the totals. For those whose share is strictly above the average share, give one row with: their combined amount, their average share, and the average amount by which their share is above the average share. No rounding. Drop unlinked income, group the rest by linked member, then compute shares, the average share, and summarise the above-average groups.",
+  "sql": "WITH income_grouped AS (\n  SELECT \n    link_to_member,\n    SUM(amount) as member_total\n  FROM income\n  WHERE link_to_member IS NOT NULL\n  GROUP BY link_to_member\n),\nall_stats AS (\n  SELECT\n    SUM(member_total) as grand_total,\n    COUNT(*) as member_count\n  FROM income_grouped\n),\nmember_shares AS (\n  SELECT\n    ig.member_total,\n    ig.member_total / ast.grand_total as share,\n    1.0 / ast.member_count as average_share\n  FROM income_grouped ig\n  CROSS JOIN all_stats ast\n),\nabove_avg AS (\n  SELECT\n    member_total,\n    share,\n    average_share\n  FROM member_shares\n  WHERE share > average_share\n)\nSELECT\n  SUM(member_total) as combined_amount,\n  AVG(share) as average_share,\n  AVG(share - average_share) as average_above_average_amount\nFROM above_avg",
   "executes": true,
-  "matches": [
-   "B"
-  ]
+  "matches": []
+ },
+ "d": {
+  "request": "Group income by member (excluding records where link_to_member is NULL), sum amounts per member, calculate each member's share as their sum divided by total income, compute average share as one divided by count of distinct members, identify members with share strictly above average share, and output one row per such member with their combined amount, the average share value, and the excess of their share above the average share.",
+  "sql": "WITH income_by_member AS (SELECT link_to_member, SUM(amount) as total_amount FROM income WHERE link_to_member IS NOT NULL GROUP BY link_to_member), total_income AS (SELECT SUM(amount) as total_sum FROM income WHERE link_to_member IS NOT NULL), member_count AS (SELECT COUNT(DISTINCT link_to_member) as distinct_members FROM income WHERE link_to_member IS NOT NULL), member_shares AS (SELECT ibm.link_to_member, ibm.total_amount, ibm.total_amount / ti.total_sum as member_share, 1.0 / mc.distinct_members as avg_share FROM income_by_member ibm CROSS JOIN total_income ti CROSS JOIN member_count mc) SELECT total_amount, avg_share, member_share - avg_share as excess FROM member_shares WHERE member_share > avg_share",
+  "executes": true,
+  "matches": []
+ },
+ "b": {
+  "request": "Group non-null income by member, identify those with above-average share, output one row with: combined income amount, average of above-average members' shares, and average excess above overall mean share.",
+  "sql": "WITH member_income AS (\n    SELECT \n        SUM(amount) as member_total\n    FROM income\n    WHERE amount IS NOT NULL\n    GROUP BY link_to_member\n),\nall_stats AS (\n    SELECT \n        SUM(member_total) as combined_income,\n        AVG(member_total) as overall_avg\n    FROM member_income\n)\nSELECT \n    all_stats.combined_income,\n    (SELECT AVG(mi.member_total) \n     FROM member_income mi\n     WHERE mi.member_total > all_stats.overall_avg) as avg_above_average_share,\n    (SELECT AVG(mi.member_total - all_stats.overall_avg)\n     FROM member_income mi\n     WHERE mi.member_total > all_stats.overall_avg) as avg_excess_above_mean\nFROM all_stats",
+  "executes": true,
+  "matches": [],
+  "raw": "Group non-null income by member, identify those with above-average share, output one row with: combined income amount, average of above-average members' shares, and average excess above overall mean share."
  },
  "a": {
   "request": "Group the income records by linked member (`income.link_to_member`), after first dropping every income record whose `link_to_member` is missing, so such income plays no part in anything below. Sum `amount` in each group. Each group's share is its sum divided by the sum of all the group sums; then take the plain average of the shares across groups. Keep only groups whose share is strictly greater than that average, and return one row with: (1) the total of their summed amounts, (2) the average of their shares, and (3) the average of (share minus average share). Do not round.",
-  "sql": "WITH g AS (SELECT link_to_member, SUM(amount) AS s FROM income WHERE link_to_member IS NOT NULL GROUP BY link_to_member), sh AS (SELECT link_to_member, s, s * 1.0 / (SELECT SUM(s) FROM g) AS share FROM g), avg_sh AS (SELECT AVG(share) AS a FROM sh), kept AS (SELECT sh.* FROM sh, avg_sh WHERE sh.share > avg_sh.a) SELECT SUM(s) AS total_amount, AVG(share) AS avg_share, AVG(share - (SELECT a FROM avg_sh)) AS avg_share_deviation FROM kept;",
+  "sql": "WITH income_filtered AS (SELECT link_to_member, amount FROM income WHERE link_to_member IS NOT NULL), group_sums AS (SELECT link_to_member, SUM(amount) as group_sum FROM income_filtered GROUP BY link_to_member), total_sum AS (SELECT SUM(group_sum) as total_amount FROM group_sums), shares AS (SELECT gs.link_to_member, gs.group_sum, CAST(gs.group_sum AS REAL) / CAST(ts.total_amount AS REAL) as share FROM group_sums gs CROSS JOIN total_sum ts), avg_share AS (SELECT AVG(share) as avg_share_value FROM shares), above_average AS (SELECT s.link_to_member, s.group_sum, s.share FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share_value) SELECT SUM(aa.group_sum) as total_amount, AVG(aa.share) as average_share, AVG(aa.share - (SELECT avg_share_value FROM avg_share)) as average_deviation FROM above_average aa",
   "executes": true,
   "matches": [
    "B"
   ]
  },
- "c": {
-  "request": "Total up income `amount` by member (`link_to_member`) and work out each total's share of the sum of all the totals. For those whose share is strictly above the average share, give one row with: their combined amount, their average share, and the average amount by which their share is above the average share. No rounding. Drop unlinked income, group the rest by linked member, then compute shares, the average share, and summarise the above-average groups.",
-  "sql": "WITH totals AS (SELECT link_to_member, SUM(amount) AS total FROM income WHERE link_to_member IS NOT NULL GROUP BY link_to_member), shares AS (SELECT link_to_member, total, total * 1.0 / SUM(total) OVER () AS share FROM totals), avg_share AS (SELECT AVG(share) AS avg_share FROM shares), above AS (SELECT s.total, s.share, a.avg_share FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share) SELECT SUM(total) AS combined_amount, AVG(share) AS average_share, AVG(share - avg_share) AS average_above_by FROM above;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Total up income `amount` by member (`link_to_member`), dropping any income with no linked member. For each linked member, work out their share of the sum of all the member totals. Then, for the members whose share is strictly above the average share, give one row with their combined amount, their average share, and the average amount by which their share is above the average share. No rounding.",
-  "sql": "WITH member_totals AS (SELECT link_to_member AS member_id, SUM(amount) AS total FROM income WHERE link_to_member IS NOT NULL GROUP BY link_to_member), shares AS (SELECT member_id, total, total * 1.0 / SUM(total) OVER () AS share FROM member_totals), avg_share AS (SELECT AVG(share) AS avg_share FROM shares) SELECT SUM(s.total) AS combined_amount, AVG(s.share) AS average_share, AVG(s.share - a.avg_share) AS average_share_above_avg FROM shares s CROSS JOIN avg_share a WHERE s.share > a.avg_share;",
-  "executes": true,
-  "matches": [
-   "B"
-  ]
- }
+ "calls": 6
 }

@@ -1,0 +1,42 @@
+{
+ "case": "eval12:eval12@01cfbb1e713f-7d5e124519",
+ "wording": "precise_A",
+ "model": "haiku",
+ "prompt_sha": "eea2aeafdbd5",
+ "response": {
+  "sql": "WITH order_executions AS (\n  SELECT \n    o.recordvault,\n    o.timespan,\n    AVG(oe.fillcount) FILTER (WHERE oe.fillcount IS NOT NULL) AS avg_fill\n  FROM orders o\n  INNER JOIN orderexecutions oe ON oe.ordersmark = o.recordvault\n  GROUP BY o.recordvault, o.timespan\n),\ntimespan_means AS (\n  SELECT \n    timespan,\n    AVG(avg_fill) AS mean_avg_fill\n  FROM order_executions\n  WHERE avg_fill IS NOT NULL\n  GROUP BY timespan\n),\nfiltered_orders AS (\n  SELECT \n    oe.recordvault,\n    oe.timespan,\n    oe.avg_fill,\n    (oe.avg_fill - tm.mean_avg_fill) AS exceeds,\n    RANK() OVER (PARTITION BY oe.timespan ORDER BY oe.avg_fill DESC) AS rank_in_timespan\n  FROM order_executions oe\n  JOIN timespan_means tm ON oe.timespan = tm.timespan\n  WHERE oe.avg_fill IS NOT NULL\n    AND oe.avg_fill > tm.mean_avg_fill\n)\nSELECT \n  recordvault AS ordersmark,\n  timespan,\n  avg_fill,\n  exceeds,\n  rank_in_timespan\nFROM filtered_orders\nWHERE rank_in_timespan <= 3\nORDER BY timespan, rank_in_timespan;",
+  "assumptions": [
+   {
+    "assumption": "NULL fillcount values are excluded from per-order averages (not treated as zero). An execution with NULL fillcount contributes nothing to its order's average.",
+    "unresolved": false
+   },
+   {
+    "assumption": "Orders without any executions are implicitly excluded, as 'drop unmatched executions' and the average-per-order logic presumes each order has at least one execution to average over.",
+    "unresolved": false
+   }
+  ],
+  "alternatives": [
+   {
+    "interpretation": "NULL fillcount values should be treated as zero in the per-order average, rather than excluded entirely.",
+    "sql": "WITH order_executions AS (\n  SELECT \n    o.recordvault,\n    o.timespan,\n    AVG(COALESCE(oe.fillcount, 0)) AS avg_fill\n  FROM orders o\n  INNER JOIN orderexecutions oe ON oe.ordersmark = o.recordvault\n  GROUP BY o.recordvault, o.timespan\n),\ntimespan_means AS (\n  SELECT \n    timespan,\n    AVG(avg_fill) AS mean_avg_fill\n  FROM order_executions\n  GROUP BY timespan\n),\nfiltered_orders AS (\n  SELECT \n    oe.recordvault,\n    oe.timespan,\n    oe.avg_fill,\n    (oe.avg_fill - tm.mean_avg_fill) AS exceeds,\n    RANK() OVER (PARTITION BY oe.timespan ORDER BY oe.avg_fill DESC) AS rank_in_timespan\n  FROM order_executions oe\n  JOIN timespan_means tm ON oe.timespan = tm.timespan\n  WHERE oe.avg_fill > tm.mean_avg_fill\n)\nSELECT \n  recordvault AS ordersmark,\n  timespan,\n  avg_fill,\n  exceeds,\n  rank_in_timespan\nFROM filtered_orders\nWHERE rank_in_timespan <= 3\nORDER BY timespan, rank_in_timespan;"
+   }
+  ]
+ },
+ "raw": null,
+ "primary_executes": true,
+ "primary_matches": [
+  "A"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "NULL fillcount values should be treated as zero in the per-order average, rather than excluded entirely.",
+   "sql": "WITH order_executions AS (\n  SELECT \n    o.recordvault,\n    o.timespan,\n    AVG(COALESCE(oe.fillcount, 0)) AS avg_fill\n  FROM orders o\n  INNER JOIN orderexecutions oe ON oe.ordersmark = o.recordvault\n  GROUP BY o.recordvault, o.timespan\n),\ntimespan_means AS (\n  SELECT \n    timespan,\n    AVG(avg_fill) AS mean_avg_fill\n  FROM order_executions\n  GROUP BY timespan\n),\nfiltered_orders AS (\n  SELECT \n    oe.recordvault,\n    oe.timespan,\n    oe.avg_fill,\n    (oe.avg_fill - tm.mean_avg_fill) AS exceeds,\n    RANK() OVER (PARTITION BY oe.timespan ORDER BY oe.avg_fill DESC) AS rank_in_timespan\n  FROM order_executions oe\n  JOIN timespan_means tm ON oe.timespan = tm.timespan\n  WHERE oe.avg_fill > tm.mean_avg_fill\n)\nSELECT \n  recordvault AS ordersmark,\n  timespan,\n  avg_fill,\n  exceeds,\n  rank_in_timespan\nFROM filtered_orders\nWHERE rank_in_timespan <= 3\nORDER BY timespan, rank_in_timespan;",
+   "executes": true,
+   "matches": [
+    "A"
+   ]
+  }
+ ],
+ "seconds": 50.0,
+ "chars_out": 2634
+}

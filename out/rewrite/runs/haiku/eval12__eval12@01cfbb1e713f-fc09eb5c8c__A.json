@@ -3,35 +3,30 @@
  "model": "haiku",
  "reading": "A",
  "description": "Each album's rate is the mean of the per-track ratios Bytes/Milliseconds; compare it with the average of these rates across albums and show the top 10 albums by how far above the average they are.",
- "b": {
-  "request": "Using the mean of per-track Bytes/Milliseconds ratios per album (with the NULL-AlbumId tracks grouped as one group), compare each album's rate to the average of those album rates, and return the top 10 albums ordered by that difference descending, showing AlbumId, average track UnitPrice, the album's mean bytes-per-millisecond, and the difference",
-  "sql": "WITH track_rates AS (\n  SELECT AlbumId, UnitPrice, CAST(Bytes AS REAL) / NULLIF(Milliseconds, 0) AS rate\n  FROM Track\n),\nalbum_stats AS (\n  SELECT AlbumId,\n         AVG(UnitPrice) AS avg_unit_price,\n         AVG(rate) AS album_rate\n  FROM track_rates\n  GROUP BY AlbumId\n)\nSELECT AlbumId,\n       avg_unit_price,\n       album_rate,\n       album_rate - AVG(album_rate) OVER () AS rate_difference\nFROM album_stats\nORDER BY rate_difference DESC\nLIMIT 10;",
+ "d": {
+  "request": "For each album (with NULL-AlbumId tracks grouped together), calculate the mean of per-track Bytes/Milliseconds ratios, then rank the top 10 by how far that mean exceeds the overall mean of all per-album means, displaying AlbumId, average UnitPrice, the album's average bytes-per-millisecond rate, and the difference above the all-album average.",
+  "sql": "WITH track_ratios AS (\n  SELECT \n    AlbumId,\n    TrackId,\n    CAST(Bytes AS DECIMAL) / Milliseconds as bytes_per_ms,\n    UnitPrice\n  FROM Track\n  WHERE Bytes IS NOT NULL AND Milliseconds > 0\n),\nalbum_bytes_per_ms AS (\n  SELECT \n    AlbumId,\n    AVG(bytes_per_ms) as avg_bytes_per_ms\n  FROM track_ratios\n  GROUP BY AlbumId\n),\nalbum_unit_prices AS (\n  SELECT \n    AlbumId,\n    AVG(UnitPrice) as avg_unit_price\n  FROM Track\n  GROUP BY AlbumId\n),\noverall_mean AS (\n  SELECT AVG(avg_bytes_per_ms) as overall_mean_bpm\n  FROM album_bytes_per_ms\n),\nalbum_rankings AS (\n  SELECT \n    abpm.AlbumId,\n    aup.avg_unit_price,\n    abpm.avg_bytes_per_ms,\n    abpm.avg_bytes_per_ms - om.overall_mean_bpm as difference_above_mean,\n    ROW_NUMBER() OVER (ORDER BY abpm.avg_bytes_per_ms - om.overall_mean_bpm DESC) as rnk\n  FROM album_bytes_per_ms abpm\n  INNER JOIN album_unit_prices aup ON abpm.AlbumId = aup.AlbumId\n  CROSS JOIN overall_mean om\n)\nSELECT \n  AlbumId,\n  avg_unit_price,\n  avg_bytes_per_ms,\n  difference_above_mean\nFROM album_rankings\nWHERE rnk <= 10\nORDER BY difference_above_mean DESC",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
  },
  "c": {
   "request": "Which 10 albums have the highest bytes-per-millisecond rate compared with the average across all albums? Group tracks by `AlbumId`, with tracks that have no album id counted together as one group. For each album, show the album id, the average track `UnitPrice`, the album's average bytes per millisecond, and how far it is above the all-album average. Ignore missing values, don't round, and sort by that difference, largest first. Each album's rate is the mean of the per-track ratios Bytes/Milliseconds; compare it with the average of these rates across albums and show the top 10 albums by how far above the average they are.",
-  "sql": "WITH track_stats AS (SELECT AlbumId, UnitPrice, Bytes * 1.0 / Milliseconds AS bpm FROM Track WHERE Bytes IS NOT NULL AND Milliseconds > 0), album_rates AS (SELECT AlbumId, AVG(UnitPrice) AS avg_unit_price, AVG(bpm) AS avg_bytes_per_ms FROM track_stats GROUP BY AlbumId), overall AS (SELECT AVG(avg_bytes_per_ms) AS overall_avg FROM album_rates) SELECT ar.AlbumId, ar.avg_unit_price, ar.avg_bytes_per_ms, ar.avg_bytes_per_ms - o.overall_avg AS diff_from_overall_avg FROM album_rates ar CROSS JOIN overall o ORDER BY diff_from_overall_avg DESC LIMIT 10;",
+  "sql": "WITH track_ratios AS (\n  SELECT \n    AlbumId,\n    UnitPrice,\n    CAST(Bytes AS DECIMAL(20,10)) / CAST(Milliseconds AS DECIMAL(20,10)) AS rate\n  FROM Track\n  WHERE Bytes IS NOT NULL \n    AND Milliseconds IS NOT NULL \n    AND Milliseconds > 0\n),\nalbum_stats AS (\n  SELECT \n    AlbumId,\n    AVG(UnitPrice) AS AvgUnitPrice,\n    AVG(rate) AS AvgBytesPerMillisecond\n  FROM track_ratios\n  GROUP BY AlbumId\n),\nwith_global_avg AS (\n  SELECT \n    *,\n    AVG(AvgBytesPerMillisecond) OVER () AS GlobalAvg\n  FROM album_stats\n)\nSELECT \n  AlbumId,\n  AvgUnitPrice,\n  AvgBytesPerMillisecond,\n  AvgBytesPerMillisecond - GlobalAvg AS DifferenceFromAverage\nFROM with_global_avg\nORDER BY DifferenceFromAverage DESC\nLIMIT 10;",
   "executes": true,
-  "matches": [
-   "A"
-  ]
+  "matches": []
+ },
+ "b": {
+  "request": "Each album's bytes-per-millisecond rate is the mean of its tracks' individual Bytes/Milliseconds ratios; show the 10 albums whose rate is furthest above the mean of all such per-album rates.",
+  "sql": "WITH track_ratios AS (\n  SELECT \n    AlbumId,\n    Bytes * 1.0 / Milliseconds as ratio\n  FROM Track\n  WHERE Bytes IS NOT NULL AND Milliseconds > 0\n),\nalbum_rates AS (\n  SELECT \n    AlbumId,\n    AVG(ratio) as rate\n  FROM track_ratios\n  GROUP BY AlbumId\n),\nstats AS (\n  SELECT \n    AVG(rate) as mean_rate\n  FROM album_rates\n)\nSELECT \n  Album.AlbumId,\n  Album.Title,\n  album_rates.rate,\n  album_rates.rate - stats.mean_rate as difference_from_mean\nFROM album_rates\nJOIN Album ON album_rates.AlbumId = Album.AlbumId\nCROSS JOIN stats\nORDER BY difference_from_mean DESC\nLIMIT 10;",
+  "executes": true,
+  "matches": [],
+  "raw": "Each album's bytes-per-millisecond rate is the mean of its tracks' individual Bytes/Milliseconds ratios; show the 10 albums whose rate is furthest above the mean of all such per-album rates."
  },
  "a": {
   "request": "Group tracks by `AlbumId` (tracks with no album id together count as one group). For each group, show the album id, the average track `UnitPrice`, the album's bytes-per-millisecond rate (the average of each track's `Bytes` \u00f7 `Milliseconds`), and how far that rate is above the average rate across all albums. Ignore missing values in averages and don't round. List the 10 albums with the largest difference, largest first.",
-  "sql": "WITH album_stats AS (\n  SELECT AlbumId,\n         AVG(UnitPrice) AS avg_unit_price,\n         AVG(Bytes * 1.0 / Milliseconds) AS bytes_per_ms\n  FROM Track\n  GROUP BY AlbumId\n),\noverall AS (\n  SELECT AVG(bytes_per_ms) AS overall_rate\n  FROM album_stats\n)\nSELECT s.AlbumId,\n       s.avg_unit_price,\n       s.bytes_per_ms,\n       s.bytes_per_ms - o.overall_rate AS rate_difference\nFROM album_stats s\nCROSS JOIN overall o\nWHERE s.bytes_per_ms IS NOT NULL\nORDER BY rate_difference DESC\nLIMIT 10;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
- "calls": 6,
- "d": {
-  "request": "Among the albums, which 10 have the highest mean per-track Bytes/Milliseconds ratio above the average of those album means? Group tracks by `AlbumId`, with tracks that have no album id counted together as one group. Ignore missing values, and sort by how far each album's mean ratio exceeds the across-album average, largest first.",
-  "sql": "WITH album_means AS (SELECT AlbumId, AVG(CAST(Bytes AS REAL) / NULLIF(Milliseconds, 0)) AS mean_ratio FROM Track WHERE Bytes IS NOT NULL GROUP BY AlbumId), overall AS (SELECT AVG(mean_ratio) AS avg_mean FROM album_means) SELECT a.AlbumId, a.mean_ratio, a.mean_ratio - o.avg_mean AS excess FROM album_means a CROSS JOIN overall o WHERE a.mean_ratio > o.avg_mean ORDER BY excess DESC LIMIT 10;",
+  "sql": "WITH track_rates AS (\n  SELECT \n    AlbumId,\n    CAST(Bytes AS DECIMAL) / Milliseconds as rate,\n    UnitPrice\n  FROM Track\n  WHERE Bytes IS NOT NULL\n),\nalbum_stats AS (\n  SELECT \n    AlbumId,\n    AVG(UnitPrice) as avg_unit_price,\n    AVG(rate) as avg_rate\n  FROM track_rates\n  GROUP BY AlbumId\n),\noverall_avg_rate AS (\n  SELECT AVG(rate) as global_avg_rate\n  FROM track_rates\n)\nSELECT \n  a.AlbumId,\n  a.avg_unit_price,\n  a.avg_rate,\n  a.avg_rate - o.global_avg_rate as difference_from_average\nFROM album_stats a\nCROSS JOIN overall_avg_rate o\nORDER BY difference_from_average DESC\nLIMIT 10;",
   "executes": true,
   "matches": []
- }
+ },
+ "calls": 6
 }

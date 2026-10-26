@@ -60,7 +60,11 @@ def codex_cmd(model, out):
 # an OpenAI-compatible chat endpoint (OPENAI_API_KEY; OPENAI_BASE_URL points it at another provider or a local server, so any
 # model can be plugged in by name). The CLIs add their own system prompt, so API answers can differ slightly from the saved runs.
 BACKEND = os.environ.get("SPECBRIDGE_BACKEND", "cli")
-API_ID = {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5"}
+# PINNED MODEL IDS (2026-10-26). The CLI resolves a short name ("haiku") to its newest model: "haiku" was
+# claude-haiku-4-5-20251001 up to 2026-10-03 and claude-haiku-5-5 from 2026-10-11 (Claude CLI session logs), so one name
+# covered two models. Every call now names the full ID; the short names stay the labels in file paths and reports.
+MODEL_ID = {"haiku": "claude-haiku-4-5-20251001", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5"}
+API_ID = MODEL_ID
 
 
 def _post(url, body, headers, timeout):
@@ -149,7 +153,7 @@ def ask(prompt, model, n=256, timeout=120, cache=None, strip=True, quiet=False, 
             # about the answer, so it cannot help a solver be right.
             # 2026-09-30: sealed with NO tools at all (`--tools ""`), stronger than disallowing a list, and the reply
             # read from JSON output; this was a second door in comm/ and is now the only one.
-            cmd = [_CLAUDE or "claude", "-p", "--model", model, "--output-format", "json", "--tools", ""]
+            cmd = [_CLAUDE or "claude", "-p", "--model", MODEL_ID.get(model, model), "--output-format", "json", "--tools", ""]
             if system: cmd += ["--append-system-prompt", system]
             # A SPAWN THAT FAILED IS NOT AN ANSWER. Each call starts a Node process, and under six-wide
             # load the 2026-09-22 panel began failing with `Exec format error: 'claude'` at call 55 and

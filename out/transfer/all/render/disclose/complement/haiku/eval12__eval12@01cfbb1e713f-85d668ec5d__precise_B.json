@@ -4,18 +4,18 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH gains AS (SELECT ds.raceId, r.circuitId, ds.wins - LAG(ds.wins, 1, 0) OVER (PARTITION BY ds.driverId, r.year ORDER BY r.round) AS gain FROM driverStandings ds JOIN races r ON r.raceId = ds.raceId), per_race AS (SELECT g.raceId, c.country, AVG(g.gain) AS race_avg FROM gains g JOIN circuits c ON c.circuitId = g.circuitId GROUP BY g.raceId, c.country), country_avg AS (SELECT country, AVG(race_avg) AS avg_wins FROM per_race GROUP BY country), benchmark AS (SELECT AVG(avg_wins) AS bench FROM country_avg), kept AS (SELECT ca.country, ca.avg_wins FROM country_avg ca, benchmark b WHERE ca.avg_wins > b.bench), second AS (SELECT AVG(avg_wins) AS m2 FROM kept), final AS (SELECT k.country, k.avg_wins FROM kept k, second s WHERE k.avg_wins > s.m2) SELECT f.country, f.avg_wins AS average, f.avg_wins - b.bench AS above_benchmark, f.avg_wins - s.m2 AS above_second_mean FROM final f, benchmark b, second s ORDER BY f.country;",
+  "sql": "WITH race_driver_standings AS (\n  SELECT r.raceId, r.year, r.round, c.country, ds.driverId, ds.wins as current_wins\n  FROM races r\n  JOIN circuits c ON r.circuitId = c.circuitId\n  JOIN driverStandings ds ON r.raceId = ds.raceId\n),\ndriver_wins_at_race AS (\n  SELECT raceId, year, round, country, driverId,\n    current_wins - COALESCE(LAG(current_wins) OVER (PARTITION BY year, driverId ORDER BY round), 0) as wins_at_race\n  FROM race_driver_standings\n),\navg_wins_per_race AS (\n  SELECT raceId, country, AVG(wins_at_race) as avg_wins_at_race\n  FROM driver_wins_at_race\n  GROUP BY raceId, country\n),\ncountry_avg AS (\n  SELECT country, AVG(avg_wins_at_race) as country_average\n  FROM avg_wins_per_race\n  GROUP BY country\n),\noverall_benchmark AS (\n  SELECT AVG(country_average) as benchmark FROM country_avg\n),\nfiltered_countries_1 AS (\n  SELECT ca.country, ca.country_average\n  FROM country_avg ca CROSS JOIN overall_benchmark\n  WHERE ca.country_average > overall_benchmark.benchmark\n),\nsecond_mean AS (\n  SELECT AVG(country_average) as mean_value FROM filtered_countries_1\n),\nfinal_result AS (\n  SELECT fc.country, fc.country_average,\n    fc.country_average - ob.benchmark as above_benchmark,\n    fc.country_average - sm.mean_value as above_second_mean\n  FROM filtered_countries_1 fc CROSS JOIN overall_benchmark ob CROSS JOIN second_mean sm\n  WHERE fc.country_average > sm.mean_value\n)\nSELECT country, country_average, above_benchmark, above_second_mean FROM final_result ORDER BY country;",
   "assumptions": [
    {
-    "assumption": "A driver's 'previous round' is their most recent earlier driverStandings row in the same season (by races.round), not necessarily round minus one. With LAG's default of 0, a driver with no earlier row in that season has their full running wins count as the gain.",
+    "assumption": "Round numbers sequence monotonically within each season; LAG(current_wins) OVER (... ORDER BY round) correctly identifies the wins from the driver's previous race in that season, which may have been at a different circuit.",
     "unresolved": false
    },
    {
-    "assumption": "Missing values are NULL wins. A NULL wins on the current row, or on an existing earlier row, makes that driver's gain NULL, and AVG skips it. A NULL earlier row is not replaced with 0.",
-    "unresolved": true
+    "assumption": "Every driver who finishes a race (or competes in the official standings) has a driverStandings entry for that race. 'Driver standings' refers to the driverStandings table, not the results table.",
+    "unresolved": false
    },
    {
-    "assumption": "Each race's figure is the average of per-driver gains over all driverStandings rows for that race, including drivers whose gain is 0. Each country's figure is the average of its races' figures, with races counted once each. Countries are grouped by the stored circuits.country text without normalization.",
+    "assumption": "Country names in circuits.country are unique identifiers for geographic grouping; no races are reassigned between countries in the dataset.",
     "unresolved": false
    }
   ],
@@ -26,5 +26,5 @@
  "primary_matches": [
   "B"
  ],
- "seconds": 19.3
+ "seconds": 96.7
 }

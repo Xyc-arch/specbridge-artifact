@@ -2,27 +2,45 @@
  "case": "eval12:eval12@01cfbb1e713f-1a73aa1ae0",
  "wording": "open",
  "model": "sonnet",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "SELECT s.entrystat, AVG(e.ambictemp) AS avg_ambictemp, AVG(e.imgcount) AS avg_imgcount, AVG(e.imgcount) - (SELECT AVG(e2.imgcount) FROM scanenvironment e2 JOIN sites s2 ON s2.zoneregistry = e2.zoneref) AS diff_from_overall_avg_imgcount FROM scanenvironment e JOIN sites s ON s.zoneregistry = e.zoneref GROUP BY s.entrystat",
+  "sql": "WITH j AS (SELECT s.entrystat, e.ambictemp, e.imgcount FROM scanenvironment e JOIN sites s ON s.zoneregistry = e.zoneref) SELECT entrystat, AVG(ambictemp) AS avg_ambient_temp, AVG(imgcount) AS avg_image_count, AVG(imgcount) - (SELECT AVG(imgcount) FROM j) AS diff_from_overall_avg FROM j GROUP BY entrystat",
   "assumptions": [
    {
-    "assumption": "The overall image-count average is the mean over all matched environment records, not the mean of the per-status averages. Because zoneref is NOT NULL with a foreign key to sites, it is the same as the mean over all environment records.",
+    "assumption": "The overall image-count average is taken over the same population, meaning environment records that match a site. It ignores NULL image counts.",
+    "unresolved": true
+   },
+   {
+    "assumption": "Records are matched to sites with an inner join on zoneref = zoneregistry. Sites with no environment records don't appear. A NULL entrystat, if present, forms its own group.",
     "unresolved": false
    },
    {
-    "assumption": "NULL ambictemp and imgcount values are ignored, which is AVG's default behavior. Records are not filtered on entrystat, so a site with a NULL entrystat would show up as its own NULL group.",
+    "assumption": "AVG skips NULLs, and no rounding is applied.",
     "unresolved": false
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "The overall image-count average is taken over all environment records, including any that don't match a site.",
+    "sql": "SELECT s.entrystat, AVG(e.ambictemp) AS avg_ambient_temp, AVG(e.imgcount) AS avg_image_count, AVG(e.imgcount) - (SELECT AVG(imgcount) FROM scanenvironment) AS diff_from_overall_avg FROM scanenvironment e JOIN sites s ON s.zoneregistry = e.zoneref GROUP BY s.entrystat"
+   }
+  ]
  },
  "raw": null,
  "primary_executes": true,
  "primary_matches": [
   "B"
  ],
- "alternatives": [],
- "seconds": 6.1,
- "chars_out": 864
+ "alternatives": [
+  {
+   "interpretation": "The overall image-count average is taken over all environment records, including any that don't match a site.",
+   "sql": "SELECT s.entrystat, AVG(e.ambictemp) AS avg_ambient_temp, AVG(e.imgcount) AS avg_image_count, AVG(e.imgcount) - (SELECT AVG(imgcount) FROM scanenvironment) AS diff_from_overall_avg FROM scanenvironment e JOIN sites s ON s.zoneregistry = e.zoneref GROUP BY s.entrystat",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 9.5,
+ "chars_out": 1226
 }

@@ -2,25 +2,37 @@
  "case": "eval12:eval12@01cfbb1e713f-6c21dc4586",
  "wording": "precise_B",
  "model": "haiku",
- "prompt_sha": "eea2aeafdbd5",
+ "prompt_sha": "997a980c3638",
  "response": {
-  "sql": "WITH obs_with_phase AS (\n  SELECT \n    t.bandusagepct,\n    o.observstation,\n    o.lunarstage\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\nstation_avgs AS (\n  SELECT \n    lunarstage,\n    observstation,\n    AVG(bandusagepct) AS station_avg_bw\n  FROM obs_with_phase\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY lunarstage, observstation\n),\nphase_bw AS (\n  SELECT \n    lunarstage,\n    AVG(station_avg_bw) AS avg_bw\n  FROM station_avgs\n  GROUP BY lunarstage\n),\nphase_count AS (\n  SELECT \n    lunarstage,\n    COUNT(DISTINCT observstation) AS num_stations\n  FROM obs_with_phase\n  GROUP BY lunarstage\n),\ntotal_stations AS (\n  SELECT COUNT(DISTINCT observstation) AS total \n  FROM obs_with_phase\n)\nSELECT \n  pc.lunarstage AS phase,\n  pb.avg_bw,\n  pc.num_stations,\n  pc.num_stations::REAL / ts.total::REAL AS fraction\nFROM phase_count pc\nLEFT JOIN phase_bw pb ON pc.lunarstage = pb.lunarstage\nCROSS JOIN total_stations ts\nORDER BY pc.lunarstage",
+  "sql": "WITH telescope_observatory AS (\n  SELECT \n    t.observstation,\n    o.lunarstage,\n    t.bandusagepct\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\nall_station_phases AS (\n  SELECT DISTINCT observstation, lunarstage\n  FROM telescope_observatory\n),\nstation_bandwidth_avg AS (\n  SELECT \n    observstation,\n    lunarstage,\n    AVG(bandusagepct) AS station_avg_bw\n  FROM telescope_observatory\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation, lunarstage\n),\nphase_stats AS (\n  SELECT \n    asp.lunarstage,\n    AVG(sba.station_avg_bw) AS avg_bandwidth_usage,\n    COUNT(DISTINCT asp.observstation) AS station_count\n  FROM all_station_phases asp\n  LEFT JOIN station_bandwidth_avg sba \n    ON asp.observstation = sba.observstation AND asp.lunarstage = sba.lunarstage\n  GROUP BY asp.lunarstage\n)\nSELECT \n  p.lunarstage AS phase,\n  p.avg_bandwidth_usage,\n  p.station_count,\n  CAST(p.station_count AS REAL) / (SELECT SUM(station_count) FROM phase_stats) AS fraction_of_total\nFROM phase_stats p\nORDER BY p.lunarstage",
   "assumptions": [
    {
-    "assumption": "The 'number of observatory stations in that phase' counts all distinct observstations with the given lunarstage, even if they have no non-NULL bandusagepct values (which would cause them to contribute NULL to the average bandwidth calculation).",
-    "unresolved": false
-   },
-   {
-    "assumption": "If a lunar phase group has no stations with any non-NULL bandwidth values, the average bandwidth column is NULL in the output.",
+    "assumption": "All observstations are counted per phase, including those with no non-NULL bandwidth values; only non-NULL bandwidth values contribute to the phase average.",
     "unresolved": true
    }
   ],
-  "alternatives": []
+  "alternatives": [
+   {
+    "interpretation": "Count only observstations that have at least one telescope with non-NULL bandwidth in that phase (exclude observstations where all telescopes have NULL bandwidth).",
+    "sql": "WITH telescope_observatory AS (\n  SELECT \n    t.observstation,\n    o.lunarstage,\n    t.bandusagepct\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\nstation_bandwidth_avg AS (\n  SELECT \n    observstation,\n    lunarstage,\n    AVG(bandusagepct) AS station_avg_bw\n  FROM telescope_observatory\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation, lunarstage\n),\nphase_stats AS (\n  SELECT \n    lunarstage,\n    AVG(station_avg_bw) AS avg_bandwidth_usage,\n    COUNT(DISTINCT observstation) AS station_count\n  FROM station_bandwidth_avg\n  GROUP BY lunarstage\n)\nSELECT \n  p.lunarstage AS phase,\n  p.avg_bandwidth_usage,\n  p.station_count,\n  CAST(p.station_count AS REAL) / (SELECT SUM(station_count) FROM phase_stats) AS fraction_of_total\nFROM phase_stats p\nORDER BY p.lunarstage"
+   }
+  ]
  },
  "raw": null,
- "primary_executes": false,
- "primary_matches": [],
- "alternatives": [],
- "seconds": 112.8,
- "chars_out": 1587
+ "primary_executes": true,
+ "primary_matches": [
+  "B"
+ ],
+ "alternatives": [
+  {
+   "interpretation": "Count only observstations that have at least one telescope with non-NULL bandwidth in that phase (exclude observstations where all telescopes have NULL bandwidth).",
+   "sql": "WITH telescope_observatory AS (\n  SELECT \n    t.observstation,\n    o.lunarstage,\n    t.bandusagepct\n  FROM telescopes t\n  INNER JOIN observatories o ON t.observstation = o.observstation\n),\nstation_bandwidth_avg AS (\n  SELECT \n    observstation,\n    lunarstage,\n    AVG(bandusagepct) AS station_avg_bw\n  FROM telescope_observatory\n  WHERE bandusagepct IS NOT NULL\n  GROUP BY observstation, lunarstage\n),\nphase_stats AS (\n  SELECT \n    lunarstage,\n    AVG(station_avg_bw) AS avg_bandwidth_usage,\n    COUNT(DISTINCT observstation) AS station_count\n  FROM station_bandwidth_avg\n  GROUP BY lunarstage\n)\nSELECT \n  p.lunarstage AS phase,\n  p.avg_bandwidth_usage,\n  p.station_count,\n  CAST(p.station_count AS REAL) / (SELECT SUM(station_count) FROM phase_stats) AS fraction_of_total\nFROM phase_stats p\nORDER BY p.lunarstage",
+   "executes": true,
+   "matches": [
+    "B"
+   ]
+  }
+ ],
+ "seconds": 84.6,
+ "chars_out": 2447
 }

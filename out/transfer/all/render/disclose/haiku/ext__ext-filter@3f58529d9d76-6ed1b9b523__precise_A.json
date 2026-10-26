@@ -4,21 +4,8 @@
  "model": "haiku",
  "prompt_sha": "eea2aeafdbd5",
  "response": {
-  "sql": "WITH per_circuit AS (\n  SELECT c.circuitId, c.country, COUNT(*) AS race_count\n  FROM races r\n  JOIN circuits c ON c.circuitId = r.circuitId\n  WHERE r.date BETWEEN '1978-03-04' AND '2003-03-09'\n  GROUP BY c.circuitId, c.country\n),\ncountry_avg AS (\n  SELECT country, AVG(race_count) AS avg_count\n  FROM per_circuit\n  GROUP BY country\n)\nSELECT p.circuitId, p.country, p.race_count, p.race_count / a.avg_count AS ratio\nFROM per_circuit p\nJOIN country_avg a ON a.country IS p.country\nORDER BY ratio DESC NULLS LAST\nLIMIT 10;",
-  "assumptions": [
-   {
-    "assumption": "The `date` column stores ISO-format YYYY-MM-DD text, so a plain text BETWEEN is a correct inclusive date range as the request specifies.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Only circuits with at least one race in the date window are included in the per-country averages. Circuits with zero races in the window do not appear in the join, so they do not pull the average down.",
-    "unresolved": false
-   },
-   {
-    "assumption": "Countries are grouped with IS so that a NULL country is treated as its own group; the ratio is never NULL because every group has an average of at least 1.",
-    "unresolved": false
-   }
-  ],
+  "sql": "WITH filtered_races AS (\n  SELECT r.circuitId, c.country\n  FROM races r\n  INNER JOIN circuits c ON r.circuitId = c.circuitId\n  WHERE r.date >= '1978-03-04' AND r.date <= '2003-03-09'\n),\ncircuit_counts AS (\n  SELECT circuitId, country, COUNT(*) as race_count\n  FROM filtered_races\n  GROUP BY circuitId, country\n),\ncountry_averages AS (\n  SELECT country, AVG(race_count) as country_avg\n  FROM circuit_counts\n  GROUP BY country\n)\nSELECT \n  cc.circuitId,\n  cc.country,\n  cc.race_count,\n  CAST(cc.race_count AS REAL) / ca.country_avg as ratio\nFROM circuit_counts cc\nLEFT JOIN country_averages ca ON cc.country = ca.country\nORDER BY \n  CASE WHEN ratio IS NULL THEN 1 ELSE 0 END,\n  ratio DESC\nLIMIT 10;",
+  "assumptions": [],
   "alternatives": []
  },
  "raw": null,
@@ -27,6 +14,6 @@
   "A"
  ],
  "alternatives": [],
- "seconds": 12.0,
- "chars_out": 1198
+ "seconds": 66.1,
+ "chars_out": 791
 }

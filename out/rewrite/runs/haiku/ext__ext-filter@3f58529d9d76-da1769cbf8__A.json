@@ -3,38 +3,38 @@
  "model": "haiku",
  "reading": "A",
  "description": "Invoices dated exactly on either boundary timestamp are included in the date range.",
- "a": {
-  "request": "Looking at invoices with an `InvoiceDate` from '2010-06-22 00:00:00' through '2012-06-26 00:00:00' inclusive (comparing the dates as text), each matched to its customer, work out per customer `State` the total of invoice `Total` and the number of invoices, with customers that have no state counted as one group. Then give, as a single row, the sum of those state totals and the average number of invoices per state, both unrounded.",
-  "sql": "WITH state_stats AS (SELECT c.State AS State, SUM(i.Total) AS total, COUNT(i.InvoiceId) AS cnt FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId WHERE i.InvoiceDate BETWEEN '2010-06-22 00:00:00' AND '2012-06-26 00:00:00' GROUP BY c.State) SELECT SUM(total) AS sum_state_totals, AVG(cnt) AS avg_invoices_per_state FROM state_stats;",
-  "executes": true,
-  "matches": [
-   "A"
-  ]
- },
  "c": {
   "request": "For invoices dated between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' (comparing `InvoiceDate` as text), each matched to its customer, work out per customer `State` the total of invoice `Total` and the number of invoices, with customers that have no state counted as one group. Then give, as a single row, the sum of those state totals and the average number of invoices per state, both unrounded. Invoices dated exactly on either boundary timestamp are included in the date range.",
-  "sql": "WITH state_totals AS (SELECT c.State AS state, SUM(i.Total) AS state_total, COUNT(i.InvoiceId) AS invoice_count FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId WHERE i.InvoiceDate BETWEEN '2010-06-22 00:00:00' AND '2012-06-26 00:00:00' GROUP BY c.State) SELECT SUM(state_total) AS sum_state_totals, AVG(invoice_count) AS avg_invoices_per_state FROM state_totals;",
+  "sql": "SELECT SUM(StateTotals.StateTotalAmount) as TotalSum, AVG(StateTotals.InvoiceCount) as AvgInvoicesPerState FROM (SELECT COALESCE(c.State, 'Unknown') as State, SUM(i.Total) as StateTotalAmount, COUNT(i.InvoiceId) as InvoiceCount FROM Invoice i JOIN Customer c ON i.CustomerId = c.CustomerId WHERE i.InvoiceDate >= '2010-06-22 00:00:00' AND i.InvoiceDate <= '2012-06-26 00:00:00' GROUP BY COALESCE(c.State, 'Unknown')) StateTotals",
   "executes": true,
   "matches": [
    "A"
   ]
  },
- "d": {
-  "request": "For invoices with `InvoiceDate` text between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' inclusive, grouped by customer `State` (NULL states as one group), return one row: SUM of per-state total `Total` and AVG of per-state invoice count, unrounded.",
-  "sql": "SELECT SUM(s.state_total) AS sum_state_total, AVG(s.state_count) AS avg_state_invoice_count FROM (SELECT c.State AS state, SUM(i.Total) AS state_total, COUNT(i.InvoiceId) AS state_count FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId WHERE i.InvoiceDate BETWEEN '2010-06-22 00:00:00' AND '2012-06-26 00:00:00' GROUP BY c.State) AS s;",
+ "a": {
+  "request": "Looking at invoices with an `InvoiceDate` from '2010-06-22 00:00:00' through '2012-06-26 00:00:00' inclusive (comparing the dates as text), each matched to its customer, work out per customer `State` the total of invoice `Total` and the number of invoices, with customers that have no state counted as one group. Then give, as a single row, the sum of those state totals and the average number of invoices per state, both unrounded.",
+  "sql": "WITH state_stats AS (SELECT c.State, SUM(i.Total) as state_total, COUNT(i.InvoiceId) as invoice_count FROM Invoice i JOIN Customer c ON i.CustomerId = c.CustomerId WHERE i.InvoiceDate >= '2010-06-22 00:00:00' AND i.InvoiceDate <= '2012-06-26 00:00:00' GROUP BY c.State) SELECT SUM(state_total) as total_sum, AVG(invoice_count) as avg_invoices_per_state FROM state_stats",
   "executes": true,
   "matches": [
    "A"
   ]
  },
  "b": {
-  "request": "For invoices with `InvoiceDate` text between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' inclusive, joined to Customer, group by Customer.State (NULL as one group) to get each state's SUM(Total) and COUNT(invoices), then return one row with the SUM of the state totals and the AVG of the state invoice counts, unrounded.",
-  "sql": "WITH state_totals AS (SELECT c.State, SUM(i.Total) AS total_sum, COUNT(i.InvoiceId) AS invoice_count FROM Invoice i JOIN Customer c ON c.CustomerId = i.CustomerId WHERE i.InvoiceDate BETWEEN '2010-06-22 00:00:00' AND '2012-06-26 00:00:00' GROUP BY c.State) SELECT SUM(total_sum) AS sum_of_state_totals, AVG(invoice_count) AS avg_state_invoice_count FROM state_totals;",
+  "request": "Return a single row containing the sum of all invoice totals across all states and the unrounded average number of invoices per customer state, for invoices with InvoiceDate between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' inclusive (using text comparison), grouped by customer State with null/missing states counted as a single group.",
+  "sql": "WITH state_groups AS (\n  SELECT \n    c.State,\n    COUNT(*) as invoice_count\n  FROM Invoice i\n  JOIN Customer c ON i.CustomerId = c.CustomerId\n  WHERE i.InvoiceDate >= '2010-06-22 00:00:00' \n    AND i.InvoiceDate <= '2012-06-26 00:00:00'\n  GROUP BY c.State\n)\nSELECT \n  (SELECT SUM(i.Total) \n   FROM Invoice i\n   JOIN Customer c ON i.CustomerId = c.CustomerId\n   WHERE i.InvoiceDate >= '2010-06-22 00:00:00' \n     AND i.InvoiceDate <= '2012-06-26 00:00:00') as sum_of_totals,\n  AVG(invoice_count) as avg_invoices_per_state\nFROM state_groups",
   "executes": true,
   "matches": [
    "A"
   ],
-  "raw": "For invoices with `InvoiceDate` text between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' inclusive, joined to Customer, group by Customer.State (NULL as one group) to get each state's SUM(Total) and COUNT(invoices), then return one row with the SUM of the state totals and the AVG of the state invoice counts, unrounded."
+  "raw": "Return a single row containing the sum of all invoice totals across all states and the unrounded average number of invoices per customer state, for invoices with InvoiceDate between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' inclusive (using text comparison), grouped by customer State with null/missing states counted as a single group."
+ },
+ "d": {
+  "request": "Filter invoices by InvoiceDate as text between '2010-06-22 00:00:00' and '2012-06-26 00:00:00' inclusive, join each to its customer, group by customer State (with NULL states as a separate group), compute the sum of Invoice Total and count of invoices per state, then return in one row the sum of all state totals and the unrounded average invoice count per state.",
+  "sql": "SELECT SUM(state_summary.total_sum) as total_sum, AVG(state_summary.invoice_count) as avg_invoice_count FROM (SELECT c.State, SUM(i.Total) as total_sum, COUNT(i.InvoiceId) as invoice_count FROM Invoice i JOIN Customer c ON i.CustomerId = c.CustomerId WHERE i.InvoiceDate >= '2010-06-22 00:00:00' AND i.InvoiceDate <= '2012-06-26 00:00:00' GROUP BY c.State) state_summary",
+  "executes": true,
+  "matches": [
+   "A"
+  ]
  },
  "calls": 6
 }
