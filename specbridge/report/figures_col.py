@@ -1,5 +1,7 @@
 """SINGLE-COLUMN FIGURES FOR THE MANUSCRIPT (paper/tex), from out/paper/data (model-free).
-    python -m specbridge.report.figures_col [name ...]   -> paper/tex/figures/col_<name>.pdf
+    python -m specbridge.report.figures_col [name ...]   -> out/paper/figures_col/col_<name>.pdf
+The paper prints pgfplots versions of the same data (paper/tex/figures/src, data from its export.py); these drawings are the
+reproduction check.
 Every figure is drawn at the ACM column width (3.33 in) so it is printed at 1:1: text is 7-8 pt in the paper, never shrunk.
 The wide multi-panel figures of specbridge.report.figures stay for the Markdown records (result.md, fig_explain.md)."""
 import json, os, sys, textwrap
@@ -11,7 +13,8 @@ import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-DATA, FIG = "out/paper/data", "paper/tex/figures"
+DATA, FIG = "out/paper/data", "out/paper/figures_col"
+os.makedirs(FIG, exist_ok=True)
 W = 3.33                                     # ACM sigconf column width, inches
 M = ["haiku", "sonnet", "gpt-6-sol", "gpt-6-luna"]
 LABEL = {"haiku": "Haiku", "sonnet": "Sonnet", "gpt-6-sol": "GPT-Sol", "gpt-6-luna": "GPT-Luna"}
@@ -487,7 +490,7 @@ def funnel():
     S = [("choices proposed", inv(1) + ex(1)), ("the other interpretation changes the answer", inv(2) + ex(2)),
          ("both interpretations described exactly", inv(3) + ex(3)), ("a reviewer model finds it open", inv(4) + inv(5) + ex(4) + ex(5)),
          ("one choice kept per task", G["selected"] + sel), ("requests pass all checks", G["frozen"] + fil),
-         ("an author finds it open", N.P("accepted")["scopes"]["accepted_all_types"]["n"]),
+         ("both authors find it open", N.P("accepted")["scopes"]["accepted_all_types"]["n"]),
          ("other interpretation in \u22651% of references", F5["n_families"])]
     fig, ax = plt.subplots(figsize=(W, 1.95)); y = np.arange(len(S))[::-1]
     for (lab, v), yy in zip(S, y):

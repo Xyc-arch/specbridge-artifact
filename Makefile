@@ -1,4 +1,4 @@
-.PHONY: all setup data full-data reproduce check test paper
+.PHONY: all setup data full-data reproduce check test paper figures
 # make all: fetch the BIRD dev databases, rebuild every figure and table from the saved runs (no model calls), compare with the
 # paper, and run the tests. About 6 minutes on a laptop. Everything the run produces is collected in results/.
 all: data reproduce check test
@@ -29,6 +29,7 @@ reproduce: data
 	python -m specbridge.report.ambrosia_types
 	python -m specbridge.report.accepted
 	python -m specbridge.report.figures_col
+	python3 -I paper/tex/figures/src/export.py . out/paper/figure_data out/paper/data
 	python -m specbridge.report.tables_tex
 	python reproduce/collect.py
 
@@ -46,3 +47,8 @@ test:
 
 paper:
 	$(MAKE) -C paper/tex
+
+# the figures as the paper prints them (pgfplots), from the data that make reproduce rebuilt; needs pdfLaTeX and Ghostscript
+figures: reproduce
+	cp out/paper/figure_data/* paper/tex/figures/src/data/
+	cd paper/tex/figures/src && python3 build.py

@@ -1,12 +1,14 @@
 """Write the CSV file(s) behind every data figure, from the artifact repository's data files.
 
 The numbers are the ones specbridge/report/figures_col.py plots (same inputs, same arithmetic); only the drawing moved to pgfplots.
-Usage: python3 -I export.py <artifact repo root> <output dir>
+Usage: python3 -I export.py <artifact repo root> <output dir> [<paper data dir>]
+The paper data files are read from reproduce/expected/out/paper/data (the files behind the paper) unless a paper data dir is
+given (relative to the repository root); make reproduce passes out/paper/data, the files it has just rebuilt.
 """
 import collections, glob, json, math, os, sys
 
 REPO, OUT = sys.argv[1], sys.argv[2]
-DATA = os.path.join(REPO, "reproduce/expected/out/paper/data")
+DATA = os.path.join(REPO, sys.argv[3] if len(sys.argv) > 3 else "reproduce/expected/out/paper/data")
 M = ["haiku", "sonnet", "gpt-6-sol", "gpt-6-luna"]
 SHORT = {"haiku": "h", "sonnet": "s", "gpt-6-sol": "g", "gpt-6-luna": "l"}
 pct = lambda k, n: 100.0 * k / n
@@ -145,8 +147,8 @@ def stacked(name, counts, keys, colors):
 
 def outcomes():
     A = J("accepted")["scopes"]["accepted"]
-    stacked("outcomes", {m: A["models"][m]["outcomes"] for m in M}, ["both", "named_one", "silent_computable", "not_computable"],
-            ["white", "white", "white", "sbInk"])
+    stacked("outcomes", {m: A["models"][m]["outcomes"] for m in M}, ["both", "named_one", "silent_computable", "not_computable", "no_run"],
+            ["white", "white", "white", "sbInk", "sbInk"])
     return A["n"]
 
 

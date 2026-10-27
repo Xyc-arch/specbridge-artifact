@@ -35,7 +35,7 @@ Every result is rebuilt from the saved model runs in `out/`; no model is called.
 
 ```
 ALL OUTPUTS REPRODUCED
-numbers found: 452; in the ledger: 452 (...) ok 398, mismatch 0 (...)
+numbers found: 454; in the ledger: 454 (...) ok 399, mismatch 0 (...)
 204 sets, 408 reference queries checked, 0 failures
 ```
 
@@ -43,8 +43,9 @@ Everything your run produces is collected in `results/`:
 
 ```
 results/
-  figures/      every data figure, named by its number (fig08_disclosure.pdf is Figure 8)
-  tables/       Tables 1 and 4, and the numbers of Table 3
+  figures/      every data figure, drawn from your run, named by its number (fig08_outcomes.pdf is Figure 8)
+  figure_data/  the files the paper's printed figures read, written from your run
+  tables/       Tables 1 and 5, and the numbers of Table 4
   data/         the numbers behind each figure and table (JSON)
   check.txt     the comparison with the paper
   numbers.txt   every number printed in the paper, recomputed from the data, with ok / MISMATCH
@@ -57,20 +58,26 @@ results/
 |---|---|
 | `make data` | downloads the BIRD dev databases and checks them against `reproduce/bird_dev.sha256` |
 | `make reproduce` | rebuilds every figure and table from the saved runs |
-| `make check` | compares the result with the paper: data, tables, figure pixels, and every number in the text |
+| `make check` | compares the result with the paper: data, tables, the data of every printed figure, figure pixels, and every number in the text |
 | `make test` | tests the scorer, the two methods and their prompts |
 
-Figures match pixel for pixel when the packages come from `make setup` (pip) and the Arial font is installed; conda's matplotlib
-draws text slightly differently. Data, tables and numbers match on any system.
-`make paper` builds the PDF.
+The paper prints its figures with pgfplots from `paper/tex/figures/src/` (`*.tex` and the CSV files in `data/`). `make reproduce`
+writes those CSV files again from your run (`out/paper/figure_data/`) and `make check` compares them byte for byte with the
+paper's. It also draws each data figure with matplotlib (`out/paper/figures_col/`) and compares the pixels with our drawings;
+these match when the packages come from `make setup` (pip) and the Arial font is installed (conda's matplotlib draws text
+slightly differently). Data, tables and numbers match on any system.
+`make figures` builds the printed figures from your run's data (needs pdfLaTeX with pgfplots, and Ghostscript); `make paper`
+builds the PDF.
 
 ## Where each result comes from
 
-Scripts are in `specbridge/report/` unless a path is given. The numbers behind each figure are written to `out/paper/data/`.
+Scripts are in `specbridge/report/` unless a path is given. The numbers behind each figure are written to `out/paper/data/`. Each
+printed figure is `paper/tex/figures/src/col_<name>.tex`; its CSV files come from `paper/tex/figures/src/export.py`, with the
+same arithmetic as `figures_col.py`.
 
 | Paper | Script | Saved runs |
 |---|---|---|
-| Fig. 1, 2, 3, 15, 18 (diagrams) | `paper/tex/figures/tikz/*.tex` | |
+| Fig. 1, 2, 3, 15, 18 (diagrams) | `paper/tex/figures/src/diag_*.tex` | |
 | Table 1 | `tables_tex.py` | properties of the cited benchmarks |
 | Table 2 | written in the paper | `out/transfer/all/render/disclose/` |
 | Table 3 (the data and where each is used) | written in the paper | |

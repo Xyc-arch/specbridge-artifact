@@ -20,17 +20,21 @@ python3 build.py                                          # every figure
 python3 build.py col_funnel diag_teaser                   # some figures
 ```
 
+In the repository, `make` in `paper/tex` runs `build.py` for every figure whose source, `sbstyle.tex` or a data file changed, and
+`make reproduce` (repository root) runs `export.py` on the data files it has just rebuilt (third argument `out/paper/data`; by
+default `export.py` reads `reproduce/expected/out/paper/data`); `make check` then compares `data/` with the paper's copy.
+
 `build.py` needs pdfLaTeX (TeX Live with pgfplots, libertine, zi4 and newtx) and Ghostscript, which it uses to keep every figure
 exactly one column (241.15 pt) or two columns (506.3 pt) wide.
 
 ## Style
 
 - Text: Linux Biolinum 7.5 pt, the sans companion of the body font; SQL in Inconsolata 7 pt; hierarchy by weight, not size.
-- A figure uses one color family: models (purple = Claude, green = GPT, lighter = the smaller model), or readings
+- A figure uses one color family: models (purple = Claude, green = GPT, lighter = the smaller model), or interpretations
   (blue = A, orange = B), or outcomes (dark = the wanted outcome or our method, grays = baselines and other categories,
   red = the problem).
 - Left and bottom axes only, light grid on the value axis, flat bars, intervals without caps, legends above the plot.
   When every bar carries its value, the value axis is left out.
 
-The diagram `diag_datamap.tex` restyles the file that `python -m specbridge.report.datamap_tex` writes in the repository; a new
-run of that script writes the old style.
+The diagram `diag_datamap.tex` is written by `python -m specbridge.report.datamap_tex` in the repository: its counts come from the
+number ledger and its exhibit numbers from the `.aux` files of a build, so change the script, not the file.

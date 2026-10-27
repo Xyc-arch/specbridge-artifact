@@ -180,6 +180,20 @@ def spec_right(m):
             want = C[k]["intended"] if v == "precise" else ("B" if C[k]["intended"] == "A" else "A"); n += want in matches(C[k], o["answer"])
     return n
 
+
+def judge_family(m):
+    """The Opus judge by model family: % of open responses judged to name the choice, (a) among responses whose queries return both
+    interpretations by execution, (b) among responses with no alternative."""
+    from specbridge.comm.transfer import reviewed as RV
+    R = os.path.join(ROOT, "out/transfer/all/render"); C = {c["case"]: c for c in jl(FROZEN_ALL)["cases"]}; J = jl("out/transfer/all/render/disclose/judge.json")
+    a = b = na = nb = 0
+    for k in RV.accepted(sorted(C)):
+        o = json.load(open("%s/disclose/%s/%s__open.json" % (R, m, k.replace(":", "__").replace("/", "_"))))
+        got = set(o["primary_matches"]) | {x for al in o["alternatives"] for x in al["matches"]}; j = (J.get("%s|open|%s" % (k, m)) or {}).get("flags_decision") is True
+        if {"A", "B"} <= got: na += 1; a += j
+        elif not o["alternatives"]: nb += 1; b += j
+    return pc(a, na), pc(b, nb)
+
 def mcnemar(b, c):
     n = b + c
     return 1.0 if not n else min(1.0, 2 * sum(math.comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
@@ -435,17 +449,16 @@ def ledger():
         E("P", r"is # points more precise on AMBROSIA than", x("final.json:pooled/vs_dtp/precision[0] x100", lambda: 100 * FIN()["pooled"]["vs_dtp"]["precision"][0])),
         E("P", r"We release the generator, the # request sets", d("fig5_tab4_disclosure", "n_constructed")),
         # ---------------- the human review (exhibit_data.review)
-        E("P", r"The author rejects # of the # sets and keeps only # of the # on which one reviewer model disputed", d("review", "rejected"), d("review", "sets"), d("review", "disputed_kept"), d("review", "disputed")),
-        E("P", r"When GPT-Sol rewrites the open requests of # random sets from the same plan, # pass the same review, and on them no model returns both interpretations significantly more or less often than on the Opus-written requests (all $p\ge#$)",
-          j("out/writer_swap_open/results.json", "sampled"), j("out/writer_swap_open/results.json", "compared"),
+        E("P", r"When GPT-Sol rewrites the open requests of # random sets, no model returns both interpretations significantly more or less often (all $p\ge#$)",
+          j("out/writer_swap_open/results.json", "sampled"),
           x("out/writer_swap_open/results.json:models/* mcnemar_both_p (min)", lambda: min(v["mcnemar_both_p"] for v in jl("out/writer_swap_open/results.json")["models"].values()))),
-        E("P", r"GPT-Sol answers # of the # specific requests correctly, as many as Sonnet (#).", x("eval runs: gpt-6-sol specific right (204 sets x 2)", lambda: spec_right("gpt-6-sol")),
+        E("P", r"The judge credits naming the choice in #--#\% of the responses that return both interpretations, for every model, and among responses that give one interpretation it credits GPT-Luna most often (#\%), a model from another family.",
+          *rng(lambda m: judge_family(m)[0], "disclose/judge.json: named | both returned by execution"),
+          x("disclose/judge.json: named | no alternative, gpt-6-luna (the highest of the four)", lambda: judge_family("gpt-6-luna")[1] if judge_family("gpt-6-luna")[1] == max(judge_family(m)[1] for m in M) else -1)),
+        E("P", r"GPT-Sol answers # of the # specific requests that Opus wrote, as many as Sonnet (#).", x("eval runs: gpt-6-sol specific right (204 sets x 2)", lambda: spec_right("gpt-6-sol")),
           x("eval runs: specific requests (204 sets x 2)", lambda: 2 * NF()), x("eval runs: sonnet specific right (204 sets x 2)", lambda: spec_right("sonnet"))),
-        E("P", r"With no human filter, models return both interpretations in #--#\% of the sets they can compute, and on the rejected sets in only #--#\%.",
-          *rng(lambda m: pc(P("review")["models"][m]["all"]["k"], P("review")["models"][m]["all"]["n"]), "review.json:models/*/all k/n"),
-          *rng(lambda m: pc(P("review")["models"][m]["rejected"]["k"], P("review")["models"][m]["rejected"]["n"]), "review.json:models/*/rejected k/n")),
-        E("P", r"a specific answer whose SQL does not run, which happens in at most # of the # sets for any model.", x("accepted.json:scopes/accepted/models/*/outcomes/no_run (max)", lambda: max(ACC()["models"][m]["outcomes"]["no_run"] for m in M)),
-          d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"With no human filter, models return both interpretations in only #--#\% of the sets they can compute, so the gap holds without the review.",
+          *rng(lambda m: pc(P("review")["models"][m]["all"]["k"], P("review")["models"][m]["all"]["n"]), "review.json:models/*/all k/n")),
         # ---------------- worked example
         # ---------------- library
         E("P", r"\textbf{Finding #: Models make choices", K("label")), E("P", r"\textbf{Finding #: Benchmarks cannot", K("label")), E("P", r"\textbf{Finding #: Two design rules", K("label")),
@@ -454,8 +467,6 @@ def ledger():
           x("ties other share", lambda: pc(REF()["ties_and_selection"][1], sum(REF()["ties_and_selection"]))),
           x("counting other share", lambda: pc(REF()["counting_unit"][1], sum(REF()["counting_unit"])))),
         # ---------------- applying a choice / filters
-        E("P", r"which keeps #--#\% of the rows", x("specbridge/pd/structures/compose.py: _predicates lo x100", lambda: 100 * code("specbridge/pd/structures/compose.py", r"_predicates\(self, t, lo=([\d.]+)")),
-          x("specbridge/pd/structures/compose.py: _predicates hi x100", lambda: 100 * code("specbridge/pd/structures/compose.py", r"_predicates\(self, t, lo=[\d.]+, hi=([\d.]+)"))),
         E("P", r"Every result below uses these # sets.", d("fig5_tab4_disclosure", "n_families")),
         # ---------------- setup
         E("P", r"Request sets & # databases, four each", x("accepted.json:per_database (count)", lambda: len(ACC()["per_database"]))),
@@ -475,14 +486,14 @@ def ledger():
         E("P", r"Intervals resample tasks # times", K("design parameter: bootstrap resamples (B = 2000 in the report modules)")),
         # ---------------- checks on the tests
         E("P", r"The pipeline keeps # request sets", d("fig5_tab4_disclosure", "n_constructed")),
-        E("P", r"The author keeps # sets, and this rule leaves #, which test", d("accepted", "scopes/accepted_all_types/n"), d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"They keep # of the # sets (#\%).", d("accepted", "scopes/accepted_all_types/n"), d("review", "sets"), x("out/paper/data/accepted.json", lambda: round(100 * g(P("accepted"), "scopes/accepted_all_types/n") / g(P("review"), "sets")))),
+        E("P", r"which leaves # sets on aggregation level", d("fig5_tab4_disclosure", "n_families")),
         E("P", r"in each of the # sets that pass all checks", d("fig5_tab4_disclosure", "n_constructed")),
-        E("P", r"fewer than #\% of silent references take (Figure", K("design rule: a type is kept when at least 1% of silent references take its other reading")),
-        E("P", r"request sets on # databases, and # of them pass an author's review", x("accepted.json:per_database (count)", lambda: len(ACC()["per_database"])), d("fig5_tab4_disclosure", "n_families")),
-        E("P", r"and # of the # BIRD and Spider references whose question says", x("fig6_inclination.json: boundary_between k summed over groups", lambda: sum(v["kinds"]["boundary_between"]["k"] for v in F6().values())),
+        E("S", r"The authors reject all # date-range sets", x(FROZEN_ALL + " x verdicts: filter-run time_scope sets rejected", lambda: sum(1 for c in jl(FROZEN_ALL)["cases"] if c["case"] in part_cases(1) and c["type"] == "time_scope" and c not in accepted_cases()))),
+        E("S", r"and # of the # BIRD and Spider references whose question says", x("fig6_inclination.json: boundary_between k summed over groups", lambda: sum(v["kinds"]["boundary_between"]["k"] for v in F6().values())),
           x("fig6_inclination.json: boundary_between n summed over groups", lambda: sum(v["kinds"]["boundary_between"]["n"] for v in F6().values()))),
-        E("P", r"so the author rejects all # date-range sets", x(FROZEN_ALL + " x verdicts: filter-run time_scope sets rejected", lambda: sum(1 for c in jl(FROZEN_ALL)["cases"] if c["case"] in part_cases(1) and c["type"] == "time_scope" and c not in accepted_cases()))),
-        E("P", r"On # tasks drawn at random across choice types, it keeps the shared requirements in # drafts, against # for direct generation ($p=#$), and passes all checks in # against #.",
+        E("P", r"request sets on # databases, and # of them pass the authors' review", x("accepted.json:per_database (count)", lambda: len(ACC()["per_database"])), d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"On # tasks drawn at random across choice types, it keeps the shared requirements in # drafts, against # for direct generation ($p=#$), and passes all checks in # against # drafts.",
           x("tab3_generation.json:pairs (count)", lambda: len(P("tab3_generation")["pairs"])), d("tab3_generation", "ablation_60_pairs/fidelity/final/full"),
           d("tab3_generation", "ablation_60_pairs/fidelity/final/direct"), d("tab3_generation", "ablation_60_pairs/fidelity/final/full_vs_direct/mcnemar_exact_p"),
           d("tab3_generation", "ablation_60_pairs/pass/final/full"), d("tab3_generation", "ablation_60_pairs/pass/final/direct")),
@@ -490,15 +501,17 @@ def ledger():
         E("P", r"On the # evaluation databases it delivers # of # requested queries", x("tab1_construction.json:pool (databases)", lambda: pool_by(None)["dbs"]),
           d("fig1_coverage", "n_pool"), x("tab1_construction.json:pool requested (sum)", lambda: pool_by(None)["requested"])),
         E("S", r"(# attempts). The labels give", d("fig1_coverage", "ablation/full/attempts")),
-        E("P", r"GPT-Sol wrote a second version of # random tasks", j("out/writer_swap/calib200/results.json", "n_calibration")),
+        E("P", r"When GPT-Sol writes the natural requests of # random generated tasks", j("out/writer_swap/calib200/results.json", "n_calibration")),
         E("S", r"Exact description versus natural request on # generated tasks", d("fig2_explicit_vs_precise", "n_tasks")),
         # ---------------- finding 1
         E("P", r"change by at most three of # per model", d("fig5_tab4_disclosure", "n_families")),   # three = max |precise_plain_single - precise_disclosure| over models (fig5 overhead)
         E("P", r"at most two of # responses to specific requests", d("fig5_tab4_disclosure", "n_families")),
         E("P", r"Answering and communicating on # request sets, per model and measure (#\% intervals)", d("fig5_tab4_disclosure", "n_families"), K("confidence level")),
+        E("P", r"which answer both specific requests right in #--#\% of sets, but reporting does.",
+          *rng(lambda m: pc(F5()[m]["precise_correct"]["k"], F5()[m]["precise_correct"]["n"]), "fig5:models/*/precise_correct k/n")),
         E("P", r"in only #\% for Sonnet, #\% for GPT-Sol, #\% for Haiku and #\% for GPT-Luna.",
           *[x("fig5:models/%s/covers_both_given_both_precise k/n" % m, (lambda m=m: cbp(m))) for m in ("sonnet", "gpt-6-sol", "haiku", "gpt-6-luna")]),
-        E("P", r"A stated interpretation matches the model's SQL in #--#\% of responses. The models describe", *rng(faith, "fig5:models/*/faithful_given_stated k/n")),
+        E("P", r"the statement matches its SQL in #--#\% of responses. The models describe", *rng(faith, "fig5:models/*/faithful_given_stated k/n")),
         E("P", r"In # of the # sets, the two interpretations return different rows, and in the other # the same rows",
           d("accepted", "scopes/accepted/readings_differ/row_keys_differ"), d("accepted", "scopes/accepted/readings_differ/sets"),
           x("accepted.json readings_differ sets - row_keys_differ", lambda: ACC()["readings_differ"]["sets"] - ACC()["readings_differ"]["row_keys_differ"])),
@@ -514,18 +527,14 @@ def ledger():
           d("ambrosia_types", "vague/haiku/questions"), *rng(lambda m: P("ambrosia_types")["vague"][m]["computed_pct"], "ambrosia_types.json:vague/*/computed_pct")),
         E("P", r"no model returns both interpretations for more than #\% of the sets from any source", x("fig5: max over models and sources of by_group/source k/n", lambda: max(grpct(m, "source", v) for m in M for v in ("Spider", "BIRD", "LiveSQLBench")), "le")),
         E("P", r"over our method per # questions", K("definition: rates are per 100 questions")),
-        E("P", r"The median request takes #--# seconds with it, against #--# seconds for SQL alone",
-          *rng(lambda m: F5()[m]["overhead"]["median_seconds_disclosure"], "fig5:models/*/overhead/median_seconds_disclosure"),
-          *rng(lambda m: F5()[m]["overhead"]["median_seconds_plain"], "fig5:models/*/overhead/median_seconds_plain")),
         E("P", r"What each model does with the # open requests", d("accepted", "scopes/accepted/n")),
         E("P", r"returns both interpretations for #\% of aggregation-level sets", x("fig5:models/sonnet/by_group/type/aggregation_level k/n", lambda: grpct("sonnet", "type", "aggregation_level"))),
         E("P", r"Main answer to the open request on # tie and counting sets", d("conventions", "sets")),
         E("P", r"In # tie and counting sets, one interpretation", d("conventions", "sets")),
         E("P", r"The conventional interpretation is the intended one in # of these sets", d("conventions", "intended_conventional")),
         E("P", r"it is the conventional one in #--#\% of cases for every model", *rng(conv, "conventions.json:models/* conventional/(conventional+other)")),
-        E("P", r"On the # of the # sets in a random draw of #, five SQL-only samples contain both interpretations in at most # for any model, while one explained response from Sonnet does so in #.",
-          x("topk/results.json:n_sets", lambda: jl("out/transfer/all/render/disclose/topk/results.json")["n_sets"]), d("fig5_tab4_disclosure", "n_families"),
-          x("topk.subset(): 60 seeded cases plus filter sets at the same rate (count)", lambda: len(__import__("specbridge.comm.transfer.topk", fromlist=["subset"]).subset())),
+        E("P", r"On # randomly drawn sets, five SQL-only samples contain both interpretations in at most # for any model, while one explained response from Sonnet does so in #.",
+          x("topk/results.json:n_sets", lambda: jl("out/transfer/all/render/disclose/topk/results.json")["n_sets"]),
           x("topk/results.json:models/*/topk (max)", lambda: max(TOPK()[m]["topk"] for m in M)),
           x("topk/results.json:models/sonnet/explain_cover", lambda: TOPK()["sonnet"]["explain_cover"])),
         E("P", r"it still returns only one interpretation in #--#\% of them",
@@ -543,8 +552,6 @@ def ledger():
           *[x("out/confirmation/bird_heldout100/noexplore_report.txt: original question row (%s)" % w, (lambda i=i: rx("out/confirmation/bird_heldout100/noexplore_report.txt",
             r"\| original question \| (\d+) \| (\d+) \| (\d+) \|", group=i))) for w, i in (("without", 3), ("n", 1), ("with", 2))]),
         E("P", r"original question versus the exact description of the reference SQL (#\% intervals)", K("confidence level")),
-        E("P", r"Open choices cause #\% of BIRD and #\% of Spider failures", *[x("fig3:causes/development/%s reading choice / total" % k, (lambda k=k: pc(P("fig3_real_benchmarks")["causes"]["development/" + k]["reading choice"],
-          sum(P("fig3_real_benchmarks")["causes"]["development/" + k].values())))) for k in ("BIRD batches 3-8", "Spider")]),
         E("P", r"in at least #\% of silent questions", x("fig6_inclination.json:groups/*/kinds (five other decisions, n >= 10): min share usual", f6_others_min, "ge")),
         E("P", r"return one row in over #\% of silent questions", x("fig6_inclination.json:groups BIRD/Spider own, ties_and_selection k/n (min)", lambda: min(f6_share(g_, "ties_and_selection") for g_ in OWN), "gt")),
         E("P", r"return one row in # of #.", d("fig6_inclination", "groups/imported: geo, restaurants/kinds/ties_and_selection/k"), d("fig6_inclination", "groups/imported: geo, restaurants/kinds/ties_and_selection/n")),
@@ -565,8 +572,7 @@ def ledger():
         E("P", r"Every one of the # evaluation databases", x("accepted.json:per_database (count)", lambda: len(ACC()["per_database"]))),
         # ---------------- BIRD scored with both readings (specbridge.comm.transfer.rescore)
         E("P", r"We ask the four models # BIRD development questions", x("out/rescore/runs/haiku (count)", lambda: len(glob.glob("out/rescore/runs/haiku/*.json")))),
-        E("P", r"reproduces all # verdicts", x("out/rescore/results.json:rule_vs_author agree (= verdicts)", lambda: RSC()["rule_vs_author"]["agree"] if RSC()["rule_vs_author"]["agree"] == RSC()["rule_vs_author"]["verdicts"] else -1)),
-        E("P", r"Of the # answers BIRD marks wrong on the # questions the rule keeps, # return the other interpretation", j("out/rescore/results.json", "pooled/wrong_by_bird"), j("out/rescore/results.json", "questions"), j("out/rescore/results.json", "pooled/B_only")),
+        E("P", r"and # questions pass. Of the # answers BIRD marks wrong on them, # return the other interpretation", j("out/rescore/results.json", "questions"), j("out/rescore/results.json", "pooled/wrong_by_bird"), j("out/rescore/results.json", "pooled/B_only")),
         E("P", r"match the edited reference (#) than the reference itself (#)", x("out/rescore/results.json:by_type_pooled ties+count_unit B_only", lambda: sum(RSC()["by_type_pooled"][t]["B_only"] for t in ("ties", "count_unit"))),
           x("out/rescore/results.json:by_type_pooled ties+count_unit A", lambda: sum(RSC()["by_type_pooled"][t]["A"] for t in ("ties", "count_unit")))),
         E("P", r"raises accuracy here from #\% to #\%", x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])),
@@ -588,19 +594,18 @@ def ledger():
         E("P", r"normal level of total protein?'' & # lab records & # patients", x("q1289 reference value", lambda: rs_val("q1289", "gold0")), x("q1289 edited value", lambda: rs_val("q1289", "gold"))),
         E("P", r"on Formula~#, Haiku's rewrite", K("database name (Formula 1)")),
         E("P", r"it is # points more precise than DtP ($[#, #]$)", *[x("final.json:pooled/vs_dtp/precision[%d] x100" % i, (lambda i=i: 100 * FIN()["pooled"]["vs_dtp"]["precision"][i])) for i in range(3)]),
-        E("P", r"only # of the held-out BIRD failures are open choices", d("fig3_real_benchmarks", "causes/confirmation/bird_heldout100/reading choice")),
         E("P", r"DtP shows about # wrong alternatives for each extra interpretation", j("out/ambrosia/final/exchange.json", "models/gpt-6-sol/rates/0.2/ratio")),
         E("P", r"DtP breaks even only if #\% of questions", j("out/ambrosia/final/exchange.json", "models/pooled/break_even", lambda v: 100 * v)),
         E("P", r"by # points pooled, mainly with GPT-Sol", x("final.json:pooled/vs_dtp/allfound[0] x -100", lambda: -100 * FIN()["pooled"]["vs_dtp"]["allfound"][0])),
-        E("P", r"On the # of the # sets that lie in a random draw of # made for this comparison",
-          j("out/reqmethod100/results.json", "sonnet/sets"), d("fig5_tab4_disclosure", "n_families"), x("out/reqmethod100/sets.json:sets (count)", lambda: len(jl("out/reqmethod100/sets.json")["sets"]))),
+        E("P", r"On # randomly drawn sets (Table",
+          j("out/reqmethod100/results.json", "sonnet/sets")),
         E("P", r"by # points for Sonnet and # for GPT-Sol, and answers more specific requests correctly",
           *[x(RQMD + ": %s ours - dtp both readings x100" % m, (lambda m=m: 100 * rx(RQMD, r"ours - dtp \(paired\): both readings \+?([-\d.]+) \[([-\d.]+), ([-\d.]+)\]", "## %s " % m, 1))) for m in ("sonnet", "gpt-6-sol")]),
         E("P", r"the lead is small and not significant, # points for Sonnet and # for GPT-Sol",
           *[x(RQMD + ": %s ours - samplek both readings x100" % m, (lambda m=m: 100 * rx(RQMD, r"ours - samplek \(paired\): both readings \+?([-\d.]+) \[([-\d.]+), ([-\d.]+)\]", "## %s " % m, 1))) for m in ("sonnet", "gpt-6-sol")]),
         # ---------------- rewrite
-        E("P", r"The run covers # interpretations per model, drawn at random before the final selection, and we report the # that belong to the # sets.",
-          K("design parameter: the first 120 readings per model in the pre-shuffled order (out/rewrite/GATE.md, amendment 22:15)"), x(RW + ": pooled readings", lambda: rw(0, 0, 1)), d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"we report # interpretations drawn at random from the # sets.",
+          x(RW + ": pooled readings", lambda: rw(0, 0, 1)), d("fig5_tab4_disclosure", "n_families")),
         E("P", r"Editing versus rewriting a request (# interpretations)", x(RW + ": pooled readings", lambda: rw(0, 0, 1))),
         E("P", r"computes #\% of the interpretations correctly", x(RW + ": pooled (c)", lambda: rw(0, 0, 4))),
         E("P", r"# points fewer for the interpretation rewrite and # for the standalone question", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
