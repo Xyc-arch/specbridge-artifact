@@ -139,7 +139,7 @@ def comparison():
     C = json.load(open(FZ.FRZ))["cases"]; A = set(json.load(open(FZ.FROZEN))["accepted"]) if os.path.exists(FZ.FROZEN) else set()
     tested = {FZ.SET_TYPE.get(c["type"], c["type"]) for c in C if c["case"] in A}   # cutoff sets test strict cutoffs, not value matching
     L = ["\\begin{table}[t]",
-         "\\caption{\\system{} and the two closest benchmarks of ambiguous text-to-SQL. Schema: synonym or split columns and tables; wording: scope, attachment, vagueness; calculation: ties, counting units, missing values, aggregation level. Mined: in our library of choices from benchmark failures, but not built into request sets.}",
+         "\\caption{\\system{} and the two closest benchmarks of ambiguous text-to-SQL. Schema: synonym or split columns and tables; wording: scope, attachment, vagueness; calculation: ties, counting units, missing values, aggregation level. Mined: in our library of choices from benchmark failures, but not built into the request sets we test here.}",
          "\\label{tab:comparison}", "\\centering\\footnotesize", "\\providecommand{\\cm}{\\ensuremath{\\checkmark}}\\providecommand{\\xm}{\\ensuremath{\\times}}", "\\setlength{\\tabcolsep}{3.5pt}",
          "\\begin{tabular}{@{}lccc@{}}", "\\toprule",
          "& AmbiQT~\\cite{ambiqt2023} & AMBROSIA~\\cite{ambrosia2024} & \\system{}\\\\", "\\midrule",

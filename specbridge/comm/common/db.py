@@ -42,7 +42,7 @@ def execute(con, sql, ms=20000):
         return "error", str(e)[:200], []
 
 
-def rows(con, sql, ms=60000):
+def rows(con, sql, ms=600000):
     """The rows as lists, or None when the query does not run."""
     if not sql: return None
     st, res, _ = execute(con, sql, ms)

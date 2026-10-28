@@ -12,17 +12,24 @@ open, all scored by execution.
 There are two ways to use this repository:
 
 1. **Offline reproduction (the main path).** Rebuild every figure, table and number in the paper from our saved model runs.
-   CPU only, no GPU, no model access, about 6 minutes.
+   CPU only, no GPU, no model access, about 8 minutes.
 2. **Rerun with models (optional).** Call the models again to regenerate the saved runs. This needs model access and is
    described at the end.
 
 ## Requirements
 
-- Python 3.11 and about 3 GB of free disk space. Any laptop CPU works.
+- Python 3.11, `make`, `curl` and `unzip`, and about 3 GB of free disk space. Any laptop CPU works (macOS, Linux or Windows
+  with WSL).
 - Internet access once, to download the BIRD dev databases (346 MB).
+- Optional, for the figure pixel check: `pdftoppm` (poppler: `brew install poppler`, `apt install poppler-utils`) and the Arial
+  font. Without them `make check` skips that one comparison and says so; the data behind every figure are still compared exactly.
 - We used an Apple M2 Max laptop (32 GB RAM), Python 3.11.5 and SQLite 3.41.2.
 
-## Offline reproduction (CPU only, about 6 minutes)
+`make setup` also installs `sqlean.py`, which bundles SQLite 3.42, and all SQL runs on it. Your system's SQLite does not matter:
+SQLite 3.43 and later add up floating-point numbers differently, which changes a few results. On Linux for ARM, which has no
+`sqlean.py` package, the system SQLite is used, and the results match the paper only if it is older than 3.43.
+
+## Offline reproduction (CPU only, about 8 minutes)
 
 ```sh
 git clone https://github.com/Xyc-arch/specbridge-artifact && cd specbridge-artifact
@@ -159,7 +166,7 @@ request sets are built.
 benchmark/          the 307 request sets (204 accepted), their 12 databases, the scorer
 library/            624 calculation choices mined from BIRD and Spider failures
 methods/            the two methods of Section 7, standalone
-human_supervision/  the author's reviews of the request sets and of the BIRD answers
+human_supervision/  the authors' reviews of the request sets and of the BIRD answers
 out/                every saved model run and intermediate result
 specbridge/         all code: query generation, mining, evaluation, figures
 catalogues/         column meanings per database, used by query generation
@@ -170,7 +177,7 @@ paper/              paper and supplement source
 ```
 
 **Not included:** the AMBROSIA dataset, because its authors ask that it not be uploaded to GitHub. We include our aggregate
-AMBROSIA results and a per-question score table, which rebuild Table 4 and Figures 9, 18 and 19.
+AMBROSIA results and a per-question score table, which rebuild Figures 7, 16 and 17 and Table 5.
 `reproduce/fetch_ambrosia.sh` explains how to get the dataset from its authors.
 
 ## License

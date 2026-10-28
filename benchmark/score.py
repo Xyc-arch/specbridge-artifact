@@ -10,7 +10,9 @@ answers.jsonl, one line per answered request:
 Reported: specific requests answered with their own reading; open requests whose main answer is reading A or B; open requests
 whose main answer plus alternatives return both readings; and both readings returned among sets whose two specific requests
 are answered right (the gap the paper reports)."""
-import json, os, sqlite3, sys, time
+import json, os, sys, time
+try: import sqlean as sqlite3                # SQLite 3.42, as for the paper (requirements.txt)
+except ImportError: import sqlite3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))

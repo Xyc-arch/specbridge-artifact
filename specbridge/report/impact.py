@@ -20,7 +20,7 @@ NAME = {"ties": "ties at an extreme", "count_unit": "rows vs distinct entities",
         "null_filter": "missing values filtered", "boundary": "inclusive vs strict bound"}
 
 
-def run(path, sql, limit=15):
+def run(path, sql, limit=600):          # far above the slowest query (5 s); a slow machine must not drop questions
     con = sqlite3.connect("file:%s?mode=ro" % path, uri=True); t0 = time.time()
     con.set_progress_handler(lambda: 1 if time.time() - t0 > limit else 0, 100000)
     try: return con.execute(sql).fetchall()

@@ -258,7 +258,7 @@ def rewrite():
     keep = lambda case: (V.get(case.split("-")[-1]) or {}).get("verdict") == "yes"
     main = {c["case"] for c in J("out/transfer/eval12-v2/render/eval/frozen.json")["cases"]}
     R = []
-    for f in glob.glob(os.path.join(REPO, "out/rewrite/runs/*/*.json")):
+    for f in sorted(glob.glob(os.path.join(REPO, "out/rewrite/runs/*/*.json"))):
         o = json.load(open(f))
         if not keep(o["case"]) or o["case"] not in main: continue
         R.append((o["model"], {v: o["reading"] in o[v]["matches"] for v in "abcd" if v in o}, "%s|%s|%s" % (o["model"], o["case"], o["reading"])))
@@ -272,7 +272,7 @@ def rewrite():
     write("rewrite_left", ["y", "a", "am", "ap", "c", "cm", "cp", "b", "bm", "bp", "d", "dm", "dp"], rows)
     C = J("out/rewrite/classify.json")
     lost = collections.Counter((C.get(k) or {}).get("lost", "other") for _m, r, k in R if r["a"] and not r["b"])
-    order = [c for c, _n in lost.most_common()]; tot = sum(lost.values())
+    order = [c for c, _n in sorted(lost.items(), key=lambda x: (-x[1], x[0]))]; tot = sum(lost.values())   # ties by name, not file order
     write("rewrite_right", ["y", "v"], [[len(order) - 1 - i, pct(lost[c], tot)] for i, c in enumerate(order)])
     with open(os.path.join(OUT, "rewrite_labels.tex"), "w") as fh:
         fh.write("\\def\\rewritelabels{%s}\n" % ",".join("{%s}" % (c[:1].upper() + c[1:]) for c in reversed(order)))

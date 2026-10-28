@@ -1,6 +1,6 @@
 .PHONY: all setup data full-data reproduce check test paper figures
 # make all: fetch the BIRD dev databases, rebuild every figure and table from the saved runs (no model calls), compare with the
-# paper, and run the tests. About 6 minutes on a laptop. Everything the run produces is collected in results/.
+# paper, and run the tests. About 8 minutes on a laptop. Everything the run produces is collected in results/.
 all: data reproduce check test
 
 setup:

@@ -11,7 +11,9 @@ Merging uses equal results on the CURRENT database: two readings that tie today 
     out["main"], out["alternatives"], out["readings"], out["calls"]
 
 This is the frozen version run on the AMBROSIA final test (specbridge.comm.transfer.ambrosia.run_final, arm "ours")."""
-import collections, json, os, re, sqlite3, sys
+import collections, json, os, re, sys
+try: import sqlean as sqlite3                # SQLite 3.42, as for the paper (requirements.txt)
+except ImportError: import sqlite3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
