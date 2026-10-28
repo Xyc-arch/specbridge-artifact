@@ -18,16 +18,11 @@ There are two ways to use this repository:
 
 ## Requirements
 
-- Python 3.11, `make`, `curl` and `unzip`, and about 3 GB of free disk space. Any laptop CPU works (macOS, Linux or Windows
-  with WSL).
+- macOS with Python 3.11, and about 3 GB of free disk space. Any recent Mac works; we used an Apple M2 Max laptop with
+  Python 3.11.5.
 - Internet access once, to download the BIRD dev databases (346 MB).
-- Optional, for the figure pixel check: `pdftoppm` (poppler: `brew install poppler`, `apt install poppler-utils`) and the Arial
-  font. Without them `make check` skips that one comparison and says so; the data behind every figure are still compared exactly.
-- We used an Apple M2 Max laptop (32 GB RAM), Python 3.11.5 and SQLite 3.41.2.
 
-`make setup` also installs `sqlean.py`, which bundles SQLite 3.42, and all SQL runs on it. Your system's SQLite does not matter:
-SQLite 3.43 and later add up floating-point numbers differently, which changes a few results. On Linux for ARM, which has no
-`sqlean.py` package, the system SQLite is used, and the results match the paper only if it is older than 3.43.
+The code also runs on Linux, but some numbers can differ slightly there, so use macOS to reproduce the paper exactly.
 
 ## Offline reproduction (CPU only, about 8 minutes)
 
