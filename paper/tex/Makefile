@@ -1,9 +1,9 @@
-.PHONY: all clean diagrams check numbers
+.PHONY: all clean figures check numbers
 # One .tex file per document: specbridge.tex (the paper) and supplement.tex. They cite each other: make copies each one's
 # \newlabel lines into the other's "labels" region, so either file compiles on its own (e.g. on Overleaf).
-# Order: diagrams (XeLaTeX, Arial) -> paper -> its labels into the supplement -> supplement -> its labels into the paper -> paper.
+# Order: figures (pdfLaTeX) -> paper -> its labels into the supplement -> supplement -> its labels into the paper -> paper.
 LABELS = PYTHONPATH=../.. python3 -m specbridge.report.texfile labels
-all: diagrams
+all: figures
 	latexmk -pdf -interaction=nonstopmode -halt-on-error specbridge.tex
 	$(LABELS) specbridge.aux supplement.tex "labels specbridge"
 	latexmk -pdf -interaction=nonstopmode -halt-on-error supplement.tex
@@ -11,9 +11,12 @@ all: diagrams
 	latexmk -pdf -interaction=nonstopmode -halt-on-error specbridge.tex
 	$(LABELS) specbridge.aux supplement.tex "labels specbridge"
 
-diagrams: figures/diag_teaser.pdf figures/diag_pipeline.pdf figures/diag_worked.pdf figures/diag_method.pdf figures/diag_rewrite.pdf figures/diag_datamap.pdf
-figures/diag_%.pdf: figures/tikz/%.tex figures/tikz/style.tex
-	cd figures/tikz && xelatex -interaction=nonstopmode -halt-on-error $*.tex >/dev/null && cp $*.pdf ../diag_$*.pdf && rm -f $*.pdf $*.aux $*.log
+# Every figure from its source in figures/src (pgfplots and TikZ in the paper's fonts; figures/src/README.md), rebuilt when the
+# source, the shared style or a data file is newer than the PDF. figures/tikz/ (XeLaTeX, Arial) is legacy: no target builds it.
+FIGURES = $(patsubst figures/src/%.tex,figures/%.pdf,$(wildcard figures/src/col_*.tex figures/src/diag_*.tex))
+figures: $(FIGURES)
+figures/%.pdf: figures/src/%.tex figures/src/sbstyle.tex $(wildcard figures/src/data/*)
+	python3 figures/src/build.py $*
 
 # Every number printed in specbridge.tex and supplement.tex, recomputed from the data files (specbridge.report.numbers).
 check: numbers

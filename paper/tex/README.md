@@ -7,26 +7,27 @@ This folder is self-contained: upload it as is to Overleaf (main document `specb
 | `specbridge.tex` → `specbridge.pdf` | The whole paper in one file. Body on pages 1–12 (no appendix), references from page 13. |
 | `supplement.tex` → `supplement.pdf` | The whole supplementary material in one file: only what the paper leaves out (query generation details, library composition, a second worked example, the nine-case survey, further details, pilots). Its figures and tables are S1, S2, ...; its references to the paper print the paper's numbers. |
 | generated regions | Lines between `% >>> name` and `% <<< name` are written by tools, never by hand: the three data tables in `specbridge.tex` (`python -m specbridge.report.tables_tex`) and each file's `labels` region (the other document's `\newlabel` lines, written by `make`), so either file compiles alone, e.g. on Overleaf. |
-| `figures/` | `col_*.pdf` (data figures), `diag_*.pdf` (diagrams); `tikz/` holds the diagram sources. Captions are in the two `.tex` files. |
+| `figures/` | `col_*.pdf` (data figures), `diag_*.pdf` (diagrams), each built from its source in `figures/src/` (pgfplots and TikZ; see its `README.md`). Captions are in the two `.tex` files. `tikz/` holds the earlier XeLaTeX diagram sources, kept as legacy; no target builds them. |
 | `fig_explain.md`, `tab_explain.md` | The source and meaning of every figure and table. |
 | `acmart.cls`, `pvldb.sty`, `ACM-Reference-Format.bst` | Pinned copies of the official [PVLDB template](https://github.com/vldbproceedings/VLDB-Template) (acmart v2.19, `sigconf, nonacm`). |
 | `references.bib` | Bibliography. |
 
 ## Build
 
-`make` (from this folder) builds the three diagrams with XeLaTeX, then the paper, writes its labels into `supplement.tex`, builds the supplement, writes its labels into `specbridge.tex`, and builds the paper again. Overleaf: upload the two `.tex` files, `references.bib`, the three template files and `figures/`; set the main document to `specbridge.tex` (or `supplement.tex`).
+`make` (from this folder) builds every figure whose source, style or data changed (`python3 figures/src/build.py`, pdfLaTeX; needs TeX Live with pgfplots, libertine, zi4 and newtx, and Ghostscript), then the paper, writes its labels into `supplement.tex`, builds the supplement, writes its labels into `specbridge.tex`, and builds the paper again. Overleaf: upload the two `.tex` files, `references.bib`, the three template files and `figures/`; set the main document to `specbridge.tex` (or `supplement.tex`).
 
 ## Regenerate figures and tables
 
-From the repository root:
+From the repository root, after `make reproduce` (which writes `out/paper/data`):
 
 ```sh
-python -m specbridge.report.figures_col   # data figures -> figures/col_*.pdf (NumPy, Matplotlib, Arial)
+python3 -I paper/tex/figures/src/export.py . paper/tex/figures/src/data out/paper/data   # the data figures' numbers -> figures/src/data/
 python -m specbridge.report.tables_tex    # generated tables -> their regions in specbridge.tex (copies in out/paper/tables/)
-make -C paper/tex                         # diagrams (XeLaTeX, Arial, fontawesome5) and both PDFs
+make -C paper/tex                         # every figure whose source or data changed (pdfLaTeX), and both PDFs
+python -m specbridge.report.datamap_tex   # Figure S1's counts and exhibit numbers -> figures/src/diag_datamap.tex (reads the .aux files)
 ```
 
-The other tables are written by hand; their numbers come from `paper/result.md` and `paper/example.md`. All figure text is Arial, in black, with no white fills; figures are one column wide and printed at 1:1.
+`make figures` (repository root) runs `make reproduce`, copies the figure data it wrote (`out/paper/figure_data/`) into `figures/src/data/` and builds every figure. The other tables are written by hand; their numbers come from `paper/result.md` and `paper/example.md`. All figure text is set in the paper's fonts (Linux Biolinum 7.5 pt, code in Inconsolata); figures are one column (241.15 pt) or two columns (506.3 pt) wide and printed at 1:1, in the style that `figures/src/README.md` describes. `specbridge.report.figures_col` draws the same data with Matplotlib only as check drawings (`out/paper/figures_col/`, compared by `make check`).
 
 ## Submission rules
 

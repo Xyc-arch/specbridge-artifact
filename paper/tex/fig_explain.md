@@ -11,10 +11,11 @@ Manuscript: *Text-to-SQL Models Know More Than They Tell* (`paper/tex/specbridge
 The thirteen figures included by `paper/tex/specbridge.tex`, in manuscript order. Every figure is one column wide and printed at 1:1 (text 7–8 pt).
 Two kinds of source:
 
-- **Diagrams** (Figures 1, 2, 13) are TikZ in `tikz/<name>.tex`, built with XeLaTeX (Arial) into `diag_<name>.pdf`, with Font Awesome 5
-  icons (package `fontawesome5`; free, SIL OFL 1.1 / CC BY 4.0). `<name>.tex` holds the caption and includes the PDF.
-- **Data figures** (Figures 3–12) are `col_<name>.pdf`, drawn by `specbridge/report/figures_col.py` from `out/paper/data/`. The
-  caption and inclusion code are in `specbridge.tex` (or `supplement.tex`). 
+- **Diagrams** are TikZ in `figures/src/diag_<name>.tex`, built with pdfLaTeX in the paper's fonts into `diag_<name>.pdf`
+  (`figures/src/README.md`; until 2026-10-27 they were `tikz/<name>.tex`, built with XeLaTeX in Arial, now legacy).
+- **Data figures** are `col_<name>.pdf`, drawn with pgfplots by `figures/src/col_<name>.tex` from `figures/src/data/`, which
+  `figures/src/export.py` writes from `out/paper/data/` (until 2026-10-27 `specbridge/report/figures_col.py` drew them with
+  Matplotlib; it now draws only check drawings). The caption and inclusion code are in `specbridge.tex` (or `supplement.tex`). 
 
 The figures report saved experiments; no new model runs. Execution decides query matches; Opus (blind to the solver) judges explanations.
 The wide multi-panel originals (`fig1_coverage` … `fig6_inclination`) are kept for the Markdown records (`../result.md`,
@@ -105,7 +106,7 @@ rows vs entities 99/268 (86 > 50%), ties 56/217, missing values 15/155, join kin
 
 ## Figure 13 — The disclosure method's trade-off on AMBROSIA (`col_method`, generated)
 
-Source: `out/ambrosia/final/final.json` (`specbridge.comm.transfer.ambrosia`; figure `specbridge.report.figures_col method`). 150 fresh test questions per solver (90 ambiguous, 60 unambiguous), Sonnet and GPT-Sol, four arms interleaved, 0 safety refusals. x: precision on unambiguous questions; y: AllFound on ambiguous questions with Wilson 95% intervals; label: calls per question. Pooled paired differences (in the text): ours - DtP precision +18.0 [11.4, 24.4], AllFound -7.2 [-14.4, -0.6] (pre-written coverage claim failed); ours - Sample-3 better on every measure. Full record: `out/ambrosia/method/RESULTS.md`, `TRADEOFF.md`.
+Source: `out/ambrosia/final/final.json` (`specbridge.comm.transfer.ambrosia`; figure `figures/src/col_method.tex`). 150 fresh test questions per solver (90 ambiguous, 60 unambiguous), Sonnet and GPT-Sol, four arms interleaved, 0 safety refusals. x: precision on unambiguous questions; y: AllFound on ambiguous questions with Wilson 95% intervals; label: calls per question. Pooled paired differences (in the text): ours - DtP precision +18.0 [11.4, 24.4], AllFound -7.2 [-14.4, -0.6] (pre-written coverage claim failed); ours - Sample-3 better on every measure. Full record: `out/ambrosia/method/RESULTS.md`, `TRADEOFF.md`.
 
 ## Figure 14 — Editing versus rewriting a request (`col_rewrite`, generated)
 
@@ -130,5 +131,5 @@ order among 39 eligible sets, before any model answer was seen.
 
 ## Reproduction
 
-From the repository root: `python -m specbridge.report.figures_col` (data figures), then `make -C paper/tex` (diagrams and both PDFs).
+From the repository root: `make figures` (`make reproduce`, then every figure from the data it rebuilt), then `make paper` (both PDFs).
 Earlier notes are under `paper/archive/`.
