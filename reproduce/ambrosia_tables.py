@@ -7,7 +7,7 @@ S = [json.loads(l) for l in open("out/ambrosia/final/scores.jsonl")]
 rows = collections.defaultdict(set)
 for x in S: rows[x["model"]].add((x["ambrosia_row"], x["arm"]))
 ARMS = ("plain", "samplek", "dtp", "ours"); bad = 0
-NAME = {"ours": "decide-then-answer", "method": "decide-then-search", "state": "interpret-and-state"}   # printed names (paper Section 7)
+NAME = {"ours": "decide-then-answer", "method": "decide-then-search", "state": "single answer"}   # printed names (paper Section 7)
 F = json.load(open("out/ambrosia/final/final.json"))
 for m in sorted(rows):
     full = {r for r, _a in rows[m] if all((r, a) in rows[m] for a in ARMS)}

@@ -1,13 +1,13 @@
 """THE TWO-PHASE METHOD FOR OPEN CHOICES (paper Section 7) and its comparison with the baselines, on AMBROSIA and the request sets.
 Phase 1, decide-then-answer (arm `ours`): one call decides whether the request is open and lists its interpretations; each is
 answered, failures dropped, identical results merged. Option decide-then-search (arm `method`): where phase 1 finds the request
-open, add DtP's wide search (arm `dtp`). Baselines: plain (one call), samplek (three samples), dtp, and interpret-and-state (arm
+open, add DtP's wide search (arm `dtp`). Baselines: plain (one call), samplek (three samples), dtp, and single answer (arm
 `state`: the plain call's main query, the one answer a product returns with its interpretation in words). All arms are read from
 saved files (ambrosia.run_final, reqmethod run); the reports make no model calls:
     python -m specbridge.comm.transfer.system report_method    Table 5 and Fig. 16 -> out/system/method.json
     python -m specbridge.comm.transfer.system report_stream    what a user gets per 100 requests, by share of open requests
     python -m specbridge.comm.transfer.system report_budget    where the gain comes from: DtP cut to phase 1's number of interpretations
-    python -m specbridge.comm.transfer.system report_twoturn   two-turn test with a simulated user, adds ask-then-answer (arm `ask`)
+    python -m specbridge.comm.transfer.system report_twoturn   two-turn test with a simulated user, adds clarifying question (arm `ask`)
 Earlier development runs (out/system/PREREG.md): pilot | report_pilot | run_final | report_final | report_ask | report_curve | run_keep."""
 import collections, concurrent.futures as cf, json, os, random, sys
 from specbridge.comm.common import db as DB
@@ -175,7 +175,8 @@ def run_final(workers=6):
 
 def _boot(v, B=2000, seed=7):
     g = random.Random(seed); b = sorted(sum(v[g.randrange(len(v))] for _ in v) / len(v) for _ in range(B))
-    return [round(100 * sum(v) / len(v), 1), round(100 * b[int(.025 * B)], 1), round(100 * b[int(.975 * B) - 1], 1)]
+    m = sum(v) / len(v); se = (sum((x - m) ** 2 for x in v) / (len(v) - 1) / len(v)) ** .5          # [mean, 2.5%, 97.5%, standard error]
+    return [round(100 * m, 1), round(100 * b[int(.025 * B)], 1), round(100 * b[int(.975 * B) - 1], 1), round(100 * se, 1)]
 
 
 def report_final():
@@ -304,7 +305,7 @@ def report_ask():
 # THE METHOD (2026-10-28, after the interim system result: the edit step lost coverage on AMBROSIA's short questions): gate + wide
 # search + execute = our listing call as the gate; where it finds several interpretations, DtP's wide search; every answer executed,
 # failing SQL dropped, identical results merged; the gate's answer first. Built from saved arms, zero calls. Baselines: plain, three
-# samples, DtP, and interpret-and-state: the one answer a production assistant returns in the same turn, with its interpretation in
+# samples, DtP, and single answer: the one answer a production assistant returns in the same turn, with its interpretation in
 # words (Cortex Analyst: "We interpreted your question as ..."); execution scores the answer, so it is the plain call's main query.
 def _plain_main(m, k, w):
     f = RM._plain_f(m, k, w)
@@ -583,7 +584,7 @@ def run_keep(workers=6):
 # mind reads turn 1; if no shown answer gives that interpretation (or the product asked instead of answering), the user states it in
 # one turn and the product answers the stated request. The second-turn answer is the SAME for every arm: the model's plain answer to
 # the specific request (AMBROSIA's unambiguous question; the set's specific wording), so arms differ only in turn 1. Arm `ask` uses the
-# decide-then-answer gate (generous to asking) and returns nothing where it is open; `state` is the one answer of interpret-and-state.
+# decide-then-answer gate (generous to asking) and returns nothing where it is open; `state` is the one answer of single answer.
 # Units: one per (request, interpretation the user means); a unit with no specific request is skipped for every arm.
 def report_twoturn(main=0.2, B=2000):
     from specbridge.comm.common import grade as G
@@ -651,6 +652,7 @@ def report_twoturn(main=0.2, B=2000):
                     D["amb|%s-%s|%s" % (x, b, k)].append(amb(x, i, ia, iu) - amb(b, i, ia, iu))
                     D["sets|%s-%s|%s" % (x, b, k)].append(100 * (mean([PS[x][j] for j in isx], i) - mean([PS[b][j] for j in isx], i)))
     out["ci"] = {k: [round(sorted(v)[int(.025 * B)], 1), round(sorted(v)[int(.975 * B) - 1], 1)] for k, v in D.items()}
+    out["se"] = {k: round((sum((x - sum(v) / len(v)) ** 2 for x in v) / (len(v) - 1)) ** .5, 1) for k, v in D.items()}   # bootstrap SD
     J = json.load(open(OUT + "/method.json")); J["twoturn"] = out; json.dump(J, open(OUT + "/method.json", "w"), indent=1)
     print(json.dumps({k: v for k, v in out.items() if k != "ci"}, indent=1))
     print(json.dumps({k: v for k, v in out["ci"].items() if "-ask|" in k or "-state|" in k}, indent=0))

@@ -149,7 +149,7 @@ own system prompt, so answers through the API can differ slightly from the saved
 | AMBROSIA (§5, §7.2) | `sh reproduce/fetch_ambrosia.sh`, then `python -c "from specbridge.comm.transfer import ambrosia as A; A.decomp_run(A.MODELS); A.run_final()"` |
 | Held-out BIRD and Spider (§6) | `python -m specbridge.comm.diagnose.compare run <dir> <model>` |
 | BIRD scored with both interpretations (§6) | `python -m specbridge.comm.transfer.rescore run` |
-| Phase 1 and the baselines (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run`, then `python -m specbridge.comm.transfer.system report_method`, `report_stream` and `report_budget` (these read the AMBROSIA runs, so fetch AMBROSIA and run it first). `REQMETHOD_N=100` draws 100 main sets and 30 filter sets; 111 of them are accepted and used. The two-turn test with ask-then-answer: `python -m specbridge.comm.transfer.system report_twoturn` |
+| Phase 1 and the baselines (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run`, then `python -m specbridge.comm.transfer.system report_method`, `report_stream` and `report_budget` (these read the AMBROSIA runs, so fetch AMBROSIA and run it first). `REQMETHOD_N=100` draws 100 main sets and 30 filter sets; 111 of them are accepted and used. The two-turn test with clarifying question: `python -m specbridge.comm.transfer.system report_twoturn` |
 | Phase 2: edit vs rewrite (§7.3) | `python -m specbridge.comm.transfer.rewrite run` |
 
 Each module's docstring lists its other options. [`specbridge/docs/PIPELINE.md`](specbridge/docs/PIPELINE.md) explains how the

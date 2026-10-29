@@ -36,15 +36,15 @@
 
 ## Pooled over both models, method minus each, paired by item (points [95% bootstrap])
 
-- vs plain: AMBROSIA AllFound [21.1, 14.4, 27.8], recall [14.9, 11.0, 18.9], precision [4.4, -1.3, 10.0]; request sets both [16.2, 10.8, 21.6], specific right [6.3, 2.7, 9.9].
-- vs samplek: AMBROSIA AllFound [15.0, 8.3, 21.7], recall [9.1, 5.3, 12.6], precision [5.8, -0.2, 11.1]; request sets both [6.8, 1.8, 11.7], specific right [6.8, 3.2, 10.4].
-- vs dtp: AMBROSIA AllFound [-1.1, -7.2, 5.0], recall [-0.1, -3.7, 3.4], precision [14.3, 7.7, 20.4]; request sets both [45.9, 39.2, 52.7], specific right [26.6, 21.2, 32.4].
-- vs state: AMBROSIA AllFound [36.1, 28.9, 43.3], recall [28.3, 23.9, 33.0], precision [-5.3, -12.6, 1.9]; request sets both [66.2, 60.4, 72.1], specific right [6.3, 2.7, 9.9].
-- vs ours: AMBROSIA AllFound [7.2, 3.9, 11.1], recall [4.1, 2.3, 6.0], precision [-5.0, -7.6, -2.5]; request sets both [3.2, 0.9, 5.4], specific right [0.0, 0.0, 0.0].
+- vs plain: AMBROSIA AllFound [21.1, 14.4, 27.8, 3.3], recall [14.9, 11.0, 18.9, 2.0], precision [4.4, -1.3, 10.0, 3.0]; request sets both [16.2, 10.8, 21.6, 2.8], specific right [6.3, 2.7, 9.9, 1.9].
+- vs samplek: AMBROSIA AllFound [15.0, 8.3, 21.7, 3.3], recall [9.1, 5.3, 12.6, 1.9], precision [5.8, -0.2, 11.1, 2.9]; request sets both [6.8, 1.8, 11.7, 2.6], specific right [6.8, 3.2, 10.4, 1.8].
+- vs dtp: AMBROSIA AllFound [-1.1, -7.2, 5.0, 3.1], recall [-0.1, -3.7, 3.4, 1.8], precision [14.3, 7.7, 20.4, 3.3]; request sets both [45.9, 39.2, 52.7, 3.6], specific right [26.6, 21.2, 32.4, 3.0].
+- vs state: AMBROSIA AllFound [36.1, 28.9, 43.3, 3.6], recall [28.3, 23.9, 33.0, 2.2], precision [-5.3, -12.6, 1.9, 3.6]; request sets both [66.2, 60.4, 72.1, 3.2], specific right [6.3, 2.7, 9.9, 1.9].
+- vs ours: AMBROSIA AllFound [7.2, 3.9, 11.1, 1.9], recall [4.1, 2.3, 6.0, 0.9], precision [-5.0, -7.6, -2.5, 1.3]; request sets both [3.2, 0.9, 5.4, 1.2], specific right [0.0, 0.0, 0.0, 0.0].
 
 ## Pooled, narrow search (ours) minus each baseline, paired by item
 
-- vs plain: AMBROSIA AllFound [13.9, 7.8, 20.6], recall [10.8, 6.8, 14.8], precision [9.4, 3.2, 15.5]; request sets both [13.1, 7.7, 18.5], specific right [6.3, 2.7, 9.9].
-- vs samplek: AMBROSIA AllFound [7.8, 1.7, 13.9], recall [5.0, 0.9, 8.6], precision [10.8, 4.4, 16.4]; request sets both [3.6, -1.4, 8.6], specific right [6.8, 3.2, 10.4].
-- vs dtp: AMBROSIA AllFound [-8.3, -15.6, -1.7], recall [-4.2, -8.1, -0.1], precision [19.2, 12.3, 25.7]; request sets both [42.8, 35.1, 50.5], specific right [26.6, 21.2, 32.4].
-- vs state: AMBROSIA AllFound [28.9, 22.2, 35.6], recall [24.3, 19.7, 28.8], precision [-0.3, -7.7, 7.2]; request sets both [63.1, 57.2, 69.4], specific right [6.3, 2.7, 9.9].
+- vs plain: AMBROSIA AllFound [13.9, 7.8, 20.6, 3.3], recall [10.8, 6.8, 14.8, 2.0], precision [9.4, 3.2, 15.5, 3.2]; request sets both [13.1, 7.7, 18.5, 2.8], specific right [6.3, 2.7, 9.9, 1.9].
+- vs samplek: AMBROSIA AllFound [7.8, 1.7, 13.9, 3.1], recall [5.0, 0.9, 8.6, 1.9], precision [10.8, 4.4, 16.4, 3.1]; request sets both [3.6, -1.4, 8.6, 2.5], specific right [6.8, 3.2, 10.4, 1.8].
+- vs dtp: AMBROSIA AllFound [-8.3, -15.6, -1.7, 3.5], recall [-4.2, -8.1, -0.1, 2.0], precision [19.2, 12.3, 25.7, 3.5]; request sets both [42.8, 35.1, 50.5, 3.9], specific right [26.6, 21.2, 32.4, 3.0].
+- vs state: AMBROSIA AllFound [28.9, 22.2, 35.6, 3.5], recall [24.3, 19.7, 28.8, 2.3], precision [-0.3, -7.7, 7.2, 3.7]; request sets both [63.1, 57.2, 69.4, 3.2], specific right [6.3, 2.7, 9.9, 1.9].
