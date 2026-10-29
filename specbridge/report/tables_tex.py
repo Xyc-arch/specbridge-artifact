@@ -270,29 +270,28 @@ def method_reqsets():
     write("method_reqsets", "\n".join(L) + "\n")
 
 def methods():
-    """Section 7: decide-then-answer, its wide-search option (decide-then-search) and four baselines. AMBROSIA final test, per 100
-    requests of which 20% leave a choice open (interpretations missed, wrong answers shown, calls; system.report_stream), and request
-    sets (both interpretations returned, specific requests right; system.report_method). out/system/method.json."""
-    M = json.load(open("out/system/method.json")); T, S = M["stream"]["per_model"], M["sets"]
+    """Section 7: decide-then-answer, its wide-search option (decide-then-search) and four baselines, measured the same way on both
+    datasets: coverage (AMBROSIA AllFound; request sets, both interpretations), precision on clear or specific requests, calls.
+    out/system/method.json (system.report_method)."""
+    M = json.load(open("out/system/method.json")); A, S = M["ambrosia"], M["sets"]
     NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ask": "Decide-then-ask", "ours": "Decide-then-answer", "method": "\\quad wide search"}
     arms = ("plain", "samplek", "dtp", "ask", "ours", "method")
-    n_sets = S["sonnet"]["method"]["sets"]; n_spec = S["sonnet"]["method"]["specific"]
+    n_amb = A["sonnet"]["method"]["n_amb"]; n_sets = S["sonnet"]["method"]["sets"]
     L = ["\\begin{table}[t]",
-         "\\caption{Decide-then-answer, its wide-search option (decide-then-search) and four baselines. AMBROSIA: per 100 requests of which 20\\%% leave a choice open (lower is better). Request sets: %d sets (higher is better).}" % n_sets,
+         "\\caption{Decide-then-answer, its wide-search option (decide-then-search) and four baselines, measured the same way on both datasets: coverage (all interpretations returned, of %d ambiguous AMBROSIA questions and %d open requests), precision on clear or specific requests (\\%%), and calls per request. Bold: best per model.}" % (n_amb, n_sets),
          "\\label{tab:methods}", "\\centering\\footnotesize\\setlength{\\tabcolsep}{3.2pt}",
-         "\\begin{tabular}{@{}llrrrrr@{}}", "\\toprule",
-         "& & \\multicolumn{3}{c}{AMBROSIA, per 100 requests} & \\multicolumn{2}{c}{Request sets} \\\\", "\\cmidrule(lr){3-5}\\cmidrule(l){6-7}",
-         "& & Missed & Wrong & Calls & Both & Specific \\\\",
-         "Model & Method & & shown & & (of %d) & (of %d) \\\\" % (n_sets, n_spec), "\\midrule"]
+         "\\begin{tabular}{@{}llrrrrrr@{}}", "\\toprule",
+         "& & \\multicolumn{3}{c}{AMBROSIA} & \\multicolumn{3}{c}{Request sets} \\\\", "\\cmidrule(lr){3-5}\\cmidrule(l){6-8}",
+         "Model & Method & Cover & Prec. & Calls & Cover & Prec. & Calls \\\\", "\\midrule"]
     for mi, (m, lab) in enumerate((("sonnet", "Sonnet"), ("gpt-6-sol", "GPT-Sol"))):
         if mi: L.append("\\midrule")
-        t, r = T[m], S[m]
-        col = {"miss": [t[x]["0.2"]["missed"] for x in arms], "wrong": [t[x]["0.2"]["wrong"] for x in arms], "calls": [t[x]["0.2"]["calls"] for x in arms],
-               "both": [r[x]["both"] for x in arms], "right": [r[x]["right"] for x in arms]}
-        fmt = {"miss": "%.1f", "wrong": "%.1f", "calls": "%d", "both": "%d", "right": "%d"}
-        C = {k: [fmt[k] % x for x in v] for k, v in col.items()}
+        a, r = A[m], S[m]
+        col = {"acov": [a[x]["allfound"] for x in arms], "apre": [100 * a[x]["precision"] for x in arms], "acall": [a[x]["calls"] for x in arms],
+               "scov": [r[x]["both"] for x in arms], "spre": [r[x]["precision"] for x in arms], "scall": [r[x]["calls"] for x in arms]}
+        fmt = {"acov": "%d", "apre": "%.1f", "acall": "%.1f", "scov": "%d", "spre": "%.1f", "scall": "%.1f"}
+        C = {k: cells(v, fmt[k], low=k in ("acall", "scall")) for k, v in col.items()}
         for i, x in enumerate(arms):
-            L.append("%s & %s & %s \\\\" % (lab if i == 0 else "", NAME[x], " & ".join(C[k][i] for k in ("miss", "wrong", "calls", "both", "right"))))
+            L.append("%s & %s & %s \\\\" % (lab if i == 0 else "", NAME[x], " & ".join(C[k][i] for k in ("acov", "apre", "acall", "scov", "spre", "scall"))))
     L += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
     write("methods", "\n".join(L) + "\n")
 

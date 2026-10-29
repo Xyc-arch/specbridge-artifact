@@ -235,7 +235,7 @@ def report_final():
         JS["pooled"]["ambrosia_system-" + b] = d
         L.append("- AMBROSIA, system - %s: AllFound %s; recall %s; precision %s." % (b, d["af"], d["rec"], d["pre"]))
     for b in ("dtp", "ours", "samplek"):
-        d = {k: _boot([x - y for x, y in zip(PS["system|" + k], PS[b + "|" + k])]) for k in ("both", "right")}
+        d = {k: _boot([x - y for x, y in zip(PS["system|" + k], PS[b + "|" + k])]) for k in ("both", "right", "prec")}
         JS["pooled"]["sets_system-" + b] = d
         L.append("- Request sets, system - %s: both interpretations %s; specific right %s." % (b, d["both"], d["right"]))
     os.makedirs(OUT, exist_ok=True); json.dump(JS, open(OUT + "/final.json", "w"), indent=1)
@@ -334,7 +334,7 @@ def report_method():
     ks, WD, C, _W = _sets(); ks = RV.accepted(ks)
     L += ["", "## Request sets (Table 5's 111 sets)\n", "| model | method | open: both interpretations | specific: main right | specific: false alarm | calls per request | asks per 100 requests |", "|---|---|---|---|---|---|---|"]
     for m in MODELS:
-        T = {a: {"both": [], "right": [], "fa": 0, "calls": [], "asks": 0} for a in AR}
+        T = {a: {"both": [], "right": [], "prec": [], "fa": 0, "calls": [], "asks": 0} for a in AR}
         for k in ks:
             if not all(os.path.exists(RM._f(a, m, k, w)) for a in ("samplek", "dtp", "ours") for w in WD[k]): continue
             c = C[k]; con = DB.connect(c["snapshot"])
@@ -358,22 +358,23 @@ def report_method():
                     if w == "open": T[a]["both"].append(int({"A", "B"} <= {y for mt in res[a] for y in mt}))
                     else:
                         T[a]["right"].append(int(bool(res[a]) and w[-1] in res[a][0])); T[a]["fa"] += any(("B" if w.endswith("A") else "A") in mt for mt in res[a])
+                        T[a]["prec"].append(sum(w[-1] in mt for mt in res[a]) / len(res[a]) if res[a] else 0.0)   # share of returned answers that are right
         for a in AR:
-            t = T[a]; x = {"both": sum(t["both"]), "sets": len(t["both"]), "right": sum(t["right"]), "specific": len(t["right"]), "false_alarm": t["fa"],
+            t = T[a]; x = {"both": sum(t["both"]), "sets": len(t["both"]), "right": sum(t["right"]), "specific": len(t["right"]), "false_alarm": t["fa"], "precision": 100 * sum(t["prec"]) / max(1, len(t["prec"])),
                            "calls": sum(t["calls"]) / max(1, len(t["calls"])), "asks_per_100": 100 * t["asks"] / max(1, len(t["calls"]))}
             JS["sets"].setdefault(m, {})[a] = x
             L.append("| %s | %s | %d / %d | %d / %d | %d | %.1f | %.0f |" % (m, a, x["both"], x["sets"], x["right"], x["specific"], x["false_alarm"], x["calls"], x["asks_per_100"]))
-            PS[a + "|both"] += t["both"]; PS[a + "|right"] += t["right"]
+            PS[a + "|both"] += t["both"]; PS[a + "|right"] += t["right"]; PS[a + "|prec"] += t["prec"]
     L += ["", "## Pooled over both models, method minus each, paired by item (points [95% bootstrap])\n"]
     for b in AR[:-1]:
         d = {k: _boot([x - y for x, y in zip(PA["method|" + k], PA[b + "|" + k])]) for k in ("af", "rec", "pre")}
-        e = {k: _boot([x - y for x, y in zip(PS["method|" + k], PS[b + "|" + k])]) for k in ("both", "right")}
+        e = {k: _boot([x - y for x, y in zip(PS["method|" + k], PS[b + "|" + k])]) for k in ("both", "right", "prec")}
         JS["pooled"][b] = {"ambrosia": d, "sets": e}
         L.append("- vs %s: AMBROSIA AllFound %s, recall %s, precision %s; request sets both %s, specific right %s." % (b, d["af"], d["rec"], d["pre"], e["both"], e["right"]))
     L += ["", "## Pooled, narrow search (ours) minus each baseline, paired by item\n"]; JS["pooled_narrow"] = {}
     for b in ("plain", "samplek", "dtp", "ask"):
         d = {k: _boot([x - y for x, y in zip(PA["ours|" + k], PA[b + "|" + k])]) for k in ("af", "rec", "pre")}
-        e = {k: _boot([x - y for x, y in zip(PS["ours|" + k], PS[b + "|" + k])]) for k in ("both", "right")}
+        e = {k: _boot([x - y for x, y in zip(PS["ours|" + k], PS[b + "|" + k])]) for k in ("both", "right", "prec")}
         JS["pooled_narrow"][b] = {"ambrosia": d, "sets": e}
         L.append("- vs %s: AMBROSIA AllFound %s, recall %s, precision %s; request sets both %s, specific right %s." % (b, d["af"], d["rec"], d["pre"], e["both"], e["right"]))
     os.makedirs(OUT, exist_ok=True)

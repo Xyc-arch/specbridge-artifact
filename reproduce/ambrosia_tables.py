@@ -30,3 +30,4 @@ for m in sorted({x["model"] for x in T}):
         ok = all(abs(got[k] - ref[k]) < 0.051 for k in got); bad5 += not ok
         print("%-10s %-8s per 100 requests: missed %5.1f  wrong %5.1f  calls %4d  %s" % (m, a, got["missed"], got["wrong"], got["calls"], "ok" if ok else "MISMATCH %s" % ref))
 print("TABLE 5 (AMBROSIA) MATCHES method.json" if not bad5 else "%d TABLE 5 MISMATCHES" % bad5)
+raise SystemExit(1 if (bad or bad5) else 0)   # a mismatch fails make test (and make all)
