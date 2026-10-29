@@ -56,10 +56,16 @@ def main():
     say = lambda s: (print(s, flush=True), log.append(s))
     c, o, t = sh("python -m specbridge.report.release", repo); say("release build exit %d in %.0f s" % (c, t))
     if c: print(o[-2000:]); sys.exit(1)
-    sh("rsync -a --delete --exclude .git --exclude dev_unzipped --exclude results --exclude ambrosia_data --exclude .venv release/ %s/" % clone, repo)
+    # keep what `make reproduce` generated (untracked, git-ignored outputs): the steps not rerun read them
+    _, keep, _ = sh("git ls-files --others --ignored --exclude-standard --directory", clone); kf = os.path.join(clone, ".git", "keep.txt")
+    open(kf, "w").write("".join("/%s\n" % k for k in keep.split()))
+    sh("rsync -a --delete --exclude .git --exclude dev_unzipped --exclude results --exclude ambrosia_data --exclude .venv --exclude-from %s release/ %s/" % (kf, clone), repo)
     sh("git add -A", clone); c, o, _ = sh("git diff --cached --name-only", clone); changed = set(o.split())
-    if not changed: say("artifact unchanged; nothing to push"); return
-    sh("git commit -qm %s" % sp.list2cmdline([msg]), clone)
+    if changed: sh("git commit -qm %s" % sp.list2cmdline([msg]), clone)
+    else:
+        _, ahead, _ = sh("git rev-list --count @{u}..HEAD", clone)
+        if ahead.strip() == "0": say("artifact unchanged; nothing to push"); return
+        _, o, _ = sh("git diff --name-only @{u} HEAD", clone); changed = set(o.split())   # an unpushed commit: test it
     env = dict(os.environ, PATH=venv + ":" + os.environ["PATH"])
     if full or changed & set(FULL_IF):
         c, o, t = sh("make all", clone, env); say("make all exit %d in %.0f s" % (c, t))
@@ -69,8 +75,10 @@ def main():
         c = 0
         for s in run + ["python reproduce/collect.py"]:
             c1, o1, t = sh(s, clone, env); say("  %-70s exit %d, %.0f s" % (s[:70], c1, t)); c |= c1
-            if c1: print(o1[-1500:])
-        if not c: c, o, t = sh("make check test", clone, env); say("make check test exit %d in %.0f s" % (c, t))
+            if c1: print(o1[-600:]); break
+        if c:                                              # e.g. a generated input is missing: rebuild everything once
+            c, o, t = sh("make all", clone, env); say("fallback: make all exit %d in %.0f s" % (c, t))
+        else: c, o, t = sh("make check test", clone, env); say("make check test exit %d in %.0f s" % (c, t))
     ok = [l for l in o.splitlines() if re.search("ALL OUTPUTS REPRODUCED|DIFFERENCES|numbers found|reference queries checked|TABLE 5|ALLFOUND", l)]
     for l in ok: say("  " + l[:200])
     _, st, _ = sh("git status --short", clone); tracked = [l for l in st.splitlines() if not l.startswith("??")]
