@@ -1,16 +1,16 @@
-"""PHASE 1, DECIDE-THEN-ANSWER: REPORT THE READINGS A REQUEST LEAVES OPEN (Section 7.1 and Figure 15 of the paper).
+"""PHASE 1, DECIDE-THEN-ANSWER: REPORT THE INTERPRETATIONS A REQUEST LEAVES OPEN (Section 7.1 and Figure 15 of the paper).
 
-One call lists the readings of the request, each rewritten as a request with exactly one reading. With one reading, one more call
-answers it and nothing else runs. Otherwise each reading is answered in its own call. All answers are executed, readings with
-identical results are merged, and the first answer is returned with the others as alternatives.
+One call decides whether the request is open and lists its interpretations, each rewritten as a request with exactly one
+interpretation. With one interpretation, one more call answers it and nothing else runs. Otherwise each interpretation is answered
+in its own call. All answers are executed, interpretations with identical results are merged, and the first answer is returned with the others as alternatives.
 
-Merging uses equal results on the CURRENT database: two readings that tie today may differ after the data changes.
+Merging uses equal results on the CURRENT database: two interpretations that tie today may differ after the data changes.
 
     from methods.disclose import disclose
     out = disclose(question, schema_text, "path/to/db.sqlite", ask)     # ask(prompt) -> model reply text
     out["main"], out["alternatives"], out["readings"], out["calls"]
 
-This is the frozen version run on the AMBROSIA final test (specbridge.comm.transfer.ambrosia.run_final, arm "ours")."""
+This is the frozen version run on the AMBROSIA final test (specbridge.comm.transfer.ambrosia.run_final, arm "ours", decide-then-answer)."""
 import collections, json, os, re, sys
 try: import sqlean as sqlite3                # SQLite 3.42, as for the paper (requirements.txt)
 except ImportError: import sqlite3

@@ -10,7 +10,7 @@
   survive  plan complete, B edits reproduce, fidelity clean, precise A/B select their own reading (both reviewers), open
            accepted by at least one reviewer (labels kept: mutually recognized open | disputed open)
     python -m specbridge.comm.transfer.render <out dir> [--cp <choice-point dir>] [--tasks name=path ...] [--seeds <seeds.jsonl>] select | write | review | revise | survive"""
-import collections, concurrent.futures as cf, json, os, random, sys
+import collections, concurrent.futures as cf, json, os, random, re, sys
 from specbridge.comm.common import db as DB
 from specbridge.comm.common.llm import ask_json
 from specbridge.comm.diagnose.library import example_for
@@ -102,13 +102,13 @@ def W(name, obj): os.makedirs(D, exist_ok=True); json.dump(obj, open("%s/%s" % (
 
 def libkind(kind):
     """A proposer's free-text kind -> the library's choice tag (the first rule that matches)."""
-    k = kind.lower()
+    k = kind.lower(); has = lambda w: re.search(r"\b%s" % re.escape(w), k) is not None   # word start: "entities" is not a "tie"
     for words, tag in ((("tie",), "tie"), (("aggregation", "per record", "per entity", "weighting", "mean of", "average of"), "aggregation_level"),
                        (("unit", "count", "duplicate", "distinct"), "counting_unit"), (("sentinel", "missing", "null", "empty"), "missing_values"),
                        (("signed", "absolute", "formula", "ratio", "denominator", "percentage"), "calculation"), (("role", "join path"), "relationship_role"),
                        (("time", "date", "boundary", "inclusive"), "time_scope"), (("which column", "column source"), "which_column_source"),
                        (("code", "stored value", "label"), "value_mapping")):
-        if any(w in k for w in words): return tag
+        if any(has(w) for w in words): return tag
     return k
 
 

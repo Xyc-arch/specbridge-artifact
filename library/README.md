@@ -10,7 +10,7 @@ prevalence estimates.
 | `question`, `gold_sql` | the benchmark question (with BIRD's evidence) and its reference SQL |
 | `type` | one of 14 types, e.g. `value_representation`, `population_scope`, `counting_unit`, `ties_and_selection`, `aggregation_level` |
 | `decision` | the choice in one sentence |
-| `readings` | the readings, each with its SQL (an edit of the reference) |
+| `readings` | the interpretations, each with its SQL (an edit of the reference) |
 | `status`, `action`, `raise` | `resolved` (the question settles it), `unresolved` or `contested` (reviewers disagree); whether a system should raise it |
 | `evidence`, `review`, `provenance` | why, the two reviewers' verdicts, and how the record was made |
 

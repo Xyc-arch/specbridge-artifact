@@ -274,7 +274,7 @@ def methods():
     datasets: coverage (AMBROSIA AllFound; request sets, both interpretations), precision on clear or specific requests, calls.
     out/system/method.json (system.report_method)."""
     M = json.load(open("out/system/method.json")); A, S = M["ambrosia"], M["sets"]
-    NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad decide-then-search"}
+    NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad Decide-then-search"}
     arms = ("plain", "samplek", "dtp", "state", "ours", "method")
     n_amb = A["sonnet"]["method"]["n_amb"]; n_sets = S["sonnet"]["method"]["sets"]
     L = ["\\begin{table}[t]",

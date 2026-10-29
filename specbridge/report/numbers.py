@@ -313,7 +313,7 @@ def methods_table():
     """Table tab:methods (tables_tex.methods): out/system/method.json, coverage / precision / calls on both datasets."""
     A = lambda: MTH()["ambrosia"]; S = lambda: MTH()["sets"]; MJ = "out/system/method.json"
     out = [E("P", r"(all interpretations returned, of # ambiguous AMBROSIA questions and # open requests)", j(MJ, "ambrosia/sonnet/method/n_amb"), j(MJ, "sets/sonnet/method/sets"))]
-    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad decide-then-search"}
+    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad Decide-then-search"}
     get = {0: lambda m, a: A()[m][a]["allfound"], 1: lambda m, a: 100 * A()[m][a]["precision"], 2: lambda m, a: A()[m][a]["calls"],
            3: lambda m, a: S()[m][a]["both"], 4: lambda m, a: S()[m][a]["precision"], 5: lambda m, a: S()[m][a]["calls"]}
     names = ["AMBROSIA AllFound", "AMBROSIA precision %", "AMBROSIA calls", "sets both", "sets precision %", "sets calls"]
@@ -531,6 +531,9 @@ def ledger():
         E("P", r"no model returns both interpretations for more than #\% of the sets from any source", x("fig5: max over models and sources of by_group/source k/n", lambda: max(grpct(m, "source", v) for m in M for v in ("Spider", "BIRD", "LiveSQLBench")), "le")),
         E("P", r"What each model does with the # open requests", d("accepted", "scopes/accepted/n")),
         E("P", r"returns both interpretations for #\% of aggregation-level sets", x("fig5:models/sonnet/by_group/type/aggregation_level k/n", lambda: grpct("sonnet", "type", "aggregation_level"))),
+        E("P", r"but for only #\% of counting-unit sets and one of # tie sets, and no model returns both for more than one tie set",
+          x("fig5:models/sonnet/by_group/type/counting_unit k/n", lambda: grpct("sonnet", "type", "counting_unit")),
+          x("fig5:models/sonnet/by_group/type/tie n (k = 1)", lambda: P("fig5_tab4_disclosure")["models"]["sonnet"]["by_group"]["type"]["tie"]["n"] if P("fig5_tab4_disclosure")["models"]["sonnet"]["by_group"]["type"]["tie"]["k"] == 1 and max(v["by_group"]["type"]["tie"]["k"] for v in P("fig5_tab4_disclosure")["models"].values()) == 1 else -1)),
         E("P", r"Main answer to the open request on # tie and counting sets", d("conventions", "sets")),
         E("P", r"In # tie and counting sets, one interpretation", d("conventions", "sets")),
         E("P", r"The conventional interpretation is the intended one in # of these sets", d("conventions", "intended_conventional")),
@@ -693,7 +696,7 @@ def ledger():
           x("filter-run rejected sets of type value_representation", lambda: sum(1 for c in jl(FROZEN_ALL)["cases"] if c["case"] in part_cases(1) and c["type"] == "value_representation" and c not in accepted_cases()))),
         # cases table: literature values
         E("S", r"high-debt countries grew #\% a year, not $#\%$.", K(lt + ": Herndon et al. 2014"), K(lt + ": Herndon et al. 2014")),
-        E("S", r"from #\% to #\%. & which column", K(lt + ": Obermeyer et al. 2019"), K(lt + ": Obermeyer et al. 2019")),
+        E("S", r"from #\% to #\%. & referent column", K(lt + ": Obermeyer et al. 2019"), K(lt + ": Obermeyer et al. 2019")),
         E("S", r"given the same # million discharges, included #--#\% of them. # of # hospitals", *[K(lt + ": Shahian et al. 2010")] * 5),
         E("S", r"Public health & # UK contraceptive pill warning", K(lt + ": year of the event (Furedi 1999)")),
         E("S", r"pill use among under-#s falling from #\% to #\%, and by estimated NHS costs of \pounds # million for maternity care and \pounds # million for abortions",

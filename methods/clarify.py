@@ -1,12 +1,12 @@
 """PHASE 2: CARRY THE USER'S PICK BY EDITING THE REQUEST, NOT BY REWRITING IT (Section 7.3 of the paper).
 
-Given an open request and the description of one reading, four request texts go to the same SQL prompt:
-  (a) original   the benchmark's specific request for that reading (the reference)
-  (b) interpret  the open request rewritten by the model as one interpretation (DtP's interpretation prompt, told the reading)
-  (c) edit       the open request unchanged, followed by the one-sentence reading description   <- the recommended design
+Given an open request and the description of one interpretation, four request texts go to the same SQL prompt:
+  (a) original   the benchmark's specific request for that interpretation (the reference)
+  (b) interpret  the open request rewritten by the model as one interpretation (DtP's interpretation prompt, told the intended one)
+  (c) edit       the open request unchanged, followed by the one-sentence description of the interpretation   <- the recommended design
   (d) condense   the open request condensed into a standalone question (LangChain's condense-question prompt)
-The paper finds (c) within 0.5 points of (a), and (b) and (d) 8.2 and 11.0 points below (c), pooled over four models; the rewrites
-mostly drop another requirement (an output column, a formula, a join), not the choice.
+The paper finds (c) as accurate as (a) (p = 0.57), and (b) and (d) 8.5 (p = 0.0004) and 10.5 (p < 0.0001) points below (c),
+pooled over four models; the rewrites mostly drop another requirement (an output column, a formula, a join), not the choice.
 
     from methods.clarify import edit
     request = edit(open_request, reading)                      # no model call
@@ -35,7 +35,7 @@ def interpret(open_request, reading, schema, docs, ask):
 
 
 def condense(open_request, reading, ask):
-    """(d): the conversational-retrieval condense step, with the open request as the earlier turn and the reading as the follow-up."""
+    """(d): the conversational-retrieval condense step, with the open request as the earlier turn and the interpretation as the follow-up."""
     return (ask(CONDENSE.format(open_request, reading)) or "").strip().split("Standalone question:")[-1].strip()
 
 
@@ -64,4 +64,4 @@ if __name__ == "__main__":
                 sql = answer(t, c["schema"], c["documentation"], ask) if t else None; ok = r in matches(s, run(s, sql))
                 o[v] = {"request": t, "sql": sql, "right": ok}; right[v] += ok
             n += 1; f.write(json.dumps(o) + "\n")
-    print("readings %d: " % n + ", ".join("(%s) %.1f%%" % (v, 100 * right[v] / max(1, n)) for v in "abcd"))
+    print("interpretations %d: " % n + ", ".join("(%s) %.1f%%" % (v, 100 * right[v] / max(1, n)) for v in "abcd"))

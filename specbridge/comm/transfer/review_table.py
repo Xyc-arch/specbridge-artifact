@@ -1,5 +1,5 @@
-"""THE AUTHOR'S REVIEW TABLE (human_supervision/review-307-author-approve.md, completed 2026-10-16; the first 215 rows are the completed review of
-human_supervision/completed-review-215.md): one row per request set, read by a person, and the verdicts parsed from it
+"""THE AUTHOR'S REVIEW TABLE (human_supervision/review-307-author-approve.md, completed 2026-10-16; its first 215 rows are the
+main sets, reviewed first): one row per request set, read by a person, and the verdicts parsed from it
 (human_supervision/verdicts.json, read by specbridge.comm.transfer.reviewed).
     python -m specbridge.comm.transfer.review_table append <render dir>   add the sets of <render dir>/eval/frozen.json not yet in
                                                                            the table, numbered on, with the verdict left to fill

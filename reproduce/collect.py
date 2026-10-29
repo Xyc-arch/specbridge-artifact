@@ -5,7 +5,7 @@ import os, shutil
 OUT = "results"
 FIGURES = {"fig04": "choices", "fig05": "funnel", "fig06": "disclosure", "fig07": "decomposition", "fig08": "outcomes",
            "fig09": "bytype", "fig10": "conventions", "fig11": "real", "fig12": "causes", "fig13": "defaults", "fig14": "impact",
-           "fig16": "method", "fig17": "breakeven", "fig19": "rewrite", "figS2": "ablation", "figS3": "specification", "figS4": "coverage"}
+           "fig16": "method", "fig17": "rewrite", "figS2": "ablation", "figS3": "specification", "figS4": "coverage"}
 TABLES = {"table1_comparison.tex": "out/paper/tables/comparison.tex", "table4_bird_rescoring.json": "out/rescore/results.json",
           "table5_methods.tex": "out/paper/tables/methods.tex"}
 
@@ -23,7 +23,7 @@ Everything here was produced on your machine by `make reproduce`, from the saved
 | `numbers.txt` | every number printed in the paper, its value recomputed from the data, and whether they match (`make check`) |
 | `tests.txt` | the test results (written by `make test`) |
 
-Figures 1, 2, 3, 15, 18 and S1 are diagrams (`paper/tex/figures/src/diag_*.tex`), and Table 2 is written in the paper.
+Figures 1, 2, 3, 15 and S1 are diagrams (`paper/tex/figures/src/diag_*.tex`), and Tables 2, 3 and 4 are written in the paper.
 """
 
 

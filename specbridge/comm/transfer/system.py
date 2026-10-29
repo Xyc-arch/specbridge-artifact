@@ -1,7 +1,14 @@
-"""THE DISCLOSURE SYSTEM (2026-10-28, out/system/PREREG.md): gate -> wide search only where a choice is open -> each interpretation as an
-edit of the request -> execute, drop failures, merge identical results. One rule for AMBROSIA and the request sets; the gate call is
-our listing call (arm `ours`) and the wide search is DtP's two listing calls (arm `dtp`), reused from those arms' files when present.
-    python -m specbridge.comm.transfer.system pilot | report_pilot"""
+"""THE TWO-PHASE METHOD FOR OPEN CHOICES (paper Section 7) and its comparison with the baselines, on AMBROSIA and the request sets.
+Phase 1, decide-then-answer (arm `ours`): one call decides whether the request is open and lists its interpretations; each is
+answered, failures dropped, identical results merged. Option decide-then-search (arm `method`): where phase 1 finds the request
+open, add DtP's wide search (arm `dtp`). Baselines: plain (one call), samplek (three samples), dtp, and interpret-and-state (arm
+`state`: the plain call's main query, the one answer a product returns with its interpretation in words). All arms are read from
+saved files (ambrosia.run_final, reqmethod run); the reports make no model calls:
+    python -m specbridge.comm.transfer.system report_method    Table 5 and Fig. 16 -> out/system/method.json
+    python -m specbridge.comm.transfer.system report_stream    what a user gets per 100 requests, by share of open requests
+    python -m specbridge.comm.transfer.system report_budget    where the gain comes from: DtP cut to phase 1's number of interpretations
+    python -m specbridge.comm.transfer.system report_twoturn   two-turn test with a simulated user, adds ask-then-answer (arm `ask`)
+Earlier development runs (out/system/PREREG.md): pilot | report_pilot | run_final | report_final | report_ask | report_curve | run_keep."""
 import collections, concurrent.futures as cf, json, os, random, sys
 from specbridge.comm.common import db as DB
 from specbridge.comm.transfer import ambrosia as AM, reqmethod as RM, disclose as X, ledger as LG

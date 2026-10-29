@@ -1,15 +1,15 @@
 """Score answers on the SpecBridge request sets by execution.
 
-    python benchmark/score.py --self-test             # every reference query must match its own reading and only it
-    python benchmark/score.py answers.jsonl [--all]   # score a model's answers (accepted sets only, unless --all)
+    python benchmark/score.py --self-test             # every reference query must match its own interpretation and only it
+    python benchmark/score.py answers.jsonl [--all]   # score a model's answers (the 204 accepted sets: 161 main + 43 filter; all 307 with --all)
 
 answers.jsonl, one line per answered request:
     {"id": "<set id>", "request": "specific_A" | "specific_B" | "open", "sql": "<main query>", "alternatives": ["<sql>", ...]}
 "alternatives" is optional and only used for the open request.
 
-Reported: specific requests answered with their own reading; open requests whose main answer is reading A or B; open requests
-whose main answer plus alternatives return both readings; and both readings returned among sets whose two specific requests
-are answered right (the gap the paper reports)."""
+Reported: specific requests answered with their own interpretation; open requests whose main answer is interpretation A or B;
+open requests whose main answer plus alternatives return both interpretations; and both returned among sets whose two specific
+requests are answered right (the gap the paper reports)."""
 import json, os, sys, time
 try: import sqlean as sqlite3                # SQLite 3.42, as for the paper (requirements.txt)
 except ImportError: import sqlite3
@@ -20,7 +20,8 @@ from specbridge.pd.spec.render import grade      # the graders used for every nu
 
 
 def load(path=os.path.join(HERE, "request_sets.jsonl"), accepted_only=True, families=("main", "filter")):
-    """Request sets by id. family "main": the 215 sets of the paper's main results; "filter": the 92 sets with an added filter."""
+    """Request sets by id (by default the 204 accepted: 161 main + 43 filter). family "main": 215 sets, 161 accepted; "filter": 92 sets
+    with an added filter, 43 accepted."""
     S = [json.loads(l) for l in open(path)]
     return {s["id"]: s for s in S if (s["accepted"] or not accepted_only) and s["family"] in families}
 
@@ -39,7 +40,7 @@ def _t(xs): return [tuple(r) for r in xs] if xs is not None else None
 
 
 def matches(s, rows):
-    """Which readings an answer returns: A with the task's grader and tie pool; B with its own grader when B has one, else a
+    """Which interpretations an answer returns: A with the task's grader and tie pool; B with its own grader when B has one, else a
     multiset comparison without order or limit. Same rule as specbridge.comm.transfer.evaluate.matches."""
     if rows is None: return []
     g = s["grading"]; m = []
@@ -56,7 +57,7 @@ def self_test(sets):
     for s in sets.values():
         for r in "AB":
             got = matches(s, run(s, s["sql"][r]))
-            if r not in got: bad += 1; print("reference %s of %s does not match its reading: %s" % (r, s["id"], got))
+            if r not in got: bad += 1; print("reference %s of %s does not match its interpretation: %s" % (r, s["id"], got))
     print("%d sets, %d reference queries checked, %d failures" % (len(sets), 2 * len(sets), bad)); return bad == 0
 
 
@@ -81,7 +82,7 @@ def score(sets, answers):
     print("sets scored:                                   %d" % len({sid for sid, _ in by}))
     for r in spec: print("%-46s %s" % (r + " right:", pc(spec[r])))
     print("open: main answer is A or B:                   %s" % pc(adm))
-    print("open: both readings returned:                  %s" % pc(both))
+    print("open: both interpretations returned:          %s" % pc(both))
     print("open: both returned, if both specific right:   %s" % pc(both_given))
 
 

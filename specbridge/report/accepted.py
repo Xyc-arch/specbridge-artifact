@@ -1,5 +1,5 @@
 """FINDING 1 ON THE REVIEWED REQUEST SETS (2026-10-14). The author reviewed all 215 sets: could a reasonable analyst mean either
-reading? (human_supervision/completed-review-215.md -> verdicts.json). This recomputes every Finding 1 number from the saved runs
+reading? (human_supervision/review-307-author-approve.md, first 215 rows -> verdicts.json). This recomputes every Finding 1 number from the saved runs
 (no model calls) on three scopes: all 215 (reproduces the paper), accepted (yes), accepted or unsure.
     python -m specbridge.report.accepted   -> out/paper/data/accepted.json, printed table"""
 import collections, json, os, random

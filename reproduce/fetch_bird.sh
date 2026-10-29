@@ -1,7 +1,7 @@
 #!/bin/sh
-# BIRD development set (Li et al., NeurIPS 2023; CC BY-SA 4.0), from the authors' official download. The databases are 1.4 GB, too
-# large for this repository; Section 6 (the effect of the other reading, BIRD scored with both readings) and the clarification test
-# of Section 7.3 run on them. Fetched into dev_unzipped/dev_20240627/ and checked against the files the paper used.
+# BIRD development set (Li et al., NeurIPS 2023; CC BY-SA 4.0), from the authors' official download. The databases are 346 MB to download
+# and 1.4 GB unpacked, too large for this repository; Section 6 (the effect of the other interpretation, BIRD scored with both
+# interpretations) and the clarification test of Section 7.3 run on them. Fetched into dev_unzipped/dev_20240627/ and checked against the files the paper used.
 set -e
 D=dev_unzipped/dev_20240627; T=$(mktemp -d)
 mkdir -p $D

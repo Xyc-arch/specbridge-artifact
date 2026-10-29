@@ -1,5 +1,6 @@
-"""AMBIGUITY METHODS ON THE REQUEST SETS (2026-10-13): data-side choices (the planted choice of each set), 30 dev sets (ledger.sets),
-the open wording and the set's specific wording. Sonnet and GPT-Sol. Arms (context = the same schema and documentation):
+"""AMBIGUITY METHODS ON THE REQUEST SETS (2026-10-13): data-side choices (the planted choice of each set), the open wording and the
+set's specific wording. Sonnet and GPT-Sol. Without REQMETHOD_N: the 30 development sets (ledger.sets). The paper's Table 5 uses
+REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100: 100 main sets and 30 filter sets are drawn, and the 111 accepted ones are scored. Arms (context = the same schema and documentation):
     plain     the explanation call (saved, disclose)
     samplek   the explanation call 3 times, answers combined (k = 3, as on AMBROSIA)
     dtp       disambiguate-then-parse, released prompts: interpretations -> missing ones -> one SQL per interpretation
@@ -15,7 +16,7 @@ from specbridge.comm.transfer import disclose as X, ledger as LG, ambrosia as AM
 from specbridge.comm.diagnose import rules as RU
 
 OUT = os.environ.get("REQMETHOD_OUT", "out/reqmethod"); MODELS = ("sonnet", "gpt-6-sol"); K = 3; SEED = 20261022
-N = int(os.environ.get("REQMETHOD_N", 0))       # 0: the 30 dev sets of ledger.sets (the paper's Table 4); else N ACCEPTED sets
+N = int(os.environ.get("REQMETHOD_N", 0))       # 0: the 30 dev sets of ledger.sets; else N ACCEPTED sets (100: Table 5)
 MAXW = int(os.environ.get("SB_MAX_WORKERS", 6))  # the machine's limit on concurrent calls (6 unless the user allows more)
 
 

@@ -1,10 +1,10 @@
 """Prompts of the two methods, copied verbatim from the experiment code (reproduce/test_release.py checks the copies).
-  DETECT       the disclosure method's first call: list the readings, each rewritten as a request with one reading
+  DETECT       the first call of decide-then-answer (phase 1): list the interpretations, each rewritten as a request with one
   PLAIN        the single-call SQL prompt used for every request text in the rewrite test (schema, documentation, request)
   INSTRUCTION  the explanation call of Finding 1 (main SQL, open assumptions, up to two alternatives)
   TELL         appended to DtP's interpretation prompt to ask for the one interpretation with a given meaning (arm b)
   CONDENSE     LangChain's condense-question prompt (ConversationalRetrievalChain), without "in its original language" (arm d)
-The disclosure method answers each reading with DtP's released SQL prompt (third_party/dtp_prompts.py, user_message_sql)."""
+Decide-then-answer answers each interpretation with DtP's released SQL prompt (third_party/dtp_prompts.py, user_message_sql)."""
 
 DETECT = 'You are given a database and a question about it. Decide whether the question has more than one reasonable reading on THIS\ndatabase -- readings that a careful analyst could each intend and that would give different answers. If it has one reading, return\nit unchanged. If it has several, rewrite the question once per reading, each rewrite fully specified so that it has exactly one\nreading. Do not invent readings the question rules out.\n\nDatabase:\n%s\n\nQuestion:\n%s\n\nAnswer ONLY JSON: {"readings": ["<question rewritten for reading 1>", ...]}'
 

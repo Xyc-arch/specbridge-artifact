@@ -20,7 +20,7 @@ There are two ways to use this repository:
 
 - macOS with Python 3.11, and about 3 GB of free disk space. Any recent Mac works; we used an Apple M2 Max laptop with
   Python 3.11.5.
-- Internet access once, to download the BIRD dev databases (346 MB).
+- Internet access once, to download the BIRD dev databases (346 MB download, 1.4 GB unpacked).
 
 The code also runs on Linux, but some numbers can differ slightly there, so use macOS to reproduce the paper exactly.
 
@@ -79,7 +79,7 @@ same arithmetic as `figures_col.py`.
 
 | Paper | Script | Saved runs |
 |---|---|---|
-| Fig. 1, 2, 3, 15, 18 (diagrams) | `paper/tex/figures/src/diag_*.tex` | |
+| Fig. 1, 2, 3, 15 (diagrams) | `paper/tex/figures/src/diag_*.tex` | |
 | Table 1 | `tables_tex.py` | properties of the cited benchmarks |
 | Table 2 | written in the paper | `out/transfer/all/render/disclose/` |
 | Table 3 (the data and where each is used) | written in the paper | |
@@ -91,12 +91,12 @@ same arithmetic as `figures_col.py`.
 | Fig. 13 | `figures_col.py` | `spider_data/`, `train_meta/` |
 | Fig. 14 | `impact.py` | BIRD dev, `out/impact/` |
 | Table 4, BIRD scored with both interpretations (§6.2) | `specbridge/comm/transfer/rescore.py` | `out/rescore/`, `human_supervision/bird-other-reading.csv` |
-| Fig. 16, 17 | `figures_col.py` | `out/ambrosia/final/` |
+| Fig. 16 | `figures_col.py` | `out/ambrosia/final/`, `out/system/method.json` |
 | Table 5 | `tables_tex.py`, `reproduce/ambrosia_tables.py` | `out/system/method.json`, `out/system/scores.jsonl`, `out/reqmethod100/` |
-| Fig. 19, BIRD clarification (§7.3) | `figures_col.py` | `out/rewrite/` |
+| Fig. 17 (edit vs rewrite) and BIRD clarification (§7.3) | `figures_col.py` | `out/rewrite/` |
 | Human review and the result without it (§4.2) | `exhibit_data.py` (`review`) | `human_supervision/verdicts.json`, `out/transfer/all/render/` |
 | Open requests rewritten by GPT-Sol (§4.2) | `specbridge/comm/transfer/writer_swap_open.py` | `out/writer_swap_open/` |
-| Supplement Figures S2, S3 (generator ablation; exact description vs natural request) | `figures_col.py` | `out/ablation/`, `out/coverage/`, `out/corpora/` |
+| Supplement Figures S2, S3, S4 (generator ablation; exact description vs natural request; coverage) | `figures_col.py` | `out/ablation/`, `out/coverage/`, `out/corpora/` |
 | Supplement Figure S1 (data and experiments, with sample sizes) | `datamap_tex.py` | the files behind the paper's numbers |
 | Supplement Tables S2, S6 and S7 (how widely each choice occurs, selected examples) | `catalogue_tex.py` | `library/`, `benchmark/`, `human_supervision/` |
 | Every number in the text | `numbers.py` (one entry per number, with its source) | all of the above |
@@ -149,7 +149,7 @@ own system prompt, so answers through the API can differ slightly from the saved
 | AMBROSIA (§5, §7.2) | `sh reproduce/fetch_ambrosia.sh`, then `python -c "from specbridge.comm.transfer import ambrosia as A; A.decomp_run(A.MODELS); A.run_final()"` |
 | Held-out BIRD and Spider (§6) | `python -m specbridge.comm.diagnose.compare run <dir> <model>` |
 | BIRD scored with both interpretations (§6) | `python -m specbridge.comm.transfer.rescore run` |
-| Phase 1 and the baselines (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run`, then `python -m specbridge.comm.transfer.system report_method`, `report_stream` and `report_budget` (these read the AMBROSIA runs, so fetch AMBROSIA and run it first) |
+| Phase 1 and the baselines (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run`, then `python -m specbridge.comm.transfer.system report_method`, `report_stream` and `report_budget` (these read the AMBROSIA runs, so fetch AMBROSIA and run it first). `REQMETHOD_N=100` draws 100 main sets and 30 filter sets; 111 of them are accepted and used. The two-turn test with ask-then-answer: `python -m specbridge.comm.transfer.system report_twoturn` |
 | Phase 2: edit vs rewrite (§7.3) | `python -m specbridge.comm.transfer.rewrite run` |
 
 Each module's docstring lists its other options. [`specbridge/docs/PIPELINE.md`](specbridge/docs/PIPELINE.md) explains how the
@@ -162,7 +162,7 @@ benchmark/          the 307 request sets (204 accepted), their 12 databases, the
 library/            624 calculation choices mined from BIRD and Spider failures
 methods/            the two phases of the method in Section 7, standalone
 human_supervision/  the authors' reviews of the request sets and of the BIRD answers
-out/                every saved model run and intermediate result
+out/                every saved model run and intermediate result (the out/**/*.md files are run logs written during the research, not paper text)
 specbridge/         all code: query generation, mining, evaluation, figures
 catalogues/         column meanings per database, used by query generation
 spider_data/        Spider questions, schemas and databases used by the analysis
@@ -172,7 +172,7 @@ paper/              paper and supplement source
 ```
 
 **Not included:** the AMBROSIA dataset, because its authors ask that it not be uploaded to GitHub. We include our aggregate
-AMBROSIA results and a per-question score table, which rebuild Figures 7, 16 and 17 and Table 5.
+AMBROSIA results and a per-question score table, which rebuild Figures 7 and 16 and Table 5.
 `reproduce/fetch_ambrosia.sh` explains how to get the dataset from its authors.
 
 ## License

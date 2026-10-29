@@ -1,4 +1,4 @@
-"""THE REVIEWED POPULATION (2026-10-14; 2026-10-16: plus the 92 filter sets, human_supervision/review-307-author-approve.md). An author reviewed all 215 request sets (human_supervision/completed-review-215.md,
+"""THE REVIEWED POPULATION (2026-10-14; 2026-10-16: plus the 92 filter sets, human_supervision/review-307-author-approve.md). An author reviewed all 215 main request sets (the first 215 rows of that file,
 parsed to verdicts.json): could a reasonable analyst mean either reading? Every result on request sets is reported on the sets
 judged "yes" (178). Raw runs stay on disk for all 215; ALL = True restores the full population (robustness line in the paper)."""
 import json, os

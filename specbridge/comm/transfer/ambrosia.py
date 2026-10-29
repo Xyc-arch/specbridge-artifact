@@ -1,18 +1,18 @@
-"""RAISE vs PLACEBO ON AMBROSIA (Saparina & Lapata, NeurIPS 2024; 2026-10-12). Human-written ambiguous questions (scope, attachment,
-vagueness) on real-looking databases, each with the SQL of EVERY reading, plus unambiguous versions with one SQL. Someone else's
-benchmark, and its ambiguity types are mostly NOT on our checklist -- the checklist is used unchanged (not fitted to AMBROSIA).
-Prompt: AMBROSIA's own zero-shot prompt (src/prompts/evaluation/prompt: write all readings of an ambiguous question, no extra
-columns) with the database dump. Arms, interleaved per question:
-    plain    the authors' prompt                                                -- their baseline
-    placebo  + checklist.PLACEBO after the task statement (style, same length; its 'keep the query short' clause,
-             found active on BIRD, replaced by a neutral style clause)        -- control
-    raise    + checklist.CHECK after the task statement (our choice types)      -- the method
+"""AMBROSIA (Saparina & Lapata, NeurIPS 2024). Human-written ambiguous questions (scope, attachment, vagueness) on real-looking
+databases, each with the SQL of EVERY interpretation, plus unambiguous versions with one SQL. Someone else's benchmark: nothing
+here is fitted to it. Prompt: AMBROSIA's own zero-shot prompt (src/prompts/evaluation/prompt) with the database dump.
 Parsing and scoring follow AMBROSIA's code (src/evaluation/output_parsers.parse_statements_mixtral, metrics.evaluate_predicted_statements):
-a gold reading is found when some predicted query returns the same results (row order checked only when the gold query sorts).
-    ambiguous    recall (share of readings found), AllFound (every reading found), precision (share of predicted queries that match)
-    unambiguous  found (the one reading) and precision (extra queries lower it)
-    python -m specbridge.comm.transfer.ambrosia run [<model> ...]   -> out/ambrosia/<arm>/<model>/<row>.json
-    python -m specbridge.comm.transfer.ambrosia report               -> out/ambrosia/RESULTS.md, results.json
+an interpretation is found when some predicted query returns the same results (row order checked only when the gold query sorts).
+    ambiguous    recall (share of interpretations found), AllFound (every one found), precision (share of predicted queries that match)
+    unambiguous  found (the one interpretation) and precision (extra queries lower it)
+What the paper uses:
+    decomp_run [<model> ...] [conf] / decomp_report   missed interpretations the model computes when asked for each alone (Fig. 7)
+    run_final / report_final    Section 7 test on 150 new test questions per model (Sonnet, GPT-Sol): arms plain (the authors'
+                                prompt), samplek (it, 3 samples), dtp (disambiguate-then-parse, released prompts) and ours
+                                (decide-then-answer) -> out/ambrosia/final/<arm>/<model>/<row>.json; system.py builds the other arms
+    run_method / run_variant / report_method   the 60-question development runs of the method (out/ambrosia/method/)
+Earlier, not in the paper: run / report compare a checklist in the prompt (raise) with a same-length placebo (placebo) and plain
+-> out/ambrosia/<arm>/<model>/<row>.json, RESULTS.md.
 The data stays in ambrosia_data/ (git-ignored; the authors ask that it not be uploaded). At most 6 workers."""
 import collections, concurrent.futures as cf, json, math, os, random, re, sqlite3, sys, time
 from specbridge.comm.transfer import checklist as K

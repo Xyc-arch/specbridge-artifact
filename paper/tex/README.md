@@ -8,7 +8,6 @@ This folder is self-contained: upload it as is to Overleaf (main document `specb
 | `supplement.tex` → `supplement.pdf` | The whole supplementary material in one file: only what the paper leaves out (query generation details, library composition, a second worked example, the nine-case survey, further details, pilots). Its figures and tables are S1, S2, ...; its references to the paper print the paper's numbers. |
 | generated regions | Lines between `% >>> name` and `% <<< name` are written by tools, never by hand: the three data tables in `specbridge.tex` (`python -m specbridge.report.tables_tex`) and each file's `labels` region (the other document's `\newlabel` lines, written by `make`), so either file compiles alone, e.g. on Overleaf. |
 | `figures/` | `col_*.pdf` (data figures), `diag_*.pdf` (diagrams), each built from its source in `figures/src/` (pgfplots and TikZ; see its `README.md`). Captions are in the two `.tex` files. `tikz/` holds the earlier XeLaTeX diagram sources, kept as legacy; no target builds them. |
-| `fig_explain.md`, `tab_explain.md` | The source and meaning of every figure and table. |
 | `acmart.cls`, `pvldb.sty`, `ACM-Reference-Format.bst` | Pinned copies of the official [PVLDB template](https://github.com/vldbproceedings/VLDB-Template) (acmart v2.19, `sigconf, nonacm`). |
 | `references.bib` | Bibliography. |
 
@@ -27,7 +26,7 @@ make -C paper/tex                         # every figure whose source or data ch
 python -m specbridge.report.datamap_tex   # Figure S1's counts and exhibit numbers -> figures/src/diag_datamap.tex (reads the .aux files)
 ```
 
-`make figures` (repository root) runs `make reproduce`, copies the figure data it wrote (`out/paper/figure_data/`) into `figures/src/data/` and builds every figure. The other tables are written by hand; their numbers come from `paper/result.md` and `paper/example.md`. All figure text is set in the paper's fonts (Linux Biolinum 7.5 pt, code in Inconsolata); figures are one column (241.15 pt) or two columns (506.3 pt) wide and printed at 1:1, in the style that `figures/src/README.md` describes. `specbridge.report.figures_col` draws the same data with Matplotlib only as check drawings (`out/paper/figures_col/`, compared by `make check`).
+`make figures` (repository root) runs `make reproduce`, copies the figure data it wrote (`out/paper/figure_data/`) into `figures/src/data/` and builds every figure. The other tables are written by hand. All figure text is set in the paper's fonts (Linux Biolinum 7.5 pt, code in Inconsolata); figures are one column (241.15 pt) or two columns (506.3 pt) wide and printed at 1:1, in the style that `figures/src/README.md` describes. `specbridge.report.figures_col` draws the same data with Matplotlib only as check drawings (`out/paper/figures_col/`, compared by `make check`).
 
 ## Submission rules
 
