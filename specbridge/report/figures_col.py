@@ -501,24 +501,6 @@ def funnel():
     save(fig, "funnel")
 
 
-# ---------------------------------------------------------------- when DtP's extra readings are worth its false alarms
-def breakeven():
-    """Per 100 questions, what DtP adds over our method at four shares of ambiguous questions (both models pooled;
-    out/ambrosia/final/exchange.json rates): wrong alternatives on clear questions against interpretations found on ambiguous ones."""
-    X = json.load(open("out/ambrosia/final/exchange.json"))["models"]["pooled"]["rates"]
-    rs = sorted(X, key=float); x = np.arange(len(rs)); w = 0.36
-    fig, ax = plt.subplots(figsize=(W, 1.45))
-    wr = [X[r]["extra_wrong"] for r in rs]; fd = [X[r]["extra_readings"] for r in rs]
-    ax.bar(x - w / 2, wr, w, color=RED, label="wrong alternatives DtP adds", **EDGE)
-    ax.bar(x + w / 2, fd, w, color=BLUE, label="interpretations DtP adds", **EDGE)
-    for xx, a, b in zip(x, wr, fd):
-        ax.text(xx - w / 2, a + 3, "%.0f" % a, ha="center", fontsize=6.5); ax.text(xx + w / 2, b + 3, "%.0f" % b, ha="center", fontsize=6.5)
-    ax.set_xticks(x); ax.set_xticklabels(["%d%%" % round(100 * float(r)) for r in rs]); ax.set_xlabel("share of questions that are ambiguous")
-    ax.set_ylabel("per 100 questions"); ax.set_ylim(0, 160); ax.grid(axis="y"); ax.grid(axis="x", visible=False)
-    ax.legend(loc="upper right", ncol=1)
-    save(fig, "breakeven")
-
-
-ALL = [funnel, breakeven, choices, bytype, coverage, ablation, specification, real, causes, disclosure, outcomes, defaults, impact, method, decomposition, rewrite, conventions]
+ALL = [funnel, choices, bytype, coverage, ablation, specification, real, causes, disclosure, outcomes, defaults, impact, method, decomposition, rewrite, conventions]
 if __name__ == "__main__":
     for fn in ([globals()[a] for a in sys.argv[1:]] or ALL): fn()

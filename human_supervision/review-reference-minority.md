@@ -1,7 +1,7 @@
-# Review: silent references that take the less common reading (Table 2)
+# Review: silent references that take the less common interpretation (Fig. 4, Table S1, the type rule)
 
 Each row is a BIRD or Spider question whose wording a code rule finds silent on a choice, and whose reference SQL takes the
-less common reading. Verdict **yes**: the SQL takes that reading, the wording leaves the choice open, and the choice can change
+less common interpretation. Verdict **yes**: the SQL takes that interpretation, the wording leaves the choice open, and the choice can change
 the answer. **no**: drop the row (the rule misread the SQL, the wording settles the choice, or the choice cannot arise).
 The verdicts were first filled by a reading against fixed criteria; edit any verdict, then run
 `python -m specbridge.comm.diagnose.reference_split parse` and `python -m specbridge.comm.diagnose.reference_split`.

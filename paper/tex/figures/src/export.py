@@ -234,7 +234,7 @@ def impact():
         fh.write("\\def\\impactlabels{%s}\n" % ",".join("{%s}" % lab for _k, lab in rows))
 
 
-# ---------------------------------------------------------------- Fig. 18 method, 19 breakeven
+# ---------------------------------------------------------------- Fig. 16 method
 def method():
     S = J("out/system/method.json")["ambrosia"]
     for m, name in (("sonnet", "method_sonnet"), ("gpt-6-sol", "method_sol")):
@@ -243,13 +243,6 @@ def method():
             v = S[m][a]; n = v["n_amb"]; py = pct(v["allfound"], n); lo, hi = wilson(v["allfound"], n)
             rows.append([a, 100 * v["precision"], py, py - 100 * lo, 100 * hi - py, "%.1f" % v["calls"]])
         write(name, ["arm", "prec", "af", "afm", "afp", "calls"], rows)
-
-
-def breakeven():
-    X = J("out/ambrosia/final/exchange.json")["models"]["pooled"]["rates"]; rs = sorted(X, key=float)
-    write("breakeven", ["x", "share", "wrong", "readings", "wlab", "rlab"],
-          [[i, "%d" % round(100 * float(r)), X[r]["extra_wrong"], X[r]["extra_readings"], "%.0f" % X[r]["extra_wrong"], "%.0f" % X[r]["extra_readings"]]
-           for i, r in enumerate(rs)])
 
 
 # ---------------------------------------------------------------- Fig. 21 rewrite
@@ -310,7 +303,7 @@ if __name__ == "__main__":
     info = {"funnel": funnel(), "ablation attempts": ablation(), "coverage N": coverage(), "specification n": specification(),
             "disclosure": disclosure(), "decomposition": decomposition(), "outcomes n": outcomes(), "conventions sets": conventions(),
             "bytype": bytype(), "real n": real(), "causes n": causes(), "defaults": defaults(), "impact": impact(), "method": method(),
-            "breakeven": breakeven(), "rewrite (readings, lost)": rewrite(), "choices": choices()}
+            "rewrite (readings, lost)": rewrite(), "choices": choices()}
     for k, v in info.items():
         if v is not None: print("%-26s %s" % (k, v))
     print("wrote", len(glob.glob(os.path.join(OUT, "*.csv"))), "csv files to", OUT)
