@@ -399,7 +399,7 @@ def report_budget(perms=200):
         return EX[(db, q)]
     def sc(r, qs):
         db = r["db_file"]; res = []
-        for q in set(qs):
+        for q in dict.fromkeys(qs):          # in the order returned (as ambrosia._dedup), never set order
             x = ex(db, q)
             if x is None or any(AM.same(x, y, "order by" in q.lower()) and AM.same(y, x, "order by" in q.lower()) for y in res): continue
             res.append(x)
@@ -439,7 +439,7 @@ def report_curve(K=6, B=1000):
         return EX[(db, q)]
     def sc(r, qs):
         db = r["db_file"]; res = []
-        for q in set(qs):
+        for q in dict.fromkeys(qs):          # in the order returned (as ambrosia._dedup), never set order
             x = ex(db, q)
             if x is None or any(AM.same(x, y, "order by" in q.lower()) and AM.same(y, x, "order by" in q.lower()) for y in res): continue
             res.append(x)
@@ -478,7 +478,7 @@ def _counts(r, qs):
     shape-tolerant matching (as every arm)."""
     from specbridge.comm.common import grade as G
     db = r["db_file"]; res = []
-    for q in set(qs):
+    for q in dict.fromkeys(qs):              # in the order returned (as ambrosia._dedup), never set order
         x = AM._ex_sql(db, q)
         if x is None or any(AM.same(x, y, "order by" in q.lower()) and AM.same(y, x, "order by" in q.lower()) for y in res): continue
         res.append(x)
