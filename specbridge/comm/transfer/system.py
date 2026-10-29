@@ -297,13 +297,18 @@ def report_ask():
 # THE METHOD (2026-10-28, after the interim system result: the edit step lost coverage on AMBROSIA's short questions): gate + wide
 # search + execute = our listing call as the gate; where it finds several interpretations, DtP's wide search; every answer executed,
 # failing SQL dropped, identical results merged; the gate's answer first. Built from saved arms, zero calls. Baselines: plain, three
-# samples, DtP, and decide-then-ask (the documented built-in behavior of Cortex Analyst and Genie: decide before SQL, ask if ambiguous;
-# same gate, so only the action differs). Ablation: ours (gate + narrow search).
+# samples, DtP, and interpret-and-state: the one answer a production assistant returns in the same turn, with its interpretation in
+# words (Cortex Analyst: "We interpreted your question as ..."); execution scores the answer, so it is the plain call's main query.
+def _plain_main(m, k, w):
+    f = RM._plain_f(m, k, w)
+    return ((json.load(open(f)).get("response") or {}).get("sql")) if os.path.exists(f) else None
+
+
 def _arms_amb(m, r):
     o = json.load(open(AM._ff("ours", m, r["row"]))); d = json.load(open(AM._ff("dtp", m, r["row"]))); op = len(o.get("readings") or []) > 1
     q = lambda a: json.load(open(AM._ff(a, m, r["row"])))
     return {"plain": (q("plain")["queries"], 1), "samplek": (q("samplek")["queries"], 3), "dtp": (d["queries"], d["cost"]["calls"]),
-            "ask": ([] if op else o["queries"][:1], o["cost"]["calls"] if not op else 1), "ours": (o["queries"], o["cost"]["calls"]),
+            "state": (q("plain")["queries"][:1], 1), "ours": (o["queries"], o["cost"]["calls"]),
             "method": (o["queries"] + (d["queries"] if op else []), o["cost"]["calls"] + (d["cost"]["calls"] if op else 0))}
 
 
@@ -317,7 +322,7 @@ def report_method():
     refused = collections.defaultdict(set)
     if os.path.exists(AM.FINAL + "/refusals.jsonl"):
         for l in open(AM.FINAL + "/refusals.jsonl"): x = json.loads(l); refused[x["model"]].add(x["row"])
-    AR = ("plain", "samplek", "dtp", "ask", "ours", "method"); PA = collections.defaultdict(list); PS = collections.defaultdict(list); JS = {"ambrosia": {}, "sets": {}, "pooled": {}}
+    AR = ("plain", "samplek", "dtp", "state", "ours", "method"); PA = collections.defaultdict(list); PS = collections.defaultdict(list); JS = {"ambrosia": {}, "sets": {}, "pooled": {}}
     L = ["# Gate + wide search + execute vs every baseline (saved arms, zero calls)\n", "## AMBROSIA final test\n",
          "| model | method | AllFound | recall | precision (clear) | calls per q. | asks the user per 100 q. |", "|---|---|---|---|---|---|---|"]
     for m in MODELS:
@@ -351,7 +356,7 @@ def report_method():
                 o = json.load(open(RM._f("ours", m, k, w))); d = json.load(open(RM._f("dtp", m, k, w))); sk = json.load(open(RM._f("samplek", m, k, w))); op = len(o.get("readings") or []) > 1
                 pl = RM._answers("plain", m, k, w, C); plq = None
                 Q = {"samplek": (sk["queries"], 3), "dtp": (d["queries"], d["cost"]["calls"]), "ours": (o["queries"], o["cost"]["calls"]),
-                     "ask": ([] if op else o["queries"][:1], 1 if op else o["cost"]["calls"]), "method": (o["queries"] + (d["queries"] if op else []), o["cost"]["calls"] + (d["cost"]["calls"] if op else 0))}
+                     "state": ([_plain_main(m, k, w)], 1), "method": (o["queries"] + (d["queries"] if op else []), o["cost"]["calls"] + (d["cost"]["calls"] if op else 0))}
                 res = {a: match(qs) for a, (qs, _c) in Q.items()}; res["plain"] = [mt for _q, mt, _r in (pl or [])]
                 for a in AR:
                     T[a]["calls"].append(Q[a][1] if a in Q else 1); T[a]["asks"] += int(a == "ask" and op)
@@ -372,7 +377,7 @@ def report_method():
         JS["pooled"][b] = {"ambrosia": d, "sets": e}
         L.append("- vs %s: AMBROSIA AllFound %s, recall %s, precision %s; request sets both %s, specific right %s." % (b, d["af"], d["rec"], d["pre"], e["both"], e["right"]))
     L += ["", "## Pooled, narrow search (ours) minus each baseline, paired by item\n"]; JS["pooled_narrow"] = {}
-    for b in ("plain", "samplek", "dtp", "ask"):
+    for b in ("plain", "samplek", "dtp", "state"):
         d = {k: _boot([x - y for x, y in zip(PA["ours|" + k], PA[b + "|" + k])]) for k in ("af", "rec", "pre")}
         e = {k: _boot([x - y for x, y in zip(PS["ours|" + k], PS[b + "|" + k])]) for k in ("both", "right", "prec")}
         JS["pooled_narrow"][b] = {"ambrosia": d, "sets": e}
@@ -498,7 +503,7 @@ def report_stream(shares=(0.1, 0.2, 0.3, 0.5), main=0.2, B=2000):
     if os.path.exists(AM.FINAL + "/refusals.jsonl"):
         for l in open(AM.FINAL + "/refusals.jsonl"): x = json.loads(l); refused[x["model"]].add(x["row"])
     counts = _counts
-    arms = ("plain", "samplek", "dtp", "ask", "ours", "method"); per = {}; PA = collections.defaultdict(list); PU = collections.defaultdict(list)
+    arms = ("plain", "samplek", "dtp", "state", "ours", "method"); per = {}; PA = collections.defaultdict(list); PU = collections.defaultdict(list)
     for m in MODELS:
         R = [r for r in AM.final_rows() if r["row"] not in refused.get(m, set()) and all(os.path.exists(AM._ff(a, m, r["row"])) for a in ("plain", "samplek", "dtp", "ours"))]
         A = [r for r in R if r["ambiguous"]]; U = [r for r in R if not r["ambiguous"]]; Gm = {r["row"]: _arms_amb(m, r) for r in R}
@@ -520,7 +525,7 @@ def report_stream(shares=(0.1, 0.2, 0.3, 0.5), main=0.2, B=2000):
         ia = [rng.randrange(nA) for _ in range(nA)]; iu = [rng.randrange(nU) for _ in range(nU)]
         f = lambda a, i: 100 * (main * sum(PA[a][j][i] for j in ia) / nA + (1 - main) * sum(PU[a][j][i] for j in iu) / nU)
         for x in ("method", "ours"):
-            for b in ("plain", "samplek", "dtp", "ask"):
+            for b in ("plain", "samplek", "dtp", "state"):
                 for i, k in ((0, "missed"), (1, "wrong")): D["%s-%s|%s" % (x, b, k)].append(f(x, i) - f(b, i))
     ci = {k: [round(sorted(v)[int(.025 * B)], 1), round(sorted(v)[int(.975 * B) - 1], 1)] for k, v in D.items()}
     J = json.load(open(OUT + "/method.json")); J["stream"] = {"per_model": per, "pooled": pooled, "ci_at_%g" % main: ci}

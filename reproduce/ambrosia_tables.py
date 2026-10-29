@@ -23,7 +23,7 @@ print("ALLFOUND MATCHES final.json" if not bad else "%d MISMATCHES" % bad)
 # per model and arm, from the scores-only table of the six arms; checked against out/system/method.json.
 T = [json.loads(l) for l in open("out/system/scores.jsonl")]; M = json.load(open("out/system/method.json"))["stream"]["per_model"]; PI = 0.2; bad5 = 0
 for m in sorted({x["model"] for x in T}):
-    for a in ("plain", "samplek", "dtp", "ask", "ours", "method"):
+    for a in ("plain", "samplek", "dtp", "state", "ours", "method"):
         X = [x for x in T if x["model"] == m and x["arm"] == a]; A = [x for x in X if x["ambiguous"]]; U = [x for x in X if not x["ambiguous"]]
         per = lambda k: round(100 * (PI * sum(x[k] for x in A) / len(A) + (1 - PI) * sum(x[k] for x in U) / len(U)), 1)
         got = {"missed": per("missed"), "wrong": per("wrong"), "calls": round(per("calls"))}; ref = M[m][a]["0.2"]

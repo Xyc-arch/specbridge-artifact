@@ -311,12 +311,12 @@ def methods_table():
     """Table tab:methods (tables_tex.methods): out/system/method.json, coverage / precision / calls on both datasets."""
     A = lambda: MTH()["ambrosia"]; S = lambda: MTH()["sets"]; MJ = "out/system/method.json"
     out = [E("P", r"(all interpretations returned, of # ambiguous AMBROSIA questions and # open requests)", j(MJ, "ambrosia/sonnet/method/n_amb"), j(MJ, "sets/sonnet/method/sets"))]
-    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ask": "Decide-then-ask", "ours": "Decide-then-answer", "method": "\\quad wide search"}
+    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad wide search"}
     get = {0: lambda m, a: A()[m][a]["allfound"], 1: lambda m, a: 100 * A()[m][a]["precision"], 2: lambda m, a: A()[m][a]["calls"],
            3: lambda m, a: S()[m][a]["both"], 4: lambda m, a: S()[m][a]["precision"], 5: lambda m, a: S()[m][a]["calls"]}
     names = ["AMBROSIA AllFound", "AMBROSIA precision %", "AMBROSIA calls", "sets both", "sets precision %", "sets calls"]
     for oi, (m, ml) in enumerate((("sonnet", "Sonnet"), ("gpt-6-sol", "GPT-Sol"))):
-        for a in ("plain", "samplek", "dtp", "ask", "ours", "method"):
+        for a in ("plain", "samplek", "dtp", "state", "ours", "method"):
             first = a == "plain"
             anc = ("%s & %s & " % (ml, lab[a]) if first else "& %s & " % lab[a]) + " & ".join(["#"] * 6) + " \\\\"
             out.append(E("P", anc, *[x("method.json: %s %s %s" % (m, a, names[i]), (lambda m=m, a=a, i=i: get[i](m, a))) for i in range(6)],
@@ -447,8 +447,7 @@ def ledger():
         E("P", r"On # accepted request sets (Figure", d("fig5_tab4_disclosure", "n_families")),
         E("P", r"They name the choice in #--#\% of the sets, but return both interpretations for the open request in only #--#\% of the sets they can compute.",
           *rng(recog, "fig5:models/*/recognises k/n"), *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n")),
-                E("P", r"A wide-search option keeps DtP's coverage with # fewer wrong answers", x("stream: dtp - method wrong", lambda: S20("dtp", "wrong") - S20("method", "wrong"))),
-        E("P", r"Two authors then cross-checked all # passing sets, blind to model results, and kept # (#\%); results use the # of them", d("review", "sets"), d("accepted", "scopes/accepted_all_types/n"), x("out/paper/data/accepted.json", lambda: round(100 * g(P("accepted"), "scopes/accepted_all_types/n") / g(P("review"), "sets"))), d("fig5_tab4_disclosure", "n_families")),
+                        E("P", r"Two authors then cross-checked all # passing sets, blind to model results, and kept # (#\%); results use the # of them", d("review", "sets"), d("accepted", "scopes/accepted_all_types/n"), x("out/paper/data/accepted.json", lambda: round(100 * g(P("accepted"), "scopes/accepted_all_types/n") / g(P("review"), "sets"))), d("fig5_tab4_disclosure", "n_families")),
         E("P", r"We release the generator, the # request sets", d("fig5_tab4_disclosure", "n_constructed")),
         # ---------------- the human review (exhibit_data.review)
         E("P", r"When GPT-Sol rewrites the open requests of # random sets, no model returns both interpretations significantly more or less often (all $p\ge#$)",
@@ -582,32 +581,41 @@ def ledger():
           x("out/comm_library/cause_check_report.json: agree/n %", lambda: round(100 * jl("out/comm_library/cause_check_report.json")["agree"] / jl("out/comm_library/cause_check_report.json")["n"])),
           j("out/comm_library/cause_check_report.json", "kappa"), j("out/comm_library/cause_check_report.json", "second/reading choice"), j("out/comm_library/cause_check_report.json", "opus/reading choice")),
         # ---------------- method (out/system/method.json, system.report_method; pooled = method minus each baseline, paired)
-        E("P", r"ahead of every baseline by # to # points on AMBROSIA and by # to # points on request sets, all significant", x("min over baselines of pooled_narrow ambrosia pre", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("max over baselines of pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("min over baselines of pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("max over baselines of pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp", "ask")))),
-        E("P", r"more than DtP on request sets, where DtP's restatements lose other requirements: # points more open requests", x("method.json: pooled_narrow/dtp/sets/both[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["both"][0])),
-        E("P", r"find every interpretation for more questions, # points more, at # points less precision", x("-pooled_narrow dtp af", lambda: -MTH()["pooled_narrow"]["dtp"]["ambrosia"]["af"][0]), x("method.json: pooled_narrow/dtp/ambrosia/pre[0]", lambda: MTH()["pooled_narrow"]["dtp"]["ambrosia"]["pre"][0])),
-        E("P", r"Per # requests with a fifth open, it misses # fewer interpretations and shows # fewer wrong answers than plain prompting",
-          K("per 100"), x("stream: plain - ours missed", lambda: S20("plain", "missed") - S20("ours", "missed")), x("stream: plain - ours wrong", lambda: S20("plain", "wrong") - S20("ours", "wrong"))),
-        E("P", r"ahead of every baseline by # to # points and # to # points, at # calls per request", x("min over baselines of pooled_narrow ambrosia pre", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("max over baselines of pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("min over baselines of pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("max over baselines of pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp", "ask"))), x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
-        E("P", r"ahead of plain prompting, sampling and disambiguate-then-parse, at # calls per request", x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
+                        E("P", r"Only on AMBROSIA does DtP cover more, by # points, at # points less precision", x("-pooled_narrow dtp af", lambda: -MTH()["pooled_narrow"]["dtp"]["ambrosia"]["af"][0]), x("method.json: pooled_narrow/dtp/ambrosia/pre[0]", lambda: MTH()["pooled_narrow"]["dtp"]["ambrosia"]["pre"][0])),
+                                E("P", r"returns every interpretation for # points more ambiguous AMBROSIA questions than interpret-and-state ($[#, #]$) and for # points more open requests ($[#, #]$), with no loss of precision ($-#$ points on AMBROSIA, $[-#, #]$; $+#$ on request sets, $[#, #]$), and its main answer is right on # points more specific requests",
+          *[x("pooled_narrow/state/ambrosia/af[%d]" % i, (lambda i=i: MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][i])) for i in range(3)],
+          *[x("pooled_narrow/state/sets/both[%d]" % i, (lambda i=i: MTH()["pooled_narrow"]["state"]["sets"]["both"][i])) for i in range(3)],
+          x("-pooled_narrow/state/ambrosia/pre[0]", lambda: -MTH()["pooled_narrow"]["state"]["ambrosia"]["pre"][0]), x("-pooled_narrow/state/ambrosia/pre[1]", lambda: -MTH()["pooled_narrow"]["state"]["ambrosia"]["pre"][1]),
+          x("pooled_narrow/state/ambrosia/pre[2]", lambda: MTH()["pooled_narrow"]["state"]["ambrosia"]["pre"][2]),
+          *[x("pooled_narrow/state/sets/prec[%d]" % i, (lambda i=i: MTH()["pooled_narrow"]["state"]["sets"]["prec"][i])) for i in range(3)],
+          x("pooled_narrow/state/sets/right[0]", lambda: MTH()["pooled_narrow"]["state"]["sets"]["right"][0])),
+        E("P", r"it is the most precise, by # to # points on AMBROSIA and # to # points on request sets, all significant",
+          x("min pooled_narrow ambrosia pre (plain, samplek, dtp)", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
+          x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
+          x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
+          x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp")))),
+        E("P", r"where DtP's restatements lose other requirements (# points)", x("pooled_narrow/dtp/sets/both[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["both"][0])),
+        E("P", r"the same AllFound ($-#$ points) and # points more precision", x("-pooled/dtp/ambrosia/af[0]", lambda: -MTH()["pooled"]["dtp"]["ambrosia"]["af"][0]), x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
+        E("P", r"The option finds every interpretation for # points more ambiguous questions but is # points less precise, at # times the calls",
+          x("pooled/ours/ambrosia/af[0]", lambda: MTH()["pooled"]["ours"]["ambrosia"]["af"][0]), x("-pooled/ours/ambrosia/pre[0]", lambda: -MTH()["pooled"]["ours"]["ambrosia"]["pre"][0]),
+          x("stream: method calls / ours calls", lambda: round(S20("method", "calls") / S20("ours", "calls"), 1))),
+        E("P", r"returns every interpretation for # to # points more open requests than the single answer", x("pooled_narrow/state/ambrosia/af[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0])), x("pooled_narrow/state/sets/both[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["sets"]["both"][0]))),
+        E("P", r"and disambiguate-then-parse, at # calls per request", x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
+        E("P", r"it returns every interpretation for # and # points more open requests with no loss of precision", x("pooled_narrow/state/ambrosia/af[0]", lambda: MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0]), x("pooled_narrow/state/sets/both[0]", lambda: MTH()["pooled_narrow"]["state"]["sets"]["both"][0])),
+        E("P", r"it is the most precise, by # to # points on AMBROSIA and # to # on request sets, at # calls per request",
+          x("min pooled_narrow ambrosia pre", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))), x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
+          x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))), x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
+          x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
+        E("P", r"A wide-search option keeps DtP's coverage and is # points more precise", x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
         E("P", r"We developed the method on # AMBROSIA questions", j("out/ambrosia/decomposition.json", "models/sonnet/shape/n")),
         E("P", r"The final test uses # new test questions per model (# ambiguous, # unambiguous) and # randomly drawn request sets",
           x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]),
           j("out/system/method.json", "ambrosia/sonnet/method/n_amb"), j("out/system/method.json", "ambrosia/sonnet/method/n_clear"), j("out/system/method.json", "sets/sonnet/method/sets")),
         E("P", r"Methods on # new AMBROSIA test questions per model; calls per question beside each point (#\% intervals).",
           x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]), K("confidence level")),
-                                                        E("P", r"Decide-then-ask stops on # and # of every # AMBROSIA questions and on # and # of every # requests",
-          x("method.json: ambrosia sonnet ask asks_per_100", lambda: MTH()["ambrosia"]["sonnet"]["ask"]["asks_per_100"]), x("method.json: ambrosia gpt-6-sol ask asks_per_100", lambda: MTH()["ambrosia"]["gpt-6-sol"]["ask"]["asks_per_100"]), K("per 100"),
-          x("method.json: sets sonnet ask asks_per_100", lambda: MTH()["sets"]["sonnet"]["ask"]["asks_per_100"]), x("method.json: sets gpt-6-sol ask asks_per_100", lambda: MTH()["sets"]["gpt-6-sol"]["ask"]["asks_per_100"]), K("per 100")),
-        E("P", r"Per # requests it leaves # more interpretations missing than decide-then-answer", K("per 100"), x("stream: ask - ours missed", lambda: S20("ask", "missed") - S20("ours", "missed"))),
-        E("P", r"so it is # points less often right on specific ones", x("method.json: pooled_narrow/ask/sets/right[0]", lambda: MTH()["pooled_narrow"]["ask"]["sets"]["right"][0])),
-        E("P", r"the same AllFound ($-#$ points), # fewer wrong answers per # requests and # points more precision",
-          x("method.json: -pooled/dtp/ambrosia/af[0]", lambda: -MTH()["pooled"]["dtp"]["ambrosia"]["af"][0]), x("stream: dtp - method wrong", lambda: S20("dtp", "wrong") - S20("method", "wrong")), K("per 100"), x("method.json: pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
-        E("P", r"this budget finds every interpretation for # points more ambiguous questions than the same budget spread over random questions ($[#, #]$), and decide-then-answer, with the same budget, finds # points more than the cut DtP ($[#, #]$)",
+                                                                                        E("P", r"this budget finds every interpretation for # points more ambiguous questions than the same budget spread over random questions ($[#, #]$), and decide-then-answer, with the same budget, finds # points more than the cut DtP ($[#, #]$)",
           x("method.json: budget/place_vs_random|af[0]", lambda: MTH()["budget"]["place_vs_random|af"][0]), x("method.json: budget/place_vs_random|af[1]", lambda: MTH()["budget"]["place_vs_random|af"][1]), x("method.json: budget/place_vs_random|af[2]", lambda: MTH()["budget"]["place_vs_random|af"][2]), x("method.json: budget/answer_vs_cut|af[0]", lambda: MTH()["budget"]["answer_vs_cut|af"][0]), x("method.json: budget/answer_vs_cut|af[1]", lambda: MTH()["budget"]["answer_vs_cut|af"][1]), x("method.json: budget/answer_vs_cut|af[2]", lambda: MTH()["budget"]["answer_vs_cut|af"][2])),
-        E("P", r"the option misses # fewer interpretations per # requests but shows # more wrong answers at # times the calls",
-          x("stream: ours - method missed", lambda: S20("ours", "missed") - S20("method", "missed")), K("per 100"), x("stream: method - ours wrong", lambda: S20("method", "wrong") - S20("ours", "wrong")),
-          x("stream: method calls / ours calls", lambda: round(S20("method", "calls") / S20("ours", "calls"), 1))),
-        E("P", r"Six of the # BIRD questions on which all four models", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
+                E("P", r"Six of the # BIRD questions on which all four models", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"and on # questions every model returns the other interpretation", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"``Who is the tallest superhero?'' & # hero & # tied heroes", x("q802 reference rows", lambda: rs_rows("q802", "gold0")), x("q802 edited rows", lambda: rs_rows("q802", "gold"))),
         E("P", r"highest converted mana cost.'' & # card & # tied cards", x("q476 reference rows", lambda: rs_rows("q476", "gold0")), x("q476 edited rows", lambda: rs_rows("q476", "gold"))),

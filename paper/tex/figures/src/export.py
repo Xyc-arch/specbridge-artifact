@@ -239,7 +239,7 @@ def method():
     S = J("out/system/method.json")["ambrosia"]
     for m, name in (("sonnet", "method_sonnet"), ("gpt-6-sol", "method_sol")):
         rows = []
-        for a in ("plain", "samplek", "dtp", "ask", "ours", "method"):
+        for a in ("plain", "samplek", "dtp", "state", "ours", "method"):
             v = S[m][a]; n = v["n_amb"]; py = pct(v["allfound"], n); lo, hi = wilson(v["allfound"], n)
             rows.append([a, 100 * v["precision"], py, py - 100 * lo, 100 * hi - py, "%.1f" % v["calls"]])
         write(name, ["arm", "prec", "af", "afm", "afp", "calls"], rows)
