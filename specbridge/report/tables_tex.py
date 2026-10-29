@@ -274,11 +274,11 @@ def methods():
     datasets: coverage (AMBROSIA AllFound; request sets, both interpretations), precision on clear or specific requests, calls.
     out/system/method.json (system.report_method)."""
     M = json.load(open("out/system/method.json")); A, S = M["ambrosia"], M["sets"]
-    NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad wide search"}
+    NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad decide-then-search"}
     arms = ("plain", "samplek", "dtp", "state", "ours", "method")
     n_amb = A["sonnet"]["method"]["n_amb"]; n_sets = S["sonnet"]["method"]["sets"]
     L = ["\\begin{table}[t]",
-         "\\caption{Decide-then-answer, its wide-search option (decide-then-search) and four baselines, among them interpret-and-state, the single answer that production assistants return, measured the same way on both datasets: coverage (all interpretations returned, of %d ambiguous AMBROSIA questions and %d open requests), precision on clear or specific requests (\\%%), and calls per request. Bold: best per model.}" % (n_amb, n_sets),
+         "\\caption{Decide-then-answer, decide-then-search and four baselines, among them interpret-and-state, the single answer that production assistants return, measured the same way on both datasets: coverage (all interpretations returned, of %d ambiguous AMBROSIA questions and %d open requests), precision on clear or specific requests (\\%%), and calls per request. Bold: best per model.}" % (n_amb, n_sets),
          "\\label{tab:methods}", "\\centering\\footnotesize\\setlength{\\tabcolsep}{3.2pt}",
          "\\begin{tabular}{@{}llrrrrrr@{}}", "\\toprule",
          "& & \\multicolumn{3}{c}{AMBROSIA} & \\multicolumn{3}{c}{Request sets} \\\\", "\\cmidrule(lr){3-5}\\cmidrule(l){6-8}",

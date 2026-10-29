@@ -133,6 +133,8 @@ RQMD = "out/reqmethod100/RESULTS.md"
 MTH = lambda: jl("out/system/method.json")
 S20 = lambda a, k: MTH()["stream"]["pooled"][a]["0.2"][k]                 # per 100 requests, 20% open, both models pooled
 SCI = lambda key: MTH()["stream"]["ci_at_0.2"][key]                        # [lo, hi] of method minus baseline (negative = better)
+TT = lambda: MTH()["twoturn"]
+TTD = lambda d, b, k: round(TT()[d + "_per100"][b][k] - TT()[d + "_per100"]["ours"][k], 1)   # baseline minus decide-then-answer
 WN = lambda: sum(v[1] > 0 for b in ("plain", "samplek", "dtp", "ask") for g in ("ambrosia", "sets") for v in MTH()["pooled_narrow"][b][g].values())
 RW = "out/rewrite/RESULTS.md"
 TOPK = lambda: jl("out/transfer/all/render/disclose/topk/results.json")["models"]
@@ -311,7 +313,7 @@ def methods_table():
     """Table tab:methods (tables_tex.methods): out/system/method.json, coverage / precision / calls on both datasets."""
     A = lambda: MTH()["ambrosia"]; S = lambda: MTH()["sets"]; MJ = "out/system/method.json"
     out = [E("P", r"(all interpretations returned, of # ambiguous AMBROSIA questions and # open requests)", j(MJ, "ambrosia/sonnet/method/n_amb"), j(MJ, "sets/sonnet/method/sets"))]
-    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad wide search"}
+    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "state": "Interpret-and-state", "ours": "Decide-then-answer", "method": "\\quad decide-then-search"}
     get = {0: lambda m, a: A()[m][a]["allfound"], 1: lambda m, a: 100 * A()[m][a]["precision"], 2: lambda m, a: A()[m][a]["calls"],
            3: lambda m, a: S()[m][a]["both"], 4: lambda m, a: S()[m][a]["precision"], 5: lambda m, a: S()[m][a]["calls"]}
     names = ["AMBROSIA AllFound", "AMBROSIA precision %", "AMBROSIA calls", "sets both", "sets precision %", "sets calls"]
@@ -575,7 +577,7 @@ def ledger():
         E("P", r"and # questions pass. Of the # answers BIRD marks wrong on them, # return the other interpretation", j("out/rescore/results.json", "questions"), j("out/rescore/results.json", "pooled/wrong_by_bird"), j("out/rescore/results.json", "pooled/B_only")),
         E("P", r"match the edited reference (#) than the reference itself (#)", x("out/rescore/results.json:by_type_pooled ties+count_unit B_only", lambda: sum(RSC()["by_type_pooled"][t]["B_only"] for t in ("ties", "count_unit"))),
           x("out/rescore/results.json:by_type_pooled ties+count_unit A", lambda: sum(RSC()["by_type_pooled"][t]["A"] for t in ("ties", "count_unit")))),
-        E("P", r"Accepting both interpretations raises accuracy from #\% to #\% on such questions", x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])),
+        E("P", r"On the # questions checked below, accepting both interpretations raises accuracy from #\% to #\%", j("out/rescore/results.json", "questions"), x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])),
           x("out/rescore/results.json:pooled either/n", lambda: pc(RSC()["pooled"]["either"], RSC()["pooled"]["n"]))),
         E("P", r"agrees on the cause for #\% of the questions (Cohen's $\kappa=#$); it often calls Opus's run-to-run variation output shape and finds an open choice in # questions where Opus finds #",
           x("out/comm_library/cause_check_report.json: agree/n %", lambda: round(100 * jl("out/comm_library/cause_check_report.json")["agree"] / jl("out/comm_library/cause_check_report.json")["n"])),
@@ -594,9 +596,22 @@ def ledger():
           x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
           x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
           x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp")))),
+        # two turns (system.report_twoturn -> method.json["twoturn"]): per 100 requests; AMBROSIA at one in five ambiguous
+        E("P", r"decide-then-answer needs # fewer user turns than ask-then-answer ($[#, #]$) and # fewer than interpret-and-state ($[#, #]$), and # and # fewer on request sets. It also ends right on # and # more AMBROSIA requests and on # and # more request-set requests",
+          x("twoturn ambrosia user_turns ask-ours", lambda: TTD("ambrosia", "ask", "user_turns")), x("-twoturn ci amb|ours-ask|user_turns[1]", lambda: -TT()["ci"]["amb|ours-ask|user_turns"][1]), x("-twoturn ci amb|ours-ask|user_turns[0]", lambda: -TT()["ci"]["amb|ours-ask|user_turns"][0]),
+          x("twoturn ambrosia user_turns state-ours", lambda: TTD("ambrosia", "state", "user_turns")), x("-twoturn ci amb|ours-state|user_turns[1]", lambda: -TT()["ci"]["amb|ours-state|user_turns"][1]), x("-twoturn ci amb|ours-state|user_turns[0]", lambda: -TT()["ci"]["amb|ours-state|user_turns"][0]),
+          x("twoturn sets user_turns ask-ours", lambda: TTD("sets", "ask", "user_turns")), x("twoturn sets user_turns state-ours", lambda: TTD("sets", "state", "user_turns")),
+          x("twoturn ambrosia right_end ours-ask", lambda: -TTD("ambrosia", "ask", "right_end")), x("twoturn ambrosia right_end ours-state", lambda: -TTD("ambrosia", "state", "right_end")),
+          x("twoturn sets right_end ours-ask", lambda: -TTD("sets", "ask", "right_end")), x("twoturn sets right_end ours-state", lambda: -TTD("sets", "state", "right_end"))),
+        E("P", r"fewer user turns per # requests than asking the user", K("rate base")),
+        E("P", r"needs no second answer that can go wrong, at # to # more calls per request",
+          x("min over ask, state, both data: twoturn calls (ours - b) / 100", lambda: round(min(-TTD(d, b, "calls") for d in ("ambrosia", "sets") for b in ("ask", "state")) / 100, 1)),
+          x("max: twoturn calls (ours - b) / 100", lambda: round(max(-TTD(d, b, "calls") for d in ("ambrosia", "sets") for b in ("ask", "state")) / 100, 1))),
+        E("P", r"which favours asking. Per # requests, with one in five", K("rate base")),
+        E("P", r"it needs # to # fewer user turns per 100 requests than asking the user", x("twoturn ambrosia user_turns ask-ours", lambda: TTD("ambrosia", "ask", "user_turns")), x("twoturn sets user_turns ask-ours", lambda: TTD("sets", "ask", "user_turns"))),
         E("P", r"where DtP's restatements lose other requirements (# points)", x("pooled_narrow/dtp/sets/both[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["both"][0])),
         E("P", r"the same AllFound ($-#$ points) and # points more precision", x("-pooled/dtp/ambrosia/af[0]", lambda: -MTH()["pooled"]["dtp"]["ambrosia"]["af"][0]), x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
-        E("P", r"The option finds every interpretation for # points more ambiguous questions but is # points less precise, at # times the calls",
+        E("P", r"Decide-then-search finds every interpretation for # points more ambiguous questions but is # points less precise, at # times the calls",
           x("pooled/ours/ambrosia/af[0]", lambda: MTH()["pooled"]["ours"]["ambrosia"]["af"][0]), x("-pooled/ours/ambrosia/pre[0]", lambda: -MTH()["pooled"]["ours"]["ambrosia"]["pre"][0]),
           x("stream: method calls / ours calls", lambda: round(S20("method", "calls") / S20("ours", "calls"), 1))),
         E("P", r"returns every interpretation for # to # points more open requests than the single answer", x("pooled_narrow/state/ambrosia/af[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0])), x("pooled_narrow/state/sets/both[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["sets"]["both"][0]))),
@@ -606,14 +621,14 @@ def ledger():
           x("min pooled_narrow ambrosia pre", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))), x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
           x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))), x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
           x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
-        E("P", r"A wide-search option keeps DtP's coverage and is # points more precise", x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
+        E("P", r"Decide-then-search keeps DtP's AMBROSIA coverage and is # points more precise", x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
         E("P", r"We developed the method on # AMBROSIA questions", j("out/ambrosia/decomposition.json", "models/sonnet/shape/n")),
         E("P", r"The final test uses # new test questions per model (# ambiguous, # unambiguous) and # randomly drawn request sets",
           x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]),
           j("out/system/method.json", "ambrosia/sonnet/method/n_amb"), j("out/system/method.json", "ambrosia/sonnet/method/n_clear"), j("out/system/method.json", "sets/sonnet/method/sets")),
         E("P", r"Methods on # new AMBROSIA test questions per model; calls per question beside each point (#\% intervals).",
           x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]), K("confidence level")),
-                                                                                        E("P", r"this budget finds every interpretation for # points more ambiguous questions than the same budget spread over random questions ($[#, #]$), and decide-then-answer, with the same budget, finds # points more than the cut DtP ($[#, #]$)",
+                                                                                        E("P", r"this budget finds every interpretation on # points more ambiguous questions than spent on random questions ($[#, #]$), and decide-then-answer, with the same budget, finds # points more than the cut DtP ($[#, #]$)",
           x("method.json: budget/place_vs_random|af[0]", lambda: MTH()["budget"]["place_vs_random|af"][0]), x("method.json: budget/place_vs_random|af[1]", lambda: MTH()["budget"]["place_vs_random|af"][1]), x("method.json: budget/place_vs_random|af[2]", lambda: MTH()["budget"]["place_vs_random|af"][2]), x("method.json: budget/answer_vs_cut|af[0]", lambda: MTH()["budget"]["answer_vs_cut|af"][0]), x("method.json: budget/answer_vs_cut|af[1]", lambda: MTH()["budget"]["answer_vs_cut|af"][1]), x("method.json: budget/answer_vs_cut|af[2]", lambda: MTH()["budget"]["answer_vs_cut|af"][2])),
                 E("P", r"Six of the # BIRD questions on which all four models", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"and on # questions every model returns the other interpretation", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
@@ -624,7 +639,7 @@ def ledger():
         E("P", r"how many of them are male?'' & # lab records & # patients", x("q1283 reference value", lambda: rs_val("q1283", "gold0")), x("q1283 edited value", lambda: rs_val("q1283", "gold"))),
         E("P", r"normal level of total protein?'' & # lab records & # patients", x("q1289 reference value", lambda: rs_val("q1289", "gold0")), x("q1289 edited value", lambda: rs_val("q1289", "gold"))),
         # ---------------- rewrite
-        E("P", r"we report # interpretations drawn at random from the # sets.",
+        E("P", r"we report # interpretations drawn at random from the # sets, with all four models",
           x(RW + ": pooled readings", lambda: rw(0, 0, 1)), d("fig5_tab4_disclosure", "n_families")),
         E("P", r"Editing versus rewriting a request (# interpretations)", x(RW + ": pooled readings", lambda: rw(0, 0, 1))),
         E("P", r"computes #\% of the interpretations correctly", x(RW + ": pooled (c)", lambda: rw(0, 0, 4))),
@@ -632,8 +647,8 @@ def ledger():
         E("P", r"Both rewrites compute fewer, # points fewer for the interpretation rewrite ($p=#$) and # for the standalone question ($p<#$)",
           x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) vs (b) McNemar p, 4 places", lambda: round(rw(0, 1, 2), 4)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5)),
           x(RW + ": pooled (c) vs (d) McNemar p below 0.0001", lambda: 0.0001 if rw(0, 1, 6) < 0.0001 else -1)),
-        E("P", r"as production assistants do, by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
-        E("P", r"with DtP's or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
+        E("P", r"rewriting the request with DtP's or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
+        E("P", r"rewrites with DtP's or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
         E("P", r"\subsection{Phase #: decide, then answer}", K("phase label")), E("P", r"Phase #, decide-then-answer, runs", K("phase label")),
         E("P", r"and phase # starts when the user picks", K("phase label")), E("P", r"\subsection{Phase # against products", K("phase label")),
         E("P", r"\subsection{Phase #: keep the request", K("phase label")), E("P", r"so phase # keeps the request", K("phase label")),
@@ -833,6 +848,7 @@ def run(release=False):
 
 
 def main():
+    os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))   # paths are relative to the repository root
     args = sys.argv[1:]; mode = args[0] if args else "check"; release = "--release" in args
     rows, unl, probs = run(release)
     bad = [r for r in rows if r["status"] in ("MISMATCH", "ERROR", "MISSING-DATA")]

@@ -572,5 +572,82 @@ def run_keep(workers=6):
     with cf.ThreadPoolExecutor(max_workers=min(workers, MAXW)) as ex: list(ex.map(lambda j: j(), jobs))
 
 
+# TWO TURNS (2026-10-28): the setting of products that ask (Genie: a clarifying question). A simulated user with one interpretation in
+# mind reads turn 1; if no shown answer gives that interpretation (or the product asked instead of answering), the user states it in
+# one turn and the product answers the stated request. The second-turn answer is the SAME for every arm: the model's plain answer to
+# the specific request (AMBROSIA's unambiguous question; the set's specific wording), so arms differ only in turn 1. Arm `ask` uses the
+# decide-then-answer gate (generous to asking) and returns nothing where it is open; `state` is the one answer of interpret-and-state.
+# Units: one per (request, interpretation the user means); a unit with no specific request is skipped for every arm.
+def report_twoturn(main=0.2, B=2000):
+    from specbridge.comm.common import grade as G
+    from specbridge.comm.transfer import reviewed as RV
+    refused = collections.defaultdict(set)
+    if os.path.exists(AM.FINAL + "/refusals.jsonl"):
+        for l in open(AM.FINAL + "/refusals.jsonl"): x = json.loads(l); refused[x["model"]].add(x["row"])
+    arms = ("plain", "samplek", "dtp", "state", "ask", "ours", "method"); st = lambda g, p: g is not None and p is not None and G.shape_tolerant([list(y) for y in g], [list(y) for y in p])
+    PA, PU, PS = collections.defaultdict(list), collections.defaultdict(list), collections.defaultdict(list)   # unit = (right at turn 1, user turn, right at the end, calls)
+    def unit(hit1, calls1, right2):
+        return (int(hit1), int(not hit1), int(hit1 or right2), calls1 + (0 if hit1 else 1))
+    for m in MODELS:
+        SP = AM.final_specifics()
+        R = [r for r in AM.final_rows() if r["row"] not in refused.get(m, set()) and all(os.path.exists(AM._ff(a, m, r["row"])) for a in ("plain", "samplek", "dtp", "ours"))]
+        for r in R:
+            db = r["db_file"]; Q = _arms_amb(m, r); o = json.load(open(AM._ff("ours", m, r["row"]))); op = len(o.get("readings") or []) > 1
+            Q["ask"] = ([] if op else o["queries"], 1)
+            res = {a: [x for x in (AM._ex_sql(db, q) for q in dict.fromkeys(qs)) if x is not None] for a, (qs, _c) in Q.items()}
+            if r["ambiguous"]:
+                for g in (AM._ex_sql(db, g) for g in r["gold"]):
+                    two = None
+                    for k in SP.get(r["row"], []):
+                        kr = AM._ex_sql(db, k[2]); f = AM._ff("specific", m, "%s__%d" % (r["row"], k[0]))
+                        if kr is not None and g is not None and AM.same(kr, g) and AM.same(g, kr) and os.path.exists(f):
+                            q = json.load(open(f))["queries"]; two = st(kr, AM._ex_sql(db, q[0]) if q else None)
+                    if two is None: continue
+                    u = {a: unit(any(st(g, p) for p in res[a]), Q[a][1], two) for a in arms}
+                    PA["_n"].append(r["row"]); [PA[a].append(u[a]) for a in arms]
+            else:
+                g = AM._ex_sql(db, r["gold"][0]); pq = Q["state"][0]; two = st(g, AM._ex_sql(db, pq[0]) if pq else None)
+                for a in arms: PU[a].append(unit(any(st(g, p) for p in res[a]), Q[a][1], two))
+        ks, WD, C, _W = _sets(); ks = RV.accepted(ks)
+        for k in ks:
+            if not all(os.path.exists(RM._f(a, m, k, w)) for a in ("samplek", "dtp", "ours") for w in WD[k]): continue
+            c = C[k]; con = DB.connect(c["snapshot"])
+            def match(qs):
+                out = []
+                for q in dict.fromkeys(x for x in qs if x):
+                    r_ = DB.rows(con, q)
+                    if r_ is not None: out.append(X._match(c, r_))
+                return out
+            for w in WD[k]:
+                o = json.load(open(RM._f("ours", m, k, w))); d = json.load(open(RM._f("dtp", m, k, w))); sk = json.load(open(RM._f("samplek", m, k, w))); op = len(o.get("readings") or []) > 1
+                Q = {"samplek": (sk["queries"], 3), "dtp": (d["queries"], d["cost"]["calls"]), "ours": (o["queries"], o["cost"]["calls"]), "ask": ([] if op else o["queries"], 1),
+                     "state": ([_plain_main(m, k, w)], 1), "method": (o["queries"] + (d["queries"] if op else []), o["cost"]["calls"] + (d["cost"]["calls"] if op else 0))}
+                res = {a: match(qs) for a, (qs, _c) in Q.items()}; res["plain"] = [mt for _q, mt, _r in (RM._answers("plain", m, k, w, C) or [])]; Q["plain"] = (None, 1)
+                for lab in (("A", "B") if w == "open" else (w[-1],)):
+                    ws = [v for v in WD[k] if v != "open" and v[-1] == lab]
+                    if not ws: continue
+                    sm = match([_plain_main(m, k, ws[0])]); two = bool(sm) and lab in sm[0]
+                    for a in arms: PS[a].append(unit(any(lab in mt for mt in res[a]), Q[a][1], two))
+    mean = lambda v, i: sum(x[i] for x in v) / len(v)
+    amb = lambda a, i, ia=None, iu=None: 100 * (main * mean([PA[a][j] for j in ia] if ia else PA[a], i) + (1 - main) * mean([PU[a][j] for j in iu] if iu else PU[a], i))
+    out = {"units": {"ambrosia_open": len(PA["ours"]), "ambrosia_clear": len(PU["ours"]), "sets": len(PS["ours"])}, "ambrosia_per100": {}, "sets_per100": {}, "ci": {}}
+    K = ("right_turn1", "user_turns", "right_end", "calls")
+    for a in arms:
+        out["ambrosia_per100"][a] = {k: round(amb(a, i), 1) for i, k in enumerate(K)}
+        out["sets_per100"][a] = {k: round(100 * mean(PS[a], i), 1) for i, k in enumerate(K)}
+    rng = random.Random(11); D = collections.defaultdict(list); nA, nU, nS = len(PA["ours"]), len(PU["ours"]), len(PS["ours"])
+    for _ in range(B):
+        ia = [rng.randrange(nA) for _ in range(nA)]; iu = [rng.randrange(nU) for _ in range(nU)]; isx = [rng.randrange(nS) for _ in range(nS)]
+        for x in ("ours", "method"):
+            for b in ("ask", "state", "plain", "dtp"):
+                for i, k in enumerate(K):
+                    D["amb|%s-%s|%s" % (x, b, k)].append(amb(x, i, ia, iu) - amb(b, i, ia, iu))
+                    D["sets|%s-%s|%s" % (x, b, k)].append(100 * (mean([PS[x][j] for j in isx], i) - mean([PS[b][j] for j in isx], i)))
+    out["ci"] = {k: [round(sorted(v)[int(.025 * B)], 1), round(sorted(v)[int(.975 * B) - 1], 1)] for k, v in D.items()}
+    J = json.load(open(OUT + "/method.json")); J["twoturn"] = out; json.dump(J, open(OUT + "/method.json", "w"), indent=1)
+    print(json.dumps({k: v for k, v in out.items() if k != "ci"}, indent=1))
+    print(json.dumps({k: v for k, v in out["ci"].items() if "-ask|" in k or "-state|" in k}, indent=0))
+
+
 if __name__ == "__main__":
-    {"pilot": pilot, "report_pilot": report_pilot, "run_final": run_final, "report_final": report_final, "report_ask": report_ask, "report_method": report_method, "report_budget": report_budget, "report_curve": report_curve, "report_stream": report_stream, "run_keep": run_keep}[sys.argv[1]]()
+    {"pilot": pilot, "report_pilot": report_pilot, "run_final": run_final, "report_final": report_final, "report_ask": report_ask, "report_method": report_method, "report_budget": report_budget, "report_curve": report_curve, "report_stream": report_stream, "run_keep": run_keep, "report_twoturn": report_twoturn}[sys.argv[1]]()
