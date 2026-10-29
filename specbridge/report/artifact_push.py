@@ -62,10 +62,9 @@ def main():
     sh("rsync -a --delete --exclude .git --exclude dev_unzipped --exclude results --exclude ambrosia_data --exclude .venv --exclude-from %s release/ %s/" % (kf, clone), repo)
     sh("git add -A", clone); c, o, _ = sh("git diff --cached --name-only", clone); changed = set(o.split())
     if changed: sh("git commit -qm %s" % sp.list2cmdline([msg]), clone)
-    else:
-        _, ahead, _ = sh("git rev-list --count @{u}..HEAD", clone)
-        if ahead.strip() == "0": say("artifact unchanged; nothing to push"); return
-        _, o, _ = sh("git diff --name-only @{u} HEAD", clone); changed = set(o.split())   # an unpushed commit: test it
+    _, ahead, _ = sh("git rev-list --count @{u}..HEAD", clone)
+    if ahead.strip() == "0": say("artifact unchanged; nothing to push"); return
+    _, o, _ = sh("git diff --name-only @{u} HEAD", clone); changed = set(o.split())       # everything not yet pushed
     env = dict(os.environ, PATH=venv + ":" + os.environ["PATH"])
     if full or changed & set(FULL_IF):
         c, o, t = sh("make all", clone, env); say("make all exit %d in %.0f s" % (c, t))
