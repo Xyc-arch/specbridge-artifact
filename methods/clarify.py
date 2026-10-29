@@ -1,4 +1,4 @@
-"""CARRY A CLARIFICATION BY EDITING THE REQUEST, NOT BY REWRITING IT (Section 7.3 of the paper).
+"""PHASE 2: CARRY THE USER'S PICK BY EDITING THE REQUEST, NOT BY REWRITING IT (Section 7.3 of the paper).
 
 Given an open request and the description of one reading, four request texts go to the same SQL prompt:
   (a) original   the benchmark's specific request for that reading (the reference)

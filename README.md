@@ -92,7 +92,7 @@ same arithmetic as `figures_col.py`.
 | Fig. 14 | `impact.py` | BIRD dev, `out/impact/` |
 | Table 4, BIRD scored with both interpretations (§6.2) | `specbridge/comm/transfer/rescore.py` | `out/rescore/`, `human_supervision/bird-other-reading.csv` |
 | Fig. 16, 17 | `figures_col.py` | `out/ambrosia/final/` |
-| Table 5 | `tables_tex.py`, `reproduce/ambrosia_tables.py` | `out/ambrosia/final/`, `out/reqmethod100/`, `out/archive/first-run-livesql/` |
+| Table 5 | `tables_tex.py`, `reproduce/ambrosia_tables.py` | `out/system/method.json`, `out/system/scores.jsonl`, `out/reqmethod100/` |
 | Fig. 19, BIRD clarification (§7.3) | `figures_col.py` | `out/rewrite/` |
 | Human review and the result without it (§4.2) | `exhibit_data.py` (`review`) | `human_supervision/verdicts.json`, `out/transfer/all/render/` |
 | Open requests rewritten by GPT-Sol (§4.2) | `specbridge/comm/transfer/writer_swap_open.py` | `out/writer_swap_open/` |
@@ -114,11 +114,11 @@ matches(s, run(s, "SELECT ..."))                # -> ["A"], ["B"], ["A", "B"] or
 To score your own model, write one JSON line per answer and run `python benchmark/score.py answers.jsonl`.
 [`benchmark/README.md`](benchmark/README.md) gives the format; `benchmark/examples/` has the four models' answers from the paper.
 
-The two methods of Section 7 work with any model. `ask` takes a prompt and returns the reply text:
+The two phases of the method (Section 7) work with any model. `ask` takes a prompt and returns the reply text:
 
 ```python
-from methods.disclose import disclose     # list the interpretations, answer each, show an alternative only if its result differs
-from methods.clarify import edit          # clarify a request by adding one clause
+from methods.disclose import disclose     # phase 1, decide-then-answer: list the interpretations, answer each, show those that differ
+from methods.clarify import edit          # phase 2: carry the user's pick by adding one clause to the request
 ```
 
 ## Rerun with models (optional)
@@ -149,8 +149,8 @@ own system prompt, so answers through the API can differ slightly from the saved
 | AMBROSIA (§5, §7.2) | `sh reproduce/fetch_ambrosia.sh`, then `python -c "from specbridge.comm.transfer import ambrosia as A; A.decomp_run(A.MODELS); A.run_final()"` |
 | Held-out BIRD and Spider (§6) | `python -m specbridge.comm.diagnose.compare run <dir> <model>` |
 | BIRD scored with both interpretations (§6) | `python -m specbridge.comm.transfer.rescore run` |
-| Disclosure methods (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run` |
-| Edit vs rewrite (§7.3) | `python -m specbridge.comm.transfer.rewrite run` |
+| Phase 1 and the baselines (§7.2) | `REQMETHOD_OUT=out/reqmethod100 REQMETHOD_N=100 python -m specbridge.comm.transfer.reqmethod run`, then `python -m specbridge.comm.transfer.system report_method`, `report_stream` and `report_budget` (these read the AMBROSIA runs, so fetch AMBROSIA and run it first) |
+| Phase 2: edit vs rewrite (§7.3) | `python -m specbridge.comm.transfer.rewrite run` |
 
 Each module's docstring lists its other options. [`specbridge/docs/PIPELINE.md`](specbridge/docs/PIPELINE.md) explains how the
 request sets are built.
@@ -160,7 +160,7 @@ request sets are built.
 ```
 benchmark/          the 307 request sets (204 accepted), their 12 databases, the scorer
 library/            624 calculation choices mined from BIRD and Spider failures
-methods/            the two methods of Section 7, standalone
+methods/            the two phases of the method in Section 7, standalone
 human_supervision/  the authors' reviews of the request sets and of the BIRD answers
 out/                every saved model run and intermediate result
 specbridge/         all code: query generation, mining, evaluation, figures

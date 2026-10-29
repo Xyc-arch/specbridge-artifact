@@ -270,28 +270,29 @@ def method_reqsets():
     write("method_reqsets", "\n".join(L) + "\n")
 
 def methods():
-    """Section 7: the four methods, compact: AMBROSIA final test (precision on unambiguous questions, ambiguous questions with every
-    interpretation found, calls per question; final.json) and request sets (both interpretations returned, specific requests right; out/reqmethod100)."""
-    F = json.load(open("out/ambrosia/final/final.json"))["solvers"]; R = json.load(open("out/reqmethod100/results.json"))
-    NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ours": "Ours"}
-    n_amb = F["sonnet"]["n_ambiguous"]; n_sets = R["sonnet"]["sets"]
+    """Section 7: decide-then-answer, its wide-search option (decide-then-search) and four baselines. AMBROSIA final test, per 100
+    requests of which 20% leave a choice open (interpretations missed, wrong answers shown, calls; system.report_stream), and request
+    sets (both interpretations returned, specific requests right; system.report_method). out/system/method.json."""
+    M = json.load(open("out/system/method.json")); T, S = M["stream"]["per_model"], M["sets"]
+    NAME = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ask": "Decide-then-ask", "ours": "Decide-then-answer", "method": "\\quad wide search"}
+    arms = ("plain", "samplek", "dtp", "ask", "ours", "method")
+    n_sets = S["sonnet"]["method"]["sets"]; n_spec = S["sonnet"]["method"]["specific"]
     L = ["\\begin{table}[t]",
-         "\\caption{Disclosure methods on the AMBROSIA final test and on %d request sets. Bold: best per model.}" % n_sets,
-         "\\label{tab:methods}", "\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}",
+         "\\caption{Decide-then-answer, its wide-search option (decide-then-search) and four baselines. AMBROSIA: per 100 requests of which 20\\%% leave a choice open (lower is better). Request sets: %d sets (higher is better).}" % n_sets,
+         "\\label{tab:methods}", "\\centering\\footnotesize\\setlength{\\tabcolsep}{3.2pt}",
          "\\begin{tabular}{@{}llrrrrr@{}}", "\\toprule",
-         "& & \\multicolumn{3}{c}{AMBROSIA} & \\multicolumn{2}{c}{Request sets} \\\\", "\\cmidrule(lr){3-5}\\cmidrule(l){6-7}",
-         "& & Precision & All found & Calls & Both & Specific \\\\",
-         "Model & Method & (\\%%) & (of %d) & per q. & (of %d) & right \\\\" % (n_amb, n_sets), "\\midrule"]
-    arms = ("plain", "samplek", "dtp", "ours")
+         "& & \\multicolumn{3}{c}{AMBROSIA, per 100 requests} & \\multicolumn{2}{c}{Request sets} \\\\", "\\cmidrule(lr){3-5}\\cmidrule(l){6-7}",
+         "& & Missed & Wrong & Calls & Both & Specific \\\\",
+         "Model & Method & & shown & & (of %d) & (of %d) \\\\" % (n_sets, n_spec), "\\midrule"]
     for mi, (m, lab) in enumerate((("sonnet", "Sonnet"), ("gpt-6-sol", "GPT-Sol"))):
         if mi: L.append("\\midrule")
-        a, r = F[m]["arms"], R[m]["arms"]
-        col = {"prec": [100 * a[x]["precision"] for x in arms], "af": [a[x]["allfound"] for x in arms], "calls": [a[x]["calls"] for x in arms],
+        t, r = T[m], S[m]
+        col = {"miss": [t[x]["0.2"]["missed"] for x in arms], "wrong": [t[x]["0.2"]["wrong"] for x in arms], "calls": [t[x]["0.2"]["calls"] for x in arms],
                "both": [r[x]["both"] for x in arms], "right": [r[x]["right"] for x in arms]}
-        fmt = {"prec": "%.1f", "af": "%d", "calls": "%.1f", "both": "%d", "right": "%d"}
-        C = {k: cells(v, fmt[k], low=k == "calls") for k, v in col.items()}
+        fmt = {"miss": "%.1f", "wrong": "%.1f", "calls": "%d", "both": "%d", "right": "%d"}
+        C = {k: [fmt[k] % x for x in v] for k, v in col.items()}
         for i, x in enumerate(arms):
-            L.append("%s & %s & %s \\\\" % (lab if i == 0 else "", NAME[x], " & ".join(C[k][i] for k in ("prec", "af", "calls", "both", "right"))))
+            L.append("%s & %s & %s \\\\" % (lab if i == 0 else "", NAME[x], " & ".join(C[k][i] for k in ("miss", "wrong", "calls", "both", "right"))))
     L += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
     write("methods", "\n".join(L) + "\n")
 

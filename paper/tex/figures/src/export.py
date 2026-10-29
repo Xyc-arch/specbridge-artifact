@@ -236,12 +236,12 @@ def impact():
 
 # ---------------------------------------------------------------- Fig. 18 method, 19 breakeven
 def method():
-    S = J("out/ambrosia/final/final.json")["solvers"]
+    S = J("out/system/method.json")["ambrosia"]
     for m, name in (("sonnet", "method_sonnet"), ("gpt-6-sol", "method_sol")):
-        x = S[m]; n = x["n_ambiguous"]; rows = []
-        for a in ("plain", "samplek", "dtp", "ours"):
-            v = x["arms"][a]; py = pct(v["allfound"], n)
-            rows.append([a, 100 * v["precision"], py, py - 100 * v["allfound_ci"][0], 100 * v["allfound_ci"][1] - py, "%.1f" % v["calls"]])
+        rows = []
+        for a in ("plain", "samplek", "dtp", "ask", "ours", "method"):
+            v = S[m][a]; n = v["n_amb"]; py = pct(v["allfound"], n); lo, hi = wilson(v["allfound"], n)
+            rows.append([a, 100 * v["precision"], py, py - 100 * lo, 100 * hi - py, "%.1f" % v["calls"]])
         write(name, ["arm", "prec", "af", "afm", "afp", "calls"], rows)
 
 

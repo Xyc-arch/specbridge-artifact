@@ -1,4 +1,4 @@
-"""DISCLOSE THE READINGS A REQUEST LEAVES OPEN (Section 7.1 and Figure 17 of the paper).
+"""PHASE 1, DECIDE-THEN-ANSWER: REPORT THE READINGS A REQUEST LEAVES OPEN (Section 7.1 and Figure 15 of the paper).
 
 One call lists the readings of the request, each rewritten as a request with exactly one reading. With one reading, one more call
 answers it and nothing else runs. Otherwise each reading is answered in its own call. All answers are executed, readings with

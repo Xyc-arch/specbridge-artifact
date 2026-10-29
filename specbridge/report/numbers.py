@@ -130,6 +130,10 @@ IMP = lambda: P("fig_impact")
 FIN = lambda: jl("out/ambrosia/final/final.json")
 RQ = lambda: jl("out/reqmethod100/results.json")
 RQMD = "out/reqmethod100/RESULTS.md"
+MTH = lambda: jl("out/system/method.json")
+S20 = lambda a, k: MTH()["stream"]["pooled"][a]["0.2"][k]                 # per 100 requests, 20% open, both models pooled
+SCI = lambda key: MTH()["stream"]["ci_at_0.2"][key]                        # [lo, hi] of method minus baseline (negative = better)
+WN = lambda: sum(v[1] > 0 for b in ("plain", "samplek", "dtp", "ask") for g in ("ambrosia", "sets") for v in MTH()["pooled_narrow"][b][g].values())
 RW = "out/rewrite/RESULTS.md"
 TOPK = lambda: jl("out/transfer/all/render/disclose/topk/results.json")["models"]
 FROZEN_ALL = "out/transfer/all/render/eval/frozen.json"
@@ -304,19 +308,20 @@ def main_table():
 
 
 def methods_table():
-    """Table tab:methods (tables_tex.methods, compact): AMBROSIA final.json, request sets out/reqmethod100/results.json."""
-    F = lambda: FIN()["solvers"]; R = lambda: jl("out/reqmethod100/results.json")
-    out = [E("P", r"on the AMBROSIA final test and on # request sets. Bold", j("out/reqmethod100/results.json", "sonnet/sets")),
-           E("P", r"Model & Method & (\%) & (of #) & per q. & (of #) & right", j("out/ambrosia/final/final.json", "solvers/sonnet/n_ambiguous"), j("out/reqmethod100/results.json", "sonnet/sets"))]
-    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ours": "Ours"}
-    get = {0: lambda m, a: 100 * F()[m]["arms"][a]["precision"], 1: lambda m, a: F()[m]["arms"][a]["allfound"], 2: lambda m, a: F()[m]["arms"][a]["calls"],
-           3: lambda m, a: R()[m]["arms"][a]["both"], 4: lambda m, a: R()[m]["arms"][a]["right"]}
-    names = ["precision %", "allfound", "calls", "both", "specific right"]
+    """Table tab:methods (tables_tex.methods): out/system/method.json stream (per 100 requests, 20% open) and sets."""
+    T = lambda: MTH()["stream"]["per_model"]; S = lambda: MTH()["sets"]; MJ = "out/system/method.json"
+    out = [E("P", r"\multicolumn{3}{c}{AMBROSIA, per # requests}", K("per 100")),
+           E("P", r"AMBROSIA: per # requests of which #\% leave a choice open (lower is better). Request sets: # sets", K("per 100"), K("share of open requests in the stream (20%)"), j(MJ, "sets/sonnet/method/sets")),
+           E("P", r"Model & Method & & shown & & (of #) & (of #)", j(MJ, "sets/sonnet/method/sets"), j(MJ, "sets/sonnet/method/specific"))]
+    lab = {"plain": "Plain", "samplek": "Three samples", "dtp": "DtP", "ask": "Decide-then-ask", "ours": "Decide-then-answer", "method": "\\quad wide search"}
+    get = {0: lambda m, a: T()[m][a]["0.2"]["missed"], 1: lambda m, a: T()[m][a]["0.2"]["wrong"], 2: lambda m, a: T()[m][a]["0.2"]["calls"],
+           3: lambda m, a: S()[m][a]["both"], 4: lambda m, a: S()[m][a]["right"]}
+    names = ["missed per 100", "wrong per 100", "calls per 100", "both", "specific right"]
     for oi, (m, ml) in enumerate((("sonnet", "Sonnet"), ("gpt-6-sol", "GPT-Sol"))):
-        for a in ("plain", "samplek", "dtp", "ours"):
+        for a in ("plain", "samplek", "dtp", "ask", "ours", "method"):
             first = a == "plain"
             anc = ("%s & %s & " % (ml, lab[a]) if first else "& %s & " % lab[a]) + " & ".join(["#"] * 5) + " \\\\"
-            out.append(E("P", anc, *[x("final.json/reqmethod100: %s %s %s" % (m, a, names[i]), (lambda m=m, a=a, i=i: get[i](m, a))) for i in range(5)],
+            out.append(E("P", anc, *[x("method.json: %s %s %s" % (m, a, names[i]), (lambda m=m, a=a, i=i: get[i](m, a))) for i in range(5)],
                          occ=None if first else oi))
     return out
 
@@ -434,34 +439,36 @@ def ledger():
         E("P", r"On # hand-validated request sets", d("fig5_tab4_disclosure", "n_families")),
         E("P", r"they return both interpretations in only #--#\% of those sets, and they name the choice in only #--#\% of all sets.", *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n"),
           *rng(recog, "fig5:models/*/recognises k/n")),
-        E("P", r"reliable. Showing an alternative only when its result differs is # points more precise than rewriting the request", x("out/ambrosia/final/final.json:pooled/vs_dtp/precision[0] x100", lambda: 100 * FIN()["pooled"]["vs_dtp"]["precision"][0])),
+        E("P", r"and shows fewer wrong answers than plain prompting, at # calls per request", x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
         # ---------------- introduction
         E("P", r"For two films priced at \$# for two days and \$# for six days, the first interpretation gives \$# per day and the second \$#.",
           K("illustrative input of the worked arithmetic"), K("illustrative input of the worked arithmetic"),
           x("arithmetic of the example: mean(6/2, 6/6)", lambda: (6 / 2 + 6 / 6) / 2), x("arithmetic of the example: mean(6,6)/mean(2,6)", lambda: 6 / ((2 + 6) / 2))),
-        E("P", r"accepting both interpretations of such questions raises accuracy from #\% to #\% (Section",
+        E("P", r"On # BIRD questions whose answer the choice changes, accepting both interpretations raises accuracy from #\% to #\% (Section", j("out/rescore/results.json", "questions"),
           x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])), x("out/rescore/results.json:pooled either/n", lambda: pc(RSC()["pooled"]["either"], RSC()["pooled"]["n"]))),
         E("P", r"the best BIRD score, #\%, and human performance, #\%", K("BIRD leaderboard, best test EX 83.40 (AskData), read 2026-10-25"), K("BIRD paper: human test EX 92.96")),
-        E("P", r"read on # October #.}", K("date the leaderboard was read"), K("year")),
         E("P", r"On # accepted request sets (Figure", d("fig5_tab4_disclosure", "n_families")),
         E("P", r"They name the choice in #--#\% of the sets, but return both interpretations for the open request in only #--#\% of the sets they can compute.",
           *rng(recog, "fig5:models/*/recognises k/n"), *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n")),
-        E("P", r"is # points more precise on AMBROSIA than", x("final.json:pooled/vs_dtp/precision[0] x100", lambda: 100 * FIN()["pooled"]["vs_dtp"]["precision"][0])),
+        E("P", r"Per # requests of which a fifth leave a choice open, it misses # fewer interpretations and shows # fewer wrong answers than plain prompting, at # calls per request",
+          K("per 100"), x("stream: plain - ours missed", lambda: S20("plain", "missed") - S20("ours", "missed")), x("stream: plain - ours wrong", lambda: S20("plain", "wrong") - S20("ours", "wrong")), x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
+        E("P", r"A wide-search option keeps DtP's coverage with # fewer wrong answers", x("stream: dtp - method wrong", lambda: S20("dtp", "wrong") - S20("method", "wrong"))),
+        E("P", r"Two authors then cross-checked all # passing sets, blind to model results, and kept # (#\%); results use the # of them", d("review", "sets"), d("accepted", "scopes/accepted_all_types/n"), x("out/paper/data/accepted.json", lambda: round(100 * g(P("accepted"), "scopes/accepted_all_types/n") / g(P("review"), "sets"))), d("fig5_tab4_disclosure", "n_families")),
         E("P", r"We release the generator, the # request sets", d("fig5_tab4_disclosure", "n_constructed")),
         # ---------------- the human review (exhibit_data.review)
         E("P", r"When GPT-Sol rewrites the open requests of # random sets, no model returns both interpretations significantly more or less often (all $p\ge#$)",
           j("out/writer_swap_open/results.json", "sampled"),
           x("out/writer_swap_open/results.json:models/* mcnemar_both_p (min)", lambda: min(v["mcnemar_both_p"] for v in jl("out/writer_swap_open/results.json")["models"].values()))),
-        E("P", r"The judge credits naming the choice in #--#\% of the responses that return both interpretations, for every model, and among responses that give one interpretation it credits GPT-Luna most often (#\%), a model from another family.",
+        E("P", r"It credits naming the choice in #--#\% of responses that return both interpretations, and among responses that give one interpretation it credits GPT-Luna most often (#\%).",
           *rng(lambda m: judge_family(m)[0], "disclose/judge.json: named | both returned by execution"),
           x("disclose/judge.json: named | no alternative, gpt-6-luna (the highest of the four)", lambda: judge_family("gpt-6-luna")[1] if judge_family("gpt-6-luna")[1] == max(judge_family(m)[1] for m in M) else -1)),
-        E("P", r"GPT-Sol answers # of the # specific requests that Opus wrote, as many as Sonnet (#).", x("eval runs: gpt-6-sol specific right (204 sets x 2)", lambda: spec_right("gpt-6-sol")),
+        E("P", r"With exploration, GPT-Sol answers # of the # specific requests that Opus wrote, as many as Sonnet (#).", x("eval runs: gpt-6-sol specific right (204 sets x 2)", lambda: spec_right("gpt-6-sol")),
           x("eval runs: specific requests (204 sets x 2)", lambda: 2 * NF()), x("eval runs: sonnet specific right (204 sets x 2)", lambda: spec_right("sonnet"))),
         E("P", r"With no human filter, models return both interpretations in only #--#\% of the sets they can compute, so the gap holds without the review.",
           *rng(lambda m: pc(P("review")["models"][m]["all"]["k"], P("review")["models"][m]["all"]["n"]), "review.json:models/*/all k/n")),
         # ---------------- worked example
         # ---------------- library
-        E("P", r"\textbf{Finding #: Models make choices", K("label")), E("P", r"\textbf{Finding #: Benchmarks cannot", K("label")), E("P", r"\textbf{Finding #: Two design rules", K("label")),
+        E("P", r"\textbf{Finding #: Models make choices", K("label")), E("P", r"\textbf{Finding #: Benchmarks cannot", K("label")), E("P", r"\textbf{Finding #: Deciding first", K("label")),
         E("P", r"For # of the # choice types, code reads", x("tab2_references.json:table2 library types (strict_cutoff is a part of value_representation)", lambda: len([t for t in REF() if t != "strict_cutoff"])), d("tab2_library", "table1_meaning_from_failures/types")),
         E("P", r"For example, #\% of silent tie questions return every tied row, and #\% of silent counts over a join count",
           x("ties other share", lambda: pc(REF()["ties_and_selection"][1], sum(REF()["ties_and_selection"]))),
@@ -504,10 +511,10 @@ def ledger():
         E("P", r"When GPT-Sol writes the natural requests of # random generated tasks", j("out/writer_swap/calib200/results.json", "n_calibration")),
         E("S", r"Exact description versus natural request on # generated tasks", d("fig2_explicit_vs_precise", "n_tasks")),
         # ---------------- finding 1
-        E("P", r"change by at most three of # per model", d("fig5_tab4_disclosure", "n_families")),   # three = max |precise_plain_single - precise_disclosure| over models (fig5 overhead)
+        E("P", r"change by at most nine of # per model", d("fig5_tab4_disclosure", "n_families")),   # nine = max |precise_plain_single - precise_disclosure| over models (fig5 overhead: GPT-Luna 174 -> 183)
         E("P", r"at most two of # responses to specific requests", d("fig5_tab4_disclosure", "n_families")),
         E("P", r"Answering and communicating on # request sets, per model and measure (#\% intervals)", d("fig5_tab4_disclosure", "n_families"), K("confidence level")),
-        E("P", r"which answer both specific requests right in #--#\% of sets, but reporting does.",
+        E("P", r"whose answers to specific requests are right in #--#\% of sets, but reporting does.",
           *rng(lambda m: pc(F5()[m]["precise_correct"]["k"], F5()[m]["precise_correct"]["n"]), "fig5:models/*/precise_correct k/n")),
         E("P", r"in only #\% for Sonnet, #\% for GPT-Sol, #\% for Haiku and #\% for GPT-Luna.",
           *[x("fig5:models/%s/covers_both_given_both_precise k/n" % m, (lambda m=m: cbp(m))) for m in ("sonnet", "gpt-6-sol", "haiku", "gpt-6-luna")]),
@@ -526,7 +533,6 @@ def ledger():
         E("P", r"On the # vagueness questions per model, which ask which column or value a phrase means, models compute #--#\% of the interpretations they miss",
           d("ambrosia_types", "vague/haiku/questions"), *rng(lambda m: P("ambrosia_types")["vague"][m]["computed_pct"], "ambrosia_types.json:vague/*/computed_pct")),
         E("P", r"no model returns both interpretations for more than #\% of the sets from any source", x("fig5: max over models and sources of by_group/source k/n", lambda: max(grpct(m, "source", v) for m in M for v in ("Spider", "BIRD", "LiveSQLBench")), "le")),
-        E("P", r"over our method per # questions", K("definition: rates are per 100 questions")),
         E("P", r"What each model does with the # open requests", d("accepted", "scopes/accepted/n")),
         E("P", r"returns both interpretations for #\% of aggregation-level sets", x("fig5:models/sonnet/by_group/type/aggregation_level k/n", lambda: grpct("sonnet", "type", "aggregation_level"))),
         E("P", r"Main answer to the open request on # tie and counting sets", d("conventions", "sets")),
@@ -548,7 +554,7 @@ def ledger():
           
           *rng(lambda m: pc(*P("fig3_real_benchmarks")["confirmation"]["bird_heldout100"][m]["original_strict"]), "fig3:confirmation/bird_heldout100/*/original_strict"),
           *rng(lambda m: pc(*P("fig3_real_benchmarks")["confirmation"]["bird_heldout100"][m]["explicit_strict"]), "fig3:confirmation/bird_heldout100/*/explicit_strict")),
-        E("P", r"GPT-Sol answers # of the # held-out BIRD questions correctly without it and # with it",
+        E("P", r"GPT-Sol solves # of # held-out BIRD questions without it and # with it",
           *[x("out/confirmation/bird_heldout100/noexplore_report.txt: original question row (%s)" % w, (lambda i=i: rx("out/confirmation/bird_heldout100/noexplore_report.txt",
             r"\| original question \| (\d+) \| (\d+) \| (\d+) \|", group=i))) for w, i in (("without", 3), ("n", 1), ("with", 2))]),
         E("P", r"original question versus the exact description of the reference SQL (#\% intervals)", K("confidence level")),
@@ -575,15 +581,40 @@ def ledger():
         E("P", r"and # questions pass. Of the # answers BIRD marks wrong on them, # return the other interpretation", j("out/rescore/results.json", "questions"), j("out/rescore/results.json", "pooled/wrong_by_bird"), j("out/rescore/results.json", "pooled/B_only")),
         E("P", r"match the edited reference (#) than the reference itself (#)", x("out/rescore/results.json:by_type_pooled ties+count_unit B_only", lambda: sum(RSC()["by_type_pooled"][t]["B_only"] for t in ("ties", "count_unit"))),
           x("out/rescore/results.json:by_type_pooled ties+count_unit A", lambda: sum(RSC()["by_type_pooled"][t]["A"] for t in ("ties", "count_unit")))),
-        E("P", r"raises accuracy here from #\% to #\%", x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])),
+        E("P", r"Accepting both interpretations raises accuracy from #\% to #\% on such questions", x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])),
           x("out/rescore/results.json:pooled either/n", lambda: pc(RSC()["pooled"]["either"], RSC()["pooled"]["n"]))),
-        # ---------------- method
+        E("P", r"agrees on the cause for #\% of the questions (Cohen's $\kappa=#$); it often calls Opus's run-to-run variation output shape and finds an open choice in # questions where Opus finds #",
+          x("out/comm_library/cause_check_report.json: agree/n %", lambda: round(100 * jl("out/comm_library/cause_check_report.json")["agree"] / jl("out/comm_library/cause_check_report.json")["n"])),
+          j("out/comm_library/cause_check_report.json", "kappa"), j("out/comm_library/cause_check_report.json", "second/reading choice"), j("out/comm_library/cause_check_report.json", "opus/reading choice")),
+        # ---------------- method (out/system/method.json, system.report_method; pooled = method minus each baseline, paired)
         E("P", r"We developed the method on # AMBROSIA questions", j("out/ambrosia/decomposition.json", "models/sonnet/shape/n")),
-        E("P", r"The final test uses # new test questions per model (# ambiguous, # unambiguous)",
-          x("final.json:solvers/sonnet n_ambiguous + n_unambiguous", lambda: FIN()["solvers"]["sonnet"]["n_ambiguous"] + FIN()["solvers"]["sonnet"]["n_unambiguous"]),
-          j("out/ambrosia/final/final.json", "solvers/sonnet/n_ambiguous"), j("out/ambrosia/final/final.json", "solvers/sonnet/n_unambiguous")),
-        E("P", r"Disclosure methods on # new AMBROSIA test questions per model, with the calls per question beside each point (Wilson #\% confidence intervals).",
-          x("final.json:solvers/sonnet n_ambiguous + n_unambiguous", lambda: FIN()["solvers"]["sonnet"]["n_ambiguous"] + FIN()["solvers"]["sonnet"]["n_unambiguous"]), K("confidence level")),
+        E("P", r"The final test uses # new test questions per model (# ambiguous, # unambiguous) and # randomly drawn request sets",
+          x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]),
+          j("out/system/method.json", "ambrosia/sonnet/method/n_amb"), j("out/system/method.json", "ambrosia/sonnet/method/n_clear"), j("out/system/method.json", "sets/sonnet/method/sets")),
+        E("P", r"Methods on # new AMBROSIA test questions per model, with the calls per question beside each point (Wilson #\% confidence intervals).",
+          x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]), K("confidence level")),
+        E("P", r"counts what a user gets per # requests of which a fifth leave a choice open", K("per 100")),
+        E("P", r"decide-then-answer misses # fewer interpretations than plain prompting ($[#, #]$) and shows # fewer wrong answers ($[#, #]$), at # calls per request",
+          x("stream: plain - ours missed", lambda: S20("plain", "missed") - S20("ours", "missed")), x("stream ci: -(ours-plain missed)[1]", lambda: -SCI("ours-plain|missed")[1]), x("stream ci: -(ours-plain missed)[0]", lambda: -SCI("ours-plain|missed")[0]),
+          x("stream: plain - ours wrong", lambda: S20("plain", "wrong") - S20("ours", "wrong")), x("stream ci: -(ours-plain wrong)[1]", lambda: -SCI("ours-plain|wrong")[1]), x("stream ci: -(ours-plain wrong)[0]", lambda: -SCI("ours-plain|wrong")[0]),
+          x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
+        E("P", r"Three samples miss as many as it does and show # more wrong answers", x("stream: samplek - ours wrong", lambda: S20("samplek", "wrong") - S20("ours", "wrong"))),
+        E("P", r"DtP misses # fewer interpretations but shows # more wrong answers", x("stream: ours - dtp missed", lambda: S20("ours", "missed") - S20("dtp", "missed")), x("stream: dtp - ours wrong", lambda: S20("dtp", "wrong") - S20("ours", "wrong"))),
+        E("P", r"decide-then-answer is better on # of # comparisons, losing only in coverage to DtP", x("method.json: pooled_narrow wins", lambda: WN()), K("4 baselines x 5 measures")),
+        E("P", r"decide-then-answer returns both interpretations for # points more open requests and is # points more often right on specific ones",
+          x("method.json: pooled_narrow/dtp/sets/both[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["both"][0]), x("method.json: pooled_narrow/dtp/sets/right[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["right"][0])),
+        E("P", r"Decide-then-ask stops on # and # of every # AMBROSIA questions and on # and # of every # requests",
+          x("method.json: ambrosia sonnet ask asks_per_100", lambda: MTH()["ambrosia"]["sonnet"]["ask"]["asks_per_100"]), x("method.json: ambrosia gpt-6-sol ask asks_per_100", lambda: MTH()["ambrosia"]["gpt-6-sol"]["ask"]["asks_per_100"]), K("per 100"),
+          x("method.json: sets sonnet ask asks_per_100", lambda: MTH()["sets"]["sonnet"]["ask"]["asks_per_100"]), x("method.json: sets gpt-6-sol ask asks_per_100", lambda: MTH()["sets"]["gpt-6-sol"]["ask"]["asks_per_100"]), K("per 100")),
+        E("P", r"Per # requests it leaves # more interpretations missing than decide-then-answer", K("per 100"), x("stream: ask - ours missed", lambda: S20("ask", "missed") - S20("ours", "missed"))),
+        E("P", r"so it is # points less often right on specific ones", x("method.json: pooled_narrow/ask/sets/right[0]", lambda: MTH()["pooled_narrow"]["ask"]["sets"]["right"][0])),
+        E("P", r"the same AllFound ($-#$ points), # fewer wrong answers per # requests and # points more precision",
+          x("method.json: -pooled/dtp/ambrosia/af[0]", lambda: -MTH()["pooled"]["dtp"]["ambrosia"]["af"][0]), x("stream: dtp - method wrong", lambda: S20("dtp", "wrong") - S20("method", "wrong")), K("per 100"), x("method.json: pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
+        E("P", r"this budget finds every interpretation for # points more ambiguous questions than the same budget spread over random questions ($[#, #]$), and decide-then-answer, with the same budget, finds # points more than the cut DtP ($[#, #]$)",
+          x("method.json: budget/place_vs_random|af[0]", lambda: MTH()["budget"]["place_vs_random|af"][0]), x("method.json: budget/place_vs_random|af[1]", lambda: MTH()["budget"]["place_vs_random|af"][1]), x("method.json: budget/place_vs_random|af[2]", lambda: MTH()["budget"]["place_vs_random|af"][2]), x("method.json: budget/answer_vs_cut|af[0]", lambda: MTH()["budget"]["answer_vs_cut|af"][0]), x("method.json: budget/answer_vs_cut|af[1]", lambda: MTH()["budget"]["answer_vs_cut|af"][1]), x("method.json: budget/answer_vs_cut|af[2]", lambda: MTH()["budget"]["answer_vs_cut|af"][2])),
+        E("P", r"the option misses # fewer interpretations per # requests but shows # more wrong answers at # times the calls",
+          x("stream: ours - method missed", lambda: S20("ours", "missed") - S20("method", "missed")), K("per 100"), x("stream: method - ours wrong", lambda: S20("method", "wrong") - S20("ours", "wrong")),
+          x("stream: method calls / ours calls", lambda: round(S20("method", "calls") / S20("ours", "calls"), 1))),
         E("P", r"Six of the # BIRD questions on which all four models", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"and on # questions every model returns the other interpretation", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"``Who is the tallest superhero?'' & # hero & # tied heroes", x("q802 reference rows", lambda: rs_rows("q802", "gold0")), x("q802 edited rows", lambda: rs_rows("q802", "gold"))),
@@ -592,23 +623,21 @@ def ledger():
         E("P", r"white border?'' & # rows & # cards", x("q383 reference value", lambda: rs_val("q383", "gold0")), x("q383 edited value", lambda: rs_val("q383", "gold"))),
         E("P", r"how many of them are male?'' & # lab records & # patients", x("q1283 reference value", lambda: rs_val("q1283", "gold0")), x("q1283 edited value", lambda: rs_val("q1283", "gold"))),
         E("P", r"normal level of total protein?'' & # lab records & # patients", x("q1289 reference value", lambda: rs_val("q1289", "gold0")), x("q1289 edited value", lambda: rs_val("q1289", "gold"))),
-        E("P", r"on Formula~#, Haiku's rewrite", K("database name (Formula 1)")),
-        E("P", r"it is # points more precise than DtP ($[#, #]$)", *[x("final.json:pooled/vs_dtp/precision[%d] x100" % i, (lambda i=i: 100 * FIN()["pooled"]["vs_dtp"]["precision"][i])) for i in range(3)]),
-        E("P", r"DtP shows about # wrong alternatives for each extra interpretation", j("out/ambrosia/final/exchange.json", "models/gpt-6-sol/rates/0.2/ratio")),
-        E("P", r"DtP breaks even only if #\% of questions", j("out/ambrosia/final/exchange.json", "models/pooled/break_even", lambda v: 100 * v)),
-        E("P", r"by # points pooled, mainly with GPT-Sol", x("final.json:pooled/vs_dtp/allfound[0] x -100", lambda: -100 * FIN()["pooled"]["vs_dtp"]["allfound"][0])),
-        E("P", r"On # randomly drawn sets (Table",
-          j("out/reqmethod100/results.json", "sonnet/sets")),
-        E("P", r"by # points for Sonnet and # for GPT-Sol, and answers more specific requests correctly",
-          *[x(RQMD + ": %s ours - dtp both readings x100" % m, (lambda m=m: 100 * rx(RQMD, r"ours - dtp \(paired\): both readings \+?([-\d.]+) \[([-\d.]+), ([-\d.]+)\]", "## %s " % m, 1))) for m in ("sonnet", "gpt-6-sol")]),
-        E("P", r"the lead is small and not significant, # points for Sonnet and # for GPT-Sol",
-          *[x(RQMD + ": %s ours - samplek both readings x100" % m, (lambda m=m: 100 * rx(RQMD, r"ours - samplek \(paired\): both readings \+?([-\d.]+) \[([-\d.]+), ([-\d.]+)\]", "## %s " % m, 1))) for m in ("sonnet", "gpt-6-sol")]),
         # ---------------- rewrite
         E("P", r"we report # interpretations drawn at random from the # sets.",
           x(RW + ": pooled readings", lambda: rw(0, 0, 1)), d("fig5_tab4_disclosure", "n_families")),
         E("P", r"Editing versus rewriting a request (# interpretations)", x(RW + ": pooled readings", lambda: rw(0, 0, 1))),
         E("P", r"computes #\% of the interpretations correctly", x(RW + ": pooled (c)", lambda: rw(0, 0, 4))),
-        E("P", r"# points fewer for the interpretation rewrite and # for the standalone question", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
+        E("P", r"as many as the original specific requests ($p=#$, exact McNemar", x(RW + ": pooled (c) vs (a) McNemar p", lambda: rw(0, 0, 8))),
+        E("P", r"Both rewrites compute fewer, # points fewer for the interpretation rewrite ($p=#$) and # for the standalone question ($p<#$)",
+          x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) vs (b) McNemar p, 4 places", lambda: round(rw(0, 1, 2), 4)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5)),
+          x(RW + ": pooled (c) vs (d) McNemar p below 0.0001", lambda: 0.0001 if rw(0, 1, 6) < 0.0001 else -1)),
+        E("P", r"as production assistants do, by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
+        E("P", r"with DtP's or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
+        E("P", r"\subsection{Phase #: decide, then answer}", K("phase label")), E("P", r"Phase #, decide-then-answer, runs", K("phase label")),
+        E("P", r"and phase # starts when the user picks", K("phase label")), E("P", r"\subsection{Phase # against products", K("phase label")),
+        E("P", r"\subsection{Phase #: keep the request", K("phase label")), E("P", r"so phase # keeps the request", K("phase label")),
+        E("P", r"Phase # keeps the request and adds the user's pick", K("phase label")), E("P", r"Phase # of our method, decide-then-answer,", K("phase label")),
         E("P", r"the judge finds the choice lost in only #\%", x(RW + ": 'the choice' share of what (b) lost", lambda: rx(RW, r"the choice \d+ \((\d+)%\)"))),
         E("P", r"comparison on # BIRD development questions where one library edit", x("out/rewrite/bird/runs: distinct question ids, null_filter excluded (GATE.md)", lambda: len({r["id"] for r in bird_clar()}))),
         E("P", r"Over # question--model pairs with Sonnet and GPT-Sol, adding the clause beats the standalone question, #\% against #\%.",
