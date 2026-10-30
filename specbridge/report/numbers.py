@@ -219,6 +219,17 @@ def bird_acc(v): R = bird_clar(); return pc(sum(r[v]["right"] for r in R), len(R
 def bird_p(v): R = bird_clar(); return mcnemar(sum(r["c"]["right"] and not r[v]["right"] for r in R), sum(r[v]["right"] and not r["c"]["right"] for r in R))
 
 
+def gate_clear():
+    """Per model: % of specific requests in Table 5's request sets for which Decide-then-answer's first step lists one interpretation."""
+    from specbridge.comm.transfer import system as SYS, reqmethod as RM, reviewed as RV
+    ks, WD, _C, _W = SYS._sets(); ks = RV.accepted(ks); out = {}
+    for m in SYS.MODELS:
+        L = [len(jl(RM._f("ours", m, k, w)).get("readings") or []) <= 1 for k in ks
+             if all(os.path.exists(RM._f(a, m, k, w_)) for a in ("samplek", "dtp", "ours") for w_ in WD[k]) for w in WD[k] if w != "open"]
+        out[m] = pc(sum(L), len(L))
+    return out
+
+
 def amb_three():
     """(ambiguous questions with three interpretations, all ambiguous questions) in the AMBROSIA final test."""
     if os.path.exists("out/system/scores.jsonl"):             # the release: scores only, no AMBROSIA text (system Table 5 test, both models)
@@ -523,6 +534,8 @@ def ledger():
         # ---------------- finding 1
         E("P", r"change by at most nine of # per model", d("fig5_tab4_disclosure", "n_families")),   # nine = max |precise_plain_single - precise_disclosure| over models (fig5 overhead: GPT-Luna 174 -> 183)
         E("P", r"drop districts tied with the #th, Sonnet answers as asked", K("the request's wording (set eval12@01cfbb1e713f-31caaab8c7)")),
+        E("P", r"the first step finds no open choice in #--#\% of specific requests", x("reqmethod100/ours: specific requests with one listed interpretation (min over models)", lambda: min(gate_clear().values())), x("max over models", lambda: max(gate_clear().values()))),
+        E("P", r"we keep only choice types for which at least #\% of references take the less common one", K("design rule: the 1% type threshold")),
         E("P", r"and at most one of # responses per model calls the choice open", d("fig5_tab4_disclosure", "n_families")),   # 'one' = max fig5 false_open k; 'no alternative' = fig5 false_other k is 0 for every model
         E("P", r"Alternatives on other choices, which the sets do not test, appear in #--# of # responses per model",
           *rng(lambda m: F5()[m]["alt_other_choice"]["k"], "fig5:models/*/alt_other_choice k"), d("fig5_tab4_disclosure", "n_families")),
