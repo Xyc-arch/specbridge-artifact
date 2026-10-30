@@ -219,6 +219,12 @@ def bird_acc(v): R = bird_clar(); return pc(sum(r[v]["right"] for r in R), len(R
 def bird_p(v): R = bird_clar(); return mcnemar(sum(r["c"]["right"] and not r[v]["right"] for r in R), sum(r[v]["right"] and not r["c"]["right"] for r in R))
 
 
+def amb_three():
+    """(ambiguous questions with three interpretations, all ambiguous questions) in the AMBROSIA final test."""
+    from specbridge.comm.transfer import ambrosia as AM
+    a = [r for r in AM.final_rows() if r["ambiguous"]]; return sum(len(r["gold"]) == 3 for r in a), len(a)
+
+
 def amb_decomp():
     A = [jl("out/ambrosia/%s.json" % f)["models"] for f in ("decomposition", "decomposition_conf")]
     s = lambda m, k: sum(a[m]["shape"][k] for a in A)
@@ -360,7 +366,7 @@ def library_table():
                  *cut, x("accepted sets of type value_representation (cutoffs)", lambda: sets_of("value_representation"))))
     out.append(E("S", r"\multicolumn{2}{@{}l}{Total} & # & # & & & #\\", d("tab2_library", "table1_meaning_from_failures/open"),
                  d("tab2_library", "table1_meaning_from_failures/settled"), d("fig5_tab4_disclosure", "n_families")))
-    out.append(E("S", r"Sets: the # accepted request sets, of the types whose other interpretation at least #\% of silent references take", d("fig5_tab4_disclosure", "n_families"),
+    out.append(E("S", r"Sets: the # accepted request sets, of the types in which at least #\% of open questions have a reference that takes the other interpretation", d("fig5_tab4_disclosure", "n_families"),
                  K("design rule: the 1% type threshold")))
     return out
 
@@ -436,20 +442,25 @@ def ledger():
     rng = lambda fn, src: [x(src + " (min)", lambda: min(fn(m) for m in M)), x(src + " (max)", lambda: max(fn(m) for m in M))]
     L += [
         # ---------------- abstract
-        E("P", r"On # hand-validated request sets", d("fig5_tab4_disclosure", "n_families")),
-        E("P", r"they return both interpretations in only #--#\% of those sets, and they name the choice in only #--#\% of all sets.", *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n"),
-          *rng(recog, "fig5:models/*/recognises k/n")),
+        E("P", r"On # hand-validated tests", d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"yet for the open request return both in only #--#\% of the tests where they can", *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n")),
+        E("P", r"get every interpretation by #--# points over the single answer", x("pooled_narrow/state/ambrosia/af[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0])), x("pooled_narrow/state/sets/both[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["sets"]["both"][0]))),
                 # ---------------- introduction
-        E("P", r"For two films priced at \$# for two days and \$# for six days, the first interpretation gives \$# per day and the second \$#.",
-          K("illustrative input of the worked arithmetic"), K("illustrative input of the worked arithmetic"),
-          x("arithmetic of the example: mean(6/2, 6/6)", lambda: (6 / 2 + 6 / 6) / 2), x("arithmetic of the example: mean(6,6)/mean(2,6)", lambda: 6 / ((2 + 6) / 2))),
-        E("P", r"On # BIRD questions whose answer the choice changes, accepting both interpretations raises accuracy from #\% to #\% (Section", j("out/rescore/results.json", "questions"),
+        E("P", r"For two films priced at \$# for two days and \$# for six days, A gives $(\$# + \$#)/2 = \$#$ per day and B gives $\$#/# = \$#$.",
+          K("illustrative input of the worked arithmetic"), K("illustrative input of the worked arithmetic"), K("6/2"), K("6/6"),
+          x("arithmetic of the example: mean(6/2, 6/6)", lambda: (6 / 2 + 6 / 6) / 2), K("illustrative input"), K("mean of 2 and 6 days"), x("arithmetic of the example: mean(6,6)/mean(2,6)", lambda: 6 / ((2 + 6) / 2))),
+        E("P", r"On BIRD, # development questions change their answer", d("fig_impact", "BIRD dev/questions/any_change")),
+        E("P", r"On # such questions, two authors confirmed", j("out/rescore/results.json", "questions")),
+        E("P", r"raises the four models' accuracy from #\% to #\%",
           x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])), x("out/rescore/results.json:pooled either/n", lambda: pc(RSC()["pooled"]["either"], RSC()["pooled"]["n"]))),
-        E("P", r"the best BIRD score, #\%, and human performance, #\%", K("BIRD leaderboard, best test EX 83.40 (AskData), read 2026-10-25"), K("BIRD paper: human test EX 92.96")),
         E("P", r"On # accepted request sets (Figure", d("fig5_tab4_disclosure", "n_families")),
-        E("P", r"They name the choice in #--#\% of the sets, but return both interpretations for the open request in only #--#\% of the sets they can compute.",
-          *rng(recog, "fig5:models/*/recognises k/n"), *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n")),
-                        E("P", r"Two authors then cross-checked all # passing sets, blind to model results, and kept # (#\%); results use the # of them", d("review", "sets"), d("accepted", "scopes/accepted_all_types/n"), x("out/paper/data/accepted.json", lambda: round(100 * g(P("accepted"), "scopes/accepted_all_types/n") / g(P("review"), "sets"))), d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"they return both interpretations in only #--#\% of the sets they can compute, and they name the choice in only #--#\% of all sets",
+          *rng(cbp, "fig5:models/*/covers_both_given_both_precise k/n"), *rng(recog, "fig5:models/*/recognises k/n")),
+        E("P", r"In #--#\% of the sets where a model misses an interpretation, the same model computes it correctly when asked for it alone",
+          *rng(lambda m: pc(F5()[m]["decomposition"]["matched"]["all"]["both_specific_right"], F5()[m]["decomposition"]["matched"]["all"]["not_covered"]), "fig5:models/*/decomposition/matched/all both_specific_right/not_covered")),
+        E("P", r"and there models compute #--#\% of the interpretations they miss", *rng(lambda m: amb_decomp()[m]["computed"], "out/ambrosia/decomposition{,_conf}.json shape missed_computed/missed")),
+        E("P", r"high-debt countries grew #\% a year, not $#\%$~\cite{herndon2014debt}", K("Herndon et al. 2014"), K("Herndon et al. 2014")),
+                        E("P", r"Two authors then cross-checked all # passing sets without seeing model results and kept # (#\%), so no result rests on model reviewers alone. Results use the # of them", d("review", "sets"), d("accepted", "scopes/accepted_all_types/n"), x("out/paper/data/accepted.json", lambda: round(100 * g(P("accepted"), "scopes/accepted_all_types/n") / g(P("review"), "sets"))), d("fig5_tab4_disclosure", "n_families")),
         E("P", r"We release the generator, the # request sets", d("fig5_tab4_disclosure", "n_constructed")),
         # ---------------- the human review (exhibit_data.review)
         E("P", r"When GPT-Sol rewrites the open requests of # random sets, no model returns both interpretations significantly more or less often (all $p\ge#$)",
@@ -466,7 +477,7 @@ def ledger():
         # ---------------- library
         E("P", r"\textbf{Finding #: Models make choices", K("label")), E("P", r"\textbf{Finding #: Benchmarks cannot", K("label")), E("P", r"\textbf{Finding #: Deciding first", K("label")),
         E("P", r"For # of the # choice types, code reads", x("tab2_references.json:table2 library types (strict_cutoff is a part of value_representation)", lambda: len([t for t in REF() if t != "strict_cutoff"])), d("tab2_library", "table1_meaning_from_failures/types")),
-        E("P", r"For example, #\% of silent tie questions return every tied row, and #\% of silent counts over a join count",
+        E("P", r"For example, #\% of open tie questions return every tied row, and #\% of open questions that count over a join count",
           x("ties other share", lambda: pc(REF()["ties_and_selection"][1], sum(REF()["ties_and_selection"]))),
           x("counting other share", lambda: pc(REF()["counting_unit"][1], sum(REF()["counting_unit"])))),
         # ---------------- applying a choice / filters
@@ -508,7 +519,11 @@ def ledger():
         E("S", r"Exact description versus natural request on # generated tasks", d("fig2_explicit_vs_precise", "n_tasks")),
         # ---------------- finding 1
         E("P", r"change by at most nine of # per model", d("fig5_tab4_disclosure", "n_families")),   # nine = max |precise_plain_single - precise_disclosure| over models (fig5 overhead: GPT-Luna 174 -> 183)
-        E("P", r"at most two of # responses to specific requests", d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"drop districts tied with the #th, Sonnet answers as asked", K("the request's wording (set eval12@01cfbb1e713f-31caaab8c7)")),
+        E("P", r"and at most one of # responses per model calls the choice open", d("fig5_tab4_disclosure", "n_families")),   # 'one' = max fig5 false_open k; 'no alternative' = fig5 false_other k is 0 for every model
+        E("P", r"Alternatives on other choices, which the sets do not test, appear in #--# of # responses per model",
+          *rng(lambda m: F5()[m]["alt_other_choice"]["k"], "fig5:models/*/alt_other_choice k"), d("fig5_tab4_disclosure", "n_families")),
+        E("P", r"(three for # of the # we test)", x("AMBROSIA final test: ambiguous questions with three gold queries", lambda: amb_three()[0]), x("AMBROSIA final test: ambiguous questions", lambda: amb_three()[1])),
         E("P", r"Answering and communicating on # request sets, per model and measure (#\% intervals)", d("fig5_tab4_disclosure", "n_families"), K("confidence level")),
         E("P", r"whose answers to specific requests are right in #--#\% of sets, but reporting does.",
           *rng(lambda m: pc(F5()[m]["precise_correct"]["k"], F5()[m]["precise_correct"]["n"]), "fig5:models/*/precise_correct k/n")),
@@ -557,8 +572,8 @@ def ledger():
           *[x("out/confirmation/bird_heldout100/noexplore_report.txt: original question row (%s)" % w, (lambda i=i: rx("out/confirmation/bird_heldout100/noexplore_report.txt",
             r"\| original question \| (\d+) \| (\d+) \| (\d+) \|", group=i))) for w, i in (("without", 3), ("n", 1), ("with", 2))]),
         E("P", r"original question versus the exact description of the reference SQL (#\% intervals)", K("confidence level")),
-        E("P", r"in at least #\% of silent questions", x("fig6_inclination.json:groups/*/kinds (five other decisions, n >= 10): min share usual", f6_others_min, "ge")),
-        E("P", r"return one row in over #\% of silent questions", x("fig6_inclination.json:groups BIRD/Spider own, ties_and_selection k/n (min)", lambda: min(f6_share(g_, "ties_and_selection") for g_ in OWN), "gt")),
+        E("P", r"in at least #\% of open questions", x("fig6_inclination.json:groups/*/kinds (five other decisions, n >= 10): min share usual", f6_others_min, "ge")),
+        E("P", r"return one row in over #\% of open questions", x("fig6_inclination.json:groups BIRD/Spider own, ties_and_selection k/n (min)", lambda: min(f6_share(g_, "ties_and_selection") for g_ in OWN), "gt")),
         E("P", r"return one row in # of #.", d("fig6_inclination", "groups/imported: geo, restaurants/kinds/ties_and_selection/k"), d("fig6_inclination", "groups/imported: geo, restaurants/kinds/ties_and_selection/n")),
         E("P", r"in none of #. Each group", d("fig6_inclination", "groups/imported: academic, imdb, yelp/kinds/counting_unit/n")),
         E("P", r"BIRD and Spider bars are at # to # percent; the imported Spider groups are at # percent (ties) and # percent (counting).",
@@ -580,6 +595,8 @@ def ledger():
         E("P", r"and # questions pass. Of the # answers BIRD marks wrong on them, # return the other interpretation", j("out/rescore/results.json", "questions"), j("out/rescore/results.json", "pooled/wrong_by_bird"), j("out/rescore/results.json", "pooled/B_only")),
         E("P", r"match the edited reference (#) than the reference itself (#)", x("out/rescore/results.json:by_type_pooled ties+count_unit B_only", lambda: sum(RSC()["by_type_pooled"][t]["B_only"] for t in ("ties", "count_unit"))),
           x("out/rescore/results.json:by_type_pooled ties+count_unit A", lambda: sum(RSC()["by_type_pooled"][t]["A"] for t in ("ties", "count_unit")))),
+        E("P", r"more answers match the other interpretation (#) than the reference (#;", x("out/rescore/results.json:by_type_pooled ties+count_unit B_only", lambda: sum(RSC()["by_type_pooled"][t]["B_only"] for t in ("ties", "count_unit"))),
+          x("out/rescore/results.json:by_type_pooled ties+count_unit A", lambda: sum(RSC()["by_type_pooled"][t]["A"] for t in ("ties", "count_unit")))),
         E("P", r"On the # questions checked below, accepting both interpretations raises accuracy from #\% to #\%", j("out/rescore/results.json", "questions"), x("out/rescore/results.json:pooled A/n", lambda: pc(RSC()["pooled"]["A"], RSC()["pooled"]["n"])),
           x("out/rescore/results.json:pooled either/n", lambda: pc(RSC()["pooled"]["either"], RSC()["pooled"]["n"]))),
         E("P", r"agrees on the cause for #\% of the questions (Cohen's $\kappa=#$); it often calls Opus's run-to-run variation output shape and finds an open choice in # questions where Opus finds #",
@@ -592,12 +609,11 @@ def ledger():
           *[x("pooled_narrow/state/sets/both[%d]" % i, (lambda i=i: MTH()["pooled_narrow"]["state"]["sets"]["both"][i])) for i in (0, 3)],
           x("-pooled_narrow/state/ambrosia/pre[0]", lambda: -MTH()["pooled_narrow"]["state"]["ambrosia"]["pre"][0]), x("pooled_narrow/state/ambrosia/pre se", lambda: MTH()["pooled_narrow"]["state"]["ambrosia"]["pre"][3]),
           *[x("pooled_narrow/state/sets/prec[%d]" % i, (lambda i=i: MTH()["pooled_narrow"]["state"]["sets"]["prec"][i])) for i in (0, 3)]),
-        E("P", r"it is the most precise, by # to # points on AMBROSIA and # to # points on request sets, all significant",
-          x("min pooled_narrow ambrosia pre (plain, samplek, dtp)", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
-          x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
-          x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
-          x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp")))),
-        # two turns (system.report_twoturn -> method.json["twoturn"]): per 100 requests; AMBROSIA at one in five ambiguous
+        E("P", r"it returns every interpretation for # points more of AMBROSIA's ambiguous questions and # points more of the open requests in request sets", x("pooled_narrow/state/ambrosia/af[0]", lambda: MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0]), x("pooled_narrow/state/sets/both[0]", lambda: MTH()["pooled_narrow"]["state"]["sets"]["both"][0])),
+        E("P", r"It loses no precision and makes # to # calls per request", x("Table 5: min ours calls over models and datasets", lambda: round(min(MTH()[d_][m]["ours"]["calls"] for d_ in ("ambrosia", "sets") for m in MTH()[d_]), 1)), x("Table 5: max ours calls", lambda: round(max(MTH()[d_][m]["ours"]["calls"] for d_ in ("ambrosia", "sets") for m in MTH()[d_]), 1))),
+        E("P", r"It is also more precise than two prompting baselines and \method{DtP}~\cite{saparina2025disambiguate}, by # to # points",
+          x("min pooled_narrow pre/prec over plain, samplek, dtp and both datasets", lambda: min([MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp")] + [MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp")])),
+          x("max of the same", lambda: max([MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp")] + [MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp")]))),
         E("P", r"\method{Decide-then-answer} needs $# \pm #$ fewer user turns than \method{Clarifying question} and $# \pm #$ fewer than \method{Single answer}, and $# \pm #$ and $# \pm #$ fewer on request sets. It also ends right on $# \pm #$ and $# \pm #$ more AMBROSIA requests and on $# \pm #$ and $# \pm #$ more request-set requests",
           *[s_ for d, dd in (("ambrosia", "amb"), ) for b in ("ask", "state") for s_ in (x("twoturn %s user_turns %s-ours" % (d, b), (lambda d=d, b=b: TTD(d, b, "user_turns"))), x("twoturn se %s|ours-%s|user_turns" % (dd, b), (lambda dd=dd, b=b: TT()["se"]["%s|ours-%s|user_turns" % (dd, b)])))],
           *[s_ for b in ("ask", "state") for s_ in (x("twoturn sets user_turns %s-ours" % b, (lambda b=b: TTD("sets", b, "user_turns"))), x("twoturn se sets|ours-%s|user_turns" % b, (lambda b=b: TT()["se"]["sets|ours-%s|user_turns" % b])))],
@@ -613,14 +629,11 @@ def ledger():
         E("P", r"\method{Decide-then-search} finds every interpretation for # points more ambiguous questions but is # points less precise, at # times the calls",
           x("pooled/ours/ambrosia/af[0]", lambda: MTH()["pooled"]["ours"]["ambrosia"]["af"][0]), x("-pooled/ours/ambrosia/pre[0]", lambda: -MTH()["pooled"]["ours"]["ambrosia"]["pre"][0]),
           x("stream: method calls / ours calls", lambda: round(S20("method", "calls") / S20("ours", "calls"), 1))),
-        E("P", r"returns every interpretation for # to # points more open requests than the single answer", x("pooled_narrow/state/ambrosia/af[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0])), x("pooled_narrow/state/sets/both[0], rounded", lambda: round(MTH()["pooled_narrow"]["state"]["sets"]["both"][0]))),
-        E("P", r"and disambiguate-then-parse, at # calls per request", x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
-        E("P", r"it returns every interpretation for # and # points more open requests with no loss of precision", x("pooled_narrow/state/ambrosia/af[0]", lambda: MTH()["pooled_narrow"]["state"]["ambrosia"]["af"][0]), x("pooled_narrow/state/sets/both[0]", lambda: MTH()["pooled_narrow"]["state"]["sets"]["both"][0])),
-        E("P", r"it is the most precise, by # to # points on AMBROSIA and # to # on request sets, at # calls per request",
-          x("min pooled_narrow ambrosia pre", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))), x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
-          x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))), x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
-          x("stream: ours calls / 100", lambda: S20("ours", "calls") / 100)),
-        E("P", r"\method{Decide-then-search} keeps \method{DtP}'s AMBROSIA coverage and is # points more precise", x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
+        E("P", r"it is the most precise, by # to # points on AMBROSIA and # to # points on request sets, all significant",
+          x("min pooled_narrow ambrosia pre (plain, samplek, dtp)", lambda: min(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
+          x("max pooled_narrow ambrosia pre", lambda: max(MTH()["pooled_narrow"][b]["ambrosia"]["pre"][0] for b in ("plain", "samplek", "dtp"))),
+          x("min pooled_narrow sets prec", lambda: min(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp"))),
+          x("max pooled_narrow sets prec", lambda: max(MTH()["pooled_narrow"][b]["sets"]["prec"][0] for b in ("plain", "samplek", "dtp")))),
         E("P", r"We developed the method on # AMBROSIA questions", j("out/ambrosia/decomposition.json", "models/sonnet/shape/n")),
         E("P", r"The final test uses # new test questions per model (# ambiguous, # unambiguous) and # randomly drawn request sets",
           x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]),
@@ -647,8 +660,7 @@ def ledger():
           x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) vs (b) McNemar p, 4 places", lambda: round(rw(0, 1, 2), 4)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5)),
           x(RW + ": pooled (c) vs (d) McNemar p below 0.0001", lambda: 0.0001 if rw(0, 1, 6) < 0.0001 else -1)),
         E("P", r"and its main answer is right on # points more specific requests", x("pooled_narrow/state/sets/right[0]", lambda: MTH()["pooled_narrow"]["state"]["sets"]["right"][0])),
-        E("P", r"rewriting the request with DtP's or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
-        E("P", r"rewrites with \method{DtP}'s or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
+        E("P", r"rewriting the request with \method{DtP}'s or LangChain's prompts by # to # points", x(RW + ": pooled (c) - (b)", lambda: rw(0, 1, 1)), x(RW + ": pooled (c) - (d)", lambda: rw(0, 1, 5))),
         E("P", r"\subsection{Phase #: decide, then answer}", K("phase label")), E("P", r"Phase #, \method{Decide-then-answer}, runs", K("phase label")),
         E("P", r"and phase # starts when the user picks", K("phase label")), E("P", r"\subsection{Phase # against products", K("phase label")),
         E("P", r"\subsection{Phase #: keep the request", K("phase label")), E("P", r"so phase # keeps the request", K("phase label")),

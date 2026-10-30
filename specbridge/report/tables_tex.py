@@ -139,20 +139,16 @@ def comparison():
     C = json.load(open(FZ.FRZ))["cases"]; A = set(json.load(open(FZ.FROZEN))["accepted"]) if os.path.exists(FZ.FROZEN) else set()
     tested = {FZ.SET_TYPE.get(c["type"], c["type"]) for c in C if c["case"] in A}   # cutoff sets test strict cutoffs, not value matching
     L = ["\\begin{table}[t]",
-         "\\caption{\\system{} and the two closest benchmarks of ambiguous text-to-SQL. Schema: synonym or split columns and tables; wording: scope, attachment, vagueness; calculation: ties, counting units, missing values, aggregation level. Mined: in our library of choices from benchmark failures, but not built into the request sets we test here.}",
+         "\\caption{\\system{} and the two closest benchmarks of ambiguous text-to-SQL. Schema: synonym or split columns and tables; wording: scope, attachment, vagueness; calculation: ties, counting units, missing values, aggregation level. Possible: AMBROSIA's data allow it, but its scores do not (Section~\\ref{sec:disclosure}).}",
          "\\label{tab:comparison}", "\\centering\\footnotesize", "\\providecommand{\\cm}{\\ensuremath{\\checkmark}}\\providecommand{\\xm}{\\ensuremath{\\times}}", "\\setlength{\\tabcolsep}{3.5pt}",
          "\\begin{tabular}{@{}lccc@{}}", "\\toprule",
          "& AmbiQT~\\cite{ambiqt2023} & AMBROSIA~\\cite{ambrosia2024} & \\system{}\\\\", "\\midrule",
-         "Choices in the schema & \\cm & \\xm & mined\\\\",
-         "Choices in the wording & \\xm & \\cm & mined\\\\",
-         "Choices in the calculation & \\xm & \\xm & \\cm\\\\",
+         "Where the choices lie & schema & wording & calculation\\\\",   # 2026-10-30 co-author: rows follow the intro's three gaps
          "\\midrule",
          "Benchmark databases, unmodified & \\xm & \\xm & \\cm\\\\",
-         "Measures reference conventions & \\xm & \\xm & \\cm\\\\",
-         "One request per interpretation & \\xm & \\cm & \\cm\\\\",
-         "Separates computing from reporting & \\xm & \\xm & \\cm\\\\",
-         "Checks the stated interpretation & \\xm & \\xm & \\cm\\\\",
-         "Penalizes raising a settled choice & \\xm & \\xm & \\cm\\\\",
+         "Scores the explanation & \\xm & \\xm & \\cm\\\\",
+         "Separates computing from reporting & \\xm & possible & \\cm\\\\",           # AMBROSIA's paired questions allow it (Sec. 5)
+         "Penalizes raising a settled choice & \\xm & \\cm & \\cm\\\\",              # AMBROSIA's precision on unambiguous questions
          "\\bottomrule", "\\end{tabular}", "\\end{table}"]
     write("comparison", "\n".join(L) + "\n")
     print("  kinds outside both taxonomies:", {k: meaning[k] for k in outside}, "sum", cov(outside), "of", tot)

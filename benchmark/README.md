@@ -8,7 +8,7 @@ leaves the choice open?
 - `request_sets.jsonl`: 307 sets, 215 with `"family": "main"` and 92 with `"family": "filter"` (an added filter condition,
   Section 2). **204 have `"accepted": true`**: two authors cross-checked every set independently and kept 232 where a reasonable
   analyst could mean either interpretation; of these, 204 are of a choice type whose other interpretation at least 1% of
-  silent BIRD and Spider references take (Section 4.2). All results in the paper use these 204.
+  references of open BIRD and Spider questions take (Section 4.2). All results in the paper use these 204.
 - `databases/`: the 12 SQLite databases (Spider: baseball_1, sakila_1, customers_and_invoices, chinook_1; BIRD: financial,
   student_club, thrombosis_prediction, formula_1; LiveSQLBench: archeology, insider, crypto, alien).
 - `score.py`: the scorer. `python benchmark/score.py answers.jsonl` scores a model; `--self-test` checks that every reference

@@ -80,7 +80,7 @@ def tex(S):
          card("dbs", "(0,0)", 72, "Databases", "Spider, BIRD development, LiveSQLBench: %(tried)s tried, %(usable)s usable for the generator.\\\\%(dbs)s evaluation databases, four per source" % s),
          card("mod", "(\\X,0)", 72, "Models", "Evaluated: Haiku, Sonnet, GPT-Sol, GPT-Luna.\\\\Opus writes and reviews request sets with Sonnet, reviews Sonnet's natural requests, and judges explanations; it is not evaluated"),
          card("qs", "(2*\\X,0)", 72, "BIRD and Spider questions", "BIRD development: %(bird_mine)s questions on five databases to mine choices, %(bird_held)s held out.\\\\"
-              "Spider development: %(spider_mine)s to mine, %(spider_held)s held out.\\\\References of all silent questions, training and development" % s),
+              "Spider development: %(spider_mine)s to mine, %(spider_held)s held out.\\\\References of all open questions, training and development" % s),
          card("amb", "(3*\\X,0)", 72, "AMBROSIA", "%(amb_dev)s development questions; %(amb_test)s new test questions per model (%(amb_ambig)s ambiguous, %(amb_clear)s unambiguous)" % s),
          r"% ---- built from them", r"\path (0,0 |- dbs.south) ++(0,-20) coordinate (r2);", r"\node[band] at ([yshift=4pt]r2) {Built from them};",
          card("gen", "(r2)", 45, "Generated tasks", "on the %(dbs)s evaluation databases: %(delivered)s of %(requested)s queries delivered; %(tasks)s tasks with a natural request" % s),
@@ -100,7 +100,7 @@ def tex(S):
              (R("sec:setup"), "exploration, %(bird_held)s held-out BIRD questions" % s), (F("tab:filtersets"), "%(filt_acc)s filter sets" % s)]),
          exp("e3", "(2*\\X,0 |- r3)", "Can benchmarks see it? (%s)" % R("sec:diagnosis"), [
              (F("fig:real"), "held-out %(bird_held)s BIRD, %(spider_held)s Spider $\\times$ 4 models" % s), (F("fig:causes"), "failures among the mining questions"),
-             (F("fig:defaults"), "silent references, by author group"), (F("fig:impact"), "%(impact)s silent BIRD questions, %(changed)s change" % s),
+             (F("fig:defaults"), "references of open questions, by author group"), (F("fig:impact"), "%(impact)s open BIRD questions, %(changed)s change" % s),
              (F("tab:answers"), "%(rescore)s BIRD questions $\\times$ 4 models" % s)]),
          exp("e4", "(3*\\X,0 |- r3)", "Two-phase method (%s)" % R("sec:method"), [
              (F("fig:method", "tab:methods"), "AMBROSIA, %(amb_test)s per model, Sonnet and GPT-Sol" % s), (F("tab:methods"), "%(meth)s random request sets" % s),

@@ -352,10 +352,14 @@ def disclosure():
                  "states_faithful": (J.get("%s|open|%s" % (k, m)) or {}).get("faithful") == "yes",
                  "covers_both": {"A", "B"} <= set(D[(k, "open")]["primary_matches"]) | {x for a in D[(k, "open")]["alternatives"] for x in a["matches"]},
                  "false_open": (J.get("%s|%s|%s" % (k, prec[k], m)) or {}).get("claims_open_wrongly") is True,
+                 # 2026-10-30: the other false alarm, by execution: an alternative on a specific request returns the other interpretation;
+                 # an alternative that returns neither reference is on a choice the set does not test (counted, not a false alarm)
+                 "false_other": any(oth(prec[k][-1]) in a["matches"] for a in D[(k, prec[k])]["alternatives"]),
+                 "alt_other_choice": any(a["executes"] and not a["matches"] for a in D[(k, prec[k])]["alternatives"]),
                  "both_precise_plain": k in both,
                  "plain_precise_correct": prec[k][-1] in P[(k, prec[k])]["primary_matches"], "plain_open_admissible": bool(P[(k, "open")]["primary_matches"])} for k in ks}
         res = {}
-        for key in ("precise_correct", "open_admissible", "recognises", "states", "states_faithful", "covers_both", "false_open"):
+        for key in ("precise_correct", "open_admissible", "recognises", "states", "states_faithful", "covers_both", "false_open", "false_other", "alt_other_choice"):
             res[key] = {"k": sum(f[k][key] for k in ks), "n": len(ks), "ci": boot(ks, lambda s, key=key: sum(f[k][key] for k in s) / len(s))}
         mutual = {k for k in ks if C[k].get("label") == "mutually recognized open"}
         dec = lambda S_: {"not_covered": sum(not f[k]["covers_both"] for k in S_), "both_specific_right": sum((not f[k]["covers_both"]) and f[k]["both_precise_plain"] for k in S_), "n": len(S_)}

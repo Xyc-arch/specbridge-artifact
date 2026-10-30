@@ -346,7 +346,7 @@ def impact():
             v = pct(f(r), r["edits"]); ax.barh(y, v, left=left, color=c, height=0.62, **EDGE); left += v
         ax.text(left + 1, y, "%.0f%%" % left, va="center", ha="left", fontsize=6.5)
     ax.set_yticks(range(len(rows))); ax.set_yticklabels([lab for _k, lab in rows], fontsize=6.8)
-    ax.set_xlim(0, 60); ax.set_xticks([0, 20, 40, 60]); ax.set_xlabel("% of silent questions whose answer changes")
+    ax.set_xlim(0, 60); ax.set_xticks([0, 20, 40, 60]); ax.set_xlabel("% of open questions whose answer changes")
     ax.tick_params(axis="y", length=0)
     ax.legend(handles=[Patch(facecolor=c, label=l, **EDGE) for l, c, _f in segs], loc="lower center", bbox_to_anchor=(0.36, 1.0), ncol=3, fontsize=6.3,
               handlelength=0.9, handletextpad=0.35, columnspacing=0.8)
@@ -472,7 +472,7 @@ def choices():
             a2.text(sh + 0.4, y, "%.1f%% of %s" % (sh, format(sum(ref), ",")), fontsize=6.2, va="center")
         if sets: a3.barh(y, sets, h, color=GRAY, **EDGE)
         a3.text(sets + 1.5, y, "%d" % sets, fontsize=6.2, va="center")
-    a1.set_xlim(0, 52); a1.set_xticks([0, 20, 40]); a2.set_xlim(0, 29); a2.set_xticks([0, 5, 10, 15]); a2.set_xlabel("% of silent questions", fontsize=6.5, labelpad=1)
+    a1.set_xlim(0, 52); a1.set_xticks([0, 20, 40]); a2.set_xlim(0, 29); a2.set_xticks([0, 5, 10, 15]); a2.set_xlabel("% of open questions", fontsize=6.5, labelpad=1)
     a3.set_xlim(0, 80); a3.set_xticks([0, 30, 60]); a1.set_xlabel("choices", fontsize=6.5, labelpad=1); a3.set_xlabel("sets", fontsize=6.5, labelpad=1)
     save(fig, "choices", width=7.0)
 
