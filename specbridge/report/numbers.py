@@ -221,6 +221,9 @@ def bird_p(v): R = bird_clar(); return mcnemar(sum(r["c"]["right"] and not r[v][
 
 def amb_three():
     """(ambiguous questions with three interpretations, all ambiguous questions) in the AMBROSIA final test."""
+    if os.path.exists("out/system/scores.jsonl"):             # the release: scores only, no AMBROSIA text (system Table 5 test, both models)
+        g = {x["ambrosia_row"]: x["gold_readings"] for x in map(json.loads, open("out/system/scores.jsonl")) if x["ambiguous"]}
+        return sum(v == 3 for v in g.values()), len(g)
     from specbridge.comm.transfer import ambrosia as AM
     a = [r for r in AM.final_rows() if r["ambiguous"]]; return sum(len(r["gold"]) == 3 for r in a), len(a)
 
