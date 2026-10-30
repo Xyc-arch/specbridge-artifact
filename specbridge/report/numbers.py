@@ -640,7 +640,7 @@ def ledger():
           x("max: twoturn calls (ours - b) / 100", lambda: round(max(-TTD(d, b, "calls") for d in ("ambrosia", "sets") for b in ("ask", "state")) / 100, 1))),
         E("P", r"the same second answer for every method. Per # requests, with one in five", K("rate base")),
         E("P", r"it needs # to # fewer user turns per 100 requests than \method{Clarifying question}", x("twoturn ambrosia user_turns ask-ours", lambda: TTD("ambrosia", "ask", "user_turns")), x("twoturn sets user_turns ask-ours", lambda: TTD("sets", "ask", "user_turns"))),
-        E("P", r"where \method{DtP}'s restatements lose other requirements (# points)", x("pooled_narrow/dtp/sets/both[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["both"][0])),
+        E("P", r"and more than \method{DtP} on request sets, by # points", x("pooled_narrow/dtp/sets/both[0]", lambda: MTH()["pooled_narrow"]["dtp"]["sets"]["both"][0])),
         E("P", r"the same AllFound ($-#$ points) and # points more precision", x("-pooled/dtp/ambrosia/af[0]", lambda: -MTH()["pooled"]["dtp"]["ambrosia"]["af"][0]), x("pooled/dtp/ambrosia/pre[0]", lambda: MTH()["pooled"]["dtp"]["ambrosia"]["pre"][0])),
         E("P", r"\method{Decide-then-search} finds every interpretation for # points more ambiguous questions but is # points less precise, at # times the calls",
           x("pooled/ours/ambrosia/af[0]", lambda: MTH()["pooled"]["ours"]["ambrosia"]["af"][0]), x("-pooled/ours/ambrosia/pre[0]", lambda: -MTH()["pooled"]["ours"]["ambrosia"]["pre"][0]),
