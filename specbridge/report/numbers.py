@@ -490,7 +490,6 @@ def ledger():
         # ---------------- worked example
         # ---------------- library
         E("P", r"\textbf{Finding #: Models make choices", K("label")), E("P", r"\textbf{Finding #: Benchmarks cannot", K("label")), E("P", r"\textbf{Finding #: Deciding first", K("label")),
-        E("P", r"For # of the # choice types, code reads", x("tab2_references.json:table2 library types (strict_cutoff is a part of value_representation)", lambda: len([t for t in REF() if t != "strict_cutoff"])), d("tab2_library", "table1_meaning_from_failures/types")),
         E("P", r"For example, #\% of open tie questions return every tied row, and #\% of open questions that count over a join count",
           x("ties other share", lambda: pc(REF()["ties_and_selection"][1], sum(REF()["ties_and_selection"]))),
           x("counting other share", lambda: pc(REF()["counting_unit"][1], sum(REF()["counting_unit"])))),
