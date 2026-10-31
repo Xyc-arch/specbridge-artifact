@@ -652,6 +652,8 @@ def ledger():
           x("method.json: ambrosia sonnet n_amb + n_clear", lambda: MTH()["ambrosia"]["sonnet"]["method"]["n_amb"] + MTH()["ambrosia"]["sonnet"]["method"]["n_clear"]), K("confidence level")),
                                                                                         E("P", r"still finds every interpretation on $# \pm #$ points more ambiguous questions at no lower precision",
           *[x("method.json: budget/%s|af[%d]" % (k, i), (lambda k=k, i=i: MTH()["budget"]["%s|af" % k][i])) for k in ("answer_vs_cut",) for i in (0, 3)]),
+        E("P", r"this budget finds every interpretation on $# \pm #$ points more ambiguous questions when spent where",
+          *[x("method.json: budget/place_vs_random|af[%d]" % i, (lambda i=i: MTH()["budget"]["place_vs_random|af"][i])) for i in (0, 3)]),
                 E("P", r"Six of the # BIRD questions on which all four models", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"and on # questions every model returns the other interpretation", x("out/rescore/results.json:all_models_other (count)", lambda: len(RSC()["all_models_other"]))),
         E("P", r"``Who is the tallest superhero?'' & # hero & # tied heroes", x("q802 reference rows", lambda: rs_rows("q802", "gold0")), x("q802 edited rows", lambda: rs_rows("q802", "gold"))),
